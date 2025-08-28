@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package peer;
+
+option go_package = "./proto";
+
+service PeerService {
+  rpc ExchangePeers(ExchangeRequest) returns (ExchangeResponse);
+}
+
+message ExchangeRequest {
+  repeated string known_peers = 1;  // List of peer addresses (e.g., "host:port")
+}
+
+message ExchangeResponse {
+  repeated string known_peers = 1;
+}
