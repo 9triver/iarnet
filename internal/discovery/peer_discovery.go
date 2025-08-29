@@ -9,7 +9,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/yourusername/container-peer-service/proto"
+	"github.com/9triver/iarnet/proto"
 )
 
 type PeerManager struct {

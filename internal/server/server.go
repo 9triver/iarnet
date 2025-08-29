@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/9triver/iarnet/internal/resource"
+	"github.com/9triver/iarnet/internal/runner"
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
-	"github.com/yourusername/container-peer-service/internal/resource"
-	"github.com/yourusername/container-peer-service/internal/runner"
 )
 
 type Server struct {

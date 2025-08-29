@@ -9,13 +9,13 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/9triver/iarnet/internal/config"
+	"github.com/9triver/iarnet/internal/discovery"
+	"github.com/9triver/iarnet/internal/resource"
+	"github.com/9triver/iarnet/internal/runner"
+	"github.com/9triver/iarnet/internal/server"
+	"github.com/9triver/iarnet/proto"
 	"github.com/sirupsen/logrus"
-	"github.com/yourusername/container-peer-service/internal/config"
-	"github.com/yourusername/container-peer-service/internal/discovery"
-	"github.com/yourusername/container-peer-service/internal/resource"
-	"github.com/yourusername/container-peer-service/internal/runner"
-	"github.com/yourusername/container-peer-service/internal/server"
-	"github.com/yourusername/container-peer-service/proto"
 	"google.golang.org/grpc"
 )
 
@@ -47,7 +47,11 @@ func main() {
 	case "standalone":
 		r, err = runner.NewStandaloneRunner()
 	case "k8s":
-		r, err = runner.NewK8sRunner()
+		var k8sRunner *runner.K8sRunner
+		k8sRunner, err = runner.NewK8sRunner()
+		if err == nil {
+			r = runner.Runner(k8sRunner)
+		}
 	default:
 		log.Fatalf("Invalid mode: %s", cfg.Mode)
 	}

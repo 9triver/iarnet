@@ -3,7 +3,7 @@ package runner
 import (
 	"context"
 
-	"github.com/yourusername/container-peer-service/internal/resource"
+	"github.com/9triver/iarnet/internal/resource"
 )
 
 type ContainerSpec struct {

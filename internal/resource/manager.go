@@ -47,7 +47,8 @@ func parseMemory(memStr string) (float64, error) {
 	if len(memStr) > 2 && memStr[len(memStr)-2:] == "Gi" {
 		return strconv.ParseFloat(memStr[:len(memStr)-2], 64)
 	}
-	return strconv.ParseFloat(memStr, 64), nil
+	val, err := strconv.ParseFloat(memStr, 64)
+	return val, err
 }
 
 func (rm *ResourceManager) CanAllocate(req ResourceUsage) bool {

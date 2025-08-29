@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/yourusername/container-peer-service/internal/resource"
+	rm "github.com/9triver/iarnet/internal/resource"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -68,7 +68,7 @@ func (r *K8sRunner) Stop(podName string) error {
 	return r.clientset.CoreV1().Pods(r.namespace).Delete(context.Background(), podName, metav1.DeleteOptions{})
 }
 
-func (r *K8sRunner) GetUsage() resource.ResourceUsage {
+func (r *K8sRunner) GetUsage() rm.ResourceUsage {
 	// TODO: List pods with label, sum requests.
-	return resource.ResourceUsage{} // Placeholder
+	return rm.ResourceUsage{} // Placeholder
 }

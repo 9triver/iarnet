@@ -3,10 +3,9 @@ package runner
 import (
 	"context"
 
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/client"
-	"github.com/yourusername/container-peer-service/internal/resource"
+	"github.com/9triver/iarnet/internal/resource"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/client"
 )
 
 type StandaloneRunner struct {
@@ -32,7 +31,7 @@ func (r *StandaloneRunner) Run(ctx context.Context, spec ContainerSpec) error {
 	if err != nil {
 		return err
 	}
-	return r.docker.ContainerStart(ctx, resp.ID, types.ContainerStartOptions{})
+	return r.docker.ContainerStart(ctx, resp.ID, container.StartOptions{})
 }
 
 func (r *StandaloneRunner) Stop(containerID string) error {
