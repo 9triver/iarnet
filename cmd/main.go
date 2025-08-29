@@ -47,11 +47,7 @@ func main() {
 	case "standalone":
 		r, err = runner.NewStandaloneRunner()
 	case "k8s":
-		var k8sRunner *runner.K8sRunner
-		k8sRunner, err = runner.NewK8sRunner()
-		if err == nil {
-			r = runner.Runner(k8sRunner)
-		}
+		r, err = runner.NewK8sRunner()
 	default:
 		log.Fatalf("Invalid mode: %s", cfg.Mode)
 	}
