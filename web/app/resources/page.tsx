@@ -21,7 +21,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { useForm } from "react-hook-form"
-import { Plus, Server, Cpu, HardDrive, Activity, Trash2, Edit, RefreshCw } from "lucide-react"
+import { Plus, Server, Cpu, HardDrive, Activity, Trash2, Edit, RefreshCw, MemoryStick } from "lucide-react"
 
 interface Resource {
   id: string
@@ -353,6 +353,30 @@ export default function ResourcesPage() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">总资源数</CardTitle>
+                <Server className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{resources.length}</div>
+                <p className="text-xs text-muted-foreground">已接入资源节点</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">在线资源</CardTitle>
+                <Activity className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-600">
+                  {resources.filter((r) => r.status === "connected").length}
+                </div>
+                <p className="text-xs text-muted-foreground">正常连接中</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">总CPU核心</CardTitle>
                 <Cpu className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
@@ -369,7 +393,7 @@ export default function ResourcesPage() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">总内存</CardTitle>
-                <HardDrive className="h-4 w-4 text-muted-foreground" />
+                <MemoryStick className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
@@ -377,36 +401,6 @@ export default function ResourcesPage() {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   已分配 {loading ? "--" : capacity ? formatNumber(capacity.allocated.memory) : "--"} GB
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">总GPU</CardTitle>
-                <Activity className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {loading ? "加载中..." : capacity ? formatNumber(capacity.total.gpu) : "--"}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  已分配 {loading ? "--" : capacity ? formatNumber(capacity.allocated.gpu) : "--"} 个
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">可用资源</CardTitle>
-                <Server className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-green-600">
-                  {loading ? "加载中..." : capacity ? `${formatNumber(capacity.available.cpu)}核` : "--"}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  内存 {loading ? "--" : capacity ? formatNumber(capacity.available.memory) : "--"} GB
                 </p>
               </CardContent>
             </Card>
