@@ -48,7 +48,12 @@ func NewManager(limits map[string]string) *Manager {
 		}
 	}
 
-	rm.providers["local-docker"], err = GetLocalDockerProvider()
+	localDockerProvider, err := GetLocalDockerProvider()
+	if err != nil {
+		logrus.Errorf("failed to create local Docker provider: %v", err)
+	} else {
+		rm.providers["local"] = localDockerProvider
+	}
 	return rm
 }
 

@@ -201,7 +201,6 @@ func (dp *DockerProvider) GetProviderID() string {
 
 // GetLocalDockerProvider creates a new local Docker provider instance
 func GetLocalDockerProvider() (*DockerProvider, error) {
-	// 直接创建本地 Docker 客户端，不使用 NewDockerProvider
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create local Docker client: %w", err)
