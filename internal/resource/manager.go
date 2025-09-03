@@ -153,10 +153,26 @@ func (rm *Manager) GetCapacity(ctx context.Context) (*Capacity, error) {
 }
 
 func parseMemory(memStr string) (float64, error) {
-	// Simple parse, assume Gi/Mi, etc. For demo: assume Gi
-	if len(memStr) > 2 && memStr[len(memStr)-2:] == "Gi" {
-		return strconv.ParseFloat(memStr[:len(memStr)-2], 64)
+	// Parse memory string and return bytes
+	if len(memStr) > 2 {
+		unit := memStr[len(memStr)-2:]
+		valStr := memStr[:len(memStr)-2]
+		val, err := strconv.ParseFloat(valStr, 64)
+		if err != nil {
+			return 0, err
+		}
+		switch unit {
+		case "Ki":
+			return val * 1024, nil // KB to bytes
+		case "Mi":
+			return val * 1024 * 1024, nil // MB to bytes
+		case "Gi":
+			return val * 1024 * 1024 * 1024, nil // GB to bytes
+		case "Ti":
+			return val * 1024 * 1024 * 1024 * 1024, nil // TB to bytes
+		}
 	}
+	// If no unit specified, assume bytes
 	val, err := strconv.ParseFloat(memStr, 64)
 	return val, err
 }

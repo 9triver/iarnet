@@ -13,7 +13,7 @@ const nextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: 'http://localhost:8083/:path*'
+        destination: 'http://workspace:8083/:path*'
       }
     ]
   }

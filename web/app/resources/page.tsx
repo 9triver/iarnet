@@ -22,6 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { useForm } from "react-hook-form"
 import { Plus, Server, Cpu, HardDrive, Activity, Trash2, Edit, RefreshCw, MemoryStick } from "lucide-react"
+import { formatMemory, formatNumber } from "@/lib/utils"
 
 interface Resource {
   id: string
@@ -64,10 +65,7 @@ interface Capacity {
   available: Usage
 }
 
-// 格式化数值，保留三位小数
-const formatNumber = (num: number): string => {
-  return Number(num.toFixed(3)).toString()
-}
+// formatNumber函数已移至utils.ts
 
 export default function ResourcesPage() {
   const [resources, setResources] = useState<Resource[]>([
@@ -397,13 +395,28 @@ export default function ResourcesPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {loading ? "加载中..." : capacity ? formatNumber(capacity.total.memory) : "--"} GB
+                  {loading ? "加载中..." : capacity ? formatMemory(capacity.total.memory) : "--"}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  已分配 {loading ? "--" : capacity ? formatNumber(capacity.allocated.memory) : "--"} GB
+                  已分配 {loading ? "--" : capacity ? formatMemory(capacity.allocated.memory) : "--"}
                 </p>
               </CardContent>
             </Card>
+
+            {/* <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">总存储</CardTitle>
+                <HardDrive className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {loading ? "加载中..." : capacity ? formatMemory(capacity.total.storage) : "--"}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  已分配 {loading ? "--" : capacity ? formatMemory(capacity.allocated.storage) : "--"}
+                </p>
+              </CardContent>
+            </Card> */}
           </div>
 
           {/* Resources Table */}

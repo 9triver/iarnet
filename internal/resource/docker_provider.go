@@ -89,7 +89,7 @@ func (dp *DockerProvider) GetCapacity(ctx context.Context) (*Capacity, error) {
 	}
 
 	// Convert memory from bytes to GB
-	totalMemoryGB := float64(info.MemTotal) / (1024 * 1024 * 1024)
+	totalMemoryGB := float64(info.MemTotal)
 
 	// Get CPU count
 	totalCPU := float64(info.NCPU)
@@ -162,7 +162,7 @@ func (dp *DockerProvider) GetAllocated(ctx context.Context) (*Usage, error) {
 		// Get memory limit (convert from bytes to GB)
 		var memAlloc float64
 		if inspect.HostConfig.Resources.Memory > 0 {
-			memAlloc = float64(inspect.HostConfig.Resources.Memory) / (1024 * 1024 * 1024)
+			memAlloc = float64(inspect.HostConfig.Resources.Memory)
 			logrus.Infof("Container %s: Memory limit set to %.2f GB", containerName, memAlloc)
 		} else {
 			// If no memory limit is set, assume the container can use a default amount
