@@ -23,7 +23,7 @@ func NewServer(r runner.Runner, rm *resource.Manager) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{router: mux.NewRouter(), runner: r, resMgr: rm, ctx: ctx, cancel: cancel}
 	s.router.HandleFunc("/run", s.handleRun).Methods("POST")
-	s.router.HandleFunc("/capacity", s.handleCapacity).Methods("GET")
+	s.router.HandleFunc("/resource/capacity", s.handleResourceCapacity).Methods("GET")
 	return s
 }
 
@@ -46,7 +46,7 @@ func (s *Server) handleRun(w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(http.StatusAccepted)
 }
 
-func (s *Server) handleCapacity(w http.ResponseWriter, req *http.Request) {
+func (s *Server) handleResourceCapacity(w http.ResponseWriter, req *http.Request) {
 	capacity, err := s.resMgr.GetCapacity(s.ctx)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
