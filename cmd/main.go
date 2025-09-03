@@ -56,6 +56,17 @@ func main() {
 	}
 
 	rm := resource.NewManager(cfg.ResourceLimits)
+
+	// Register Docker provider if available
+	// Use nil config for local Docker connection (will use default)
+	providerID, err := rm.RegisterProvider(resource.ProviderType.Docker, nil)
+	if err != nil {
+		logrus.Warnf("Failed to register Docker provider: %v", err)
+		logrus.Info("Continuing without Docker provider - using static resource limits")
+	} else {
+		logrus.Infof("Docker provider registered successfully with ID: %s", providerID)
+	}
+
 	pm := discovery.NewPeerManager(cfg.InitialPeers)
 
 	// Start gossip

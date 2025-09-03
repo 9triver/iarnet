@@ -2,22 +2,43 @@ package resource
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"sync"
 
 	"github.com/sirupsen/logrus"
 )
 
+// providerType defines the type of resource provider
+type providerType string
+
+// ProviderType contains all available provider types
+var ProviderType = struct {
+	Docker providerType
+}{
+	Docker: "docker",
+}
+
+// String returns the string representation of providerType
+func (pt providerType) String() string {
+	return string(pt)
+}
+
 type Manager struct {
-	limits  Usage
-	current Usage
-	mu      sync.Mutex
+	limits         Usage
+	current        Usage
+	mu             sync.Mutex
+	providers      map[string]*Provider
+	nextProviderID int
 }
 
 func NewManager(limits map[string]string) *Manager {
-	rm := &Manager{}
+	rm := &Manager{
+		providers:      make(map[string]*Provider),
+		nextProviderID: 1,
+	}
 	for k, v := range limits {
-		switch ResourceType(k) {
+		switch Type(k) {
 		case CPU:
 			rm.limits.CPU, _ = strconv.ParseFloat(v, 64)
 		case Memory:
@@ -26,15 +47,143 @@ func NewManager(limits map[string]string) *Manager {
 			rm.limits.GPU, _ = strconv.ParseFloat(v, 64)
 		}
 	}
+
+	rm.providers["local-docker"], err = GetLocalDockerProvider()
 	return rm
 }
 
-func (rm *Manager) GetCapacity(ctx context.Context) (*Capacity, error) {
-	return nil, nil
+// RegisterProvider creates and registers a resource provider by type
+func (rm *Manager) RegisterProvider(providerType providerType, config interface{}) (string, error) {
+	rm.mu.Lock()
+	defer rm.mu.Unlock()
+
+	// Generate auto-increment provider ID
+	providerID := fmt.Sprintf("%s-%d", providerType, rm.nextProviderID)
+	rm.nextProviderID++
+
+	// Create provider based on type
+	var provider Provider
+	var err error
+
+	switch providerType {
+	case ProviderType.Docker:
+		var dockerConfig DockerConfig
+		if config == nil {
+			// Use default config for local Docker if no config provided
+			dockerConfig = DockerConfig{}
+		} else {
+			// Check if config is of correct type
+			var ok bool
+			dockerConfig, ok = config.(DockerConfig)
+			if !ok {
+				return "", fmt.Errorf("config must be of type DockerConfig, got %T", config)
+			}
+		}
+		provider, err = NewDockerProvider(providerID, dockerConfig)
+		if err != nil {
+			return "", fmt.Errorf("failed to create Docker provider: %w", err)
+		}
+	default:
+		return "", fmt.Errorf("unsupported provider type: %s", providerType)
+	}
+
+	rm.providers[providerID] = &provider
+	return providerID, nil
 }
 
+// UnregisterProvider removes a resource provider
+func (rm *Manager) UnregisterProvider(providerID string) {
+	rm.mu.Lock()
+	defer rm.mu.Unlock()
+	delete(rm.providers, providerID)
+}
+
+// GetProvider returns a registered provider by ID
+func (rm *Manager) GetProvider(providerID string) (Provider, error) {
+	rm.mu.Lock()
+	defer rm.mu.Unlock()
+
+	provider, exists := rm.providers[providerID]
+	if !exists {
+		return nil, fmt.Errorf("provider with ID %s not found", providerID)
+	}
+	return *provider, nil
+}
+
+// GetCapacity returns aggregated capacity from all providers
+func (rm *Manager) GetCapacity(ctx context.Context) (*Capacity, error) {
+	rm.mu.Lock()
+	defer rm.mu.Unlock()
+
+	if len(rm.providers) == 0 {
+		// Fallback to static limits if no providers
+		return &Capacity{
+			Total: rm.limits,
+			Used:  rm.current,
+			Available: Usage{
+				CPU:    rm.limits.CPU - rm.current.CPU,
+				Memory: rm.limits.Memory - rm.current.Memory,
+				GPU:    rm.limits.GPU - rm.current.GPU,
+			},
+		}, nil
+	}
+
+	var totalCapacity, totalUsed Usage
+
+	for _, provider := range rm.providers {
+		capacity, err := (*provider).GetCapacity(ctx)
+		if err != nil {
+			logrus.Warnf("Failed to get capacity from provider %s: %v", (*provider).GetProviderID(), err)
+			continue
+		}
+
+		totalCapacity.CPU += capacity.Total.CPU
+		totalCapacity.Memory += capacity.Total.Memory
+		totalCapacity.GPU += capacity.Total.GPU
+
+		totalUsed.CPU += capacity.Used.CPU
+		totalUsed.Memory += capacity.Used.Memory
+		totalUsed.GPU += capacity.Used.GPU
+	}
+
+	available := Usage{
+		CPU:    totalCapacity.CPU - totalUsed.CPU,
+		Memory: totalCapacity.Memory - totalUsed.Memory,
+		GPU:    totalCapacity.GPU - totalUsed.GPU,
+	}
+
+	return &Capacity{
+		Total:     totalCapacity,
+		Used:      totalUsed,
+		Available: available,
+	}, nil
+}
+
+// GetRealTimeUsage returns aggregated real-time usage from all providers
 func (rm *Manager) GetRealTimeUsage(ctx context.Context) (*Usage, error) {
-	return &rm.current, nil
+	rm.mu.Lock()
+	defer rm.mu.Unlock()
+
+	if len(rm.providers) == 0 {
+		// Fallback to tracked usage if no providers
+		return &rm.current, nil
+	}
+
+	var totalUsage Usage
+
+	for _, provider := range rm.providers {
+		usage, err := (*provider).GetRealTimeUsage(ctx)
+		if err != nil {
+			logrus.Warnf("Failed to get usage from provider %s: %v", (*provider).GetProviderID(), err)
+			continue
+		}
+
+		totalUsage.CPU += usage.CPU
+		totalUsage.Memory += usage.Memory
+		totalUsage.GPU += usage.GPU
+	}
+
+	return &totalUsage, nil
 }
 
 func parseMemory(memStr string) (float64, error) {

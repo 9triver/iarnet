@@ -1,11 +1,11 @@
 package resource
 
-type ResourceType string
+type Type string
 
 const (
-	CPU    ResourceType = "cpu"
-	Memory ResourceType = "memory"
-	GPU    ResourceType = "gpu"
+	CPU    Type = "cpu"
+	Memory Type = "memory"
+	GPU    Type = "gpu"
 )
 
 type Usage struct {
