@@ -19,3 +19,12 @@ Body: {"image": "nginx", "command": ["nginx"], "cpu": 1.0, "memory": 0.5, "gpu":
 - Add error handling, logging, metrics (Prometheus).
 - Secure gRPC/HTTP with TLS.
 - Handle container completion (deallocate resources).
+
+# Web UI
+
+## Quick Start
+
+```shell
+npm install # npm install --legacy-peer-deps
+npm run start
+```

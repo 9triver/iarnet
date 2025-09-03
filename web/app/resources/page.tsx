@@ -172,18 +172,30 @@ export default function ResourcesPage() {
               <p className="text-muted-foreground">接入和管理您的算力资源，包括CPU、GPU、存储和网络资源</p>
             </div>
 
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button
-                  onClick={() => {
-                    setEditingResource(null)
-                    form.reset()
-                  }}
-                >
-                  <Plus className="h-4 w-4" />
-                  接入新资源
-                </Button>
-              </DialogTrigger>
+            <div className="flex items-center space-x-3">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  // TODO: 实现接入新节点功能
+                  console.log('接入新节点')
+                }}
+              >
+                <Plus className="h-4 w-4" />
+                接入新节点
+              </Button>
+              
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button
+                    onClick={() => {
+                      setEditingResource(null)
+                      form.reset()
+                    }}
+                  >
+                    <Plus className="h-4 w-4" />
+                    接入新资源
+                  </Button>
+                </DialogTrigger>
               <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
                   <DialogTitle>{editingResource ? "编辑资源" : "接入新的算力资源"}</DialogTitle>
@@ -287,7 +299,8 @@ export default function ResourcesPage() {
                   </form>
                 </Form>
               </DialogContent>
-            </Dialog>
+              </Dialog>
+            </div>
           </div>
 
           {/* Stats Cards */}
