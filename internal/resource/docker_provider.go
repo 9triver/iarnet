@@ -9,9 +9,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// 全局变量，指向本地 Docker provider 实例
-var localDockerProvider *DockerProvider
-
 // DockerConfig holds configuration for Docker connection
 type DockerConfig struct {
 	// Host is the Docker daemon host (e.g., "tcp://192.168.1.100:2376")
@@ -137,35 +134,43 @@ func (dp *DockerProvider) GetAllocated(ctx context.Context) (*Usage, error) {
 	var totalCPU, totalMemory float64
 
 	for _, container := range containers {
-		// Get container stats
-		stats, err := dp.client.ContainerStats(ctx, container.ID, false)
-		if err != nil {
-			logrus.Warnf("Failed to get stats for container %s: %v", container.ID, err)
-			continue
-		}
-
-		// Parse CPU usage
-		if err = stats.Body.Close(); err != nil {
-			logrus.Warnf("Failed to close stats body for container %s: %v", container.ID, err)
-		}
-
-		// For simplicity, we'll use container inspect to get resource limits
-		// In production, you'd want to parse the actual stats JSON
+		// Get container inspect to get resource limits
 		inspect, err := dp.client.ContainerInspect(ctx, container.ID)
 		if err != nil {
 			logrus.Warnf("Failed to inspect container %s: %v", container.ID, err)
 			continue
 		}
 
-		// Get CPU limit (convert from nano CPUs to CPU cores)
-		if inspect.HostConfig.Resources.NanoCPUs > 0 {
-			totalCPU += float64(inspect.HostConfig.Resources.NanoCPUs) / 1e9
+		containerName := inspect.Name
+		if len(containerName) > 0 && containerName[0] == '/' {
+			containerName = containerName[1:] // Remove leading slash
 		}
 
-		// Get memory limit (convert from bytes to GB)
-		if inspect.HostConfig.Resources.Memory > 0 {
-			totalMemory += float64(inspect.HostConfig.Resources.Memory) / (1024 * 1024 * 1024)
+		// Get CPU limit (convert from nano CPUs to CPU cores)
+		var cpuAlloc float64
+		if inspect.HostConfig.Resources.NanoCPUs > 0 {
+			cpuAlloc = float64(inspect.HostConfig.Resources.NanoCPUs) / 1e9
+			logrus.Infof("Container %s: CPU limit set to %.2f cores", containerName, cpuAlloc)
+		} else {
+			// If no CPU limit is set, assume the container can use all available CPUs
+			// For now, we'll count it as 1 CPU core per container without limits
+			cpuAlloc = 1.0
+			logrus.Infof("Container %s: No CPU limit set, assuming %.2f cores", containerName, cpuAlloc)
 		}
+		totalCPU += cpuAlloc
+
+		// Get memory limit (convert from bytes to GB)
+		var memAlloc float64
+		if inspect.HostConfig.Resources.Memory > 0 {
+			memAlloc = float64(inspect.HostConfig.Resources.Memory) / (1024 * 1024 * 1024)
+			logrus.Infof("Container %s: Memory limit set to %.2f GB", containerName, memAlloc)
+		} else {
+			// If no memory limit is set, assume the container can use a default amount
+			// For now, we'll count it as 2GB per container without limits
+			memAlloc = 2.0
+			logrus.Infof("Container %s: No memory limit set, assuming %.2f GB", containerName, memAlloc)
+		}
+		totalMemory += memAlloc
 
 		// // GPU usage - check for GPU device requests
 		// if inspect.HostConfig.Resources.DeviceRequests != nil {
