@@ -26,5 +26,5 @@ Body: {"image": "nginx", "command": ["nginx"], "cpu": 1.0, "memory": 0.5, "gpu":
 
 ```shell
 npm install # npm install --legacy-peer-deps
-npm run start
+npm run dev
 ```

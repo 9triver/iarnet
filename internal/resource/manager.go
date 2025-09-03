@@ -28,13 +28,13 @@ type Manager struct {
 	limits         Usage
 	current        Usage
 	mu             sync.Mutex
-	providers      map[string]*Provider
+	providers      map[string]Provider
 	nextProviderID int
 }
 
 func NewManager(limits map[string]string) *Manager {
 	rm := &Manager{
-		providers:      make(map[string]*Provider),
+		providers:      make(map[string]Provider),
 		nextProviderID: 1,
 	}
 	for k, v := range limits {
@@ -72,19 +72,7 @@ func (rm *Manager) RegisterProvider(providerType providerType, config interface{
 
 	switch providerType {
 	case ProviderType.Docker:
-		var dockerConfig DockerConfig
-		if config == nil {
-			// Use default config for local Docker if no config provided
-			dockerConfig = DockerConfig{}
-		} else {
-			// Check if config is of correct type
-			var ok bool
-			dockerConfig, ok = config.(DockerConfig)
-			if !ok {
-				return "", fmt.Errorf("config must be of type DockerConfig, got %T", config)
-			}
-		}
-		provider, err = NewDockerProvider(providerID, dockerConfig)
+		provider, err = NewDockerProvider(providerID, config)
 		if err != nil {
 			return "", fmt.Errorf("failed to create Docker provider: %w", err)
 		}
@@ -92,7 +80,7 @@ func (rm *Manager) RegisterProvider(providerType providerType, config interface{
 		return "", fmt.Errorf("unsupported provider type: %s", providerType)
 	}
 
-	rm.providers[providerID] = &provider
+	rm.providers[providerID] = provider
 	return providerID, nil
 }
 
@@ -112,7 +100,7 @@ func (rm *Manager) GetProvider(providerID string) (Provider, error) {
 	if !exists {
 		return nil, fmt.Errorf("provider with ID %s not found", providerID)
 	}
-	return *provider, nil
+	return provider, nil
 }
 
 // GetCapacity returns aggregated capacity from all providers
@@ -123,8 +111,8 @@ func (rm *Manager) GetCapacity(ctx context.Context) (*Capacity, error) {
 	if len(rm.providers) == 0 {
 		// Fallback to static limits if no providers
 		return &Capacity{
-			Total: rm.limits,
-			Used:  rm.current,
+			Total:     rm.limits,
+			Allocated: rm.current,
 			Available: Usage{
 				CPU:    rm.limits.CPU - rm.current.CPU,
 				Memory: rm.limits.Memory - rm.current.Memory,
@@ -133,12 +121,12 @@ func (rm *Manager) GetCapacity(ctx context.Context) (*Capacity, error) {
 		}, nil
 	}
 
-	var totalCapacity, totalUsed Usage
+	var totalCapacity, totalAllocated Usage
 
 	for _, provider := range rm.providers {
-		capacity, err := (*provider).GetCapacity(ctx)
+		capacity, err := provider.GetCapacity(ctx)
 		if err != nil {
-			logrus.Warnf("Failed to get capacity from provider %s: %v", (*provider).GetProviderID(), err)
+			logrus.Warnf("Failed to get capacity from provider %s: %v", provider.GetProviderID(), err)
 			continue
 		}
 
@@ -146,49 +134,22 @@ func (rm *Manager) GetCapacity(ctx context.Context) (*Capacity, error) {
 		totalCapacity.Memory += capacity.Total.Memory
 		totalCapacity.GPU += capacity.Total.GPU
 
-		totalUsed.CPU += capacity.Used.CPU
-		totalUsed.Memory += capacity.Used.Memory
-		totalUsed.GPU += capacity.Used.GPU
+		totalAllocated.CPU += capacity.Allocated.CPU
+		totalAllocated.Memory += capacity.Allocated.Memory
+		totalAllocated.GPU += capacity.Allocated.GPU
 	}
 
 	available := Usage{
-		CPU:    totalCapacity.CPU - totalUsed.CPU,
-		Memory: totalCapacity.Memory - totalUsed.Memory,
-		GPU:    totalCapacity.GPU - totalUsed.GPU,
+		CPU:    totalCapacity.CPU - totalAllocated.CPU,
+		Memory: totalCapacity.Memory - totalAllocated.Memory,
+		GPU:    totalCapacity.GPU - totalAllocated.GPU,
 	}
 
 	return &Capacity{
 		Total:     totalCapacity,
-		Used:      totalUsed,
+		Allocated: totalAllocated,
 		Available: available,
 	}, nil
-}
-
-// GetRealTimeUsage returns aggregated real-time usage from all providers
-func (rm *Manager) GetRealTimeUsage(ctx context.Context) (*Usage, error) {
-	rm.mu.Lock()
-	defer rm.mu.Unlock()
-
-	if len(rm.providers) == 0 {
-		// Fallback to tracked usage if no providers
-		return &rm.current, nil
-	}
-
-	var totalUsage Usage
-
-	for _, provider := range rm.providers {
-		usage, err := (*provider).GetRealTimeUsage(ctx)
-		if err != nil {
-			logrus.Warnf("Failed to get usage from provider %s: %v", (*provider).GetProviderID(), err)
-			continue
-		}
-
-		totalUsage.CPU += usage.CPU
-		totalUsage.Memory += usage.Memory
-		totalUsage.GPU += usage.GPU
-	}
-
-	return &totalUsage, nil
 }
 
 func parseMemory(memStr string) (float64, error) {

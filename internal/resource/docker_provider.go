@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moby/moby/api/types"
+	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/client"
 	"github.com/sirupsen/logrus"
 )
@@ -99,41 +99,41 @@ func (dp *DockerProvider) GetCapacity(ctx context.Context) (*Capacity, error) {
 
 	// For GPU, we need to check if nvidia-docker is available
 	// This is a simplified approach - in production you might want to use nvidia-ml-go
-	totalGPU := dp.getGPUCount(ctx)
+	// totalGPU := dp.getGPUCount(ctx)
 
 	total := Usage{
 		CPU:    totalCPU,
 		Memory: totalMemoryGB,
-		GPU:    totalGPU,
+		GPU:    0,
 	}
 
 	// Get current usage
-	used, err := dp.GetRealTimeUsage(ctx)
+	allocated, err := dp.GetAllocated(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get current usage: %w", err)
 	}
 
 	available := Usage{
-		CPU:    total.CPU - used.CPU,
-		Memory: total.Memory - used.Memory,
-		GPU:    total.GPU - used.GPU,
+		CPU:    total.CPU - allocated.CPU,
+		Memory: total.Memory - allocated.Memory,
+		GPU:    total.GPU - allocated.GPU,
 	}
 
 	return &Capacity{
 		Total:     total,
-		Used:      *used,
+		Allocated: *allocated,
 		Available: available,
 	}, nil
 }
 
 // GetRealTimeUsage returns current resource usage by all Docker containers
-func (dp *DockerProvider) GetRealTimeUsage(ctx context.Context) (*Usage, error) {
-	containers, err := dp.client.ContainerList(ctx, types.ContainerListOptions{})
+func (dp *DockerProvider) GetAllocated(ctx context.Context) (*Usage, error) {
+	containers, err := dp.client.ContainerList(ctx, container.ListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list containers: %w", err)
 	}
 
-	var totalCPU, totalMemory, totalGPU float64
+	var totalCPU, totalMemory float64
 
 	for _, container := range containers {
 		// Get container stats
@@ -144,8 +144,7 @@ func (dp *DockerProvider) GetRealTimeUsage(ctx context.Context) (*Usage, error) 
 		}
 
 		// Parse CPU usage
-		var statsJSON types.StatsJSON
-		if err := stats.Body.Close(); err != nil {
+		if err = stats.Body.Close(); err != nil {
 			logrus.Warnf("Failed to close stats body for container %s: %v", container.ID, err)
 		}
 
@@ -167,25 +166,24 @@ func (dp *DockerProvider) GetRealTimeUsage(ctx context.Context) (*Usage, error) 
 			totalMemory += float64(inspect.HostConfig.Resources.Memory) / (1024 * 1024 * 1024)
 		}
 
-		// GPU usage - check for GPU device requests
-		if inspect.HostConfig.Resources.DeviceRequests != nil {
-			for _, req := range inspect.HostConfig.Resources.DeviceRequests {
-				if req.Driver == "nvidia" {
-					// Count GPU devices
-					if req.Count > 0 {
-						totalGPU += float64(req.Count)
-					} else if len(req.DeviceIDs) > 0 {
-						totalGPU += float64(len(req.DeviceIDs))
-					}
-				}
-			}
-		}
+		// // GPU usage - check for GPU device requests
+		// if inspect.HostConfig.Resources.DeviceRequests != nil {
+		// 	for _, req := range inspect.HostConfig.Resources.DeviceRequests {
+		// 		if req.Driver == "nvidia" {
+		// 			// Count GPU devices
+		// 			if req.Count > 0 {
+		// 				totalGPU += float64(req.Count)
+		// 			} else if len(req.DeviceIDs) > 0 {
+		// 				totalGPU += float64(len(req.DeviceIDs))
+		// 			}
+		// 		}
+		// 	}
+		// }
 	}
 
 	return &Usage{
 		CPU:    totalCPU,
 		Memory: totalMemory,
-		GPU:    totalGPU,
 	}, nil
 }
 
@@ -214,28 +212,28 @@ func GetLocalDockerProvider() (*DockerProvider, error) {
 	return dp, nil
 }
 
-// getGPUCount attempts to detect available GPUs
-// This is a simplified implementation
-func (dp *DockerProvider) getGPUCount(ctx context.Context) float64 {
-	// Try to get GPU info from Docker info
-	info, err := dp.client.Info(ctx)
-	if err != nil {
-		return 0
-	}
+// // getGPUCount attempts to detect available GPUs
+// // This is a simplified implementation
+// func (dp *DockerProvider) getGPUCount(ctx context.Context) float64 {
+// 	// Try to get GPU info from Docker info
+// 	info, err := dp.client.Info(ctx)
+// 	if err != nil {
+// 		return 0
+// 	}
 
-	// Check for nvidia runtime
-	for runtime := range info.Runtimes {
-		if runtime == "nvidia" {
-			// If nvidia runtime is available, assume at least 1 GPU
-			// In production, you'd want to use nvidia-ml-go or similar
-			return 1
-		}
-	}
+// 	// Check for nvidia runtime
+// 	for runtime := range info.Runtimes {
+// 		if runtime == "nvidia" {
+// 			// If nvidia runtime is available, assume at least 1 GPU
+// 			// In production, you'd want to use nvidia-ml-go or similar
+// 			return 1
+// 		}
+// 	}
 
-	// Check environment variable or other methods
-	// This is a placeholder - implement based on your needs
-	return 0
-}
+// 	// Check environment variable or other methods
+// 	// This is a placeholder - implement based on your needs
+// 	return 0
+// }
 
 // Close closes the Docker client connection
 func (dp *DockerProvider) Close() error {
