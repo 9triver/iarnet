@@ -1,5 +1,5 @@
 mode: ""  # Auto-detect, or set to "standalone" or "k8s"
-listen_addr: ":8080"
+listen_addr: ":8083"
 peer_listen_addr: ":50051"
 initial_peers:
   - "peer2.example.com:50051"

@@ -132,6 +132,7 @@ func (dp *DockerProvider) GetAllocated(ctx context.Context) (*Usage, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to list containers: %w", err)
 	}
+	logrus.Infof("docker provider get allocated, container count: %d", len(containers))
 
 	var totalCPU, totalMemory float64
 
@@ -180,6 +181,8 @@ func (dp *DockerProvider) GetAllocated(ctx context.Context) (*Usage, error) {
 		// 	}
 		// }
 	}
+
+	logrus.Infof("docker provider get allocated, allocatedCPU: %f, allocatedMemory: %f", totalCPU, totalMemory)
 
 	return &Usage{
 		CPU:    totalCPU,
