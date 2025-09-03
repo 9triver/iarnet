@@ -55,7 +55,7 @@ func main() {
 		log.Fatalf("Runner init: %v", err)
 	}
 
-	rm := resource.NewResourceManager(cfg.ResourceLimits)
+	rm := resource.NewManager(cfg.ResourceLimits)
 	pm := discovery.NewPeerManager(cfg.InitialPeers)
 
 	// Start gossip

@@ -17,5 +17,5 @@ type ContainerSpec struct {
 type Runner interface {
 	Run(ctx context.Context, spec ContainerSpec) error
 	Stop(containerID string) error
-	GetUsage() resource.ResourceUsage // For monitoring
+	GetUsage() resource.Usage // For monitoring
 }

@@ -38,7 +38,7 @@ func (r *StandaloneRunner) Stop(containerID string) error {
 	return r.docker.ContainerStop(context.Background(), containerID, container.StopOptions{})
 }
 
-func (r *StandaloneRunner) GetUsage() resource.ResourceUsage {
+func (r *StandaloneRunner) GetUsage() resource.Usage {
 	// TODO: Poll docker stats for all managed containers.
-	return resource.ResourceUsage{} // Placeholder
+	return resource.Usage{} // Placeholder
 }

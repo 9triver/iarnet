@@ -14,12 +14,12 @@ import (
 type Server struct {
 	router *mux.Router
 	runner runner.Runner
-	resMgr *resource.ResourceManager
+	resMgr *resource.Manager
 	ctx    context.Context
 	cancel context.CancelFunc
 }
 
-func NewServer(r runner.Runner, rm *resource.ResourceManager) *Server {
+func NewServer(r runner.Runner, rm *resource.Manager) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{router: mux.NewRouter(), runner: r, resMgr: rm, ctx: ctx, cancel: cancel}
 	s.router.HandleFunc("/run", s.handleRun).Methods("POST")
@@ -32,7 +32,7 @@ func (s *Server) handleRun(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	usageReq := resource.ResourceUsage{CPU: spec.CPU, Memory: spec.Memory, GPU: spec.GPU}
+	usageReq := resource.Usage{CPU: spec.CPU, Memory: spec.Memory, GPU: spec.GPU}
 	if !s.resMgr.CanAllocate(usageReq) {
 		http.Error(w, "Resource limit exceeded", http.StatusServiceUnavailable)
 		return

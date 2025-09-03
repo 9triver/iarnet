@@ -1,34 +1,21 @@
 package resource
 
 import (
+	"context"
 	"strconv"
 	"sync"
 
 	"github.com/sirupsen/logrus"
 )
 
-type ResourceType string
-
-const (
-	CPU    ResourceType = "cpu"
-	Memory ResourceType = "memory"
-	GPU    ResourceType = "gpu"
-)
-
-type ResourceUsage struct {
-	CPU    float64
-	Memory float64
-	GPU    float64
-}
-
-type ResourceManager struct {
-	limits  ResourceUsage
-	current ResourceUsage
+type Manager struct {
+	limits  Usage
+	current Usage
 	mu      sync.Mutex
 }
 
-func NewResourceManager(limits map[string]string) *ResourceManager {
-	rm := &ResourceManager{}
+func NewManager(limits map[string]string) *Manager {
+	rm := &Manager{}
 	for k, v := range limits {
 		switch ResourceType(k) {
 		case CPU:
@@ -42,6 +29,14 @@ func NewResourceManager(limits map[string]string) *ResourceManager {
 	return rm
 }
 
+func (rm *Manager) GetCapacity(ctx context.Context) (*Capacity, error) {
+	return nil, nil
+}
+
+func (rm *Manager) GetRealTimeUsage(ctx context.Context) (*Usage, error) {
+	return &rm.current, nil
+}
+
 func parseMemory(memStr string) (float64, error) {
 	// Simple parse, assume Gi/Mi, etc. For demo: assume Gi
 	if len(memStr) > 2 && memStr[len(memStr)-2:] == "Gi" {
@@ -51,7 +46,7 @@ func parseMemory(memStr string) (float64, error) {
 	return val, err
 }
 
-func (rm *ResourceManager) CanAllocate(req ResourceUsage) bool {
+func (rm *Manager) CanAllocate(req Usage) bool {
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
 	if rm.current.CPU+req.CPU > rm.limits.CPU ||
@@ -62,7 +57,7 @@ func (rm *ResourceManager) CanAllocate(req ResourceUsage) bool {
 	return true
 }
 
-func (rm *ResourceManager) Allocate(req ResourceUsage) {
+func (rm *Manager) Allocate(req Usage) {
 	rm.mu.Lock()
 	rm.current.CPU += req.CPU
 	rm.current.Memory += req.Memory
@@ -71,7 +66,7 @@ func (rm *ResourceManager) Allocate(req ResourceUsage) {
 	logrus.Infof("Allocated: %+v, Current: %+v", req, rm.current)
 }
 
-func (rm *ResourceManager) Deallocate(req ResourceUsage) {
+func (rm *Manager) Deallocate(req Usage) {
 	rm.mu.Lock()
 	rm.current.CPU -= req.CPU
 	rm.current.Memory -= req.Memory
@@ -81,6 +76,6 @@ func (rm *ResourceManager) Deallocate(req ResourceUsage) {
 }
 
 // Monitor: Would poll Docker/K8s for actual usage, but for simplicity, assume requested == used.
-func (rm *ResourceManager) StartMonitoring() {
+func (rm *Manager) StartMonitoring() {
 	// TODO: Implement polling for real usage.
 }

@@ -68,7 +68,7 @@ func (r *K8sRunner) Stop(podName string) error {
 	return r.clientset.CoreV1().Pods(r.namespace).Delete(context.Background(), podName, metav1.DeleteOptions{})
 }
 
-func (r *K8sRunner) GetUsage() rm.ResourceUsage {
+func (r *K8sRunner) GetUsage() rm.Usage {
 	// TODO: List pods with label, sum requests.
-	return rm.ResourceUsage{} // Placeholder
+	return rm.Usage{} // Placeholder
 }
