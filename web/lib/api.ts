@@ -28,12 +28,18 @@ async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promi
     throw new APIError(response.status, data.error || "API request failed")
   }
 
+  // 对于 /resource/capacity 接口，直接返回数据
+  if (endpoint === '/resource/capacity') {
+    return data
+  }
+
   return data.data
 }
 
 // 资源管理 API
 export const resourcesAPI = {
   getAll: () => apiRequest("/resources"),
+  getCapacity: () => apiRequest("/resource/capacity"),
   create: (resource: any) =>
     apiRequest("/resources", {
       method: "POST",

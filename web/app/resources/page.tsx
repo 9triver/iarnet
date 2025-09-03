@@ -1,7 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Sidebar } from "@/components/sidebar"
+import { resourcesAPI } from "@/lib/api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -51,6 +52,23 @@ interface ResourceFormData {
   description?: string
 }
 
+interface Usage {
+  cpu: number
+  memory: number
+  gpu: number
+}
+
+interface Capacity {
+  total: Usage
+  allocated: Usage
+  available: Usage
+}
+
+// 格式化数值，保留三位小数
+const formatNumber = (num: number): string => {
+  return Number(num.toFixed(3)).toString()
+}
+
 export default function ResourcesPage() {
   const [resources, setResources] = useState<Resource[]>([
     {
@@ -77,8 +95,10 @@ export default function ResourcesPage() {
     },
   ])
 
+  const [capacity, setCapacity] = useState<Capacity | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingResource, setEditingResource] = useState<Resource | null>(null)
+  const [loading, setLoading] = useState(false)
 
   const form = useForm<ResourceFormData>({
     defaultValues: {
@@ -89,6 +109,23 @@ export default function ResourcesPage() {
       description: "",
     },
   })
+
+  // 获取资源容量数据
+  const fetchCapacity = async () => {
+    try {
+      setLoading(true)
+      const data = await resourcesAPI.getCapacity()
+      setCapacity(data as Capacity)
+    } catch (error) {
+      console.error('Failed to fetch capacity:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchCapacity()
+  }, [])
 
   const onSubmit = (data: ResourceFormData) => {
     if (editingResource) {
@@ -173,6 +210,15 @@ export default function ResourcesPage() {
             </div>
 
             <div className="flex items-center space-x-3">
+              <Button
+                variant="outline"
+                onClick={fetchCapacity}
+                disabled={loading}
+              >
+                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                刷新数据
+              </Button>
+              
               <Button
                 variant="outline"
                 onClick={() => {
@@ -307,50 +353,60 @@ export default function ResourcesPage() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">总资源数</CardTitle>
-                <Server className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{resources.length}</div>
-                <p className="text-xs text-muted-foreground">已接入资源节点</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">在线资源</CardTitle>
-                <Activity className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-green-600">
-                  {resources.filter((r) => r.status === "connected").length}
-                </div>
-                <p className="text-xs text-muted-foreground">正常连接中</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">总CPU核心</CardTitle>
                 <Cpu className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{resources.reduce((sum, r) => sum + r.cpu.total, 0)}</div>
+                <div className="text-2xl font-bold">
+                  {loading ? "加载中..." : capacity ? formatNumber(capacity.total.cpu) : "--"}
+                </div>
                 <p className="text-xs text-muted-foreground">
-                  已使用 {resources.reduce((sum, r) => sum + r.cpu.used, 0)} 核心
+                  已分配 {loading ? "--" : capacity ? formatNumber(capacity.allocated.cpu) : "--"} 核心
                 </p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">总存储</CardTitle>
+                <CardTitle className="text-sm font-medium">总内存</CardTitle>
                 <HardDrive className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{resources.reduce((sum, r) => sum + r.storage.total, 0)} GB</div>
+                <div className="text-2xl font-bold">
+                  {loading ? "加载中..." : capacity ? formatNumber(capacity.total.memory) : "--"} GB
+                </div>
                 <p className="text-xs text-muted-foreground">
-                  已使用 {resources.reduce((sum, r) => sum + r.storage.used, 0)} GB
+                  已分配 {loading ? "--" : capacity ? formatNumber(capacity.allocated.memory) : "--"} GB
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">总GPU</CardTitle>
+                <Activity className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {loading ? "加载中..." : capacity ? formatNumber(capacity.total.gpu) : "--"}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  已分配 {loading ? "--" : capacity ? formatNumber(capacity.allocated.gpu) : "--"} 个
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">可用资源</CardTitle>
+                <Server className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-600">
+                  {loading ? "加载中..." : capacity ? `${formatNumber(capacity.available.cpu)}核` : "--"}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  内存 {loading ? "--" : capacity ? formatNumber(capacity.available.memory) : "--"} GB
                 </p>
               </CardContent>
             </Card>
