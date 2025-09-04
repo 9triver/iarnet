@@ -35,6 +35,7 @@ type DockerProvider struct {
 	config         DockerConfig
 	lastUpdateTime time.Time
 	status         Status
+	name           string
 }
 
 // NewDockerProvider creates a new Docker resource provider
@@ -212,7 +213,7 @@ func (dp *DockerProvider) GetID() string {
 }
 
 func (dp *DockerProvider) GetName() string {
-	return "docker"
+	return dp.name
 }
 
 // GetLocalDockerProvider creates a new local Docker provider instance
@@ -227,6 +228,7 @@ func GetLocalDockerProvider() (*DockerProvider, error) {
 		providerID: "local-docker",
 	}
 
+	dp.name = "local"
 	dp.lastUpdateTime = time.Now()
 	dp.status = StatusConnected
 
