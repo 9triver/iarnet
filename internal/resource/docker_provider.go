@@ -170,12 +170,12 @@ func (dp *DockerProvider) GetAllocated(ctx context.Context) (*Usage, error) {
 		var memAlloc float64
 		if inspect.HostConfig.Resources.Memory > 0 {
 			memAlloc = float64(inspect.HostConfig.Resources.Memory)
-			logrus.Infof("Container %s: Memory limit set to %.2f GB", containerName, memAlloc)
+			logrus.Infof("Container %s: Memory limit set to %.2f Bytes", containerName, memAlloc)
 		} else {
 			// If no memory limit is set, assume the container can use a default amount
 			// For now, we'll count it as 2GB per container without limits
 			memAlloc = 2.0
-			logrus.Infof("Container %s: No memory limit set, assuming %.2f GB", containerName, memAlloc)
+			logrus.Infof("Container %s: No memory limit set, assuming %.2f Bytes", containerName, memAlloc)
 		}
 		totalMemory += memAlloc
 
@@ -280,8 +280,8 @@ func (dp *DockerProvider) Deploy(ctx context.Context, spec ContainerSpec) (strin
 		Cmd:   spec.Command,
 	}, &container.HostConfig{
 		Resources: container.Resources{
-			CPUQuota: int64(spec.CPU * 100000), // Rough conversion
-			Memory:   int64(spec.Memory * 1024 * 1024 * 1024),
+			NanoCPUs: int64(spec.CPU * 1e9), // Rough conversion
+			Memory:   int64(spec.Memory),
 			// GPU: Docker GPU support requires nvidia-docker, assume configured.
 		},
 	}, nil, nil, "")

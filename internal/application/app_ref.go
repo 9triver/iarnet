@@ -1,6 +1,10 @@
 package application
 
-import "github.com/9triver/iarnet/internal/resource"
+import (
+	"time"
+
+	"github.com/9triver/iarnet/internal/resource"
+)
 
 type Status int32
 
@@ -32,4 +36,23 @@ type AppRef struct {
 	Name         string
 	ContainerRef *resource.ContainerRef
 	Status       Status
+	ImportType   string // "git" or "docker"
+	GitUrl       *string
+	Branch       *string
+	DockerImage  *string
+	DockerTag    *string
+	Type         string // "web", "api", "worker", "database"
+	Description  *string
+	Ports        []int
+	HealthCheck  *string
+	LastDeployed time.Time
+}
+
+func (a *AppRef) GetRunningOn() []string {
+	if a.ContainerRef == nil {
+		return []string{}
+	}
+
+	// TODO: support multi provider
+	return []string{a.ContainerRef.Provider.GetName()}
 }

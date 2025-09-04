@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/9triver/iarnet/internal/application"
 	"github.com/9triver/iarnet/internal/resource"
@@ -30,7 +31,7 @@ func NewServer(r runner.Runner, rm *resource.Manager, am *application.Manager) *
 	s.router.HandleFunc("/resource/capacity", s.handleResourceCapacity).Methods("GET")
 	s.router.HandleFunc("/resource/providers", s.handleResourceProviders).Methods("GET")
 
-	s.router.HandleFunc("/applications", s.handleGetApplications).Methods("GET")
+	s.router.HandleFunc("/application/apps", s.handleGetApplications).Methods("GET")
 	s.router.HandleFunc("/application/stats", s.handleGetApplicationStats).Methods("GET")
 	s.router.HandleFunc("/application/create", s.handleCreateApplication).Methods("POST")
 
@@ -114,7 +115,30 @@ func (s *Server) handleGetApplications(w http.ResponseWriter, req *http.Request)
 	logrus.Info("Received request to get all applications")
 	apps := s.appMgr.GetAllApplications()
 	logrus.Infof("Retrieved %d applications from manager", len(apps))
-	if err := response.WriteSuccess(w, apps); err != nil {
+
+	appInfos := []response.ApplicationInfo{}
+	for _, app := range apps {
+		appInfos = append(appInfos, response.ApplicationInfo{
+			Name:         app.Name,
+			ImportType:   app.ImportType,
+			GitUrl:       app.GitUrl,
+			Branch:       app.Branch,
+			DockerImage:  app.DockerImage,
+			DockerTag:    app.DockerTag,
+			Type:         app.Type,
+			Description:  app.Description,
+			Ports:        app.Ports,
+			HealthCheck:  app.HealthCheck,
+			LastDeployed: app.LastDeployed.Format("2006-01-02 15:04:05"),
+			RunningOn:    app.GetRunningOn(),
+		})
+	}
+
+	getApplicationsResponse := response.GetApplicationsResponse{
+		Applications: appInfos,
+	}
+
+	if err := response.WriteSuccess(w, getApplicationsResponse); err != nil {
 		logrus.Errorf("Failed to write applications response: %v", err)
 		return
 	}
@@ -190,7 +214,7 @@ func (s *Server) handleCreateApplication(w http.ResponseWriter, req *http.Reques
 
 	// 创建应用
 	logrus.Infof("Creating application instance for: %s", createReq.Name)
-	app := s.appMgr.CreateApplication(createReq.Name)
+	app := s.appMgr.CreateApplication(&createReq)
 	logrus.Infof("Application created with ID: %s", app.ID)
 
 	// 构建容器规格
@@ -208,9 +232,9 @@ func (s *Server) handleCreateApplication(w http.ResponseWriter, req *http.Reques
 	}
 
 	// 设置默认资源限制
-	spec.CPU = 1.0     // 1 CPU 核心
-	spec.Memory = 1024 // 1GB 内存
-	spec.GPU = 0       // 默认不使用 GPU
+	spec.CPU = 1.0                   // 1 CPU 核心
+	spec.Memory = 1024 * 1024 * 1024 // 1GB 内存
+	spec.GPU = 0                     // 默认不使用 GPU
 	logrus.Infof("Resource limits set: CPU=%.1f, Memory=%dMB, GPU=%d", spec.CPU, spec.Memory, spec.GPU)
 
 	if len(createReq.Ports) > 0 {
@@ -239,6 +263,8 @@ func (s *Server) handleCreateApplication(w http.ResponseWriter, req *http.Reques
 	// 更新应用状态为运行中
 	app.Status = application.StatusRunning
 	logrus.Infof("Application %s status updated to RUNNING", app.ID)
+
+	app.LastDeployed = time.Now()
 
 	// 返回简单的成功响应
 	responseData := map[string]interface{}{

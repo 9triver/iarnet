@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/9triver/iarnet/internal/server/request"
 	"github.com/sirupsen/logrus"
 )
 
@@ -21,18 +22,29 @@ func NewManager() *Manager {
 	}
 }
 
-func (m *Manager) CreateApplication(name string) *AppRef {
+func (m *Manager) CreateApplication(createReq *request.CreateApplicationRequest) *AppRef {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	appID := strconv.Itoa(m.nextAppID)
 	m.nextAppID++
 	app := &AppRef{
-		ID:     appID,
-		Name:   name,
-		Status: StatusUndeployed,
+		ID:           appID,
+		Name:         createReq.Name,
+		ContainerRef: nil,
+		Status:       StatusUndeployed,
+		Type:         createReq.Type,
+		ImportType:   createReq.ImportType,
+		GitUrl:       createReq.GitUrl,
+		Branch:       createReq.Branch,
+		DockerImage:  createReq.DockerImage,
+		DockerTag:    createReq.DockerTag,
+		Description:  createReq.Description,
+		Ports:        createReq.Ports,
+		HealthCheck:  createReq.HealthCheck,
 	}
 	m.applications[appID] = app
-	logrus.Infof("Application created in manager: ID=%s, Name=%s, Status=%s", appID, name, StatusUndeployed)
+	logrus.Infof("Application created in manager: ID=%s, Name=%s, Status=%s", appID, createReq.Name, app.Status)
+
 	return app
 }
 
