@@ -27,7 +27,7 @@ func (pt providerType) String() string {
 type Manager struct {
 	limits         Usage
 	current        Usage
-	mu             sync.Mutex
+	mu             sync.RWMutex
 	providers      map[string]Provider
 	nextProviderID int
 }
@@ -93,8 +93,8 @@ func (rm *Manager) UnregisterProvider(providerID string) {
 
 // GetProvider returns a registered provider by ID
 func (rm *Manager) GetProvider(providerID string) (Provider, error) {
-	rm.mu.Lock()
-	defer rm.mu.Unlock()
+	rm.mu.RLock()
+	defer rm.mu.RUnlock()
 
 	provider, exists := rm.providers[providerID]
 	if !exists {
@@ -105,8 +105,8 @@ func (rm *Manager) GetProvider(providerID string) (Provider, error) {
 
 // GetCapacity returns aggregated capacity from all providers
 func (rm *Manager) GetCapacity(ctx context.Context) (*Capacity, error) {
-	rm.mu.Lock()
-	defer rm.mu.Unlock()
+	rm.mu.RLock()
+	defer rm.mu.RUnlock()
 
 	if len(rm.providers) == 0 {
 		// Fallback to static limits if no providers
@@ -177,15 +177,57 @@ func parseMemory(memStr string) (float64, error) {
 	return val, err
 }
 
-func (rm *Manager) CanAllocate(req Usage) bool {
+func (rm *Manager) Deploy(ctx context.Context, containerSpec ContainerSpec) (*ContainerRef, error) {
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
-	if rm.current.CPU+req.CPU > rm.limits.CPU ||
-		rm.current.Memory+req.Memory > rm.limits.Memory ||
-		rm.current.GPU+req.GPU > rm.limits.GPU {
-		return false
+	// 检查资源是否充足
+	usageReq := Usage{CPU: containerSpec.CPU, Memory: containerSpec.Memory, GPU: containerSpec.GPU}
+
+	provider := rm.CanAllocate(usageReq)
+	if provider == nil {
+		return nil, fmt.Errorf("resource limit exceeded")
 	}
-	return true
+
+	// 部署应用
+	containerID, err := provider.Deploy(ctx, containerSpec)
+	if err != nil {
+		return nil, fmt.Errorf("failed to deploy application: %w", err)
+	}
+
+	// TODO: sync cache
+
+	return &ContainerRef{
+		ID:       containerID,
+		Provider: provider,
+		Spec:     containerSpec,
+	}, nil
+}
+
+func (rm *Manager) CanAllocate(req Usage) Provider {
+	rm.mu.RLock()
+	defer rm.mu.RUnlock()
+
+	// 遍历所有 providers，找到满足条件的 provider
+	for _, provider := range rm.providers {
+		if provider.GetStatus() == StatusConnected {
+			// 获取 provider 的容量信息
+			capacity, err := provider.GetCapacity(context.Background())
+			if err != nil {
+				logrus.WithError(err).Warnf("Failed to get capacity for provider %s", provider.GetID())
+				continue
+			}
+
+			// 检查是否有足够的资源
+			if capacity.Available.CPU >= req.CPU &&
+				capacity.Available.Memory >= req.Memory &&
+				capacity.Available.GPU >= req.GPU {
+				return provider
+			}
+		}
+	}
+
+	// 如果没有找到满足条件的 provider，返回 nil
+	return nil
 }
 
 func (rm *Manager) Allocate(req Usage) {
@@ -213,8 +255,8 @@ func (rm *Manager) StartMonitoring() {
 
 // GetProviders 返回所有注册的资源提供者
 func (rm *Manager) GetProviders() []Provider {
-	rm.mu.Lock()
-	defer rm.mu.Unlock()
+	rm.mu.RLock()
+	defer rm.mu.RUnlock()
 
 	providers := make([]Provider, 0, len(rm.providers))
 	for _, provider := range rm.providers {

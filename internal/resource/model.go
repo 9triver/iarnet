@@ -19,3 +19,17 @@ type Capacity struct {
 	Used      Usage `json:"used"`
 	Available Usage `json:"available"`
 }
+
+type ContainerRef struct {
+	ID       string        `json:"id"`
+	Provider Provider      `json:"provider"`
+	Spec     ContainerSpec `json:"spec"`
+}
+
+type ContainerSpec struct {
+	Image   string
+	Command []string
+	CPU     float64
+	Memory  float64
+	GPU     float64
+}

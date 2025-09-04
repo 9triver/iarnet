@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/9triver/iarnet/internal/application"
 	"github.com/9triver/iarnet/internal/config"
 	"github.com/9triver/iarnet/internal/discovery"
 	"github.com/9triver/iarnet/internal/resource"
@@ -56,9 +57,17 @@ func main() {
 	}
 
 	rm := resource.NewManager(cfg.ResourceLimits)
+	am := application.NewManager()
 
-	// Register Docker provider if available
-	// Use nil config for local Docker connection (will use default)
+	// 添加一些示例应用数据用于测试
+	app1 := am.CreateApplication("用户管理系统")
+	app2 := am.CreateApplication("数据处理服务")
+	am.CreateApplication("API网关")
+
+	// 模拟一些应用状态变化
+	am.UpdateApplicationStatus(app1.ID, application.StatusRunning)
+	am.UpdateApplicationStatus(app2.ID, application.StatusRunning)
+	// 第三个应用保持未部署状态
 
 	pm := discovery.NewPeerManager(cfg.InitialPeers)
 
@@ -80,7 +89,7 @@ func main() {
 	}()
 
 	// Start HTTP server
-	srv := server.NewServer(r, rm)
+	srv := server.NewServer(r, rm, am)
 	go func() {
 		if err := srv.Start(cfg.ListenAddr); err != nil {
 			log.Fatalf("HTTP server: %v", err)

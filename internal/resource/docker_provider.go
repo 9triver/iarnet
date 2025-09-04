@@ -273,3 +273,24 @@ func (dp *DockerProvider) Close() error {
 func (dp *DockerProvider) GetStatus() Status {
 	return dp.status
 }
+
+func (dp *DockerProvider) Deploy(ctx context.Context, spec ContainerSpec) (string, error) {
+	resp, err := dp.client.ContainerCreate(ctx, &container.Config{
+		Image: spec.Image,
+		Cmd:   spec.Command,
+	}, &container.HostConfig{
+		Resources: container.Resources{
+			CPUQuota: int64(spec.CPU * 100000), // Rough conversion
+			Memory:   int64(spec.Memory * 1024 * 1024 * 1024),
+			// GPU: Docker GPU support requires nvidia-docker, assume configured.
+		},
+	}, nil, nil, "")
+	if err != nil {
+		return "", err
+	}
+	err = dp.client.ContainerStart(ctx, resp.ID, container.StartOptions{})
+	if err != nil {
+		return "", err
+	}
+	return resp.ID, nil
+}

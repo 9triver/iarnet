@@ -55,6 +55,7 @@ export const resourcesAPI = {
 // 应用管理 API
 export const applicationsAPI = {
   getAll: () => apiRequest("/applications"),
+  getStats: () => apiRequest("/application/stats"),
   create: (app: any) =>
     apiRequest("/applications", {
       method: "POST",

@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { applicationsAPI } from "@/lib/api"
 import { Sidebar } from "@/components/sidebar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -33,14 +34,18 @@ import {
   Activity,
   Cpu,
   Database,
+  RefreshCw,
 } from "lucide-react"
 
 interface Application {
   id: string
   name: string
   description: string
-  gitUrl: string
-  branch: string
+  importType: "git" | "docker"
+  gitUrl?: string
+  branch?: string
+  dockerImage?: string
+  dockerTag?: string
   status: "idle" | "running" | "stopped" | "error" | "deploying"
   type: "web" | "api" | "worker" | "database"
   lastDeployed?: string
@@ -51,20 +56,42 @@ interface Application {
 
 interface ApplicationFormData {
   name: string
-  gitUrl: string
-  branch: string
+  importType: "git" | "docker"
+  gitUrl?: string
+  branch?: string
+  dockerImage?: string
+  dockerTag?: string
   type: "web" | "api" | "worker" | "database"
   description?: string
   port?: number
   healthCheck?: string
 }
 
+interface ApplicationStats {
+  total: number
+  running: number
+  stopped: number
+  undeployed: number
+  failed: number
+  unknown: number
+}
+
 export default function ApplicationsPage() {
+  const [stats, setStats] = useState<ApplicationStats>({
+    total: 0,
+    running: 0,
+    stopped: 0,
+    undeployed: 0,
+    failed: 0,
+    unknown: 0,
+  })
+  const [isLoadingStats, setIsLoadingStats] = useState(true)
   const [applications, setApplications] = useState<Application[]>([
     {
       id: "1",
       name: "用户管理系统",
       description: "基于React和Node.js的用户管理后台系统",
+      importType: "git",
       gitUrl: "https://github.com/company/user-management",
       branch: "main",
       status: "running",
@@ -78,6 +105,7 @@ export default function ApplicationsPage() {
       id: "2",
       name: "数据处理服务",
       description: "Python数据处理和分析服务",
+      importType: "git",
       gitUrl: "https://github.com/company/data-processor",
       branch: "develop",
       status: "idle",
@@ -89,6 +117,7 @@ export default function ApplicationsPage() {
       id: "3",
       name: "API网关",
       description: "微服务API网关和路由服务",
+      importType: "git",
       gitUrl: "https://github.com/company/api-gateway",
       branch: "main",
       status: "running",
@@ -98,20 +127,58 @@ export default function ApplicationsPage() {
       port: 8000,
       healthCheck: "/api/health",
     },
+    {
+      id: "4",
+      name: "Nginx代理服务",
+      description: "基于Docker的Nginx反向代理服务",
+      importType: "docker",
+      dockerImage: "nginx",
+      dockerTag: "alpine",
+      status: "running",
+      type: "web",
+      lastDeployed: "2024-01-15 16:20:00",
+      runningOn: ["生产环境集群"],
+      port: 80,
+      healthCheck: "/",
+    },
   ])
 
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingApp, setEditingApp] = useState<Application | null>(null)
-  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
   const [importProgress, setImportProgress] = useState(0)
-  const [gitUrl, setGitUrl] = useState("")
+  const [importType, setImportType] = useState<"git" | "docker">("git")
+
+  // 获取应用统计数据
+  const fetchStats = async () => {
+    try {
+      setIsLoadingStats(true)
+      const statsData = await applicationsAPI.getStats() as ApplicationStats
+      setStats(statsData)
+    } catch (error) {
+      console.error('获取应用统计数据失败:', error)
+    } finally {
+      setIsLoadingStats(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchStats()
+  }, [])
+
+  // 刷新数据
+  const handleRefreshData = () => {
+    fetchStats()
+  }
 
   const form = useForm<ApplicationFormData>({
     defaultValues: {
       name: "",
+      importType: "git",
       gitUrl: "",
       branch: "main",
+      dockerImage: "",
+      dockerTag: "latest",
       type: "web",
       description: "",
       port: 3000,
@@ -126,36 +193,7 @@ export default function ApplicationsPage() {
     )
   }
 
-  const handleQuickImport = () => {
-    if (!gitUrl.trim()) {
-      alert("请输入Git仓库URL")
-      return
-    }
 
-    if (!isValidGitUrl(gitUrl)) {
-      alert("请输入有效的Git仓库URL（支持GitHub、GitLab、Bitbucket）")
-      return
-    }
-
-    setIsImportDialogOpen(false)
-    setIsImporting(true)
-    setImportProgress(0)
-
-    const progressInterval = setInterval(() => {
-      setImportProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(progressInterval)
-          setTimeout(() => {
-            setIsImporting(false)
-            setImportProgress(0)
-            setGitUrl("")
-          }, 3000)
-          return 100
-        }
-        return prev + 10
-      })
-    }, 100)
-  }
 
   const onSubmit = (data: ApplicationFormData) => {
     if (editingApp) {
@@ -165,8 +203,11 @@ export default function ApplicationsPage() {
             ? {
                 ...app,
                 name: data.name,
-                gitUrl: data.gitUrl,
-                branch: data.branch,
+                importType: data.importType,
+                gitUrl: data.importType === "git" ? data.gitUrl : undefined,
+                branch: data.importType === "git" ? data.branch : undefined,
+                dockerImage: data.importType === "docker" ? data.dockerImage : undefined,
+                dockerTag: data.importType === "docker" ? data.dockerTag : undefined,
                 type: data.type,
                 description: data.description || "",
                 port: data.port,
@@ -179,8 +220,11 @@ export default function ApplicationsPage() {
       const newApp: Application = {
         id: Date.now().toString(),
         name: data.name,
-        gitUrl: data.gitUrl,
-        branch: data.branch,
+        importType: data.importType,
+        gitUrl: data.importType === "git" ? data.gitUrl : undefined,
+        branch: data.importType === "git" ? data.branch : undefined,
+        dockerImage: data.importType === "docker" ? data.dockerImage : undefined,
+        dockerTag: data.importType === "docker" ? data.dockerTag : undefined,
         type: data.type,
         description: data.description || "",
         status: "idle",
@@ -198,8 +242,15 @@ export default function ApplicationsPage() {
   const handleEdit = (app: Application) => {
     setEditingApp(app)
     form.setValue("name", app.name)
-    form.setValue("gitUrl", app.gitUrl)
-    form.setValue("branch", app.branch)
+    form.setValue("importType", app.importType)
+    setImportType(app.importType)
+    if (app.importType === "git") {
+      form.setValue("gitUrl", app.gitUrl || "")
+      form.setValue("branch", app.branch || "main")
+    } else {
+      form.setValue("dockerImage", app.dockerImage || "")
+      form.setValue("dockerTag", app.dockerTag || "latest")
+    }
     form.setValue("type", app.type)
     form.setValue("description", app.description)
     form.setValue("port", app.port)
@@ -299,62 +350,25 @@ export default function ApplicationsPage() {
             </div>
 
             <div className="flex space-x-2">
-              <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button>
-                    <Plus className="h-4 w-4" />
-                    导入应用
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[400px]">
-                  <DialogHeader>
-                    <DialogTitle>导入应用</DialogTitle>
-                    <DialogDescription>输入Git仓库URL快速导入应用</DialogDescription>
-                  </DialogHeader>
-
-                  <div className="space-y-4">
-                    <div>
-                      <label htmlFor="git-url" className="text-sm font-medium">
-                        Git仓库URL
-                      </label>
-                      <Input
-                        id="git-url"
-                        placeholder="https://github.com/username/repo"
-                        value={gitUrl}
-                        onChange={(e) => setGitUrl(e.target.value)}
-                        className="mt-1"
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">支持GitHub、GitLab、Bitbucket仓库</p>
-                    </div>
-                  </div>
-
-                  <DialogFooter>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        setIsImportDialogOpen(false)
-                        setGitUrl("")
-                      }}
-                    >
-                      取消
-                    </Button>
-                    <Button onClick={handleQuickImport}>确认导入</Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+              <Button
+                variant="outline"
+                onClick={handleRefreshData}
+                disabled={isLoadingStats}
+              >
+                <RefreshCw className={`h-4 w-4 ${isLoadingStats ? 'animate-spin' : ''}`} />
+                刷新数据
+              </Button>
 
               <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogTrigger asChild>
                   <Button
-                    variant="outline"
                     onClick={() => {
                       setEditingApp(null)
                       form.reset()
                     }}
                   >
-                    <Settings className="h-4 w-4" />
-                    高级配置
+                    <Plus className="h-4 w-4" />
+                    导入应用
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-[500px]">
@@ -384,34 +398,103 @@ export default function ApplicationsPage() {
 
                       <FormField
                         control={form.control}
-                        name="gitUrl"
+                        name="importType"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Git仓库URL</FormLabel>
-                            <FormControl>
-                              <Input placeholder="https://github.com/username/repo" {...field} />
-                            </FormControl>
-                            <FormDescription>应用的Git仓库地址</FormDescription>
+                            <FormLabel>导入方式</FormLabel>
+                            <Select 
+                              onValueChange={(value) => {
+                                field.onChange(value)
+                                setImportType(value as "git" | "docker")
+                              }} 
+                              defaultValue={field.value}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="选择导入方式" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="git">Git仓库</SelectItem>
+                                <SelectItem value="docker">Docker镜像</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormDescription>选择应用的导入方式</FormDescription>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
 
-                      <div className="grid grid-cols-2 gap-4">
-                        <FormField
-                          control={form.control}
-                          name="branch"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>分支</FormLabel>
-                              <FormControl>
-                                <Input placeholder="main" {...field} />
-                              </FormControl>
-                              <FormDescription>要部署的Git分支</FormDescription>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
+                      {importType === "git" ? (
+                        <>
+                          <FormField
+                            control={form.control}
+                            name="gitUrl"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Git仓库URL</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="https://github.com/username/repo" {...field} />
+                                </FormControl>
+                                <FormDescription>应用的Git仓库地址</FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </>
+                      ) : (
+                        <>
+                          <div className="grid grid-cols-2 gap-4">
+                            <FormField
+                              control={form.control}
+                              name="dockerImage"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>镜像名称</FormLabel>
+                                  <FormControl>
+                                    <Input placeholder="nginx" {...field} />
+                                  </FormControl>
+                                  <FormDescription>Docker镜像名称</FormDescription>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="dockerTag"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>镜像标签</FormLabel>
+                                  <FormControl>
+                                    <Input placeholder="latest" {...field} />
+                                  </FormControl>
+                                  <FormDescription>Docker镜像标签</FormDescription>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+                        </>
+                      )}
+
+                      {importType === "git" && (
+                          <FormField
+                            control={form.control}
+                            name="branch"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>分支</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="main" {...field} />
+                                </FormControl>
+                                <FormDescription>要部署的Git分支</FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        )}
+
+                        <div className="grid grid-cols-2 gap-4">
 
                         <FormField
                           control={form.control}
@@ -531,7 +614,9 @@ export default function ApplicationsPage() {
                 <Package className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{applications.length}</div>
+                <div className="text-2xl font-bold">
+                  {isLoadingStats ? "..." : stats.total}
+                </div>
                 <p className="text-xs text-muted-foreground">已导入应用</p>
               </CardContent>
             </Card>
@@ -543,7 +628,7 @@ export default function ApplicationsPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-green-600">
-                  {applications.filter((app) => app.status === "running").length}
+                  {isLoadingStats ? "..." : stats.running}
                 </div>
                 <p className="text-xs text-muted-foreground">正在运行</p>
               </CardContent>
@@ -556,7 +641,7 @@ export default function ApplicationsPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-orange-600">
-                  {applications.filter((app) => app.status === "idle").length}
+                  {isLoadingStats ? "..." : stats.undeployed}
                 </div>
                 <p className="text-xs text-muted-foreground">等待部署</p>
               </CardContent>
@@ -569,7 +654,7 @@ export default function ApplicationsPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-gray-600">
-                  {applications.filter((app) => app.status === "stopped").length}
+                  {isLoadingStats ? "..." : stats.stopped}
                 </div>
                 <p className="text-xs text-muted-foreground">已停止运行</p>
               </CardContent>
@@ -599,11 +684,19 @@ export default function ApplicationsPage() {
                   <p className="text-sm text-muted-foreground line-clamp-2">{app.description}</p>
 
                   <div className="space-y-2">
-                    <div className="flex items-center space-x-2 text-sm">
-                      <GitBranch className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-muted-foreground">分支:</span>
-                      <span className="font-mono">{app.branch}</span>
-                    </div>
+                    {app.importType === "git" ? (
+                      <div className="flex items-center space-x-2 text-sm">
+                        <GitBranch className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-muted-foreground">分支:</span>
+                        <span className="font-mono">{app.branch}</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-2 text-sm">
+                        <Package className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-muted-foreground">镜像:</span>
+                        <span className="font-mono">{app.dockerImage}:{app.dockerTag}</span>
+                      </div>
+                    )}
 
                     {app.port && (
                       <div className="flex items-center space-x-2 text-sm">

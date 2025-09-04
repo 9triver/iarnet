@@ -25,3 +25,9 @@ type UsageInfo struct {
 type GetResourceProvidersResponse struct {
 	Providers []ResourceProviderInfo `json:"providers"`
 }
+
+type GetApplicationsOverViewResponse struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Status string `json:"status"`
+}
