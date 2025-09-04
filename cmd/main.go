@@ -59,15 +59,15 @@ func main() {
 	rm := resource.NewManager(cfg.ResourceLimits)
 	am := application.NewManager()
 
-	// 添加一些示例应用数据用于测试
-	app1 := am.CreateApplication("用户管理系统")
-	app2 := am.CreateApplication("数据处理服务")
-	am.CreateApplication("API网关")
+	// // 添加一些示例应用数据用于测试
+	// app1 := am.CreateApplication("用户管理系统")
+	// app2 := am.CreateApplication("数据处理服务")
+	// am.CreateApplication("API网关")
 
-	// 模拟一些应用状态变化
-	am.UpdateApplicationStatus(app1.ID, application.StatusRunning)
-	am.UpdateApplicationStatus(app2.ID, application.StatusRunning)
-	// 第三个应用保持未部署状态
+	// // 模拟一些应用状态变化
+	// am.UpdateApplicationStatus(app1.ID, application.StatusRunning)
+	// am.UpdateApplicationStatus(app2.ID, application.StatusRunning)
+	// // 第三个应用保持未部署状态
 
 	pm := discovery.NewPeerManager(cfg.InitialPeers)
 
