@@ -38,11 +38,29 @@ interface Resource {
     total: number
     used: number
   }
-  storage: {
-    total: number
-    used: number
-  }
+  // storage: {
+  //   total: number
+  //   used: number
+  // }
   lastUpdated: string
+}
+
+// API 返回的资源提供者接口
+interface ResourceProvider {
+  id: string
+  name: string
+  url: string
+  type: string
+  status: string
+  cpu_usage: {
+    used: number
+    total: number
+  }
+  memory_usage: {
+    used: number
+    total: number
+  }
+  last_update_time: string
 }
 
 interface ResourceFormData {
@@ -65,8 +83,6 @@ interface Capacity {
   available: Usage
 }
 
-// formatNumber函数已移至utils.ts
-
 export default function ResourcesPage() {
   const [resources, setResources] = useState<Resource[]>([
     {
@@ -77,7 +93,7 @@ export default function ResourcesPage() {
       status: "connected",
       cpu: { total: 32, used: 18 },
       memory: { total: 128, used: 76 },
-      storage: { total: 2048, used: 1024 },
+      // storage: { total: 2048, used: 1024 },
       lastUpdated: "2024-01-15 14:30:00",
     },
     {
@@ -88,7 +104,7 @@ export default function ResourcesPage() {
       status: "connected",
       cpu: { total: 16, used: 8 },
       memory: { total: 64, used: 32 },
-      storage: { total: 1024, used: 256 },
+      // storage: { total: 1024, used: 256 },
       lastUpdated: "2024-01-15 14:25:00",
     },
   ])
@@ -121,8 +137,53 @@ export default function ResourcesPage() {
     }
   }
 
+  // 状态转换函数
+  const convertStatus = (statusCode: string): "connected" | "disconnected" | "error" => {
+    switch (statusCode) {
+      case "1": // StatusConnected
+        return "connected"
+      case "2": // StatusDisconnected
+        return "disconnected"
+      default: // StatusUnknown or other
+        return "error"
+    }
+  }
+
+  // 获取资源提供者数据
+  const fetchProviders = async () => {
+    try {
+      setLoading(true)
+      const data = (await resourcesAPI.getProviders()) as ResourceProvider[]
+      // 转换API数据格式为前端需要的格式
+      const convertedResources: Resource[] = data.map((provider: ResourceProvider) => ({
+        id: provider.id,
+        name: provider.name,
+        type: provider.type.toLowerCase() as "kubernetes" | "docker" | "vm",
+        url: provider.url,
+        status: convertStatus(provider.status),
+        cpu: {
+          total: provider.cpu_usage.total,
+          used: provider.cpu_usage.used
+        },
+        memory: {
+          total: provider.memory_usage.total,
+          used: provider.memory_usage.used
+        },
+
+        lastUpdated: provider.last_update_time
+      }))
+      setResources(convertedResources)
+    } catch (error) {
+      console.error('Failed to fetch providers:', error)
+      // 如果API调用失败，保持使用模拟数据
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
     fetchCapacity()
+    fetchProviders()
   }, [])
 
   const onSubmit = (data: ResourceFormData) => {
@@ -145,7 +206,7 @@ export default function ResourcesPage() {
         status: "connected",
         cpu: { total: 0, used: 0 },
         memory: { total: 0, used: 0 },
-        storage: { total: 0, used: 0 },
+        // storage: { total: 0, used: 0 },
         lastUpdated: new Date().toLocaleString(),
       }
       setResources((prev) => [...prev, newResource])
@@ -210,7 +271,10 @@ export default function ResourcesPage() {
             <div className="flex items-center space-x-3">
               <Button
                 variant="outline"
-                onClick={fetchCapacity}
+                onClick={() => {
+                  fetchCapacity()
+                  fetchProviders()
+                }}
                 disabled={loading}
               >
                 <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
@@ -434,7 +498,7 @@ export default function ResourcesPage() {
                     <TableHead>状态</TableHead>
                     <TableHead>CPU使用率</TableHead>
                     <TableHead>内存使用率</TableHead>
-                    <TableHead>存储使用率</TableHead>
+                    {/* <TableHead>存储使用率</TableHead> */}
                     <TableHead>最后更新</TableHead>
                     <TableHead>操作</TableHead>
                   </TableRow>
@@ -481,7 +545,7 @@ export default function ResourcesPage() {
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell>
+                      {/* <TableCell>
                         <div className="flex items-center space-x-2">
                           <div className="text-sm">
                             {resource.storage.total > 0
@@ -492,7 +556,7 @@ export default function ResourcesPage() {
                             {resource.storage.used}/{resource.storage.total} GB
                           </div>
                         </div>
-                      </TableCell>
+                      </TableCell> */}
                       <TableCell className="text-xs text-muted-foreground">{resource.lastUpdated}</TableCell>
                       <TableCell>
                         <div className="flex items-center space-x-2">

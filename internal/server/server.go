@@ -75,19 +75,18 @@ func (s *Server) handleResourceProviders(w http.ResponseWriter, req *http.Reques
 		providerInfo := response.ResourceProviderInfo{
 			ID:     provider.GetID(),
 			Name:   provider.GetName(),
+			URL:    "http://localhost:2376", // 默认Docker URL，实际应该从provider获取
 			Type:   provider.GetType(),
 			Status: provider.GetStatus(),
 			CPUUsage: response.UsageInfo{
-				Percentage: float64(capacity.Used.CPU / capacity.Total.CPU),
-				Used:       capacity.Used.CPU,
-				Total:      capacity.Total.CPU,
+				Used:  capacity.Used.CPU,
+				Total: capacity.Total.CPU,
 			},
 			MemoryUsage: response.UsageInfo{
-				Percentage: float64(capacity.Used.Memory / capacity.Total.Memory),
-				Used:       capacity.Used.Memory,
-				Total:      capacity.Total.Memory,
+				Used:  capacity.Used.Memory,
+				Total: capacity.Total.Memory,
 			},
-			LastUpdateTime: provider.GetLastUpdateTime(),
+			LastUpdateTime: provider.GetLastUpdateTime().Format("2006-01-02 15:04:05"),
 		}
 
 		providerInfos = append(providerInfos, providerInfo)
