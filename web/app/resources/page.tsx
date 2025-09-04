@@ -45,24 +45,6 @@ interface Resource {
   lastUpdated: string
 }
 
-// API 返回的资源提供者接口
-interface ResourceProvider {
-  id: string
-  name: string
-  url: string
-  type: string
-  status: string
-  cpu_usage: {
-    used: number
-    total: number
-  }
-  memory_usage: {
-    used: number
-    total: number
-  }
-  last_update_time: string
-}
-
 interface ResourceFormData {
   name: string
   type: "kubernetes" | "docker" | "vm"
@@ -138,11 +120,11 @@ export default function ResourcesPage() {
   }
 
   // 状态转换函数
-  const convertStatus = (statusCode: string): "connected" | "disconnected" | "error" => {
+  const convertStatus = (statusCode: number): "connected" | "disconnected" | "error" => {
     switch (statusCode) {
-      case "1": // StatusConnected
+      case 1: // StatusConnected
         return "connected"
-      case "2": // StatusDisconnected
+      case 2: // StatusDisconnected
         return "disconnected"
       default: // StatusUnknown or other
         return "error"
@@ -153,9 +135,9 @@ export default function ResourcesPage() {
   const fetchProviders = async () => {
     try {
       setLoading(true)
-      const data = (await resourcesAPI.getProviders()) as ResourceProvider[]
+      const response = (await resourcesAPI.getProviders()) as GetResourceProvidersResponse
       // 转换API数据格式为前端需要的格式
-      const convertedResources: Resource[] = data.map((provider: ResourceProvider) => ({
+      const convertedResources: Resource[] = response.providers.map((provider: ResourceProvider) => ({
         id: provider.id,
         name: provider.name,
         type: provider.type.toLowerCase() as "kubernetes" | "docker" | "vm",

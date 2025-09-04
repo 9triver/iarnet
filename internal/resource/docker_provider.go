@@ -227,6 +227,9 @@ func GetLocalDockerProvider() (*DockerProvider, error) {
 		providerID: "local-docker",
 	}
 
+	dp.lastUpdateTime = time.Now()
+	dp.status = StatusConnected
+
 	return dp, nil
 }
 
