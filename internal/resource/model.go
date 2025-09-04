@@ -16,6 +16,6 @@ type Usage struct {
 
 type Capacity struct {
 	Total     Usage `json:"total"`
-	Allocated Usage `json:"allocated"`
+	Used      Usage `json:"used"`
 	Available Usage `json:"available"`
 }

@@ -111,8 +111,8 @@ func (rm *Manager) GetCapacity(ctx context.Context) (*Capacity, error) {
 	if len(rm.providers) == 0 {
 		// Fallback to static limits if no providers
 		return &Capacity{
-			Total:     rm.limits,
-			Allocated: rm.current,
+			Total: rm.limits,
+			Used:  rm.current,
 			Available: Usage{
 				CPU:    rm.limits.CPU - rm.current.CPU,
 				Memory: rm.limits.Memory - rm.current.Memory,
@@ -126,7 +126,7 @@ func (rm *Manager) GetCapacity(ctx context.Context) (*Capacity, error) {
 	for _, provider := range rm.providers {
 		capacity, err := provider.GetCapacity(ctx)
 		if err != nil {
-			logrus.Warnf("Failed to get capacity from provider %s: %v", provider.GetProviderID(), err)
+			logrus.Warnf("Failed to get capacity from provider %s: %v", provider.GetID(), err)
 			continue
 		}
 
@@ -134,9 +134,9 @@ func (rm *Manager) GetCapacity(ctx context.Context) (*Capacity, error) {
 		totalCapacity.Memory += capacity.Total.Memory
 		totalCapacity.GPU += capacity.Total.GPU
 
-		totalAllocated.CPU += capacity.Allocated.CPU
-		totalAllocated.Memory += capacity.Allocated.Memory
-		totalAllocated.GPU += capacity.Allocated.GPU
+		totalAllocated.CPU += capacity.Used.CPU
+		totalAllocated.Memory += capacity.Used.Memory
+		totalAllocated.GPU += capacity.Used.GPU
 	}
 
 	available := Usage{
@@ -147,7 +147,7 @@ func (rm *Manager) GetCapacity(ctx context.Context) (*Capacity, error) {
 
 	return &Capacity{
 		Total:     totalCapacity,
-		Allocated: totalAllocated,
+		Used:      totalAllocated,
 		Available: available,
 	}, nil
 }
@@ -209,4 +209,16 @@ func (rm *Manager) Deallocate(req Usage) {
 // Monitor: Would poll Docker/K8s for actual usage, but for simplicity, assume requested == used.
 func (rm *Manager) StartMonitoring() {
 	// TODO: Implement polling for real usage.
+}
+
+// GetProviders 返回所有注册的资源提供者
+func (rm *Manager) GetProviders() []Provider {
+	rm.mu.Lock()
+	defer rm.mu.Unlock()
+
+	providers := make([]Provider, 0, len(rm.providers))
+	for _, provider := range rm.providers {
+		providers = append(providers, provider)
+	}
+	return providers
 }

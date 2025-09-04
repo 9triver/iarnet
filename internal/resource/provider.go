@@ -1,9 +1,23 @@
 package resource
 
-import "context"
+import (
+	"context"
+	"time"
+)
+
+type Status int32
+
+const (
+	StatusUnknown      Status = 0
+	StatusConnected    Status = 1
+	StatusDisconnected Status = 2
+)
 
 type Provider interface {
 	GetCapacity(ctx context.Context) (*Capacity, error)
-	GetProviderType() string
-	GetProviderID() string
+	GetType() string
+	GetID() string
+	GetName() string
+	GetLastUpdateTime() time.Time
+	GetStatus() Status
 }

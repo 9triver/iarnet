@@ -25,6 +25,7 @@ func NewServer(r runner.Runner, rm *resource.Manager) *Server {
 	s := &Server{router: mux.NewRouter(), runner: r, resMgr: rm, ctx: ctx, cancel: cancel}
 	s.router.HandleFunc("/run", s.handleRun).Methods("POST")
 	s.router.HandleFunc("/resource/capacity", s.handleResourceCapacity).Methods("GET")
+	s.router.HandleFunc("/resource/providers", s.handleResourceProviders).Methods("GET")
 	return s
 }
 
@@ -54,6 +55,49 @@ func (s *Server) handleResourceCapacity(w http.ResponseWriter, req *http.Request
 		return
 	}
 	if err := response.WriteSuccess(w, capacity); err != nil {
+		logrus.Errorf("Failed to write response: %v", err)
+	}
+}
+
+func (s *Server) handleResourceProviders(w http.ResponseWriter, req *http.Request) {
+	providers := s.resMgr.GetProviders()
+
+	providerInfos := []response.ResourceProviderInfo{}
+
+	for _, provider := range providers {
+
+		capacity, err := provider.GetCapacity(s.ctx)
+		if err != nil {
+			response.WriteError(w, http.StatusInternalServerError, "failed to get resource capacity", err)
+			return
+		}
+
+		providerInfo := response.ResourceProviderInfo{
+			ID:     provider.GetID(),
+			Name:   provider.GetName(),
+			Type:   provider.GetType(),
+			Status: provider.GetStatus(),
+			CPUUsage: response.UsageInfo{
+				Percentage: float64(capacity.Used.CPU / capacity.Total.CPU),
+				Used:       capacity.Used.CPU,
+				Total:      capacity.Total.CPU,
+			},
+			MemoryUsage: response.UsageInfo{
+				Percentage: float64(capacity.Used.Memory / capacity.Total.Memory),
+				Used:       capacity.Used.Memory,
+				Total:      capacity.Total.Memory,
+			},
+			LastUpdateTime: provider.GetLastUpdateTime(),
+		}
+
+		providerInfos = append(providerInfos, providerInfo)
+	}
+
+	getResourceProvidersResponse := response.GetResourceProvidersResponse{
+		Providers: providerInfos,
+	}
+
+	if err := response.WriteSuccess(w, getResourceProvidersResponse); err != nil {
 		logrus.Errorf("Failed to write response: %v", err)
 	}
 }

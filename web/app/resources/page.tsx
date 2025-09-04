@@ -61,7 +61,7 @@ interface Usage {
 
 interface Capacity {
   total: Usage
-  allocated: Usage
+  used: Usage
   available: Usage
 }
 
@@ -383,7 +383,7 @@ export default function ResourcesPage() {
                   {loading ? "加载中..." : capacity ? formatNumber(capacity.total.cpu) : "--"}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  已使用 {loading ? "--" : capacity ? formatNumber(capacity.allocated.cpu) : "--"} 核心
+                  已使用 {loading ? "--" : capacity ? formatNumber(capacity.used.cpu) : "--"} 核心
                 </p>
               </CardContent>
             </Card>
@@ -398,7 +398,7 @@ export default function ResourcesPage() {
                   {loading ? "加载中..." : capacity ? formatMemory(capacity.total.memory) : "--"}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  已使用 {loading ? "--" : capacity ? formatMemory(capacity.allocated.memory) : "--"}
+                  已使用 {loading ? "--" : capacity ? formatMemory(capacity.used.memory) : "--"}
                 </p>
               </CardContent>
             </Card>

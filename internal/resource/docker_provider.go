@@ -3,6 +3,7 @@ package resource
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/client"
@@ -29,9 +30,11 @@ type DockerConfig struct {
 
 // DockerProvider implements Provider interface for Docker
 type DockerProvider struct {
-	client     *client.Client
-	providerID string
-	config     DockerConfig
+	client         *client.Client
+	providerID     string
+	config         DockerConfig
+	lastUpdateTime time.Time
+	status         Status
 }
 
 // NewDockerProvider creates a new Docker resource provider
@@ -78,6 +81,9 @@ func NewDockerProvider(providerID string, config interface{}) (*DockerProvider, 
 		config:     dockerConfig,
 	}
 
+	dp.lastUpdateTime = time.Now()
+	dp.status = StatusConnected
+
 	return dp, nil
 }
 
@@ -118,7 +124,7 @@ func (dp *DockerProvider) GetCapacity(ctx context.Context) (*Capacity, error) {
 
 	return &Capacity{
 		Total:     total,
-		Allocated: *allocated,
+		Used:      *allocated,
 		Available: available,
 	}, nil
 }
@@ -195,14 +201,18 @@ func (dp *DockerProvider) GetAllocated(ctx context.Context) (*Usage, error) {
 	}, nil
 }
 
-// GetProviderType returns the provider type
-func (dp *DockerProvider) GetProviderType() string {
+// GetType returns the provider type
+func (dp *DockerProvider) GetType() string {
 	return "docker"
 }
 
 // GetProviderID returns the provider ID
-func (dp *DockerProvider) GetProviderID() string {
+func (dp *DockerProvider) GetID() string {
 	return dp.providerID
+}
+
+func (dp *DockerProvider) GetName() string {
+	return "docker"
 }
 
 // GetLocalDockerProvider creates a new local Docker provider instance
@@ -243,10 +253,18 @@ func GetLocalDockerProvider() (*DockerProvider, error) {
 // 	return 0
 // }
 
+func (dp *DockerProvider) GetLastUpdateTime() time.Time {
+	return dp.lastUpdateTime
+}
+
 // Close closes the Docker client connection
 func (dp *DockerProvider) Close() error {
 	if dp.client != nil {
 		return dp.client.Close()
 	}
 	return nil
+}
+
+func (dp *DockerProvider) GetStatus() Status {
+	return dp.status
 }
