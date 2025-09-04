@@ -119,6 +119,7 @@ func (s *Server) handleGetApplications(w http.ResponseWriter, req *http.Request)
 	appInfos := []response.ApplicationInfo{}
 	for _, app := range apps {
 		appInfos = append(appInfos, response.ApplicationInfo{
+			ID:           app.ID,
 			Name:         app.Name,
 			ImportType:   app.ImportType,
 			GitUrl:       app.GitUrl,

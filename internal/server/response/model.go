@@ -33,6 +33,7 @@ type GetApplicationsOverViewResponse struct {
 }
 
 type ApplicationInfo struct {
+	ID           string   `json:"id"`
 	Name         string   `json:"name"`
 	ImportType   string   `json:"importType"` // "git" or "docker"
 	GitUrl       *string  `json:"gitUrl,omitempty"`
