@@ -89,8 +89,7 @@ type ApplicationStats struct {
 	Running    int `json:"running"`    // 运行中
 	Stopped    int `json:"stopped"`    // 已停止
 	Undeployed int `json:"undeployed"` // 未部署
-	Failed     int `json:"failed"`     // 失败
-	Unknown    int `json:"unknown"`    // 未知
+	Failed     int `json:"failed"`     // 失败（包含错误和未知状态）
 }
 
 // GetApplicationStats 获取应用统计信息
@@ -110,8 +109,9 @@ func (m *Manager) GetApplicationStats() ApplicationStats {
 			stats.Undeployed++
 		case StatusFailed:
 			stats.Failed++
-		case StatusUnknown:
-			stats.Unknown++
+		case StatusDeploying:
+			// 部署中的应用暂时不计入任何统计分类
+			// 可以根据需要添加新的统计字段
 		}
 	}
 

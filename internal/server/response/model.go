@@ -1,6 +1,7 @@
 package response
 
 import (
+	"github.com/9triver/iarnet/internal/application"
 	"github.com/9triver/iarnet/internal/resource"
 )
 
@@ -33,19 +34,20 @@ type GetApplicationsOverViewResponse struct {
 }
 
 type ApplicationInfo struct {
-	ID           string   `json:"id"`
-	Name         string   `json:"name"`
-	ImportType   string   `json:"importType"` // "git" or "docker"
-	GitUrl       *string  `json:"gitUrl,omitempty"`
-	Branch       *string  `json:"branch,omitempty"`
-	DockerImage  *string  `json:"dockerImage,omitempty"`
-	DockerTag    *string  `json:"dockerTag,omitempty"`
-	Type         string   `json:"type"` // "web", "api", "worker", "database"
-	Description  *string  `json:"description,omitempty"`
-	Ports        []int    `json:"ports,omitempty"`
-	HealthCheck  *string  `json:"healthCheck,omitempty"`
-	LastDeployed string   `json:"lastDeployed"`
-	RunningOn    []string `json:"runningOn"`
+	ID           string             `json:"id"`
+	Name         string             `json:"name"`
+	ImportType   string             `json:"importType"` // "git" or "docker"
+	GitUrl       *string            `json:"gitUrl,omitempty"`
+	Branch       *string            `json:"branch,omitempty"`
+	DockerImage  *string            `json:"dockerImage,omitempty"`
+	DockerTag    *string            `json:"dockerTag,omitempty"`
+	Type         string             `json:"type"` // "web", "api", "worker", "database"
+	Description  *string            `json:"description,omitempty"`
+	Ports        []int              `json:"ports,omitempty"`
+	HealthCheck  *string            `json:"healthCheck,omitempty"`
+	LastDeployed string             `json:"lastDeployed"`
+	RunningOn    []string           `json:"runningOn"`
+	Status       application.Status `json:"status"`
 }
 
 type GetApplicationsResponse struct {

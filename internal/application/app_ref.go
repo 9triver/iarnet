@@ -6,14 +6,14 @@ import (
 	"github.com/9triver/iarnet/internal/resource"
 )
 
-type Status int32
+type Status string
 
 const (
-	StatusRunning    Status = iota // 运行中
-	StatusStopped                  // 已停止
-	StatusFailed                   // 失败
-	StatusUnknown                  // 未知
-	StatusUndeployed               // 未部署
+	StatusRunning    Status = "running"   // 运行中
+	StatusStopped    Status = "stopped"   // 已停止
+	StatusFailed     Status = "error"     // 失败
+	StatusUndeployed Status = "idle"      // 未部署
+	StatusDeploying  Status = "deploying" // 部署中
 )
 
 // IsActive 检查应用是否处于活跃状态
@@ -28,7 +28,7 @@ func (s Status) IsInactive() bool {
 
 // HasError 检查应用是否处于错误状态
 func (s Status) HasError() bool {
-	return s == StatusFailed || s == StatusUnknown
+	return s == StatusFailed
 }
 
 type AppRef struct {

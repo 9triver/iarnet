@@ -130,6 +130,7 @@ func (s *Server) handleGetApplications(w http.ResponseWriter, req *http.Request)
 			Description:  app.Description,
 			Ports:        app.Ports,
 			HealthCheck:  app.HealthCheck,
+			Status:       app.Status,
 			LastDeployed: app.LastDeployed.Format("2006-01-02 15:04:05"),
 			RunningOn:    app.GetRunningOn(),
 		})
@@ -150,8 +151,8 @@ func (s *Server) handleGetApplications(w http.ResponseWriter, req *http.Request)
 func (s *Server) handleGetApplicationStats(w http.ResponseWriter, req *http.Request) {
 	logrus.Info("Received request to get application statistics")
 	stats := s.appMgr.GetApplicationStats()
-	logrus.Infof("Application statistics: Total=%d, Running=%d, Stopped=%d, Undeployed=%d, Failed=%d, Unknown=%d",
-		stats.Total, stats.Running, stats.Stopped, stats.Undeployed, stats.Failed, stats.Unknown)
+	logrus.Infof("Application statistics: Total=%d, Running=%d, Stopped=%d, Undeployed=%d, Failed=%d",
+		stats.Total, stats.Running, stats.Stopped, stats.Undeployed, stats.Failed)
 	if err := response.WriteSuccess(w, stats); err != nil {
 		logrus.Errorf("Failed to write application stats response: %v", err)
 		return
