@@ -87,60 +87,60 @@ export default function ApplicationsPage() {
   })
   const [isLoadingStats, setIsLoadingStats] = useState(true)
   const [applications, setApplications] = useState<Application[]>([
-    {
-      id: "1",
-      name: "用户管理系统",
-      description: "基于React和Node.js的用户管理后台系统",
-      importType: "git",
-      gitUrl: "https://github.com/company/user-management",
-      branch: "main",
-      status: "running",
-      type: "web",
-      lastDeployed: "2024-01-15 14:30:00",
-      runningOn: ["生产环境集群"],
-      ports: [3000],
-      healthCheck: "/health",
-    },
-    {
-      id: "2",
-      name: "数据处理服务",
-      description: "Python数据处理和分析服务",
-      importType: "git",
-      gitUrl: "https://github.com/company/data-processor",
-      branch: "develop",
-      status: "idle",
-      type: "worker",
-      lastDeployed: "2024-01-14 10:15:00",
-      ports: [8080],
-    },
-    {
-      id: "3",
-      name: "API网关",
-      description: "微服务API网关和路由服务",
-      importType: "git",
-      gitUrl: "https://github.com/company/api-gateway",
-      branch: "main",
-      status: "running",
-      type: "api",
-      lastDeployed: "2024-01-15 09:45:00",
-      runningOn: ["生产环境集群", "开发环境"],
-      ports: [8000],
-      healthCheck: "/api/health",
-    },
-    {
-      id: "4",
-      name: "Nginx代理服务",
-      description: "基于Docker的Nginx反向代理服务",
-      importType: "docker",
-      dockerImage: "nginx",
-      dockerTag: "alpine",
-      status: "running",
-      type: "web",
-      lastDeployed: "2024-01-15 16:20:00",
-      runningOn: ["生产环境集群"],
-      ports: [80, 31],
-      healthCheck: "/",
-    },
+    // {
+    //   id: "1",
+    //   name: "用户管理系统",
+    //   description: "基于React和Node.js的用户管理后台系统",
+    //   importType: "git",
+    //   gitUrl: "https://github.com/company/user-management",
+    //   branch: "main",
+    //   status: "running",
+    //   type: "web",
+    //   lastDeployed: "2024-01-15 14:30:00",
+    //   runningOn: ["生产环境集群"],
+    //   ports: [3000],
+    //   healthCheck: "/health",
+    // },
+    // {
+    //   id: "2",
+    //   name: "数据处理服务",
+    //   description: "Python数据处理和分析服务",
+    //   importType: "git",
+    //   gitUrl: "https://github.com/company/data-processor",
+    //   branch: "develop",
+    //   status: "idle",
+    //   type: "worker",
+    //   lastDeployed: "2024-01-14 10:15:00",
+    //   ports: [8080],
+    // },
+    // {
+    //   id: "3",
+    //   name: "API网关",
+    //   description: "微服务API网关和路由服务",
+    //   importType: "git",
+    //   gitUrl: "https://github.com/company/api-gateway",
+    //   branch: "main",
+    //   status: "running",
+    //   type: "api",
+    //   lastDeployed: "2024-01-15 09:45:00",
+    //   runningOn: ["生产环境集群", "开发环境"],
+    //   ports: [8000],
+    //   healthCheck: "/api/health",
+    // },
+    // {
+    //   id: "4",
+    //   name: "Nginx代理服务",
+    //   description: "基于Docker的Nginx反向代理服务",
+    //   importType: "docker",
+    //   dockerImage: "nginx",
+    //   dockerTag: "alpine",
+    //   status: "running",
+    //   type: "web",
+    //   lastDeployed: "2024-01-15 16:20:00",
+    //   runningOn: ["生产环境集群"],
+    //   ports: [80, 31],
+    //   healthCheck: "/",
+    // },
   ])
 
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -162,13 +162,24 @@ export default function ApplicationsPage() {
     }
   }
 
+  const fetchApplications = async () => {
+    try {
+      const updatedApps = await applicationsAPI.getAll() as Application[]
+      setApplications(updatedApps)
+    } catch (fetchError) {
+      console.error('Failed to fetch updated applications:', fetchError)
+    }
+  }
+
   useEffect(() => {
     fetchStats()
+    fetchApplications()
   }, [])
 
   // 刷新数据
   const handleRefreshData = () => {
     fetchStats()
+    fetchApplications()
   }
 
   const form = useForm<ApplicationFormData>({
@@ -193,8 +204,6 @@ export default function ApplicationsPage() {
     )
   }
 
-
-
   const onSubmit = async (data: ApplicationFormData) => {
     // 解析端口字符串为数字数组
     const parsePorts = (portsStr?: string): number[] => {
@@ -208,26 +217,27 @@ export default function ApplicationsPage() {
     const ports = parsePorts(data.ports)
 
     if (editingApp) {
-      // 编辑现有应用 - 只更新本地状态
-      setApplications((prev) =>
-        prev.map((app) =>
-          app.id === editingApp.id
-            ? {
-                ...app,
-                name: data.name,
-                importType: data.importType,
-                gitUrl: data.importType === "git" ? data.gitUrl : undefined,
-                branch: data.importType === "git" ? data.branch : undefined,
-                dockerImage: data.importType === "docker" ? data.dockerImage : undefined,
-                dockerTag: data.importType === "docker" ? data.dockerTag : undefined,
-                type: data.type,
-                description: data.description || "",
-                ports: ports,
-                healthCheck: data.healthCheck,
-              }
-            : app,
-        ),
-      )
+      // TODO
+      // // 编辑现有应用 - 只更新本地状态
+      // setApplications((prev) =>
+      //   prev.map((app) =>
+      //     app.id === editingApp.id
+      //       ? {
+      //           ...app,
+      //           name: data.name,
+      //           importType: data.importType,
+      //           gitUrl: data.importType === "git" ? data.gitUrl : undefined,
+      //           branch: data.importType === "git" ? data.branch : undefined,
+      //           dockerImage: data.importType === "docker" ? data.dockerImage : undefined,
+      //           dockerTag: data.importType === "docker" ? data.dockerTag : undefined,
+      //           type: data.type,
+      //           description: data.description || "",
+      //           ports: ports,
+      //           healthCheck: data.healthCheck,
+      //         }
+      //       : app,
+      //   ),
+      // )
     } else {
       // 创建新应用 - 调用后端API
       try {
@@ -243,15 +253,10 @@ export default function ApplicationsPage() {
           ports: ports,
           healthCheck: data.healthCheck,
         }
-        
-        if (await applicationsAPI.create(createData)) {
+
+        if (await applicationsAPI.create(createData)) { // TODO: fix
           // 创建成功后，重新获取所有应用数据
-          try {
-            const updatedApps = await applicationsAPI.getAll() as Application[]
-            setApplications(updatedApps)
-          } catch (fetchError) {
-            console.error('Failed to fetch updated applications:', fetchError)
-          }
+          fetchApplications()
         } else {
           console.error('Failed to create application')
         }
@@ -298,11 +303,11 @@ export default function ApplicationsPage() {
         prev.map((app) =>
           app.id === id
             ? {
-                ...app,
-                status: "running",
-                lastDeployed: new Date().toLocaleString(),
-                runningOn: ["生产环境集群"],
-              }
+              ...app,
+              status: "running",
+              lastDeployed: new Date().toLocaleString(),
+              runningOn: ["生产环境集群"],
+            }
             : app,
         ),
       )
@@ -430,11 +435,11 @@ export default function ApplicationsPage() {
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>导入方式</FormLabel>
-                            <Select 
+                            <Select
                               onValueChange={(value) => {
                                 field.onChange(value)
                                 setImportType(value as "git" | "docker")
-                              }} 
+                              }}
                               defaultValue={field.value}
                             >
                               <FormControl>
@@ -506,23 +511,23 @@ export default function ApplicationsPage() {
                       )}
 
                       {importType === "git" && (
-                          <FormField
-                            control={form.control}
-                            name="branch"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>分支</FormLabel>
-                                <FormControl>
-                                  <Input placeholder="main" {...field} />
-                                </FormControl>
-                                <FormDescription>要部署的Git分支</FormDescription>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        )}
+                        <FormField
+                          control={form.control}
+                          name="branch"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>分支</FormLabel>
+                              <FormControl>
+                                <Input placeholder="main" {...field} />
+                              </FormControl>
+                              <FormDescription>要部署的Git分支</FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
 
-                        <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-2 gap-4">
 
                         <FormField
                           control={form.control}
