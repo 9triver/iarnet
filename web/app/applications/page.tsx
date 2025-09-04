@@ -37,23 +37,6 @@ import {
   RefreshCw,
 } from "lucide-react"
 
-interface Application {
-  id: string
-  name: string
-  description: string
-  importType: "git" | "docker"
-  gitUrl?: string
-  branch?: string
-  dockerImage?: string
-  dockerTag?: string
-  status: "idle" | "running" | "stopped" | "error" | "deploying"
-  type: "web" | "api" | "worker" | "database"
-  lastDeployed?: string
-  runningOn?: string[]
-  ports?: number[]
-  healthCheck?: string
-}
-
 interface ApplicationFormData {
   name: string
   importType: "git" | "docker"
@@ -164,8 +147,8 @@ export default function ApplicationsPage() {
 
   const fetchApplications = async () => {
     try {
-      const updatedApps = await applicationsAPI.getAll() as Application[]
-      setApplications(updatedApps)
+      const updatedApps = await applicationsAPI.getAll()
+      setApplications(updatedApps.applications)
     } catch (fetchError) {
       console.error('Failed to fetch updated applications:', fetchError)
     }
