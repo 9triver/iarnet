@@ -180,19 +180,19 @@ func parseMemory(memStr string) (float64, error) {
 func (rm *Manager) Deploy(ctx context.Context, containerSpec ContainerSpec) (*ContainerRef, error) {
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
-	
+
 	logrus.Infof("Starting deployment process for container with image: %s", containerSpec.Image)
-	logrus.Debugf("Container spec: CPU=%.1f, Memory=%dMB, GPU=%d, Ports=%v", 
+	logrus.Debugf("Container spec: CPU=%.1f, Memory=%dMB, GPU=%d, Ports=%v",
 		containerSpec.CPU, containerSpec.Memory, containerSpec.GPU, containerSpec.Ports)
-	
+
 	// 检查资源是否充足
 	usageReq := Usage{CPU: containerSpec.CPU, Memory: containerSpec.Memory, GPU: containerSpec.GPU}
-	logrus.Debugf("Checking resource availability: CPU=%.1f, Memory=%dMB, GPU=%d", 
+	logrus.Debugf("Checking resource availability: CPU=%.1f, Memory=%dMB, GPU=%d",
 		usageReq.CPU, usageReq.Memory, usageReq.GPU)
 
-	provider := rm.CanAllocate(usageReq)
+	provider := rm.canAllocate(usageReq)
 	if provider == nil {
-		logrus.Errorf("Resource allocation failed: insufficient resources for CPU=%.1f, Memory=%dMB, GPU=%d", 
+		logrus.Errorf("Resource allocation failed: insufficient resources for CPU=%.1f, Memory=%dMB, GPU=%d",
 			usageReq.CPU, usageReq.Memory, usageReq.GPU)
 		return nil, fmt.Errorf("resource limit exceeded")
 	}
@@ -219,10 +219,7 @@ func (rm *Manager) Deploy(ctx context.Context, containerSpec ContainerSpec) (*Co
 	return containerRef, nil
 }
 
-func (rm *Manager) CanAllocate(req Usage) Provider {
-	rm.mu.RLock()
-	defer rm.mu.RUnlock()
-
+func (rm *Manager) canAllocate(req Usage) Provider {
 	logrus.Debugf("Checking resource allocation: Requested(CPU=%.1f, Memory=%.1f, GPU=%.1f)", req.CPU, req.Memory, req.GPU)
 	logrus.Debugf("Searching for available provider among %d providers", len(rm.providers))
 
@@ -237,7 +234,7 @@ func (rm *Manager) CanAllocate(req Usage) Provider {
 				continue
 			}
 
-			logrus.Debugf("Provider %s capacity: Available(CPU=%.1f, Memory=%.1f, GPU=%.1f)", 
+			logrus.Debugf("Provider %s capacity: Available(CPU=%.1f, Memory=%.1f, GPU=%.1f)",
 				provider.GetID(), capacity.Available.CPU, capacity.Available.Memory, capacity.Available.GPU)
 
 			// 检查是否有足够的资源

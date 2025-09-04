@@ -44,10 +44,10 @@ func (s *Server) handleRun(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	usageReq := resource.Usage{CPU: spec.CPU, Memory: spec.Memory, GPU: spec.GPU}
-	if s.resMgr.CanAllocate(usageReq) == nil {
-		response.ServiceUnavailable("Resource limit exceeded").WriteJSON(w)
-		return
-	}
+	// if s.resMgr.CanAllocate(usageReq) == nil {
+	// 	response.ServiceUnavailable("Resource limit exceeded").WriteJSON(w)
+	// 	return
+	// }
 	if err := s.runner.Run(s.ctx, spec); err != nil {
 		response.WriteError(w, http.StatusInternalServerError, "failed to run container", err)
 		return
@@ -136,7 +136,7 @@ func (s *Server) handleGetApplicationStats(w http.ResponseWriter, req *http.Requ
 
 func (s *Server) handleCreateApplication(w http.ResponseWriter, req *http.Request) {
 	logrus.Infof("Received create application request from %s", req.RemoteAddr)
-	
+
 	var createReq request.CreateApplicationRequest
 	if err := json.NewDecoder(req.Body).Decode(&createReq); err != nil {
 		logrus.Errorf("Failed to decode create application request: %v", err)
