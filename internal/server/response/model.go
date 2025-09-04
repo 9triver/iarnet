@@ -53,3 +53,11 @@ type ApplicationInfo struct {
 type GetApplicationsResponse struct {
 	Applications []ApplicationInfo `json:"applications"`
 }
+
+type GetApplicationLogsResponse struct {
+	ApplicationId   string   `json:"applicationId"`
+	ApplicationName string   `json:"applicationName"`
+	Logs            []string `json:"logs"`
+	TotalLines      int      `json:"totalLines"`
+	RequestedLines  int      `json:"requestedLines"`
+}

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { applicationsAPI } from "@/lib/api"
 import { Sidebar } from "@/components/sidebar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -60,6 +61,7 @@ interface ApplicationStats {
 }
 
 export default function ApplicationsPage() {
+  const router = useRouter()
   const [stats, setStats] = useState<ApplicationStats>({
     total: 0,
     running: 0,
@@ -239,7 +241,7 @@ export default function ApplicationsPage() {
 
         if (await applicationsAPI.create(createData)) { // TODO: fix
           // 创建成功后，重新获取所有应用数据
-          fetchApplications()
+          handleRefreshData()
         } else {
           console.error('Failed to create application')
         }
@@ -676,7 +678,11 @@ export default function ApplicationsPage() {
           {/* Applications Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {applications.map((app) => (
-              <Card key={app.id} className="hover:shadow-lg transition-shadow">
+              <Card 
+                key={app.id} 
+                className="hover:shadow-lg transition-shadow cursor-pointer"
+                onClick={() => router.push(`/applications/${app.id}`)}
+              >
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <div className="flex items-center space-x-2">
@@ -748,28 +754,28 @@ export default function ApplicationsPage() {
 
                   <div className="flex items-center space-x-2 pt-2 border-t">
                     {app.status === "running" ? (
-                      <Button size="sm" variant="outline" onClick={() => handleStop(app.id)}>
+                      <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); handleStop(app.id); }}>
                         <Square className="h-4 w-4" />
                         停止
                       </Button>
                     ) : (
-                      <Button size="sm" onClick={() => handleRun(app.id)} disabled={app.status === "deploying"}>
+                      <Button size="sm" onClick={(e) => { e.stopPropagation(); handleRun(app.id); }} disabled={app.status === "deploying"}>
                         <Play className="h-4 w-4" />
                         {app.status === "deploying" ? "部署中..." : "运行"}
                       </Button>
                     )}
 
-                    <Button size="sm" variant="ghost" onClick={() => handleEdit(app)}>
+                    <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); handleEdit(app); }}>
                       <Settings className="h-4 w-4" />
                     </Button>
 
                     <Button size="sm" variant="ghost" asChild>
-                      <a href={app.gitUrl} target="_blank" rel="noopener noreferrer">
+                      <a href={app.gitUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
                         <ExternalLink className="h-4 w-4" />
                       </a>
                     </Button>
 
-                    <Button size="sm" variant="ghost" onClick={() => handleDelete(app.id)}>
+                    <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); handleDelete(app.id); }}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>

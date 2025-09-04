@@ -56,3 +56,16 @@ func (a *AppRef) GetRunningOn() []string {
 	// TODO: support multi provider
 	return []string{a.ContainerRef.Provider.GetName()}
 }
+
+func (a *AppRef) GetLogs(lines int) ([]string, error) {
+	if a.ContainerRef == nil {
+		return []string{}, nil
+	}
+
+	logs, err := a.ContainerRef.Provider.GetLogs(a.ContainerRef.ID, lines)
+	if err != nil {
+		return []string{}, err
+	}
+
+	return logs, nil
+}

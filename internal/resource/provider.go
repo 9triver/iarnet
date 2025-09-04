@@ -21,4 +21,5 @@ type Provider interface {
 	GetLastUpdateTime() time.Time
 	GetStatus() Status
 	Deploy(ctx context.Context, spec ContainerSpec) (string, error)
+	GetLogs(d string, lines int) ([]string, error)
 }

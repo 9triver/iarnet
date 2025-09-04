@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/9triver/iarnet/internal/application"
@@ -32,6 +33,8 @@ func NewServer(r runner.Runner, rm *resource.Manager, am *application.Manager) *
 	s.router.HandleFunc("/resource/providers", s.handleResourceProviders).Methods("GET")
 
 	s.router.HandleFunc("/application/apps", s.handleGetApplications).Methods("GET")
+	s.router.HandleFunc("/application/apps/{id}", s.handleGetApplicationById).Methods("GET")
+	s.router.HandleFunc("/application/apps/{id}/logs", s.handleGetApplicationLogs).Methods("GET")
 	s.router.HandleFunc("/application/stats", s.handleGetApplicationStats).Methods("GET")
 	s.router.HandleFunc("/application/create", s.handleCreateApplication).Methods("POST")
 
@@ -288,4 +291,92 @@ func (s *Server) Start(addr string) error {
 
 func (s *Server) Stop() {
 	s.cancel()
+}
+
+// handleGetApplicationById 处理获取单个应用详情请求
+func (s *Server) handleGetApplicationById(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	appID := vars["id"]
+	logrus.Infof("Received request to get application by ID: %s", appID)
+
+	app, err := s.appMgr.GetApplication(appID)
+	if err != nil {
+		logrus.Warnf("Application not found: %s", appID)
+		response.WriteError(w, http.StatusNotFound, "application not found", err)
+		return
+	}
+
+	appInfo := response.ApplicationInfo{
+		ID:           app.ID,
+		Name:         app.Name,
+		ImportType:   app.ImportType,
+		GitUrl:       app.GitUrl,
+		Branch:       app.Branch,
+		DockerImage:  app.DockerImage,
+		DockerTag:    app.DockerTag,
+		Type:         app.Type,
+		Description:  app.Description,
+		Ports:        app.Ports,
+		HealthCheck:  app.HealthCheck,
+		Status:       app.Status,
+		LastDeployed: app.LastDeployed.Format("2006-01-02 15:04:05"),
+		RunningOn:    app.GetRunningOn(),
+	}
+
+	if err := response.WriteSuccess(w, appInfo); err != nil {
+		logrus.Errorf("Failed to write application response: %v", err)
+		return
+	}
+	logrus.Debugf("Successfully sent application details for ID: %s", appID)
+}
+
+// handleGetApplicationLogs 处理获取应用日志请求
+func (s *Server) handleGetApplicationLogs(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	appID := vars["id"]
+	logrus.Infof("Received request to get logs for application ID: %s", appID)
+
+	// 获取查询参数
+	linesParam := req.URL.Query().Get("lines")
+	lines := 100 // 默认返回100行
+	if linesParam != "" {
+		if parsedLines, err := strconv.Atoi(linesParam); err == nil && parsedLines > 0 {
+			lines = parsedLines
+		}
+	}
+
+	// 验证应用是否存在
+	app, err := s.appMgr.GetApplication(appID)
+	if err != nil {
+		logrus.Warnf("Application not found for logs request: %s", appID)
+		response.WriteError(w, http.StatusNotFound, "application not found", err)
+		return
+	}
+
+	// 模拟日志数据（实际应该从容器运行时获取）
+	logs, err := app.GetLogs(lines)
+	if err != nil {
+		logrus.Errorf("Failed to get logs for application %s: %v", appID, err)
+		response.WriteError(w, http.StatusInternalServerError, "failed to get logs", err)
+		return
+	}
+
+	// 限制返回的日志行数
+	if len(logs) > lines {
+		logs = logs[len(logs)-lines:]
+	}
+
+	logsResponse := &response.GetApplicationLogsResponse{
+		ApplicationId:   appID,
+		ApplicationName: app.Name,
+		Logs:            logs,
+		TotalLines:      len(logs),
+		RequestedLines:  lines,
+	}
+
+	if err := response.WriteSuccess(w, logsResponse); err != nil {
+		logrus.Errorf("Failed to write logs response: %v", err)
+		return
+	}
+	logrus.Debugf("Successfully sent %d log lines for application ID: %s", len(logs), appID)
 }

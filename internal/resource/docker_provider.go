@@ -3,6 +3,9 @@ package resource
 import (
 	"context"
 	"fmt"
+	"io"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/moby/moby/api/types/container"
@@ -293,4 +296,80 @@ func (dp *DockerProvider) Deploy(ctx context.Context, spec ContainerSpec) (strin
 		return "", err
 	}
 	return resp.ID, nil
+}
+
+func (dp *DockerProvider) GetLogs(containerID string, lines int) ([]string, error) {
+	logrus.Debugf("Getting logs for container %s, lines: %d", containerID, lines)
+
+	// 创建日志选项
+	options := container.LogsOptions{
+		ShowStdout: true,
+		ShowStderr: true,
+		Timestamps: true,
+		Tail:       strconv.Itoa(lines),
+	}
+
+	// 获取容器日志
+	ctx := context.Background()
+	logsReader, err := dp.client.ContainerLogs(ctx, containerID, options)
+	if err != nil {
+		logrus.Errorf("Failed to get container logs for %s: %v", containerID, err)
+		return nil, fmt.Errorf("failed to get container logs: %w", err)
+	}
+	defer logsReader.Close()
+
+	// 读取日志内容
+	var logLines []string
+	buffer := make([]byte, 4096)
+
+	for {
+		n, err := logsReader.Read(buffer)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			logrus.Errorf("Error reading container logs for %s: %v", containerID, err)
+			return nil, fmt.Errorf("error reading container logs: %w", err)
+		}
+
+		if n == 0 {
+			break
+		}
+
+		// 处理 Docker 多路复用日志格式
+		data := buffer[:n]
+		offset := 0
+
+		for offset < len(data) {
+			// Docker 日志头部格式：[stream_type][0][0][0][size_bytes]
+			if offset+8 > len(data) {
+				break
+			}
+
+			// 读取消息长度（大端序）
+			msgSize := int(data[offset+4])<<24 | int(data[offset+5])<<16 | int(data[offset+6])<<8 | int(data[offset+7])
+			if offset+8+msgSize > len(data) {
+				break
+			}
+
+			// 提取日志内容
+			logContent := string(data[offset+8 : offset+8+msgSize])
+			lines := strings.Split(strings.TrimSpace(logContent), "\n")
+			for _, line := range lines {
+				if strings.TrimSpace(line) != "" {
+					logLines = append(logLines, strings.TrimSpace(line))
+				}
+			}
+
+			offset += 8 + msgSize
+		}
+	}
+
+	// 限制返回的日志行数
+	if len(logLines) > lines {
+		logLines = logLines[len(logLines)-lines:]
+	}
+
+	logrus.Debugf("Successfully retrieved %d log lines for container %s", len(logLines), containerID)
+	return logLines, nil
 }
