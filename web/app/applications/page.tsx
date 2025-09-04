@@ -50,7 +50,7 @@ interface Application {
   type: "web" | "api" | "worker" | "database"
   lastDeployed?: string
   runningOn?: string[]
-  port?: number
+  ports?: number[]
   healthCheck?: string
 }
 
@@ -63,7 +63,7 @@ interface ApplicationFormData {
   dockerTag?: string
   type: "web" | "api" | "worker" | "database"
   description?: string
-  port?: number
+  ports?: string
   healthCheck?: string
 }
 
@@ -98,7 +98,7 @@ export default function ApplicationsPage() {
       type: "web",
       lastDeployed: "2024-01-15 14:30:00",
       runningOn: ["生产环境集群"],
-      port: 3000,
+      ports: [3000],
       healthCheck: "/health",
     },
     {
@@ -111,7 +111,7 @@ export default function ApplicationsPage() {
       status: "idle",
       type: "worker",
       lastDeployed: "2024-01-14 10:15:00",
-      port: 8080,
+      ports: [8080],
     },
     {
       id: "3",
@@ -124,7 +124,7 @@ export default function ApplicationsPage() {
       type: "api",
       lastDeployed: "2024-01-15 09:45:00",
       runningOn: ["生产环境集群", "开发环境"],
-      port: 8000,
+      ports: [8000],
       healthCheck: "/api/health",
     },
     {
@@ -138,7 +138,7 @@ export default function ApplicationsPage() {
       type: "web",
       lastDeployed: "2024-01-15 16:20:00",
       runningOn: ["生产环境集群"],
-      port: 80,
+      ports: [80, 31],
       healthCheck: "/",
     },
   ])
@@ -181,7 +181,7 @@ export default function ApplicationsPage() {
       dockerTag: "latest",
       type: "web",
       description: "",
-      port: 3000,
+      ports: "3000",
       healthCheck: "",
     },
   })
@@ -195,8 +195,20 @@ export default function ApplicationsPage() {
 
 
 
-  const onSubmit = (data: ApplicationFormData) => {
+  const onSubmit = async (data: ApplicationFormData) => {
+    // 解析端口字符串为数字数组
+    const parsePorts = (portsStr?: string): number[] => {
+      if (!portsStr) return []
+      return portsStr
+        .split(',')
+        .map(port => parseInt(port.trim()))
+        .filter(port => !isNaN(port) && port > 0 && port <= 65535)
+    }
+
+    const ports = parsePorts(data.ports)
+
     if (editingApp) {
+      // 编辑现有应用 - 只更新本地状态
       setApplications((prev) =>
         prev.map((app) =>
           app.id === editingApp.id
@@ -210,28 +222,44 @@ export default function ApplicationsPage() {
                 dockerTag: data.importType === "docker" ? data.dockerTag : undefined,
                 type: data.type,
                 description: data.description || "",
-                port: data.port,
+                ports: ports,
                 healthCheck: data.healthCheck,
               }
             : app,
         ),
       )
     } else {
-      const newApp: Application = {
-        id: Date.now().toString(),
-        name: data.name,
-        importType: data.importType,
-        gitUrl: data.importType === "git" ? data.gitUrl : undefined,
-        branch: data.importType === "git" ? data.branch : undefined,
-        dockerImage: data.importType === "docker" ? data.dockerImage : undefined,
-        dockerTag: data.importType === "docker" ? data.dockerTag : undefined,
-        type: data.type,
-        description: data.description || "",
-        status: "idle",
-        port: data.port,
-        healthCheck: data.healthCheck,
+      // 创建新应用 - 调用后端API
+      try {
+        const createData = {
+          name: data.name,
+          importType: data.importType,
+          gitUrl: data.importType === "git" ? data.gitUrl : undefined,
+          branch: data.importType === "git" ? data.branch : undefined,
+          dockerImage: data.importType === "docker" ? data.dockerImage : undefined,
+          dockerTag: data.importType === "docker" ? data.dockerTag : undefined,
+          type: data.type,
+          description: data.description || "",
+          ports: ports,
+          healthCheck: data.healthCheck,
+        }
+        
+        if (await applicationsAPI.create(createData)) {
+          // 创建成功后，重新获取所有应用数据
+          try {
+            const updatedApps = await applicationsAPI.getAll() as Application[]
+            setApplications(updatedApps)
+          } catch (fetchError) {
+            console.error('Failed to fetch updated applications:', fetchError)
+          }
+        } else {
+          console.error('Failed to create application')
+        }
+      } catch (error) {
+        console.error('Failed to create application:', error)
+        // 可以在这里添加错误提示
+        return
       }
-      setApplications((prev) => [...prev, newApp])
     }
 
     setIsDialogOpen(false)
@@ -253,7 +281,7 @@ export default function ApplicationsPage() {
     }
     form.setValue("type", app.type)
     form.setValue("description", app.description)
-    form.setValue("port", app.port)
+    form.setValue("ports", app.ports ? app.ports.join(", ") : "")
     form.setValue("healthCheck", app.healthCheck)
     setIsDialogOpen(true)
   }
@@ -371,7 +399,7 @@ export default function ApplicationsPage() {
                     导入应用
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-[500px]">
+                <DialogContent className="sm:max-w-[550px]">
                   <DialogHeader>
                     <DialogTitle>{editingApp ? "编辑应用" : "导入新应用"}</DialogTitle>
                     <DialogDescription>
@@ -525,21 +553,17 @@ export default function ApplicationsPage() {
                       <div className="grid grid-cols-2 gap-4">
                         <FormField
                           control={form.control}
-                          name="port"
+                          name="ports"
                           render={({ field }) => (
                             <FormItem>
                               <FormLabel>端口号</FormLabel>
                               <FormControl>
                                 <Input
-                                  type="number"
-                                  placeholder="3000"
+                                  placeholder="3000, 8080, 9000"
                                   {...field}
-                                  onChange={(e) =>
-                                    field.onChange(e.target.value ? Number.parseInt(e.target.value) : undefined)
-                                  }
                                 />
                               </FormControl>
-                              <FormDescription>应用运行端口</FormDescription>
+                              <FormDescription>应用运行端口，多个端口用逗号分隔</FormDescription>
                               <FormMessage />
                             </FormItem>
                           )}
@@ -698,11 +722,17 @@ export default function ApplicationsPage() {
                       </div>
                     )}
 
-                    {app.port && (
+                    {app.ports && app.ports.length > 0 && (
                       <div className="flex items-center space-x-2 text-sm">
                         <Activity className="h-4 w-4 text-muted-foreground" />
                         <span className="text-muted-foreground">端口:</span>
-                        <span className="font-mono">{app.port}</span>
+                        <div className="flex flex-wrap gap-1">
+                          {app.ports.map((port, index) => (
+                            <Badge key={index} variant="outline" className="text-xs font-mono">
+                              {port}
+                            </Badge>
+                          ))}
+                        </div>
                       </div>
                     )}
 

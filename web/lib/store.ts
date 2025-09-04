@@ -34,7 +34,7 @@ export interface Application {
   type: "web" | "api" | "worker" | "database"
   lastDeployed?: string
   runningOn?: string[]
-  port?: number
+  ports?: number[]
   healthCheck?: string
 }
 
@@ -331,7 +331,7 @@ export const useIARNetStore = create<IARNetStore>()(
                 type: "web",
                 lastDeployed: "2024-01-15 14:30:00",
                 runningOn: ["生产环境集群"],
-                port: 3000,
+                ports: [3000],
                 healthCheck: "/health",
               },
               {
@@ -343,7 +343,7 @@ export const useIARNetStore = create<IARNetStore>()(
                 status: "idle",
                 type: "worker",
                 lastDeployed: "2024-01-14 10:15:00",
-                port: 8080,
+                ports: [8080],
               },
               {
                 id: "3",
@@ -355,7 +355,7 @@ export const useIARNetStore = create<IARNetStore>()(
                 type: "api",
                 lastDeployed: "2024-01-15 09:45:00",
                 runningOn: ["生产环境集群", "开发环境"],
-                port: 8000,
+                ports: [8000],
                 healthCheck: "/api/health",
               },
             ],

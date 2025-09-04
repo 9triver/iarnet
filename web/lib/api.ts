@@ -57,7 +57,7 @@ export const applicationsAPI = {
   getAll: () => apiRequest("/applications"),
   getStats: () => apiRequest("/application/stats"),
   create: (app: any) =>
-    apiRequest("/applications", {
+    apiRequest("/application/create", {
       method: "POST",
       body: JSON.stringify(app),
     }),

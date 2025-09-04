@@ -180,35 +180,55 @@ func parseMemory(memStr string) (float64, error) {
 func (rm *Manager) Deploy(ctx context.Context, containerSpec ContainerSpec) (*ContainerRef, error) {
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
+	
+	logrus.Infof("Starting deployment process for container with image: %s", containerSpec.Image)
+	logrus.Debugf("Container spec: CPU=%.1f, Memory=%dMB, GPU=%d, Ports=%v", 
+		containerSpec.CPU, containerSpec.Memory, containerSpec.GPU, containerSpec.Ports)
+	
 	// 检查资源是否充足
 	usageReq := Usage{CPU: containerSpec.CPU, Memory: containerSpec.Memory, GPU: containerSpec.GPU}
+	logrus.Debugf("Checking resource availability: CPU=%.1f, Memory=%dMB, GPU=%d", 
+		usageReq.CPU, usageReq.Memory, usageReq.GPU)
 
 	provider := rm.CanAllocate(usageReq)
 	if provider == nil {
+		logrus.Errorf("Resource allocation failed: insufficient resources for CPU=%.1f, Memory=%dMB, GPU=%d", 
+			usageReq.CPU, usageReq.Memory, usageReq.GPU)
 		return nil, fmt.Errorf("resource limit exceeded")
 	}
+	logrus.Infof("Resource provider found for deployment: %T", provider)
 
 	// 部署应用
+	logrus.Info("Deploying container to resource provider")
 	containerID, err := provider.Deploy(ctx, containerSpec)
 	if err != nil {
+		logrus.Errorf("Container deployment failed on provider: %v", err)
 		return nil, fmt.Errorf("failed to deploy application: %w", err)
 	}
+	logrus.Infof("Container deployed successfully with ID: %s", containerID)
 
 	// TODO: sync cache
+	logrus.Debug("TODO: Implement cache synchronization after deployment")
 
-	return &ContainerRef{
+	containerRef := &ContainerRef{
 		ID:       containerID,
 		Provider: provider,
 		Spec:     containerSpec,
-	}, nil
+	}
+	logrus.Infof("Deployment completed successfully: ContainerID=%s", containerID)
+	return containerRef, nil
 }
 
 func (rm *Manager) CanAllocate(req Usage) Provider {
 	rm.mu.RLock()
 	defer rm.mu.RUnlock()
 
+	logrus.Debugf("Checking resource allocation: Requested(CPU=%.1f, Memory=%.1f, GPU=%.1f)", req.CPU, req.Memory, req.GPU)
+	logrus.Debugf("Searching for available provider among %d providers", len(rm.providers))
+
 	// 遍历所有 providers，找到满足条件的 provider
 	for _, provider := range rm.providers {
+		logrus.Debugf("Checking provider %s with status %v", provider.GetID(), provider.GetStatus())
 		if provider.GetStatus() == StatusConnected {
 			// 获取 provider 的容量信息
 			capacity, err := provider.GetCapacity(context.Background())
@@ -217,16 +237,23 @@ func (rm *Manager) CanAllocate(req Usage) Provider {
 				continue
 			}
 
+			logrus.Debugf("Provider %s capacity: Available(CPU=%.1f, Memory=%.1f, GPU=%.1f)", 
+				provider.GetID(), capacity.Available.CPU, capacity.Available.Memory, capacity.Available.GPU)
+
 			// 检查是否有足够的资源
 			if capacity.Available.CPU >= req.CPU &&
 				capacity.Available.Memory >= req.Memory &&
 				capacity.Available.GPU >= req.GPU {
+				logrus.Infof("Found suitable provider: %s for resource allocation", provider.GetID())
 				return provider
+			} else {
+				logrus.Debugf("Provider %s has insufficient resources", provider.GetID())
 			}
 		}
 	}
 
 	// 如果没有找到满足条件的 provider，返回 nil
+	logrus.Warnf("No suitable provider found for resource allocation: CPU=%.1f, Memory=%.1f, GPU=%.1f", req.CPU, req.Memory, req.GPU)
 	return nil
 }
 

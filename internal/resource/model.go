@@ -28,6 +28,7 @@ type ContainerRef struct {
 
 type ContainerSpec struct {
 	Image   string
+	Ports   []int
 	Command []string
 	CPU     float64
 	Memory  float64

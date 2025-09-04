@@ -4,6 +4,8 @@ import (
 	"errors"
 	"strconv"
 	"sync"
+
+	"github.com/sirupsen/logrus"
 )
 
 type Manager struct {
@@ -30,6 +32,7 @@ func (m *Manager) CreateApplication(name string) *AppRef {
 		Status: StatusUndeployed,
 	}
 	m.applications[appID] = app
+	logrus.Infof("Application created in manager: ID=%s, Name=%s, Status=%s", appID, name, StatusUndeployed)
 	return app
 }
 
@@ -59,9 +62,12 @@ func (m *Manager) UpdateApplicationStatus(appID string, status Status) error {
 	defer m.mu.Unlock()
 	app, ok := m.applications[appID]
 	if !ok {
+		logrus.Warnf("Attempted to update status for non-existent application: %s", appID)
 		return errors.New("application not found")
 	}
+	oldStatus := app.Status
 	app.Status = status
+	logrus.Infof("Application status updated: ID=%s, OldStatus=%s, NewStatus=%s", appID, oldStatus, status)
 	return nil
 }
 

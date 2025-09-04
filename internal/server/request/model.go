@@ -10,6 +10,6 @@ type CreateApplicationRequest struct {
 	DockerTag   *string `json:"dockerTag,omitempty"`
 	Type        string  `json:"type"` // "web", "api", "worker", "database"
 	Description *string `json:"description,omitempty"`
-	Port        *int    `json:"port,omitempty"`
+	Ports       []int   `json:"ports,omitempty"`
 	HealthCheck *string `json:"healthCheck,omitempty"`
 }
