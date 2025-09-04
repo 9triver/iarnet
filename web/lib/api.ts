@@ -57,7 +57,7 @@ export const applicationsAPI = {
   getAll: () => apiRequest<GetApplicationsResponse>("/application/apps"),
   getStats: () => apiRequest("/application/stats"),
   getById: (id: string) => apiRequest<Application>(`/application/apps/${id}`),
-  getLogs: (id: string, lines?: number) => apiRequest(`/application/apps/${id}/logs${lines ? `?lines=${lines}` : ''}`),
+  getLogs: (id: string, lines?: number) => apiRequest<GetApplicationLogsResponse>(`/application/apps/${id}/logs${lines ? `?lines=${lines}` : ''}`),
   create: (app: any) =>
     apiRequest("/application/create", {
       method: "POST",

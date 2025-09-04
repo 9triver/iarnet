@@ -40,3 +40,11 @@ interface Application {
 interface GetApplicationsResponse {
   applications: Application[]
 }
+
+interface GetApplicationLogsResponse {
+  applicationId: string
+  applicationName: string
+  logs: string[]
+  totalLines: number
+  requestedLines: number
+}

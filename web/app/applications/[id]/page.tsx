@@ -72,43 +72,63 @@ export default function ApplicationDetailPage() {
     try {
       setIsLoadingLogs(true)
       
-      // 模拟日志数据，实际应该调用真实的日志API
-      const mockLogs: LogEntry[] = [
-        {
-          timestamp: "2025-01-09 10:30:15",
-          level: "INFO",
-          message: "Application started successfully"
-        },
-        {
-          timestamp: "2025-01-09 10:30:20",
-          level: "INFO",
-          message: "Server listening on port 3000"
-        },
-        {
-          timestamp: "2025-01-09 10:31:05",
-          level: "DEBUG",
-          message: "Database connection established"
-        },
-        {
-          timestamp: "2025-01-09 10:32:10",
-          level: "WARN",
-          message: "High memory usage detected: 85%"
-        },
-        {
-          timestamp: "2025-01-09 10:33:15",
-          level: "ERROR",
-          message: "Failed to connect to external service: timeout"
-        },
-        {
-          timestamp: "2025-01-09 10:34:20",
-          level: "INFO",
-          message: "Health check passed"
-        }
-      ]
+      // 从后端 API 获取真实的日志数据
+      const response = await applicationsAPI.getLogs(application.id, 100)
       
-      setLogs(mockLogs)
+      // 将后端返回的日志字符串数组转换为 LogEntry 格式
+      const logEntries: LogEntry[] = response.logs.map((logLine: string, index: number) => {
+        // 尝试解析 Docker 日志格式，支持 ISO 8601 时间格式
+        const timestampMatch = logLine.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?)\s*/)
+        const levelMatch = logLine.match(/\[(INFO|DEBUG|WARN|ERROR|TRACE)\]/i)
+        
+        let timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19)
+        let level = 'INFO'
+        let message = logLine
+        
+        if (timestampMatch) {
+          // 将 ISO 8601 格式转换为本地时间显示格式
+          const date = new Date(timestampMatch[1])
+          timestamp = date.toLocaleString('zh-CN', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+          }).replace(/\//g, '-')
+        }
+        
+        if (levelMatch) {
+          level = levelMatch[1].toUpperCase()
+        }
+        
+        // 提取消息部分，去除时间戳
+        if (timestampMatch) {
+          message = logLine.substring(timestampMatch[0].length).trim()
+        }
+        
+        // 如果消息为空，使用原始日志行
+        if (!message) {
+          message = logLine
+        }
+        
+        return {
+          timestamp,
+          level,
+          message
+        }
+      })
+      
+      setLogs(logEntries)
     } catch (err) {
       console.error('Failed to load logs:', err)
+      // 如果 API 调用失败，显示错误信息
+      setLogs([{
+        timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
+        level: 'ERROR',
+        message: '无法加载日志数据'
+      }])
     } finally {
       setIsLoadingLogs(false)
     }
