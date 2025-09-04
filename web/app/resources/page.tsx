@@ -247,7 +247,7 @@ export default function ResourcesPage() {
           <div className="flex items-center justify-between mb-8">
             <div>
               <h1 className="text-3xl font-playfair font-bold text-foreground mb-2">算力资源管理</h1>
-              <p className="text-muted-foreground">接入和管理您的算力资源，包括CPU、GPU、存储和网络资源</p>
+              <p className="text-muted-foreground">接入和管理您的算力资源，包括CPU、GPU、内存和网络资源</p>
             </div>
 
             <div className="flex items-center space-x-3">
@@ -523,7 +523,7 @@ export default function ResourcesPage() {
                               : "0%"}
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            {resource.memory.used}/{resource.memory.total} GB
+                            {formatMemory(resource.memory.used)}/{formatMemory(resource.memory.total)}
                           </div>
                         </div>
                       </TableCell>
