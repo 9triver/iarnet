@@ -7,6 +7,7 @@ import (
 
 	"github.com/9triver/iarnet/internal/resource"
 	"github.com/9triver/iarnet/internal/runner"
+	"github.com/9triver/iarnet/internal/server/response"
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
 )
@@ -30,31 +31,30 @@ func NewServer(r runner.Runner, rm *resource.Manager) *Server {
 func (s *Server) handleRun(w http.ResponseWriter, req *http.Request) {
 	var spec runner.ContainerSpec
 	if err := json.NewDecoder(req.Body).Decode(&spec); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		response.WriteError(w, http.StatusBadRequest, "invalid request body", err)
 		return
 	}
 	usageReq := resource.Usage{CPU: spec.CPU, Memory: spec.Memory, GPU: spec.GPU}
 	if !s.resMgr.CanAllocate(usageReq) {
-		http.Error(w, "Resource limit exceeded", http.StatusServiceUnavailable)
+		response.ServiceUnavailable("Resource limit exceeded").WriteJSON(w)
 		return
 	}
 	if err := s.runner.Run(s.ctx, spec); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		response.WriteError(w, http.StatusInternalServerError, "failed to run container", err)
 		return
 	}
 	s.resMgr.Allocate(usageReq)
-	w.WriteHeader(http.StatusAccepted)
+	response.Accepted("Container run request accepted").WriteJSON(w)
 }
 
 func (s *Server) handleResourceCapacity(w http.ResponseWriter, req *http.Request) {
 	capacity, err := s.resMgr.GetCapacity(s.ctx)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		response.WriteError(w, http.StatusInternalServerError, "failed to get resource capacity", err)
 		return
 	}
-	if err := json.NewEncoder(w).Encode(capacity); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+	if err := response.WriteSuccess(w, capacity); err != nil {
+		logrus.Errorf("Failed to write response: %v", err)
 	}
 }
 

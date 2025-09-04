@@ -28,3 +28,21 @@ Body: {"image": "nginx", "command": ["nginx"], "cpu": 1.0, "memory": 0.5, "gpu":
 npm install # npm install --legacy-peer-deps
 npm run dev
 ```
+
+## Environment Configuration
+
+The web application uses environment variables for configuration. Create a `.env.local` file in the `web/` directory:
+
+```shell
+# Backend API URL (required)
+BACKEND_URL=http://localhost:8083
+```
+
+### Environment Variables
+
+- `BACKEND_URL`: Backend API server URL
+  - Local development: `http://localhost:8083`
+  - Docker environment: `http://workspace:8083`
+  - Production: Your production backend URL
+
+**Note**: Environment files (`.env*`) are ignored by git to keep sensitive configuration out of the repository.
