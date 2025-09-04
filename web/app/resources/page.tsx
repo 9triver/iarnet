@@ -23,6 +23,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { useForm } from "react-hook-form"
 import { Plus, Server, Cpu, HardDrive, Activity, Trash2, Edit, RefreshCw, MemoryStick } from "lucide-react"
 import { formatMemory, formatNumber } from "@/lib/utils"
+import { Skeleton } from "@/components/ui/skeleton"
 
 interface Resource {
   id: string
@@ -66,35 +67,36 @@ interface Capacity {
 }
 
 export default function ResourcesPage() {
-  const [resources, setResources] = useState<Resource[]>([
-    {
-      id: "1",
-      name: "生产环境集群",
-      type: "kubernetes",
-      url: "https://k8s-prod.example.com",
-      status: "connected",
-      cpu: { total: 32, used: 18 },
-      memory: { total: 128, used: 76 },
-      // storage: { total: 2048, used: 1024 },
-      lastUpdated: "2024-01-15 14:30:00",
-    },
-    {
-      id: "2",
-      name: "开发环境",
-      type: "docker",
-      url: "https://docker-dev.example.com",
-      status: "connected",
-      cpu: { total: 16, used: 8 },
-      memory: { total: 64, used: 32 },
-      // storage: { total: 1024, used: 256 },
-      lastUpdated: "2024-01-15 14:25:00",
-    },
-  ])
+  const [resources, setResources] = useState<Resource[]>([])
+  // ([
+  // {
+  //   id: "1",
+  //   name: "生产环境集群",
+  //   type: "kubernetes",
+  //   url: "https://k8s-prod.example.com",
+  //   status: "connected",
+  //   cpu: { total: 32, used: 18 },
+  //   memory: { total: 128, used: 76 },
+  //   // storage: { total: 2048, used: 1024 },
+  //   lastUpdated: "2024-01-15 14:30:00",
+  // },
+  // {
+  //   id: "2",
+  //   name: "开发环境",
+  //   type: "docker",
+  //   url: "https://docker-dev.example.com",
+  //   status: "connected",
+  //   cpu: { total: 16, used: 8 },
+  //   memory: { total: 64, used: 32 },
+  //   // storage: { total: 1024, used: 256 },
+  //   lastUpdated: "2024-01-15 14:25:00",
+  // },
+  // ])
 
   const [capacity, setCapacity] = useState<Capacity | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingResource, setEditingResource] = useState<Resource | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
 
   const form = useForm<ResourceFormData>({
     defaultValues: {
@@ -109,11 +111,18 @@ export default function ResourcesPage() {
   // 获取资源容量数据
   const fetchCapacity = async () => {
     try {
-      setLoading(true)
       const data = await resourcesAPI.getCapacity()
       setCapacity(data as Capacity)
     } catch (error) {
       console.error('Failed to fetch capacity:', error)
+    }
+  }
+
+  const fetchData = async () => {
+    try {
+      setLoading(true)
+      await fetchProviders()
+      await fetchCapacity()
     } finally {
       setLoading(false)
     }
@@ -134,7 +143,6 @@ export default function ResourcesPage() {
   // 获取资源提供者数据
   const fetchProviders = async () => {
     try {
-      setLoading(true)
       const response = (await resourcesAPI.getProviders()) as GetResourceProvidersResponse
       // 转换API数据格式为前端需要的格式
       const convertedResources: Resource[] = response.providers.map((provider: ResourceProvider) => ({
@@ -158,14 +166,11 @@ export default function ResourcesPage() {
     } catch (error) {
       console.error('Failed to fetch providers:', error)
       // 如果API调用失败，保持使用模拟数据
-    } finally {
-      setLoading(false)
     }
   }
 
   useEffect(() => {
-    fetchCapacity()
-    fetchProviders()
+    fetchData()
   }, [])
 
   const onSubmit = (data: ResourceFormData) => {
@@ -237,6 +242,49 @@ export default function ResourcesPage() {
     }
   }
 
+  // 骨架行组件
+  const ResourceTableSkeleton = () => (
+    <TableRow>
+      <TableCell className="w-64">
+        <div className="flex items-center space-x-2">
+          <Skeleton className="h-4 w-4 bg-gray-200 dark:bg-gray-700" />
+          <div>
+            <Skeleton className="h-4 w-40 mb-1 bg-gray-200 dark:bg-gray-700" />
+            <Skeleton className="h-3 w-48 bg-gray-200 dark:bg-gray-700" />
+          </div>
+        </div>
+      </TableCell>
+      <TableCell className="w-20">
+        <Skeleton className="h-6 w-16 bg-gray-200 dark:bg-gray-700" />
+      </TableCell>
+      <TableCell className="w-20">
+        <Skeleton className="h-6 w-16 bg-gray-200 dark:bg-gray-700" />
+      </TableCell>
+      <TableCell className="w-32">
+        <div className="flex items-center space-x-2">
+          <Skeleton className="h-4 w-8 bg-gray-200 dark:bg-gray-700" />
+          <Skeleton className="h-3 w-20 bg-gray-200 dark:bg-gray-700" />
+        </div>
+      </TableCell>
+      <TableCell className="w-32">
+        <div className="flex items-center space-x-2">
+          <Skeleton className="h-4 w-8 bg-gray-200 dark:bg-gray-700" />
+          <Skeleton className="h-3 w-20 bg-gray-200 dark:bg-gray-700" />
+        </div>
+      </TableCell>
+      <TableCell className="w-40">
+        <Skeleton className="h-3 w-32 bg-gray-200 dark:bg-gray-700" />
+      </TableCell>
+      <TableCell className="w-32">
+        <div className="flex items-center space-x-2">
+          <Skeleton className="h-8 w-8 bg-gray-200 dark:bg-gray-700" />
+          <Skeleton className="h-8 w-8 bg-gray-200 dark:bg-gray-700" />
+          <Skeleton className="h-8 w-8 bg-gray-200 dark:bg-gray-700" />
+        </div>
+      </TableCell>
+    </TableRow>
+  )
+
   return (
     <div className="flex h-screen bg-background">
       <Sidebar />
@@ -254,15 +302,14 @@ export default function ResourcesPage() {
               <Button
                 variant="outline"
                 onClick={() => {
-                  fetchCapacity()
-                  fetchProviders()
+                  fetchData()
                 }}
                 disabled={loading}
               >
                 <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                 刷新数据
               </Button>
-              
+
               <Button
                 variant="outline"
                 onClick={() => {
@@ -273,7 +320,7 @@ export default function ResourcesPage() {
                 <Plus className="h-4 w-4" />
                 接入新节点
               </Button>
-              
+
               <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogTrigger asChild>
                   <Button
@@ -286,109 +333,109 @@ export default function ResourcesPage() {
                     接入新资源
                   </Button>
                 </DialogTrigger>
-              <DialogContent className="sm:max-w-[500px]">
-                <DialogHeader>
-                  <DialogTitle>{editingResource ? "编辑资源" : "接入新的算力资源"}</DialogTitle>
-                  <DialogDescription>
-                    {editingResource ? "修改资源配置信息" : "输入算力资源的API服务器信息以接入管理"}
-                  </DialogDescription>
-                </DialogHeader>
+                <DialogContent className="sm:max-w-[500px]">
+                  <DialogHeader>
+                    <DialogTitle>{editingResource ? "编辑资源" : "接入新的算力资源"}</DialogTitle>
+                    <DialogDescription>
+                      {editingResource ? "修改资源配置信息" : "输入算力资源的API服务器信息以接入管理"}
+                    </DialogDescription>
+                  </DialogHeader>
 
-                <Form {...form}>
-                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                    <FormField
-                      control={form.control}
-                      name="name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>资源名称</FormLabel>
-                          <FormControl>
-                            <Input placeholder="例如：生产环境集群" {...field} />
-                          </FormControl>
-                          <FormDescription>为这个算力资源起一个易识别的名称</FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="type"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>资源类型</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Form {...form}>
+                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                      <FormField
+                        control={form.control}
+                        name="name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>资源名称</FormLabel>
                             <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="选择资源类型" />
-                              </SelectTrigger>
+                              <Input placeholder="例如：生产环境集群" {...field} />
                             </FormControl>
-                            <SelectContent>
-                              <SelectItem value="kubernetes">Kubernetes 集群</SelectItem>
-                              <SelectItem value="docker">Docker 环境</SelectItem>
-                              <SelectItem value="vm">虚拟机</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormDescription>选择算力资源的部署环境类型</FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                            <FormDescription>为这个算力资源起一个易识别的名称</FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-                    <FormField
-                      control={form.control}
-                      name="url"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>API Server URL</FormLabel>
-                          <FormControl>
-                            <Input placeholder="https://api.example.com" {...field} />
-                          </FormControl>
-                          <FormDescription>算力资源的API服务器地址</FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                      <FormField
+                        control={form.control}
+                        name="type"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>资源类型</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="选择资源类型" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="kubernetes">Kubernetes 集群</SelectItem>
+                                <SelectItem value="docker">Docker 环境</SelectItem>
+                                <SelectItem value="vm">虚拟机</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormDescription>选择算力资源的部署环境类型</FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-                    <FormField
-                      control={form.control}
-                      name="token"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>访问令牌</FormLabel>
-                          <FormControl>
-                            <Input type="password" placeholder="输入访问令牌" {...field} />
-                          </FormControl>
-                          <FormDescription>用于访问API服务器的认证令牌</FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                      <FormField
+                        control={form.control}
+                        name="url"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>API Server URL</FormLabel>
+                            <FormControl>
+                              <Input placeholder="https://api.example.com" {...field} />
+                            </FormControl>
+                            <FormDescription>算力资源的API服务器地址</FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-                    <FormField
-                      control={form.control}
-                      name="description"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>描述（可选）</FormLabel>
-                          <FormControl>
-                            <Textarea placeholder="资源描述信息..." {...field} />
-                          </FormControl>
-                          <FormDescription>添加关于此资源的额外描述信息</FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                      <FormField
+                        control={form.control}
+                        name="token"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>访问令牌</FormLabel>
+                            <FormControl>
+                              <Input type="password" placeholder="输入访问令牌" {...field} />
+                            </FormControl>
+                            <FormDescription>用于访问API服务器的认证令牌</FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-                    <DialogFooter>
-                      <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                        取消
-                      </Button>
-                      <Button type="submit">{editingResource ? "更新资源" : "接入资源"}</Button>
-                    </DialogFooter>
-                  </form>
-                </Form>
-              </DialogContent>
+                      <FormField
+                        control={form.control}
+                        name="description"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>描述（可选）</FormLabel>
+                            <FormControl>
+                              <Textarea placeholder="资源描述信息..." {...field} />
+                            </FormControl>
+                            <FormDescription>添加关于此资源的额外描述信息</FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+                          取消
+                        </Button>
+                        <Button type="submit">{editingResource ? "更新资源" : "接入资源"}</Button>
+                      </DialogFooter>
+                    </form>
+                  </Form>
+                </DialogContent>
               </Dialog>
             </div>
           </div>
@@ -475,59 +522,65 @@ export default function ResourcesPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>资源名称</TableHead>
-                    <TableHead>类型</TableHead>
-                    <TableHead>状态</TableHead>
-                    <TableHead>CPU使用率</TableHead>
-                    <TableHead>内存使用率</TableHead>
+                    <TableHead className="w-64">资源名称</TableHead>
+                    <TableHead className="w-20">类型</TableHead>
+                    <TableHead className="w-20">状态</TableHead>
+                    <TableHead className="w-32">CPU使用率</TableHead>
+                    <TableHead className="w-32">内存使用率</TableHead>
                     {/* <TableHead>存储使用率</TableHead> */}
-                    <TableHead>最后更新</TableHead>
-                    <TableHead>操作</TableHead>
+                    <TableHead className="w-40">最后更新</TableHead>
+                    <TableHead className="w-32">操作</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {resources.map((resource) => (
-                    <TableRow key={resource.id}>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          {getTypeIcon(resource.type)}
-                          <div>
-                            <div className="font-medium">{resource.name}</div>
-                            <div className="text-xs text-muted-foreground">{resource.url}</div>
+                  {loading ? (
+                    // 显示骨架动画
+                    Array.from({ length: 3 }).map((_, index) => (
+                      <ResourceTableSkeleton key={`skeleton-${index}`} />
+                    ))
+                  ) : (
+                    resources.map((resource) => (
+                      <TableRow key={resource.id}>
+                        <TableCell className="w-64">
+                          <div className="flex items-center space-x-2">
+                            {getTypeIcon(resource.type)}
+                            <div>
+                              <div className="font-medium">{resource.name}</div>
+                              <div className="text-sm text-muted-foreground">{resource.url}</div>
+                            </div>
                           </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">
-                          {resource.type === "kubernetes" ? "K8s" : resource.type === "docker" ? "Docker" : "VM"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{getStatusBadge(resource.status)}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <div className="text-sm">
-                            {resource.cpu.total > 0
-                              ? `${Math.round((resource.cpu.used / resource.cpu.total) * 100)}%`
-                              : "0%"}
+                        </TableCell>
+                        <TableCell className="w-20">
+                          <Badge variant="outline">
+                            {resource.type === "kubernetes" ? "K8s" : resource.type === "docker" ? "Docker" : "VM"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="w-20">{getStatusBadge(resource.status)}</TableCell>
+                        <TableCell className="w-32">
+                          <div className="flex items-center space-x-2">
+                            <div className="text-sm">
+                              {resource.cpu.total > 0
+                                ? `${Math.round((resource.cpu.used / resource.cpu.total) * 100)}%`
+                                : "0%"}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {resource.cpu.used}/{resource.cpu.total} 核心
+                            </div>
                           </div>
-                          <div className="text-xs text-muted-foreground">
-                            {resource.cpu.used}/{resource.cpu.total} 核心
+                        </TableCell>
+                        <TableCell className="w-32">
+                          <div className="flex items-center space-x-2">
+                            <div className="text-sm">
+                              {resource.memory.total > 0
+                                ? `${Math.round((resource.memory.used / resource.memory.total) * 100)}%`
+                                : "0%"}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {formatMemory(resource.memory.used)}/{formatMemory(resource.memory.total)}
+                            </div>
                           </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <div className="text-sm">
-                            {resource.memory.total > 0
-                              ? `${Math.round((resource.memory.used / resource.memory.total) * 100)}%`
-                              : "0%"}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {formatMemory(resource.memory.used)}/{formatMemory(resource.memory.total)}
-                          </div>
-                        </div>
-                      </TableCell>
-                      {/* <TableCell>
+                        </TableCell>
+                        {/* <TableCell>
                         <div className="flex items-center space-x-2">
                           <div className="text-sm">
                             {resource.storage.total > 0
@@ -539,22 +592,23 @@ export default function ResourcesPage() {
                           </div>
                         </div>
                       </TableCell> */}
-                      <TableCell className="text-xs text-muted-foreground">{resource.lastUpdated}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <Button variant="ghost" size="sm" onClick={() => handleEdit(resource)}>
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={() => handleDelete(resource.id)}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm">
-                            <RefreshCw className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                        <TableCell className="w-40 text-xs text-muted-foreground">{resource.lastUpdated}</TableCell>
+                        <TableCell className="w-32">
+                          <div className="flex items-center space-x-2">
+                            <Button variant="ghost" size="sm" onClick={() => handleEdit(resource)}>
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => handleDelete(resource.id)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm">
+                              <RefreshCw className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </CardContent>

@@ -26,6 +26,7 @@ func NewServer(r runner.Runner, rm *resource.Manager) *Server {
 	s.router.HandleFunc("/run", s.handleRun).Methods("POST")
 	s.router.HandleFunc("/resource/capacity", s.handleResourceCapacity).Methods("GET")
 	s.router.HandleFunc("/resource/providers", s.handleResourceProviders).Methods("GET")
+	s.router.HandleFunc("/application/overview", s.handleApplicationOverview).Methods("GET")
 	return s
 }
 
@@ -75,7 +76,7 @@ func (s *Server) handleResourceProviders(w http.ResponseWriter, req *http.Reques
 		providerInfo := response.ResourceProviderInfo{
 			ID:     provider.GetID(),
 			Name:   provider.GetName(),
-			URL:    "http://localhost:2376", // 默认Docker URL，实际应该从provider获取
+			URL:    "http://localhost:2376", // TODO: 默认Docker URL，实际应该从provider获取
 			Type:   provider.GetType(),
 			Status: provider.GetStatus(),
 			CPUUsage: response.UsageInfo{
@@ -97,6 +98,13 @@ func (s *Server) handleResourceProviders(w http.ResponseWriter, req *http.Reques
 	}
 
 	if err := response.WriteSuccess(w, getResourceProvidersResponse); err != nil {
+		logrus.Errorf("Failed to write response: %v", err)
+	}
+}
+
+func (s *Server) handleApplicationOverview(w http.ResponseWriter, req *http.Request) {
+	overview := s.runner.GetOverview()
+	if err := response.WriteSuccess(w, overview); err != nil {
 		logrus.Errorf("Failed to write response: %v", err)
 	}
 }
