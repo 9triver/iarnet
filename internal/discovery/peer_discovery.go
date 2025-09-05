@@ -193,9 +193,9 @@ func (pm *PeerManager) gossipOnce() {
 		pm.AddPeers(peerResp.KnownPeers)
 		
 		// Exchange provider information
-		localProviders := pm.getLocalProvidersForExchange()
+		internalProviders := pm.getInternalProvidersForExchange()
 		providerResp, err := client.ExchangeProviders(context.Background(), &proto.ProviderExchangeRequest{
-			Providers: localProviders,
+			Providers: internalProviders,
 		})
 		if err != nil {
 			log.Printf("Provider exchange failed with %s: %v", peerAddr, err)
@@ -210,27 +210,27 @@ func (pm *PeerManager) gossipOnce() {
 	log.Printf("Discovered providers: %d", len(pm.discoveredProviders))
 }
 
-// getLocalProvidersForExchange converts local providers to protobuf format for exchange
-func (pm *PeerManager) getLocalProvidersForExchange() []*proto.ProviderInfo {
+// getInternalProvidersForExchange converts internal providers to protobuf format for exchange
+func (pm *PeerManager) getInternalProvidersForExchange() []*proto.ProviderInfo {
 	providers := pm.resMgr.GetProviders()
-	var localProviders []*proto.ProviderInfo
+	var internalProviders []*proto.ProviderInfo
 	
-	// Add local provider
-	if providers.LocalProvider != nil {
-		localProviders = append(localProviders, &proto.ProviderInfo{
-			Id:          providers.LocalProvider.GetID(),
-			Name:        providers.LocalProvider.GetName(),
-			Type:        providers.LocalProvider.GetType(),
-			Host:        providers.LocalProvider.GetHost(),
-			Port:        int32(providers.LocalProvider.GetPort()),
-			Status:      int32(providers.LocalProvider.GetStatus()),
+	// Add internal provider
+	if providers.InternalProvider != nil {
+		internalProviders = append(internalProviders, &proto.ProviderInfo{
+			Id:          providers.InternalProvider.GetID(),
+			Name:        providers.InternalProvider.GetName(),
+			Type:        providers.InternalProvider.GetType(),
+			Host:        providers.InternalProvider.GetHost(),
+			Port:        int32(providers.InternalProvider.GetPort()),
+			Status:      int32(providers.InternalProvider.GetStatus()),
 			PeerAddress: "", // Local provider
 		})
 	}
 	
-	// Add remote providers (manually added)
-	for _, provider := range providers.RemoteProviders {
-		localProviders = append(localProviders, &proto.ProviderInfo{
+	// Add external providers (manually added)
+	for _, provider := range providers.ExternalProviders {
+		internalProviders = append(internalProviders, &proto.ProviderInfo{
 			Id:          provider.GetID(),
 			Name:        provider.GetName(),
 			Type:        provider.GetType(),
@@ -241,5 +241,5 @@ func (pm *PeerManager) getLocalProvidersForExchange() []*proto.ProviderInfo {
 		})
 	}
 	
-	return localProviders
+	return internalProviders
 }

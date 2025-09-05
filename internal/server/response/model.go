@@ -25,9 +25,9 @@ type UsageInfo struct {
 }
 
 type GetResourceProvidersResponse struct {
-	LocalProvider       *ResourceProviderInfo  `json:"local_provider"`      // 本地 provider（无或一个）
-	RemoteProviders     []ResourceProviderInfo `json:"remote_providers"`    // 远程添加的 provider（无或多个）
-	DiscoveredProviders []ResourceProviderInfo `json:"discovered_providers"` // 通过 gossip 协议感知到的 provider（无或多个）
+	InternalProvider    *ResourceProviderInfo  `json:"internal_provider"`   // 内部 provider（无或一个）
+	ExternalProviders   []ResourceProviderInfo `json:"external_providers"`  // 直接接入的外部 provider（无或多个）
+	DiscoveredProviders []ResourceProviderInfo `json:"discovered_providers"` // 通过 gossip 协议发现的 provider（无或多个）
 }
 
 type GetApplicationsOverViewResponse struct {

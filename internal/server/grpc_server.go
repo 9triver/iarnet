@@ -78,25 +78,23 @@ func (gs *GRPCServer) ExchangePeers(ctx context.Context, req *pb.ExchangeRequest
 func (gs *GRPCServer) ExchangeProviders(ctx context.Context, req *pb.ProviderExchangeRequest) (*pb.ProviderExchangeResponse, error) {
 	logrus.Debugf("Received provider exchange request with %d providers", len(req.Providers))
 	
-	// Get local providers to share
+	// Get categorized providers
 	providers := gs.resMgr.GetProviders()
-	var localProviders []*pb.ProviderInfo
-	
-	// Convert local providers to protobuf format
-	if providers.LocalProvider != nil {
-		localProviders = append(localProviders, &pb.ProviderInfo{
-			Id:          providers.LocalProvider.GetID(),
-			Name:        providers.LocalProvider.GetName(),
-			Type:        providers.LocalProvider.GetType(),
-			Host:        providers.LocalProvider.GetHost(),
-			Port:        int32(providers.LocalProvider.GetPort()),
-			Status:      int32(providers.LocalProvider.GetStatus()),
+	var allProviders []*pb.ProviderInfo
+	if providers.InternalProvider != nil {
+		allProviders = append(allProviders, &pb.ProviderInfo{
+			Id:          providers.InternalProvider.GetID(),
+			Name:        providers.InternalProvider.GetName(),
+			Type:        providers.InternalProvider.GetType(),
+			Host:        providers.InternalProvider.GetHost(),
+			Port:        int32(providers.InternalProvider.GetPort()),
+			Status:      int32(providers.InternalProvider.GetStatus()),
 			PeerAddress: "", // Local provider, no peer address
 		})
 	}
 	
-	for _, provider := range providers.RemoteProviders {
-		localProviders = append(localProviders, &pb.ProviderInfo{
+	for _, provider := range providers.ExternalProviders {
+		allProviders = append(allProviders, &pb.ProviderInfo{
 			Id:          provider.GetID(),
 			Name:        provider.GetName(),
 			Type:        provider.GetType(),
@@ -108,7 +106,7 @@ func (gs *GRPCServer) ExchangeProviders(ctx context.Context, req *pb.ProviderExc
 	}
 	
 	return &pb.ProviderExchangeResponse{
-		Providers: localProviders,
+		Providers: allProviders,
 	}, nil
 }
 
@@ -121,13 +119,13 @@ func (gs *GRPCServer) CallProvider(ctx context.Context, req *pb.ProviderCallRequ
 	var targetProvider resource.Provider
 	
 	// Check local provider
-	if providers.LocalProvider != nil && providers.LocalProvider.GetID() == req.ProviderId {
-		targetProvider = providers.LocalProvider
+	if providers.InternalProvider != nil && providers.InternalProvider.GetID() == req.ProviderId {
+		targetProvider = providers.InternalProvider
 	}
 	
 	// Check remote providers
 	if targetProvider == nil {
-		for _, provider := range providers.RemoteProviders {
+		for _, provider := range providers.ExternalProviders {
 			if provider.GetID() == req.ProviderId {
 				targetProvider = provider
 				break

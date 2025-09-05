@@ -165,7 +165,7 @@ func (pm *ProviderMonitor) checkProviderHealth(provider Provider) bool {
 	}
 
 	// For local providers, check if they're still responsive
-	return pm.checkLocalProviderHealth(provider)
+	return pm.checkInternalProviderHealth(provider)
 }
 
 // checkRemoteProviderHealth checks health of a remote provider
@@ -180,8 +180,8 @@ func (pm *ProviderMonitor) checkRemoteProviderHealth(provider *PeerProvider) boo
 	return true
 }
 
-// checkLocalProviderHealth checks health of a local provider
-func (pm *ProviderMonitor) checkLocalProviderHealth(provider Provider) bool {
+// checkInternalProviderHealth checks health of an internal provider
+func (pm *ProviderMonitor) checkInternalProviderHealth(provider Provider) bool {
 	// For local providers, we assume they're healthy if they exist
 	// In a real implementation, you might want to check if the underlying service is responsive
 	return provider.GetStatus() == StatusConnected
@@ -190,8 +190,8 @@ func (pm *ProviderMonitor) checkLocalProviderHealth(provider Provider) bool {
 // handleProviderFailure handles when a provider fails
 func (pm *ProviderMonitor) handleProviderFailure(provider Provider) {
 	// Mark provider as inactive
-	if localProvider, ok := provider.(interface{ SetStatus(Status) }); ok {
-		localProvider.SetStatus(StatusDisconnected)
+	if internalProvider, ok := provider.(interface{ SetStatus(Status) }); ok {
+			internalProvider.SetStatus(StatusDisconnected)
 	}
 
 	// Notify the resource manager about the failure
@@ -204,8 +204,8 @@ func (pm *ProviderMonitor) handleProviderFailure(provider Provider) {
 // handleProviderRecovery handles when a provider recovers
 func (pm *ProviderMonitor) handleProviderRecovery(provider Provider) {
 	// Mark provider as active
-	if localProvider, ok := provider.(interface{ SetStatus(Status) }); ok {
-		localProvider.SetStatus(StatusConnected)
+	if internalProvider, ok := provider.(interface{ SetStatus(Status) }); ok {
+			internalProvider.SetStatus(StatusConnected)
 	}
 
 	// Notify the resource manager about the recovery
