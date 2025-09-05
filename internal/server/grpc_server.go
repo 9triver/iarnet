@@ -81,19 +81,19 @@ func (gs *GRPCServer) ExchangeProviders(ctx context.Context, req *pb.ProviderExc
 	// Get categorized providers
 	providers := gs.resMgr.GetProviders()
 	var allProviders []*pb.ProviderInfo
-	if providers.InternalProvider != nil {
+	if providers.LocalProvider != nil {
 		allProviders = append(allProviders, &pb.ProviderInfo{
-			Id:          providers.InternalProvider.GetID(),
-			Name:        providers.InternalProvider.GetName(),
-			Type:        providers.InternalProvider.GetType(),
-			Host:        providers.InternalProvider.GetHost(),
-			Port:        int32(providers.InternalProvider.GetPort()),
-			Status:      int32(providers.InternalProvider.GetStatus()),
+			Id:          providers.LocalProvider.GetID(),
+			Name:        providers.LocalProvider.GetName(),
+			Type:        providers.LocalProvider.GetType(),
+			Host:        providers.LocalProvider.GetHost(),
+			Port:        int32(providers.LocalProvider.GetPort()),
+			Status:      int32(providers.LocalProvider.GetStatus()),
 			PeerAddress: "", // Local provider, no peer address
 		})
 	}
 	
-	for _, provider := range providers.ExternalProviders {
+	for _, provider := range providers.ManagedProviders {
 		allProviders = append(allProviders, &pb.ProviderInfo{
 			Id:          provider.GetID(),
 			Name:        provider.GetName(),
@@ -119,13 +119,13 @@ func (gs *GRPCServer) CallProvider(ctx context.Context, req *pb.ProviderCallRequ
 	var targetProvider resource.Provider
 	
 	// Check local provider
-	if providers.InternalProvider != nil && providers.InternalProvider.GetID() == req.ProviderId {
-		targetProvider = providers.InternalProvider
+	if providers.LocalProvider != nil && providers.LocalProvider.GetID() == req.ProviderId {
+		targetProvider = providers.LocalProvider
 	}
 	
-	// Check remote providers
+	// Check managed providers
 	if targetProvider == nil {
-		for _, provider := range providers.ExternalProviders {
+		for _, provider := range providers.ManagedProviders {
 			if provider.GetID() == req.ProviderId {
 				targetProvider = provider
 				break

@@ -8,7 +8,6 @@ interface ResourceProvider {
   cpu_usage: {
     used: number
     total: number
-    description: string
   }
   memory_usage: {
     used: number
@@ -18,9 +17,9 @@ interface ResourceProvider {
 }
 
 interface GetResourceProvidersResponse {
-  local_provider: ResourceProvider | null     // 本地 provider（无或一个）
-  remote_providers: ResourceProvider[]    // 远程添加的 provider（无或多个）
-  discovered_providers: ResourceProvider[] // 通过 gossip 协议感知到的 provider（无或多个）
+  local_provider: ResourceProvider | null         // 本机 provider（无或一个）
+  managed_providers: ResourceProvider[]      // 托管的 provider（无或多个）
+  collaborative_providers: ResourceProvider[] // 通过协作发现的 provider（无或多个）
 }
 
 interface Application {

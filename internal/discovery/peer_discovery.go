@@ -111,7 +111,7 @@ func (pm *PeerManager) registerDiscoveredProviders() {
 		providers := pm.resMgr.GetProviders()
 		alreadyRegistered := false
 		
-		for _, existing := range providers.DiscoveredProviders {
+		for _, existing := range providers.CollaborativeProviders {
 			if existing.GetID() == discovered.ID {
 				alreadyRegistered = true
 				break
@@ -215,21 +215,21 @@ func (pm *PeerManager) getInternalProvidersForExchange() []*proto.ProviderInfo {
 	providers := pm.resMgr.GetProviders()
 	var internalProviders []*proto.ProviderInfo
 	
-	// Add internal provider
-	if providers.InternalProvider != nil {
+	// Add local provider
+	if providers.LocalProvider != nil {
 		internalProviders = append(internalProviders, &proto.ProviderInfo{
-			Id:          providers.InternalProvider.GetID(),
-			Name:        providers.InternalProvider.GetName(),
-			Type:        providers.InternalProvider.GetType(),
-			Host:        providers.InternalProvider.GetHost(),
-			Port:        int32(providers.InternalProvider.GetPort()),
-			Status:      int32(providers.InternalProvider.GetStatus()),
+			Id:          providers.LocalProvider.GetID(),
+			Name:        providers.LocalProvider.GetName(),
+			Type:        providers.LocalProvider.GetType(),
+			Host:        providers.LocalProvider.GetHost(),
+			Port:        int32(providers.LocalProvider.GetPort()),
+			Status:      int32(providers.LocalProvider.GetStatus()),
 			PeerAddress: "", // Local provider
 		})
 	}
 	
-	// Add external providers (manually added)
-	for _, provider := range providers.ExternalProviders {
+	// Add managed providers (manually added)
+	for _, provider := range providers.ManagedProviders {
 		internalProviders = append(internalProviders, &proto.ProviderInfo{
 			Id:          provider.GetID(),
 			Name:        provider.GetName(),

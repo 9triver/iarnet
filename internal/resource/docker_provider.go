@@ -253,6 +253,22 @@ func (dp *DockerProvider) GetPort() int {
 	return 2376 // Default Docker daemon port
 }
 
+// IsDockerAvailable checks if Docker daemon is available and accessible
+func IsDockerAvailable() bool {
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		return false
+	}
+	defer cli.Close()
+
+	// Try to ping Docker daemon
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	
+	_, err = cli.Ping(ctx)
+	return err == nil
+}
+
 // GetLocalDockerProvider creates a new local Docker provider instance
 func GetLocalDockerProvider() (*DockerProvider, error) {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
