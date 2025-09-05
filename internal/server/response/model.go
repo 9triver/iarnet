@@ -64,3 +64,14 @@ type GetApplicationLogsResponse struct {
 	TotalLines      int      `json:"totalLines"`
 	RequestedLines  int      `json:"requestedLines"`
 }
+
+// RegisterProviderResponse 注册资源提供者响应结构
+type RegisterProviderResponse struct {
+	ProviderID string `json:"providerId"` // 生成的提供者ID
+	Message    string `json:"message"`    // 响应消息
+}
+
+// UnregisterProviderResponse 注销资源提供者响应结构
+type UnregisterProviderResponse struct {
+	Message string `json:"message"` // 响应消息
+}
