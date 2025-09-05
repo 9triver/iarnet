@@ -18,9 +18,9 @@ import (
 
 // K8sConfig holds configuration for Kubernetes connection
 type K8sConfig struct {
-	// KubeConfigPath is the path to kubeconfig file
+	// KubeConfigContent is the content of kubeconfig file
 	// If empty, uses in-cluster config
-	KubeConfigPath string
+	KubeConfigContent string
 
 	// Namespace specifies the Kubernetes namespace to operate in
 	// If empty, uses "default" namespace
@@ -56,18 +56,20 @@ func NewK8sProvider(providerID string, config interface{}) (*K8sProvider, error)
 	var kubeConfig *rest.Config
 	var err error
 
-	if k8sConfig.KubeConfigPath != "" {
-		// Use kubeconfig file
-		loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
-		loadingRules.ExplicitPath = k8sConfig.KubeConfigPath
-		
+	if k8sConfig.KubeConfigContent != "" {
+		// Use kubeconfig content
 		configOverrides := &clientcmd.ConfigOverrides{}
 		if k8sConfig.Context != "" {
 			configOverrides.CurrentContext = k8sConfig.Context
 		}
 		
-		clientConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-			loadingRules, configOverrides)
+		// Parse kubeconfig content
+		config, err := clientcmd.Load([]byte(k8sConfig.KubeConfigContent))
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse kubeconfig content: %w", err)
+		}
+		
+		clientConfig := clientcmd.NewDefaultClientConfig(*config, configOverrides)
 		
 		kubeConfig, err = clientConfig.ClientConfig()
 		if err != nil {

@@ -30,7 +30,7 @@ type DockerProviderConfig struct {
 
 // K8sProviderConfig Kubernetes提供者配置
 type K8sProviderConfig struct {
-	KubeConfigPath string `json:"kubeConfigPath,omitempty"` // kubeconfig文件路径
-	Namespace      string `json:"namespace,omitempty"`      // Kubernetes命名空间
-	Context        string `json:"context,omitempty"`        // kubeconfig上下文
+	KubeConfigContent string `json:"kubeConfigContent"` // kubeconfig文件内容
+	Namespace         string `json:"namespace,omitempty"`      // Kubernetes命名空间
+	Context           string `json:"context,omitempty"`        // kubeconfig上下文
 }

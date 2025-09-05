@@ -46,17 +46,26 @@
 {
   "type": "k8s",
   "config": {
-    "kubeConfigPath": "/path/to/kubeconfig",
+    "kubeConfigContent": "apiVersion: v1\nkind: Config\nclusters:\n- cluster:\n    certificate-authority-data: LS0t...\n    server: https://kubernetes.example.com:6443\n  name: my-cluster\ncontexts:\n- context:\n    cluster: my-cluster\n    user: my-user\n  name: my-context\ncurrent-context: my-context\nusers:\n- name: my-user\n  user:\n    token: eyJhbGciOiJSUzI1NiIs...",
     "namespace": "default",
-    "context": "my-cluster"
+    "context": "my-context"
   }
 }
 ```
 
 **配置字段说明**:
-- `kubeConfigPath`: kubeconfig 文件路径（可选，为空时使用 in-cluster 配置）
+- `kubeConfigContent`: kubeconfig 文件内容（必需，完整的 kubeconfig YAML 内容字符串，包含集群、用户、上下文等完整配置信息，为空时使用 in-cluster 配置）
 - `namespace`: Kubernetes 命名空间（可选，默认为 "default"）
 - `context`: kubeconfig 上下文（可选）
+
+**获取 kubeconfig 内容的方法：**
+```bash
+# 获取默认 kubeconfig 内容
+cat ~/.kube/config
+
+# 或者获取指定路径的 kubeconfig 内容
+cat /path/to/your/kubeconfig
+```
 
 **响应**:
 ```json
@@ -174,15 +183,40 @@ curl -X POST http://localhost:8080/resource/providers \
 ### 注册 Kubernetes 提供者
 
 ```bash
+# 方法1: 使用 shell 变量（推荐）
+# 首先获取 kubeconfig 内容
+KUBE_CONFIG=$(cat ~/.kube/config | sed 's/"/\\"/g' | tr '\n' '\\n')
+
+# 然后发送注册请求
 curl -X POST http://localhost:8080/resource/providers \
   -H "Content-Type: application/json" \
-  -d '{
-    "type": "k8s",
-    "config": {
-      "kubeConfigPath": "/home/user/.kube/config",
-      "namespace": "iarnet"
+  -d "{
+    \"type\": \"k8s\",
+    \"config\": {
+      \"kubeConfigContent\": \"$KUBE_CONFIG\",
+      \"namespace\": \"iarnet\"
     }
-  }'
+  }"
+
+# 方法2: 使用文件（适用于复杂的 kubeconfig）
+# 创建请求文件
+cat > k8s_register.json << 'EOF'
+{
+  "type": "k8s",
+  "config": {
+    "kubeConfigContent": "",
+    "namespace": "iarnet"
+  }
+}
+EOF
+
+# 使用 jq 插入 kubeconfig 内容
+jq --rawfile kubeconfig ~/.kube/config '.config.kubeConfigContent = $kubeconfig' k8s_register.json > k8s_register_final.json
+
+# 发送请求
+curl -X POST http://localhost:8080/resource/providers \
+  -H "Content-Type: application/json" \
+  -d @k8s_register_final.json
 ```
 
 ### 获取提供者列表
