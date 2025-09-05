@@ -150,7 +150,7 @@ export default function ResourcesPage() {
       const response = (await resourcesAPI.getProviders()) as GetResourceProvidersResponse
       
       // 转换API数据格式为前端需要的格式
-      const convertProvider = (provider: ResourceProvider, category: string) => ({
+      const convertProvider = (provider: ResourceProvider, category: "local" | "remote" | "discovered"): Resource => ({
         id: provider.id,
         name: provider.name,
         type: provider.type.toLowerCase() as "kubernetes" | "docker" | "vm",

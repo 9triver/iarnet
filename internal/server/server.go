@@ -91,7 +91,7 @@ func (s *Server) handleResourceProviders(w http.ResponseWriter, req *http.Reques
 		localProvider = &response.ResourceProviderInfo{
 			ID:     categorizedProviders.LocalProvider.GetID(),
 			Name:   categorizedProviders.LocalProvider.GetName(),
-			URL:    "http://localhost:2376", // TODO: 默认Docker URL，实际应该从provider获取
+			Host:   "localhost",
 			Type:   categorizedProviders.LocalProvider.GetType(),
 			Status: categorizedProviders.LocalProvider.GetStatus(),
 			CPUUsage: response.UsageInfo{
@@ -145,7 +145,8 @@ func (s *Server) handleResourceProviders(w http.ResponseWriter, req *http.Reques
 		providerInfo := response.ResourceProviderInfo{
 			ID:     provider.GetID(),
 			Name:   provider.GetName(),
-			URL:    "http://localhost:2376", // TODO: 默认Docker URL，实际应该从provider获取
+			Host:   provider.GetHost(),
+			Port:   provider.GetPort(),
 			Type:   provider.GetType(),
 			Status: provider.GetStatus(),
 			CPUUsage: response.UsageInfo{
@@ -171,8 +172,6 @@ func (s *Server) handleResourceProviders(w http.ResponseWriter, req *http.Reques
 		logrus.Errorf("Failed to write response: %v", err)
 	}
 }
-
-
 
 // handleGetApplications 处理获取所有应用请求
 func (s *Server) handleGetApplications(w http.ResponseWriter, req *http.Request) {
@@ -490,9 +489,9 @@ func (s *Server) handleRegisterProvider(w http.ResponseWriter, req *http.Request
 	var providerType resource.ProviderType
 	switch registerReq.Type {
 	case "docker":
-		providerType = resource.ProviderType.Docker
+		providerType = resource.ProviderTypeDocker
 	case "k8s":
-		providerType = resource.ProviderType.K8s
+		providerType = resource.ProviderTypeK8s
 	}
 	providerID, err := s.resMgr.RegisterProvider(providerType, config)
 	if err != nil {

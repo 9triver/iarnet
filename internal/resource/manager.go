@@ -9,31 +9,27 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// providerType defines the type of resource provider
-type providerType string
+// ProviderType defines the type of resource provider
+type ProviderType string
 
-// ProviderType contains all available provider types
-var ProviderType = struct {
-	Docker providerType
-	K8s    providerType
-}{
-	Docker: "docker",
-	K8s:    "k8s",
-}
+const (
+	ProviderTypeDocker ProviderType = "docker"
+	ProviderTypeK8s    ProviderType = "k8s"
+)
 
 // String returns the string representation of providerType
-func (pt providerType) String() string {
+func (pt ProviderType) String() string {
 	return string(pt)
 }
 
 type Manager struct {
-	limits            Usage
-	current           Usage
-	mu                sync.RWMutex
-	localProvider     Provider
-	remoteProviders   map[string]Provider
+	limits              Usage
+	current             Usage
+	mu                  sync.RWMutex
+	localProvider       Provider
+	remoteProviders     map[string]Provider
 	discoveredProviders map[string]Provider
-	nextProviderID    int
+	nextProviderID      int
 }
 
 func NewManager(limits map[string]string) *Manager {
@@ -63,7 +59,7 @@ func NewManager(limits map[string]string) *Manager {
 }
 
 // RegisterProvider creates and registers a remote resource provider by type
-func (rm *Manager) RegisterProvider(providerType providerType, config interface{}) (string, error) {
+func (rm *Manager) RegisterProvider(providerType ProviderType, config interface{}) (string, error) {
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
 
@@ -76,12 +72,12 @@ func (rm *Manager) RegisterProvider(providerType providerType, config interface{
 	var err error
 
 	switch providerType {
-	case ProviderType.Docker:
+	case ProviderTypeDocker:
 		provider, err = NewDockerProvider(providerID, config)
 		if err != nil {
 			return "", fmt.Errorf("failed to create Docker provider: %w", err)
 		}
-	case ProviderType.K8s:
+	case ProviderTypeK8s:
 		provider, err = NewK8sProvider(providerID, config)
 		if err != nil {
 			return "", fmt.Errorf("failed to create K8s provider: %w", err)
@@ -106,19 +102,19 @@ func (rm *Manager) RegisterDiscoveredProvider(provider Provider) {
 func (rm *Manager) UnregisterProvider(providerID string) {
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
-	
+
 	// Check and remove from remote providers
 	if _, exists := rm.remoteProviders[providerID]; exists {
 		delete(rm.remoteProviders, providerID)
 		return
 	}
-	
+
 	// Check and remove from discovered providers
 	if _, exists := rm.discoveredProviders[providerID]; exists {
 		delete(rm.discoveredProviders, providerID)
 		return
 	}
-	
+
 	// Cannot remove local provider
 	if rm.localProvider != nil && rm.localProvider.GetID() == providerID {
 		logrus.Warnf("Cannot unregister local provider: %s", providerID)
@@ -134,12 +130,12 @@ func (rm *Manager) GetProvider(providerID string) (Provider, error) {
 	if rm.localProvider != nil && rm.localProvider.GetID() == providerID {
 		return rm.localProvider, nil
 	}
-	
+
 	// Check remote providers
 	if provider, exists := rm.remoteProviders[providerID]; exists {
 		return provider, nil
 	}
-	
+
 	// Check discovered providers
 	if provider, exists := rm.discoveredProviders[providerID]; exists {
 		return provider, nil
@@ -160,7 +156,7 @@ func (rm *Manager) GetCapacity(ctx context.Context) (*Capacity, error) {
 		totalProviders++
 	}
 	totalProviders += len(rm.remoteProviders) + len(rm.discoveredProviders)
-	
+
 	if totalProviders == 0 {
 		// Fallback to static limits if no providers
 		return &Capacity{
@@ -305,7 +301,7 @@ func (rm *Manager) Deploy(ctx context.Context, containerSpec ContainerSpec) (*Co
 
 func (rm *Manager) canAllocate(req Usage) Provider {
 	logrus.Debugf("Checking resource allocation: Requested(CPU=%.1f, Memory=%.1f, GPU=%.1f)", req.CPU, req.Memory, req.GPU)
-	
+
 	totalProviders := 0
 	if rm.localProvider != nil {
 		totalProviders++
@@ -410,8 +406,8 @@ func (rm *Manager) StartMonitoring() {
 // GetProviders 返回所有注册的资源提供者
 // CategorizedProviders represents providers categorized by their source
 type CategorizedProviders struct {
-	LocalProvider      Provider   `json:"local_provider"`
-	RemoteProviders    []Provider `json:"remote_providers"`
+	LocalProvider       Provider   `json:"local_provider"`
+	RemoteProviders     []Provider `json:"remote_providers"`
 	DiscoveredProviders []Provider `json:"discovered_providers"`
 }
 

@@ -3,6 +3,7 @@ package resource
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -28,6 +29,12 @@ type K8sConfig struct {
 
 	// Context specifies the kubeconfig context to use
 	Context string
+
+	// Host is the Kubernetes API server host
+	Host string
+
+	// Port is the Kubernetes API server port
+	Port int
 }
 
 // K8sProvider implements Provider interface for Kubernetes
@@ -39,6 +46,8 @@ type K8sProvider struct {
 	status         Status
 	name           string
 	namespace      string
+	host           string
+	port           int
 }
 
 // NewK8sProvider creates a new Kubernetes resource provider
@@ -93,11 +102,33 @@ func NewK8sProvider(providerID string, config interface{}) (*K8sProvider, error)
 		namespace = "default"
 	}
 
+	// Parse host and port from kubeconfig or use provided values
+	host := "localhost"
+	port := 6443
+	if k8sConfig.Host != "" {
+		host = k8sConfig.Host
+	}
+	if k8sConfig.Port != 0 {
+		port = k8sConfig.Port
+	} else if kubeConfig.Host != "" {
+		// Parse host and port from kubeconfig
+		if u, err := url.Parse(kubeConfig.Host); err == nil {
+			host = u.Hostname()
+			if u.Port() != "" {
+				if p, err := strconv.Atoi(u.Port()); err == nil {
+					port = p
+				}
+			}
+		}
+	}
+
 	kp := &K8sProvider{
 		clientset:  clientset,
 		providerID: providerID,
 		config:     k8sConfig,
 		namespace:  namespace,
+		host:       host,
+		port:       port,
 	}
 
 	kp.lastUpdateTime = time.Now()
@@ -243,6 +274,16 @@ func (kp *K8sProvider) GetID() string {
 
 func (kp *K8sProvider) GetName() string {
 	return kp.name
+}
+
+// GetHost returns the Kubernetes API server host
+func (kp *K8sProvider) GetHost() string {
+	return kp.host
+}
+
+// GetPort returns the Kubernetes API server port
+func (kp *K8sProvider) GetPort() int {
+	return kp.port
 }
 
 // GetLocalK8sProvider creates a new local Kubernetes provider instance
