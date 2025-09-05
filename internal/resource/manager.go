@@ -30,6 +30,7 @@ type Manager struct {
 	remoteProviders     map[string]Provider
 	discoveredProviders map[string]Provider
 	nextProviderID      int
+	monitor             *ProviderMonitor
 }
 
 func NewManager(limits map[string]string) *Manager {
@@ -55,6 +56,10 @@ func NewManager(limits map[string]string) *Manager {
 	} else {
 		rm.localProvider = localDockerProvider
 	}
+	
+	// Initialize provider monitor
+	rm.monitor = NewProviderMonitor(rm)
+	
 	return rm
 }
 
@@ -94,8 +99,13 @@ func (rm *Manager) RegisterProvider(providerType ProviderType, config interface{
 // RegisterDiscoveredProvider registers a provider discovered through gossip protocol
 func (rm *Manager) RegisterDiscoveredProvider(provider Provider) {
 	rm.mu.Lock()
-	defer rm.mu.Unlock()
 	rm.discoveredProviders[provider.GetID()] = provider
+	rm.mu.Unlock()
+	
+	// Add to monitoring
+	rm.AddProviderToMonitoring(provider)
+	
+	logrus.Infof("Registered discovered provider: %s", provider.GetID())
 }
 
 // UnregisterProvider removes a resource provider
@@ -106,12 +116,16 @@ func (rm *Manager) UnregisterProvider(providerID string) {
 	// Check and remove from remote providers
 	if _, exists := rm.remoteProviders[providerID]; exists {
 		delete(rm.remoteProviders, providerID)
+		rm.RemoveProviderFromMonitoring(providerID)
+		logrus.Infof("Unregistered remote provider: %s", providerID)
 		return
 	}
 
 	// Check and remove from discovered providers
 	if _, exists := rm.discoveredProviders[providerID]; exists {
 		delete(rm.discoveredProviders, providerID)
+		rm.RemoveProviderFromMonitoring(providerID)
+		logrus.Infof("Unregistered discovered provider: %s", providerID)
 		return
 	}
 
@@ -400,7 +414,21 @@ func (rm *Manager) Deallocate(req Usage) {
 
 // Monitor: Would poll Docker/K8s for actual usage, but for simplicity, assume requested == used.
 func (rm *Manager) StartMonitoring() {
-	// TODO: Implement polling for real usage.
+	// Start provider health monitoring
+	rm.monitor.Start()
+	
+	// Add existing providers to monitoring
+	rm.mu.RLock()
+	if rm.localProvider != nil {
+		rm.monitor.AddProvider(rm.localProvider)
+	}
+	for _, provider := range rm.remoteProviders {
+		rm.monitor.AddProvider(provider)
+	}
+	for _, provider := range rm.discoveredProviders {
+		rm.monitor.AddProvider(provider)
+	}
+	rm.mu.RUnlock()
 }
 
 // GetProviders 返回所有注册的资源提供者
@@ -433,4 +461,61 @@ func (rm *Manager) GetProviders() *CategorizedProviders {
 	}
 
 	return result
+}
+
+// StopMonitoring stops the provider monitoring
+func (rm *Manager) StopMonitoring() {
+	if rm.monitor != nil {
+		rm.monitor.Stop()
+	}
+}
+
+// HandleProviderFailure handles when a provider fails
+func (rm *Manager) HandleProviderFailure(providerID string) {
+	rm.mu.Lock()
+	defer rm.mu.Unlock()
+	
+	logrus.Warnf("Handling failure for provider %s", providerID)
+	
+	// For now, we keep the provider but mark it as failed
+	// In a more sophisticated implementation, we might:
+	// 1. Migrate running containers to other providers
+	// 2. Remove the provider from load balancing
+	// 3. Attempt automatic recovery
+}
+
+// HandleProviderRecovery handles when a provider recovers
+func (rm *Manager) HandleProviderRecovery(providerID string) {
+	rm.mu.Lock()
+	defer rm.mu.Unlock()
+	
+	logrus.Infof("Handling recovery for provider %s", providerID)
+	
+	// Provider is back online and can accept new workloads
+	// In a more sophisticated implementation, we might:
+	// 1. Re-enable the provider for load balancing
+	// 2. Perform health verification
+	// 3. Gradually increase load
+}
+
+// AddProviderToMonitoring adds a provider to the monitoring system
+func (rm *Manager) AddProviderToMonitoring(provider Provider) {
+	if rm.monitor != nil {
+		rm.monitor.AddProvider(provider)
+	}
+}
+
+// RemoveProviderFromMonitoring removes a provider from the monitoring system
+func (rm *Manager) RemoveProviderFromMonitoring(providerID string) {
+	if rm.monitor != nil {
+		rm.monitor.RemoveProvider(providerID)
+	}
+}
+
+// GetProviderHealthStatus returns the health status of all providers
+func (rm *Manager) GetProviderHealthStatus() map[string]bool {
+	if rm.monitor != nil {
+		return rm.monitor.GetAllHealthStatus()
+	}
+	return make(map[string]bool)
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"log"
-	"net"
 	"os"
 	"os/signal"
 	"syscall"
@@ -15,20 +14,10 @@ import (
 	"github.com/9triver/iarnet/internal/resource"
 	"github.com/9triver/iarnet/internal/runner"
 	"github.com/9triver/iarnet/internal/server"
-	"github.com/9triver/iarnet/proto"
 	"github.com/sirupsen/logrus"
-	"google.golang.org/grpc"
 )
 
-type peerServer struct {
-	proto.UnimplementedPeerServiceServer
-	pm *discovery.PeerManager
-}
-
-func (ps *peerServer) ExchangePeers(ctx context.Context, req *proto.ExchangeRequest) (*proto.ExchangeResponse, error) {
-	ps.pm.AddPeers(req.KnownPeers)
-	return &proto.ExchangeResponse{KnownPeers: ps.pm.GetPeers()}, nil
-}
+// Remove the old peerServer implementation as it's now in server/grpc_server.go
 
 func main() {
 	configFile := flag.String("config", "config.yaml", "Path to config file")
@@ -69,22 +58,16 @@ func main() {
 	// am.UpdateApplicationStatus(app2.ID, application.StatusRunning)
 	// // 第三个应用保持未部署状态
 
-	pm := discovery.NewPeerManager(cfg.InitialPeers)
+	pm := discovery.NewPeerManager(cfg.InitialPeers, rm)
 
 	// Start gossip
 	go pm.StartGossip(context.Background())
 
 	// Start gRPC peer server
-	grpcServer := grpc.NewServer()
-	proto.RegisterPeerServiceServer(grpcServer, &peerServer{pm: pm})
+	grpcSrv := server.NewGRPCServer(rm, pm)
 	go func() {
-		lis, err := net.Listen("tcp", cfg.PeerListenAddr)
-		if err != nil {
-			log.Fatalf("gRPC listen: %v", err)
-		}
-		logrus.Infof("gRPC server on %s", cfg.PeerListenAddr)
-		if err := grpcServer.Serve(lis); err != nil {
-			log.Fatalf("gRPC serve: %v", err)
+		if err := grpcSrv.Start(cfg.PeerListenAddr); err != nil {
+			log.Fatalf("gRPC server: %v", err)
 		}
 	}()
 
@@ -100,7 +83,10 @@ func main() {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	<-sigCh
+
+	logrus.Info("Shutting down...")
 	srv.Stop()
-	grpcServer.GracefulStop()
+	grpcSrv.Stop()
+	rm.StopMonitoring()
 	logrus.Info("Shutdown complete")
 }
