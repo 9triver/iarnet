@@ -15,8 +15,10 @@ type providerType string
 // ProviderType contains all available provider types
 var ProviderType = struct {
 	Docker providerType
+	K8s    providerType
 }{
 	Docker: "docker",
+	K8s:    "k8s",
 }
 
 // String returns the string representation of providerType
@@ -75,6 +77,11 @@ func (rm *Manager) RegisterProvider(providerType providerType, config interface{
 		provider, err = NewDockerProvider(providerID, config)
 		if err != nil {
 			return "", fmt.Errorf("failed to create Docker provider: %w", err)
+		}
+	case ProviderType.K8s:
+		provider, err = NewK8sProvider(providerID, config)
+		if err != nil {
+			return "", fmt.Errorf("failed to create K8s provider: %w", err)
 		}
 	default:
 		return "", fmt.Errorf("unsupported provider type: %s", providerType)

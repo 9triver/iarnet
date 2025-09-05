@@ -31,6 +31,8 @@ func NewServer(r runner.Runner, rm *resource.Manager, am *application.Manager) *
 	s.router.HandleFunc("/run", s.handleRun).Methods("POST")
 	s.router.HandleFunc("/resource/capacity", s.handleResourceCapacity).Methods("GET")
 	s.router.HandleFunc("/resource/providers", s.handleResourceProviders).Methods("GET")
+	s.router.HandleFunc("/resource/providers", s.handleRegisterProvider).Methods("POST")
+	s.router.HandleFunc("/resource/providers/{id}", s.handleUnregisterProvider).Methods("DELETE")
 
 	s.router.HandleFunc("/application/apps", s.handleGetApplications).Methods("GET")
 	s.router.HandleFunc("/application/apps/{id}", s.handleGetApplicationById).Methods("GET")
@@ -378,5 +380,104 @@ func (s *Server) handleGetApplicationLogs(w http.ResponseWriter, req *http.Reque
 		logrus.Errorf("Failed to write logs response: %v", err)
 		return
 	}
-	logrus.Debugf("Successfully sent %d log lines for application ID: %s", len(logs), appID)
+}
+
+// handleRegisterProvider 处理注册资源提供者请求
+func (s *Server) handleRegisterProvider(w http.ResponseWriter, req *http.Request) {
+	var registerReq request.RegisterProviderRequest
+	if err := json.NewDecoder(req.Body).Decode(&registerReq); err != nil {
+		response.WriteError(w, http.StatusBadRequest, "invalid request body", err)
+		return
+	}
+
+	// 验证provider类型
+	if registerReq.Type != "docker" && registerReq.Type != "k8s" {
+		response.WriteError(w, http.StatusBadRequest, "unsupported provider type", nil)
+		return
+	}
+
+	// 根据类型转换配置
+	var config interface{}
+	switch registerReq.Type {
+	case "docker":
+		// 将config转换为DockerConfig
+		configBytes, err := json.Marshal(registerReq.Config)
+		if err != nil {
+			response.WriteError(w, http.StatusBadRequest, "invalid docker config", err)
+			return
+		}
+		var dockerConfig resource.DockerConfig
+		if err := json.Unmarshal(configBytes, &dockerConfig); err != nil {
+			response.WriteError(w, http.StatusBadRequest, "invalid docker config format", err)
+			return
+		}
+		config = dockerConfig
+	case "k8s":
+		// 将config转换为K8sConfig
+		configBytes, err := json.Marshal(registerReq.Config)
+		if err != nil {
+			response.WriteError(w, http.StatusBadRequest, "invalid k8s config", err)
+			return
+		}
+		var k8sConfig resource.K8sConfig
+		if err := json.Unmarshal(configBytes, &k8sConfig); err != nil {
+			response.WriteError(w, http.StatusBadRequest, "invalid k8s config format", err)
+			return
+		}
+		config = k8sConfig
+	}
+
+	// 注册provider
+	var providerType resource.ProviderType
+	switch registerReq.Type {
+	case "docker":
+		providerType = resource.ProviderType.Docker
+	case "k8s":
+		providerType = resource.ProviderType.K8s
+	}
+	providerID, err := s.resMgr.RegisterProvider(providerType, config)
+	if err != nil {
+		response.WriteError(w, http.StatusInternalServerError, "failed to register provider", err)
+		return
+	}
+
+	// 返回成功响应
+	registerResp := response.RegisterProviderResponse{
+		ProviderID: providerID,
+		Message:    "Provider registered successfully",
+	}
+
+	if err := response.WriteSuccess(w, registerResp); err != nil {
+		logrus.Errorf("Failed to write register provider response: %v", err)
+	}
+}
+
+// handleUnregisterProvider 处理注销资源提供者请求
+func (s *Server) handleUnregisterProvider(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	providerID := vars["id"]
+
+	if providerID == "" {
+		response.WriteError(w, http.StatusBadRequest, "provider ID is required", nil)
+		return
+	}
+
+	// 检查provider是否存在
+	_, err := s.resMgr.GetProvider(providerID)
+	if err != nil {
+		response.WriteError(w, http.StatusNotFound, "provider not found", err)
+		return
+	}
+
+	// 注销provider
+	s.resMgr.UnregisterProvider(providerID)
+
+	// 返回成功响应
+	unregisterResp := response.UnregisterProviderResponse{
+		Message: "Provider unregistered successfully",
+	}
+
+	if err := response.WriteSuccess(w, unregisterResp); err != nil {
+		logrus.Errorf("Failed to write unregister provider response: %v", err)
+	}
 }
