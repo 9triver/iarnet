@@ -219,6 +219,40 @@ func (dp *DockerProvider) GetName() string {
 	return dp.name
 }
 
+// GetHost returns the Docker daemon host
+func (dp *DockerProvider) GetHost() string {
+	if dp.config.Host != "" {
+		// Parse host from config (e.g., "tcp://192.168.1.100:2376")
+		host := dp.config.Host
+		if strings.HasPrefix(host, "tcp://") {
+			host = strings.TrimPrefix(host, "tcp://")
+		}
+		if strings.Contains(host, ":") {
+			return strings.Split(host, ":")[0]
+		}
+		return host
+	}
+	return "localhost" // Default for local Docker
+}
+
+// GetPort returns the Docker daemon port
+func (dp *DockerProvider) GetPort() int {
+	if dp.config.Host != "" {
+		// Parse port from config (e.g., "tcp://192.168.1.100:2376")
+		host := dp.config.Host
+		if strings.HasPrefix(host, "tcp://") {
+			host = strings.TrimPrefix(host, "tcp://")
+		}
+		if strings.Contains(host, ":") {
+			portStr := strings.Split(host, ":")[1]
+			if port, err := strconv.Atoi(portStr); err == nil {
+				return port
+			}
+		}
+	}
+	return 2376 // Default Docker daemon port
+}
+
 // GetLocalDockerProvider creates a new local Docker provider instance
 func GetLocalDockerProvider() (*DockerProvider, error) {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())

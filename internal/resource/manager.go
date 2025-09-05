@@ -25,17 +25,20 @@ func (pt providerType) String() string {
 }
 
 type Manager struct {
-	limits         Usage
-	current        Usage
-	mu             sync.RWMutex
-	providers      map[string]Provider
-	nextProviderID int
+	limits            Usage
+	current           Usage
+	mu                sync.RWMutex
+	localProvider     Provider
+	remoteProviders   map[string]Provider
+	discoveredProviders map[string]Provider
+	nextProviderID    int
 }
 
 func NewManager(limits map[string]string) *Manager {
 	rm := &Manager{
-		providers:      make(map[string]Provider),
-		nextProviderID: 1,
+		remoteProviders:     make(map[string]Provider),
+		discoveredProviders: make(map[string]Provider),
+		nextProviderID:      1,
 	}
 	for k, v := range limits {
 		switch Type(k) {
@@ -52,12 +55,12 @@ func NewManager(limits map[string]string) *Manager {
 	if err != nil {
 		logrus.Errorf("failed to create local Docker provider: %v", err)
 	} else {
-		rm.providers["local"] = localDockerProvider
+		rm.localProvider = localDockerProvider
 	}
 	return rm
 }
 
-// RegisterProvider creates and registers a resource provider by type
+// RegisterProvider creates and registers a remote resource provider by type
 func (rm *Manager) RegisterProvider(providerType providerType, config interface{}) (string, error) {
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
@@ -80,15 +83,39 @@ func (rm *Manager) RegisterProvider(providerType providerType, config interface{
 		return "", fmt.Errorf("unsupported provider type: %s", providerType)
 	}
 
-	rm.providers[providerID] = provider
+	// Store as remote provider
+	rm.remoteProviders[providerID] = provider
 	return providerID, nil
+}
+
+// RegisterDiscoveredProvider registers a provider discovered through gossip protocol
+func (rm *Manager) RegisterDiscoveredProvider(provider Provider) {
+	rm.mu.Lock()
+	defer rm.mu.Unlock()
+	rm.discoveredProviders[provider.GetID()] = provider
 }
 
 // UnregisterProvider removes a resource provider
 func (rm *Manager) UnregisterProvider(providerID string) {
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
-	delete(rm.providers, providerID)
+	
+	// Check and remove from remote providers
+	if _, exists := rm.remoteProviders[providerID]; exists {
+		delete(rm.remoteProviders, providerID)
+		return
+	}
+	
+	// Check and remove from discovered providers
+	if _, exists := rm.discoveredProviders[providerID]; exists {
+		delete(rm.discoveredProviders, providerID)
+		return
+	}
+	
+	// Cannot remove local provider
+	if rm.localProvider != nil && rm.localProvider.GetID() == providerID {
+		logrus.Warnf("Cannot unregister local provider: %s", providerID)
+	}
 }
 
 // GetProvider returns a registered provider by ID
@@ -96,11 +123,23 @@ func (rm *Manager) GetProvider(providerID string) (Provider, error) {
 	rm.mu.RLock()
 	defer rm.mu.RUnlock()
 
-	provider, exists := rm.providers[providerID]
-	if !exists {
-		return nil, fmt.Errorf("provider with ID %s not found", providerID)
+	// Check local provider
+	if rm.localProvider != nil && rm.localProvider.GetID() == providerID {
+		return rm.localProvider, nil
 	}
-	return provider, nil
+	
+	// Check remote providers
+	if provider, exists := rm.remoteProviders[providerID]; exists {
+		return provider, nil
+	}
+	
+	// Check discovered providers
+	if provider, exists := rm.discoveredProviders[providerID]; exists {
+		return provider, nil
+	}
+
+	// Provider not found
+	return nil, fmt.Errorf("provider with ID %s not found", providerID)
 }
 
 // GetCapacity returns aggregated capacity from all providers
@@ -108,7 +147,14 @@ func (rm *Manager) GetCapacity(ctx context.Context) (*Capacity, error) {
 	rm.mu.RLock()
 	defer rm.mu.RUnlock()
 
-	if len(rm.providers) == 0 {
+	// Check if we have any providers
+	totalProviders := 0
+	if rm.localProvider != nil {
+		totalProviders++
+	}
+	totalProviders += len(rm.remoteProviders) + len(rm.discoveredProviders)
+	
+	if totalProviders == 0 {
 		// Fallback to static limits if no providers
 		return &Capacity{
 			Total: rm.limits,
@@ -123,7 +169,38 @@ func (rm *Manager) GetCapacity(ctx context.Context) (*Capacity, error) {
 
 	var totalCapacity, totalAllocated Usage
 
-	for _, provider := range rm.providers {
+	// Process local provider
+	if rm.localProvider != nil {
+		capacity, err := rm.localProvider.GetCapacity(ctx)
+		if err != nil {
+			logrus.Warnf("Failed to get capacity from local provider %s: %v", rm.localProvider.GetID(), err)
+		} else {
+			totalCapacity.CPU += capacity.Total.CPU
+			totalCapacity.Memory += capacity.Total.Memory
+			totalCapacity.GPU += capacity.Total.GPU
+			totalAllocated.CPU += capacity.Used.CPU
+			totalAllocated.Memory += capacity.Used.Memory
+			totalAllocated.GPU += capacity.Used.GPU
+		}
+	}
+
+	// Process remote providers
+	for _, provider := range rm.remoteProviders {
+		capacity, err := provider.GetCapacity(ctx)
+		if err != nil {
+			logrus.Warnf("Failed to get capacity from remote provider %s: %v", provider.GetID(), err)
+			continue
+		}
+		totalCapacity.CPU += capacity.Total.CPU
+		totalCapacity.Memory += capacity.Total.Memory
+		totalCapacity.GPU += capacity.Total.GPU
+		totalAllocated.CPU += capacity.Used.CPU
+		totalAllocated.Memory += capacity.Used.Memory
+		totalAllocated.GPU += capacity.Used.GPU
+	}
+
+	// Process discovered providers
+	for _, provider := range rm.discoveredProviders {
 		capacity, err := provider.GetCapacity(ctx)
 		if err != nil {
 			logrus.Warnf("Failed to get capacity from provider %s: %v", provider.GetID(), err)
@@ -221,10 +298,56 @@ func (rm *Manager) Deploy(ctx context.Context, containerSpec ContainerSpec) (*Co
 
 func (rm *Manager) canAllocate(req Usage) Provider {
 	logrus.Debugf("Checking resource allocation: Requested(CPU=%.1f, Memory=%.1f, GPU=%.1f)", req.CPU, req.Memory, req.GPU)
-	logrus.Debugf("Searching for available provider among %d providers", len(rm.providers))
+	
+	totalProviders := 0
+	if rm.localProvider != nil {
+		totalProviders++
+	}
+	totalProviders += len(rm.remoteProviders) + len(rm.discoveredProviders)
+	logrus.Debugf("Searching for available provider among %d providers", totalProviders)
 
-	// 遍历所有 providers，找到满足条件的 provider
-	for _, provider := range rm.providers {
+	// Check local provider first
+	if rm.localProvider != nil {
+		logrus.Debugf("Checking local provider %s with status %v", rm.localProvider.GetID(), rm.localProvider.GetStatus())
+		if rm.localProvider.GetStatus() == StatusConnected {
+			capacity, err := rm.localProvider.GetCapacity(context.Background())
+			if err != nil {
+				logrus.WithError(err).Warnf("Failed to get capacity for local provider %s", rm.localProvider.GetID())
+			} else {
+				logrus.Debugf("Local provider %s capacity: Available(CPU=%.1f, Memory=%.1f, GPU=%.1f)",
+					rm.localProvider.GetID(), capacity.Available.CPU, capacity.Available.Memory, capacity.Available.GPU)
+				if capacity.Available.CPU >= req.CPU &&
+					capacity.Available.Memory >= req.Memory &&
+					capacity.Available.GPU >= req.GPU {
+					logrus.Infof("Found suitable local provider: %s for resource allocation", rm.localProvider.GetID())
+					return rm.localProvider
+				}
+			}
+		}
+	}
+
+	// Check remote providers
+	for _, provider := range rm.remoteProviders {
+		logrus.Debugf("Checking remote provider %s with status %v", provider.GetID(), provider.GetStatus())
+		if provider.GetStatus() == StatusConnected {
+			capacity, err := provider.GetCapacity(context.Background())
+			if err != nil {
+				logrus.WithError(err).Warnf("Failed to get capacity for remote provider %s", provider.GetID())
+				continue
+			}
+			logrus.Debugf("Remote provider %s capacity: Available(CPU=%.1f, Memory=%.1f, GPU=%.1f)",
+				provider.GetID(), capacity.Available.CPU, capacity.Available.Memory, capacity.Available.GPU)
+			if capacity.Available.CPU >= req.CPU &&
+				capacity.Available.Memory >= req.Memory &&
+				capacity.Available.GPU >= req.GPU {
+				logrus.Infof("Found suitable remote provider: %s for resource allocation", provider.GetID())
+				return provider
+			}
+		}
+	}
+
+	// Check discovered providers
+	for _, provider := range rm.discoveredProviders {
 		logrus.Debugf("Checking provider %s with status %v", provider.GetID(), provider.GetStatus())
 		if provider.GetStatus() == StatusConnected {
 			// 获取 provider 的容量信息
@@ -278,13 +401,33 @@ func (rm *Manager) StartMonitoring() {
 }
 
 // GetProviders 返回所有注册的资源提供者
-func (rm *Manager) GetProviders() []Provider {
+// CategorizedProviders represents providers categorized by their source
+type CategorizedProviders struct {
+	LocalProvider      Provider   `json:"local_provider"`
+	RemoteProviders    []Provider `json:"remote_providers"`
+	DiscoveredProviders []Provider `json:"discovered_providers"`
+}
+
+// GetProviders returns providers categorized by their source
+func (rm *Manager) GetProviders() *CategorizedProviders {
 	rm.mu.RLock()
 	defer rm.mu.RUnlock()
 
-	providers := make([]Provider, 0, len(rm.providers))
-	for _, provider := range rm.providers {
-		providers = append(providers, provider)
+	result := &CategorizedProviders{
+		LocalProvider:       rm.localProvider,
+		RemoteProviders:     make([]Provider, 0, len(rm.remoteProviders)),
+		DiscoveredProviders: make([]Provider, 0, len(rm.discoveredProviders)),
 	}
-	return providers
+
+	// Convert remote providers map to slice
+	for _, provider := range rm.remoteProviders {
+		result.RemoteProviders = append(result.RemoteProviders, provider)
+	}
+
+	// Convert discovered providers map to slice
+	for _, provider := range rm.discoveredProviders {
+		result.DiscoveredProviders = append(result.DiscoveredProviders, provider)
+	}
+
+	return result
 }

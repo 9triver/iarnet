@@ -9,7 +9,8 @@ import (
 type ResourceProviderInfo struct {
 	ID             string          `json:"id"`               // 资源提供者ID
 	Name           string          `json:"name"`             // 资源名称
-	URL            string          `json:"url"`              // 资源URL
+	Host           string          `json:"host"`             // 资源主机地址
+	Port           int             `json:"port"`             // 资源端口
 	Type           string          `json:"type"`             // 类型 (K8s, Docker等)
 	Status         resource.Status `json:"status"`           // 状态 (已连接, 断开连接等)
 	CPUUsage       UsageInfo       `json:"cpu_usage"`        // CPU使用率信息
@@ -24,7 +25,9 @@ type UsageInfo struct {
 }
 
 type GetResourceProvidersResponse struct {
-	Providers []ResourceProviderInfo `json:"providers"`
+	LocalProvider       *ResourceProviderInfo  `json:"local_provider"`      // 本地 provider（无或一个）
+	RemoteProviders     []ResourceProviderInfo `json:"remote_providers"`    // 远程添加的 provider（无或多个）
+	DiscoveredProviders []ResourceProviderInfo `json:"discovered_providers"` // 通过 gossip 协议感知到的 provider（无或多个）
 }
 
 type GetApplicationsOverViewResponse struct {

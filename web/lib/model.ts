@@ -1,7 +1,8 @@
 interface ResourceProvider {
   id: string
   name: string
-  url: string
+  host: string
+  port: number
   type: string
   status: number
   cpu_usage: {
@@ -17,7 +18,9 @@ interface ResourceProvider {
 }
 
 interface GetResourceProvidersResponse {
-  providers: ResourceProvider[]
+  local_provider: ResourceProvider | null     // 本地 provider（无或一个）
+  remote_providers: ResourceProvider[]    // 远程添加的 provider（无或多个）
+  discovered_providers: ResourceProvider[] // 通过 gossip 协议感知到的 provider（无或多个）
 }
 
 interface Application {

@@ -72,12 +72,68 @@ func (s *Server) handleResourceCapacity(w http.ResponseWriter, req *http.Request
 }
 
 func (s *Server) handleResourceProviders(w http.ResponseWriter, req *http.Request) {
-	providers := s.resMgr.GetProviders()
+	categorizedProviders := s.resMgr.GetProviders()
 
-	providerInfos := []response.ResourceProviderInfo{}
+	var localProvider *response.ResourceProviderInfo
+	remoteProviders := []response.ResourceProviderInfo{}
+	discoveredProviders := []response.ResourceProviderInfo{}
 
-	for _, provider := range providers {
+	// 处理本地 provider（单个对象）
+	if categorizedProviders.LocalProvider != nil {
+		capacity, err := categorizedProviders.LocalProvider.GetCapacity(s.ctx)
+		if err != nil {
+			response.WriteError(w, http.StatusInternalServerError, "failed to get resource capacity", err)
+			return
+		}
 
+		localProvider = &response.ResourceProviderInfo{
+			ID:     categorizedProviders.LocalProvider.GetID(),
+			Name:   categorizedProviders.LocalProvider.GetName(),
+			URL:    "http://localhost:2376", // TODO: 默认Docker URL，实际应该从provider获取
+			Type:   categorizedProviders.LocalProvider.GetType(),
+			Status: categorizedProviders.LocalProvider.GetStatus(),
+			CPUUsage: response.UsageInfo{
+				Used:  capacity.Used.CPU,
+				Total: capacity.Total.CPU,
+			},
+			MemoryUsage: response.UsageInfo{
+				Used:  capacity.Used.Memory,
+				Total: capacity.Total.Memory,
+			},
+			LastUpdateTime: categorizedProviders.LocalProvider.GetLastUpdateTime().Format("2006-01-02 15:04:05"),
+		}
+	}
+
+	// 处理远程 providers
+	for _, provider := range categorizedProviders.RemoteProviders {
+		capacity, err := provider.GetCapacity(s.ctx)
+		if err != nil {
+			response.WriteError(w, http.StatusInternalServerError, "failed to get resource capacity", err)
+			return
+		}
+
+		providerInfo := response.ResourceProviderInfo{
+			ID:     provider.GetID(),
+			Name:   provider.GetName(),
+			Host:   provider.GetHost(),
+			Port:   provider.GetPort(),
+			Type:   provider.GetType(),
+			Status: provider.GetStatus(),
+			CPUUsage: response.UsageInfo{
+				Used:  capacity.Used.CPU,
+				Total: capacity.Total.CPU,
+			},
+			MemoryUsage: response.UsageInfo{
+				Used:  capacity.Used.Memory,
+				Total: capacity.Total.Memory,
+			},
+			LastUpdateTime: provider.GetLastUpdateTime().Format("2006-01-02 15:04:05"),
+		}
+		remoteProviders = append(remoteProviders, providerInfo)
+	}
+
+	// 处理发现的 providers
+	for _, provider := range categorizedProviders.DiscoveredProviders {
 		capacity, err := provider.GetCapacity(s.ctx)
 		if err != nil {
 			response.WriteError(w, http.StatusInternalServerError, "failed to get resource capacity", err)
@@ -100,18 +156,21 @@ func (s *Server) handleResourceProviders(w http.ResponseWriter, req *http.Reques
 			},
 			LastUpdateTime: provider.GetLastUpdateTime().Format("2006-01-02 15:04:05"),
 		}
-
-		providerInfos = append(providerInfos, providerInfo)
+		discoveredProviders = append(discoveredProviders, providerInfo)
 	}
 
 	getResourceProvidersResponse := response.GetResourceProvidersResponse{
-		Providers: providerInfos,
+		LocalProvider:       localProvider,
+		RemoteProviders:     remoteProviders,
+		DiscoveredProviders: discoveredProviders,
 	}
 
 	if err := response.WriteSuccess(w, getResourceProvidersResponse); err != nil {
 		logrus.Errorf("Failed to write response: %v", err)
 	}
 }
+
+
 
 // handleGetApplications 处理获取所有应用请求
 func (s *Server) handleGetApplications(w http.ResponseWriter, req *http.Request) {

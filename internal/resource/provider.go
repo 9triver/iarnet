@@ -18,6 +18,8 @@ type Provider interface {
 	GetType() string
 	GetID() string
 	GetName() string
+	GetHost() string
+	GetPort() int
 	GetLastUpdateTime() time.Time
 	GetStatus() Status
 	Deploy(ctx context.Context, spec ContainerSpec) (string, error)

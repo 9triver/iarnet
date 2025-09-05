@@ -29,7 +29,9 @@ interface Resource {
   id: string
   name: string
   type: "kubernetes" | "docker" | "vm"
-  url: string
+  host: string
+  port: number
+  category?: "local" | "remote" | "discovered" // 资源分类：本地、远程添加、通过gossip发现
   status: "connected" | "disconnected" | "error"
   cpu: {
     total: number
@@ -49,7 +51,8 @@ interface Resource {
 interface ResourceFormData {
   name: string
   type: "kubernetes" | "docker" | "vm"
-  url: string
+  host: string
+  port: number
   token: string
   description?: string
 }
@@ -102,7 +105,8 @@ export default function ResourcesPage() {
     defaultValues: {
       name: "",
       type: "kubernetes",
-      url: "",
+      host: "",
+      port: 2376,
       token: "",
       description: "",
     },
@@ -144,12 +148,15 @@ export default function ResourcesPage() {
   const fetchProviders = async () => {
     try {
       const response = (await resourcesAPI.getProviders()) as GetResourceProvidersResponse
+      
       // 转换API数据格式为前端需要的格式
-      const convertedResources: Resource[] = response.providers.map((provider: ResourceProvider) => ({
+      const convertProvider = (provider: ResourceProvider, category: string) => ({
         id: provider.id,
         name: provider.name,
         type: provider.type.toLowerCase() as "kubernetes" | "docker" | "vm",
-        url: provider.url,
+        host: provider.host,
+        port: provider.port,
+        category: category, // 添加分类标识
         status: convertStatus(provider.status),
         cpu: {
           total: provider.cpu_usage.total,
@@ -159,10 +166,18 @@ export default function ResourcesPage() {
           total: provider.memory_usage.total,
           used: provider.memory_usage.used
         },
-
         lastUpdated: provider.last_update_time
-      }))
-      setResources(convertedResources)
+      })
+      
+      // 合并三类 provider
+      const localResources = response.local_provider ? [convertProvider(response.local_provider, 'local')] : [];
+      const allResources: Resource[] = [
+        ...localResources,
+        ...response.remote_providers.map(p => convertProvider(p, 'remote')),
+        ...response.discovered_providers.map(p => convertProvider(p, 'discovered'))
+      ]
+      
+      setResources(allResources)
     } catch (error) {
       console.error('Failed to fetch providers:', error)
       // 如果API调用失败，保持使用模拟数据
@@ -179,7 +194,7 @@ export default function ResourcesPage() {
       setResources((prev) =>
         prev.map((resource) =>
           resource.id === editingResource.id
-            ? { ...resource, name: data.name, type: data.type, url: data.url }
+            ? { ...resource, name: data.name, type: data.type, host: data.host, port: data.port }
             : resource,
         ),
       )
@@ -189,7 +204,8 @@ export default function ResourcesPage() {
         id: Date.now().toString(),
         name: data.name,
         type: data.type,
-        url: data.url,
+        host: data.host,
+        port: data.port,
         status: "connected",
         cpu: { total: 0, used: 0 },
         memory: { total: 0, used: 0 },
@@ -208,7 +224,8 @@ export default function ResourcesPage() {
     setEditingResource(resource)
     form.setValue("name", resource.name)
     form.setValue("type", resource.type)
-    form.setValue("url", resource.url)
+    form.setValue("host", resource.host)
+    form.setValue("port", resource.port)
     setIsDialogOpen(true)
   }
 
@@ -384,14 +401,29 @@ export default function ResourcesPage() {
 
                       <FormField
                         control={form.control}
-                        name="url"
+                        name="host"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>API Server URL</FormLabel>
+                            <FormLabel>主机地址</FormLabel>
                             <FormControl>
-                              <Input placeholder="https://api.example.com" {...field} />
+                              <Input placeholder="192.168.1.100" {...field} />
                             </FormControl>
-                            <FormDescription>算力资源的API服务器地址</FormDescription>
+                            <FormDescription>算力资源的主机IP地址或域名</FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="port"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>端口号</FormLabel>
+                            <FormControl>
+                              <Input type="number" placeholder="2376" {...field} onChange={(e) => field.onChange(parseInt(e.target.value) || 0)} />
+                            </FormControl>
+                            <FormDescription>算力资源的API服务端口</FormDescription>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -539,75 +571,211 @@ export default function ResourcesPage() {
                       <ResourceTableSkeleton key={`skeleton-${index}`} />
                     ))
                   ) : (
-                    resources.map((resource) => (
-                      <TableRow key={resource.id}>
-                        <TableCell className="w-64">
-                          <div className="flex items-center space-x-2">
-                            {getTypeIcon(resource.type)}
-                            <div>
-                              <div className="font-medium">{resource.name}</div>
-                              <div className="text-sm text-muted-foreground">{resource.url}</div>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="w-20">
-                          <Badge variant="outline">
-                            {resource.type === "kubernetes" ? "K8s" : resource.type === "docker" ? "Docker" : "VM"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="w-20">{getStatusBadge(resource.status)}</TableCell>
-                        <TableCell className="w-32">
-                          <div className="flex items-center space-x-2">
-                            <div className="text-sm">
-                              {resource.cpu.total > 0
-                                ? `${Math.round((resource.cpu.used / resource.cpu.total) * 100)}%`
-                                : "0%"}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {resource.cpu.used}/{resource.cpu.total} 核心
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="w-32">
-                          <div className="flex items-center space-x-2">
-                            <div className="text-sm">
-                              {resource.memory.total > 0
-                                ? `${Math.round((resource.memory.used / resource.memory.total) * 100)}%`
-                                : "0%"}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {formatMemory(resource.memory.used)}/{formatMemory(resource.memory.total)}
-                            </div>
-                          </div>
-                        </TableCell>
-                        {/* <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <div className="text-sm">
-                            {resource.storage.total > 0
-                              ? `${Math.round((resource.storage.used / resource.storage.total) * 100)}%`
-                              : "0%"}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {resource.storage.used}/{resource.storage.total} GB
-                          </div>
-                        </div>
-                      </TableCell> */}
-                        <TableCell className="w-40 text-xs text-muted-foreground">{resource.lastUpdated}</TableCell>
-                        <TableCell className="w-32">
-                          <div className="flex items-center space-x-2">
-                            <Button variant="ghost" size="sm" onClick={() => handleEdit(resource)}>
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleDelete(resource.id)}>
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm">
-                              <RefreshCw className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
+                    <>
+                      {/* 本地 Provider 分组 */}
+                      {resources.filter(r => r.category === 'local').length > 0 && (
+                        <>
+                          <TableRow>
+                            <TableCell colSpan={7} className="bg-blue-50 font-medium text-sm">
+                              本地资源
+                            </TableCell>
+                          </TableRow>
+                          {resources.filter(r => r.category === 'local').map((resource) => (
+                            <TableRow key={resource.id}>
+                              <TableCell className="w-64">
+                                <div className="flex items-center space-x-2">
+                                  {getTypeIcon(resource.type)}
+                                  <div>
+                                    <div className="font-medium">{resource.name}</div>
+                                    <div className="text-sm text-muted-foreground">{resource.host}:{resource.port}</div>
+                                  </div>
+                                </div>
+                              </TableCell>
+                              <TableCell className="w-20">
+                                <Badge variant="outline">
+                                  {resource.type === "kubernetes" ? "K8s" : resource.type === "docker" ? "Docker" : "VM"}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="w-20">{getStatusBadge(resource.status)}</TableCell>
+                              <TableCell className="w-32">
+                                <div className="flex items-center space-x-2">
+                                  <div className="text-sm">
+                                    {resource.cpu.total > 0
+                                      ? `${Math.round((resource.cpu.used / resource.cpu.total) * 100)}%`
+                                      : "0%"}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {resource.cpu.used}/{resource.cpu.total} 核心
+                                  </div>
+                                </div>
+                              </TableCell>
+                              <TableCell className="w-32">
+                                <div className="flex items-center space-x-2">
+                                  <div className="text-sm">
+                                    {resource.memory.total > 0
+                                      ? `${Math.round((resource.memory.used / resource.memory.total) * 100)}%`
+                                      : "0%"}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {formatMemory(resource.memory.used)}/{formatMemory(resource.memory.total)}
+                                  </div>
+                                </div>
+                              </TableCell>
+                              <TableCell className="w-40 text-xs text-muted-foreground">{resource.lastUpdated}</TableCell>
+                              <TableCell className="w-32">
+                                <div className="flex items-center space-x-2">
+                                  <Button variant="ghost" size="sm" onClick={() => handleEdit(resource)}>
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                  <Button variant="ghost" size="sm" onClick={() => handleDelete(resource.id)}>
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                  <Button variant="ghost" size="sm">
+                                    <RefreshCw className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </>
+                      )}
+                      
+                      {/* 远程添加的 Provider 分组 */}
+                      {resources.filter(r => r.category === 'remote').length > 0 && (
+                        <>
+                          <TableRow>
+                            <TableCell colSpan={7} className="bg-green-50 font-medium text-sm">
+                              远程添加的资源
+                            </TableCell>
+                          </TableRow>
+                          {resources.filter(r => r.category === 'remote').map((resource) => (
+                             <TableRow key={resource.id}>
+                               <TableCell className="w-64">
+                                 <div className="flex items-center space-x-2">
+                                   {getTypeIcon(resource.type)}
+                                   <div>
+                                     <div className="font-medium">{resource.name}</div>
+                                     <div className="text-sm text-muted-foreground">{resource.host}:{resource.port}</div>
+                                   </div>
+                                 </div>
+                               </TableCell>
+                               <TableCell className="w-20">
+                                 <Badge variant="outline">
+                                   {resource.type === "kubernetes" ? "K8s" : resource.type === "docker" ? "Docker" : "VM"}
+                                 </Badge>
+                               </TableCell>
+                               <TableCell className="w-20">{getStatusBadge(resource.status)}</TableCell>
+                               <TableCell className="w-32">
+                                 <div className="flex items-center space-x-2">
+                                   <div className="text-sm">
+                                     {resource.cpu.total > 0
+                                       ? `${Math.round((resource.cpu.used / resource.cpu.total) * 100)}%`
+                                       : "0%"}
+                                   </div>
+                                   <div className="text-xs text-muted-foreground">
+                                     {resource.cpu.used}/{resource.cpu.total} 核心
+                                   </div>
+                                 </div>
+                               </TableCell>
+                               <TableCell className="w-32">
+                                 <div className="flex items-center space-x-2">
+                                   <div className="text-sm">
+                                     {resource.memory.total > 0
+                                       ? `${Math.round((resource.memory.used / resource.memory.total) * 100)}%`
+                                       : "0%"}
+                                   </div>
+                                   <div className="text-xs text-muted-foreground">
+                                     {formatMemory(resource.memory.used)}/{formatMemory(resource.memory.total)}
+                                   </div>
+                                 </div>
+                               </TableCell>
+                               <TableCell className="w-40 text-xs text-muted-foreground">{resource.lastUpdated}</TableCell>
+                               <TableCell className="w-32">
+                                 <div className="flex items-center space-x-2">
+                                   <Button variant="ghost" size="sm" onClick={() => handleEdit(resource)}>
+                                     <Edit className="h-4 w-4" />
+                                   </Button>
+                                   <Button variant="ghost" size="sm" onClick={() => handleDelete(resource.id)}>
+                                     <Trash2 className="h-4 w-4" />
+                                   </Button>
+                                   <Button variant="ghost" size="sm">
+                                     <RefreshCw className="h-4 w-4" />
+                                   </Button>
+                                 </div>
+                               </TableCell>
+                             </TableRow>
+                           ))}
+                         </>
+                       )}
+                       
+                       {/* 通过 Gossip 发现的 Provider 分组 */}
+                       {resources.filter(r => r.category === 'discovered').length > 0 && (
+                         <>
+                           <TableRow>
+                             <TableCell colSpan={7} className="bg-yellow-50 font-medium text-sm">
+                               通过网络发现的资源
+                             </TableCell>
+                           </TableRow>
+                           {resources.filter(r => r.category === 'discovered').map((resource) => (
+                              <TableRow key={resource.id}>
+                                <TableCell className="w-64">
+                                  <div className="flex items-center space-x-2">
+                                    {getTypeIcon(resource.type)}
+                                    <div>
+                                      <div className="font-medium">{resource.name}</div>
+                                      <div className="text-sm text-muted-foreground">{resource.host}:{resource.port}</div>
+                                    </div>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="w-20">
+                                  <Badge variant="outline">
+                                    {resource.type === "kubernetes" ? "K8s" : resource.type === "docker" ? "Docker" : "VM"}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="w-20">{getStatusBadge(resource.status)}</TableCell>
+                                <TableCell className="w-32">
+                                  <div className="flex items-center space-x-2">
+                                    <div className="text-sm">
+                                      {resource.cpu.total > 0
+                                        ? `${Math.round((resource.cpu.used / resource.cpu.total) * 100)}%`
+                                        : "0%"}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                      {resource.cpu.used}/{resource.cpu.total} 核心
+                                    </div>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="w-32">
+                                  <div className="flex items-center space-x-2">
+                                    <div className="text-sm">
+                                      {resource.memory.total > 0
+                                        ? `${Math.round((resource.memory.used / resource.memory.total) * 100)}%`
+                                        : "0%"}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                      {formatMemory(resource.memory.used)}/{formatMemory(resource.memory.total)}
+                                    </div>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="w-40 text-xs text-muted-foreground">{resource.lastUpdated}</TableCell>
+                                <TableCell className="w-32">
+                                  <div className="flex items-center space-x-2">
+                                    <Button variant="ghost" size="sm" onClick={() => handleEdit(resource)}>
+                                      <Edit className="h-4 w-4" />
+                                    </Button>
+                                    <Button variant="ghost" size="sm" onClick={() => handleDelete(resource.id)}>
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                    <Button variant="ghost" size="sm">
+                                      <RefreshCw className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </>
+                        )}
+                     </>
                   )}
                 </TableBody>
               </Table>
