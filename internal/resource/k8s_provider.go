@@ -51,7 +51,7 @@ type K8sProvider struct {
 }
 
 // NewK8sProvider creates a new Kubernetes resource provider
-func NewK8sProvider(providerID string, config interface{}) (*K8sProvider, error) {
+func NewK8sProvider(providerID string, name string, config interface{}) (*K8sProvider, error) {
 	if config == nil {
 		return nil, fmt.Errorf("empty config type for K8s provider")
 	}
@@ -125,6 +125,7 @@ func NewK8sProvider(providerID string, config interface{}) (*K8sProvider, error)
 	kp := &K8sProvider{
 		clientset:  clientset,
 		providerID: providerID,
+		name:       name,
 		config:     k8sConfig,
 		namespace:  namespace,
 		host:       host,

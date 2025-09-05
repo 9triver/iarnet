@@ -37,7 +37,7 @@ export const resourcesAPI = {
   getCapacity: () => apiRequest("/resource/capacity"),
   getProviders: () => apiRequest("/resource/providers"),
   create: (resource: any) =>
-    apiRequest("/resources", {
+    apiRequest("/resource/providers", {
       method: "POST",
       body: JSON.stringify(resource),
     }),

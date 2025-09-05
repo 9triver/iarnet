@@ -16,6 +16,7 @@ type CreateApplicationRequest struct {
 
 // RegisterProviderRequest 注册资源提供者请求结构
 type RegisterProviderRequest struct {
+	Name   string      `json:"name"`   // 资源提供者名称
 	Type   string      `json:"type"`   // "docker" or "k8s"
 	Config interface{} `json:"config"` // 配置信息，根据类型不同而不同
 }

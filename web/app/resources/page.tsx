@@ -25,6 +25,31 @@ import { Plus, Server, Cpu, HardDrive, Activity, Trash2, Edit, RefreshCw, Memory
 import { formatMemory, formatNumber } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
 
+// 后端API响应类型定义
+interface ResourceProvider {
+  id: string
+  name: string
+  type: string
+  host: string
+  port: number
+  status: string
+  cpu_usage: {
+    total: number
+    used: number
+  }
+  memory_usage: {
+    total: number
+    used: number
+  }
+  last_update_time: string
+}
+
+interface GetResourceProvidersResponse {
+  local_provider?: ResourceProvider
+  managed_providers: ResourceProvider[]
+  collaborative_providers: ResourceProvider[]
+}
+
 interface Resource {
   id: string
   name: string
@@ -101,6 +126,26 @@ export default function ResourcesPage() {
   const [editingResource, setEditingResource] = useState<Resource | null>(null)
   const [loading, setLoading] = useState(true)
 
+  // 状态转换函数
+  const convertStatus = (status: string | number | any): "connected" | "disconnected" | "error" => {
+    // 确保status是字符串类型
+    const statusStr = String(status || '').toLowerCase()
+    switch (statusStr) {
+      case "connected":
+      case "online":
+      case "active":
+      case "1":
+        return "connected"
+      case "disconnected":
+      case "offline":
+      case "inactive":
+      case "2":
+        return "disconnected"
+      default:
+        return "error"
+    }
+  }
+
   const form = useForm<ResourceFormData>({
     defaultValues: {
       name: "",
@@ -132,17 +177,7 @@ export default function ResourcesPage() {
     }
   }
 
-  // 状态转换函数
-  const convertStatus = (statusCode: number): "connected" | "disconnected" | "error" => {
-    switch (statusCode) {
-      case 1: // StatusConnected
-        return "connected"
-      case 2: // StatusDisconnected
-        return "disconnected"
-      default: // StatusUnknown or other
-        return "error"
-    }
-  }
+
 
   // 获取资源提供者数据
   const fetchProviders = async () => {
@@ -188,7 +223,7 @@ export default function ResourcesPage() {
     fetchData()
   }, [])
 
-  const onSubmit = (data: ResourceFormData) => {
+  const onSubmit = async (data: ResourceFormData) => {
     if (editingResource) {
       // 编辑现有资源
       setResources((prev) =>
@@ -199,20 +234,33 @@ export default function ResourcesPage() {
         ),
       )
     } else {
-      // 添加新资源
-      const newResource: Resource = {
-        id: Date.now().toString(),
-        name: data.name,
-        type: data.type,
-        host: data.host,
-        port: data.port,
-        status: "connected",
-        cpu: { total: 0, used: 0 },
-        memory: { total: 0, used: 0 },
-        // storage: { total: 0, used: 0 },
-        lastUpdated: new Date().toLocaleString(),
+      // 添加新资源 - 调用后端API
+      try {
+        // 构造后端期望的请求格式
+        const providerRequest = {
+          name: data.name, // 添加资源名称
+          type: data.type === "kubernetes" ? "k8s" : data.type, // 转换类型名称
+          config: data.type === "docker" ? {
+            host: `tcp://${data.host}:${data.port}`,
+            tlsVerify: data.token ? true : false,
+            tlsCertPath: data.token || undefined,
+            apiVersion: "1.41"
+          } : {
+            kubeConfigContent: data.token, // 对于k8s，token字段存储kubeconfig内容
+            namespace: "default",
+            context: ""
+          }
+        }
+        
+        const response = await resourcesAPI.create(providerRequest)
+        console.log('Provider registered successfully:', response)
+        
+        // 重新获取资源列表以显示最新数据
+        await fetchProviders()
+      } catch (error) {
+        console.error('Failed to register provider:', error)
+        // 可以在这里添加错误提示
       }
-      setResources((prev) => [...prev, newResource])
     }
 
     setIsDialogOpen(false)
@@ -327,148 +375,9 @@ export default function ResourcesPage() {
                 刷新数据
               </Button>
 
-              <Button
-                variant="outline"
-                onClick={() => {
-                  // TODO: 实现接入新节点功能
-                  console.log('接入新节点')
-                }}
-              >
-                <Plus className="h-4 w-4" />
-                接入新节点
-              </Button>
 
-              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button
-                    onClick={() => {
-                      setEditingResource(null)
-                      form.reset()
-                    }}
-                  >
-                    <Plus className="h-4 w-4" />
-                    接入新资源
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[500px]">
-                  <DialogHeader>
-                    <DialogTitle>{editingResource ? "编辑资源" : "接入新的算力资源"}</DialogTitle>
-                    <DialogDescription>
-                      {editingResource ? "修改资源配置信息" : "输入算力资源的API服务器信息以接入管理"}
-                    </DialogDescription>
-                  </DialogHeader>
 
-                  <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                      <FormField
-                        control={form.control}
-                        name="name"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>资源名称</FormLabel>
-                            <FormControl>
-                              <Input placeholder="例如：生产环境集群" {...field} />
-                            </FormControl>
-                            <FormDescription>为这个算力资源起一个易识别的名称</FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
 
-                      <FormField
-                        control={form.control}
-                        name="type"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>资源类型</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="选择资源类型" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                <SelectItem value="kubernetes">Kubernetes 集群</SelectItem>
-                                <SelectItem value="docker">Docker 环境</SelectItem>
-                                <SelectItem value="vm">虚拟机</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <FormDescription>选择算力资源的部署环境类型</FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="host"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>主机地址</FormLabel>
-                            <FormControl>
-                              <Input placeholder="192.168.1.100" {...field} />
-                            </FormControl>
-                            <FormDescription>算力资源的主机IP地址或域名</FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="port"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>端口号</FormLabel>
-                            <FormControl>
-                              <Input type="number" placeholder="2376" {...field} onChange={(e) => field.onChange(parseInt(e.target.value) || 0)} />
-                            </FormControl>
-                            <FormDescription>算力资源的API服务端口</FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="token"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>访问令牌</FormLabel>
-                            <FormControl>
-                              <Input type="password" placeholder="输入访问令牌" {...field} />
-                            </FormControl>
-                            <FormDescription>用于访问API服务器的认证令牌</FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="description"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>描述（可选）</FormLabel>
-                            <FormControl>
-                              <Textarea placeholder="资源描述信息..." {...field} />
-                            </FormControl>
-                            <FormDescription>添加关于此资源的额外描述信息</FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <DialogFooter>
-                        <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                          取消
-                        </Button>
-                        <Button type="submit">{editingResource ? "更新资源" : "接入资源"}</Button>
-                      </DialogFooter>
-                    </form>
-                  </Form>
-                </DialogContent>
-              </Dialog>
             </div>
           </div>
 
@@ -566,7 +475,7 @@ export default function ResourcesPage() {
                   ) : resources.filter(r => r.category === 'local_provider').length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                        暂无本地资源
+                        暂无本地资源，系统将自动检测本机可用的算力资源
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -652,7 +561,7 @@ export default function ResourcesPage() {
                     <DialogTrigger asChild>
                       <Button size="sm">
                         <Plus className="mr-2 h-4 w-4" />
-                        添加资源
+                        接入资源
                       </Button>
                     </DialogTrigger>
                     <DialogContent className="sm:max-w-[425px]">
@@ -758,7 +667,7 @@ export default function ResourcesPage() {
                             )}
                           />
                           <DialogFooter>
-                            <Button type="submit">添加资源</Button>
+                            <Button type="submit">接入资源</Button>
                           </DialogFooter>
                         </form>
                       </Form>
@@ -788,7 +697,7 @@ export default function ResourcesPage() {
                   ) : resources.filter(r => r.category === 'managed_providers').length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                        暂无远程资源，点击上方"添加资源"按钮开始配置
+                        暂无托管资源，点击上方"接入资源"按钮开始配置
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -866,8 +775,20 @@ export default function ResourcesPage() {
                   </CardTitle>
                   <CardDescription>网络中自动发现的可协作算力资源</CardDescription>
                 </div>
-                <div className="text-sm text-muted-foreground">
-                  {resources.filter(r => r.category === 'collaborative_providers').length} 个资源
+                <div className="flex items-center space-x-4">
+                  <div className="text-sm text-muted-foreground">
+                    {resources.filter(r => r.category === 'collaborative_providers').length} 个资源
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      // TODO: 实现接入节点功能
+                      console.log('接入节点')
+                    }}
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    接入节点
+                  </Button>
                 </div>
               </div>
             </CardHeader>
@@ -892,7 +813,7 @@ export default function ResourcesPage() {
                   ) : resources.filter(r => r.category === 'collaborative_providers').length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                        暂无发现的资源，系统将自动扫描网络中的可用资源
+                        暂无协作资源，系统将自动发现网络中节点提供的资源，点击上方"接入节点"按钮可以接入新节点到网络中
                       </TableCell>
                     </TableRow>
                   ) : (

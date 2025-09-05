@@ -72,7 +72,7 @@ func NewManager(limits map[string]string) *Manager {
 }
 
 // RegisterProvider creates and registers a remote resource provider by type
-func (rm *Manager) RegisterProvider(providerType ProviderType, config interface{}) (string, error) {
+func (rm *Manager) RegisterProvider(providerType ProviderType, name string, config interface{}) (string, error) {
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
 
@@ -86,12 +86,12 @@ func (rm *Manager) RegisterProvider(providerType ProviderType, config interface{
 
 	switch providerType {
 	case ProviderTypeDocker:
-		provider, err = NewDockerProvider(providerID, config)
+		provider, err = NewDockerProvider(providerID, name, config)
 		if err != nil {
 			return "", fmt.Errorf("failed to create Docker provider: %w", err)
 		}
 	case ProviderTypeK8s:
-		provider, err = NewK8sProvider(providerID, config)
+		provider, err = NewK8sProvider(providerID, name, config)
 		if err != nil {
 			return "", fmt.Errorf("failed to create K8s provider: %w", err)
 		}

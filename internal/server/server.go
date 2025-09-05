@@ -493,7 +493,7 @@ func (s *Server) handleRegisterProvider(w http.ResponseWriter, req *http.Request
 	case "k8s":
 		providerType = resource.ProviderTypeK8s
 	}
-	providerID, err := s.resMgr.RegisterProvider(providerType, config)
+	providerID, err := s.resMgr.RegisterProvider(providerType, registerReq.Name, config)
 	if err != nil {
 		response.WriteError(w, http.StatusInternalServerError, "failed to register provider", err)
 		return

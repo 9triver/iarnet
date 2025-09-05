@@ -42,7 +42,7 @@ type DockerProvider struct {
 }
 
 // NewDockerProvider creates a new Docker resource provider
-func NewDockerProvider(providerID string, config interface{}) (*DockerProvider, error) {
+func NewDockerProvider(providerID string, name string, config interface{}) (*DockerProvider, error) {
 	var opts []client.Opt
 
 	if config == nil {
@@ -82,6 +82,7 @@ func NewDockerProvider(providerID string, config interface{}) (*DockerProvider, 
 	dp := &DockerProvider{
 		client:     cli,
 		providerID: providerID,
+		name:       name,
 		config:     dockerConfig,
 	}
 
