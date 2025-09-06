@@ -306,23 +306,13 @@ export default function ApplicationDetailPage() {
               )}
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {application.importType === "git" ? (
-                  <div>
-                    <h4 className="text-sm font-medium text-muted-foreground mb-1">Git仓库</h4>
-                    <div className="flex items-center space-x-2 text-sm">
-                      <GitBranch className="h-4 w-4" />
-                      <span className="font-mono">{application.branch}</span>
-                    </div>
+                <div>
+                  <h4 className="text-sm font-medium text-muted-foreground mb-1">Git仓库</h4>
+                  <div className="flex items-center space-x-2 text-sm">
+                    <GitBranch className="h-4 w-4" />
+                    <span className="font-mono">{application.branch}</span>
                   </div>
-                ) : (
-                  <div>
-                    <h4 className="text-sm font-medium text-muted-foreground mb-1">Docker镜像</h4>
-                    <div className="flex items-center space-x-2 text-sm">
-                      <Package className="h-4 w-4" />
-                      <span className="font-mono">{application.dockerImage}:{application.dockerTag}</span>
-                    </div>
-                  </div>
-                )}
+                </div>
                 
                 {application.ports && application.ports.length > 0 && (
                   <div>

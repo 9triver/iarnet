@@ -12,6 +12,7 @@ type Config struct {
 	PeerListenAddr string            `yaml:"peer_listen_addr"`// e.g., ":50051" for gRPC
 	InitialPeers   []string          `yaml:"initial_peers"`   // e.g., ["peer1:50051"]
 	ResourceLimits map[string]string `yaml:"resource_limits"` // e.g., {"cpu": "4", "memory": "8Gi", "gpu": "2"}
+	WorkspaceDir   string            `yaml:"workspace_dir"`   // e.g., "./workspaces" - directory for git repositories
 }
 
 func LoadConfig(file string) (*Config, error) {

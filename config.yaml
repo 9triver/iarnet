@@ -8,3 +8,4 @@ resource_limits:
   cpu: "8"      # Total cores
   memory: "16Gi" # Total GiB
   gpu: "4"      # Total GPUs
+workspace_dir: "../workspaces"  # Directory for storing cloned git repositories

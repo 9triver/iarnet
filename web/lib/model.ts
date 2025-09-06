@@ -26,11 +26,8 @@ interface Application {
   id: string
   name: string
   description: string
-  importType: "git" | "docker"
   gitUrl?: string
   branch?: string
-  dockerImage?: string
-  dockerTag?: string
   status: "idle" | "running" | "stopped" | "error" | "deploying"
   type: "web" | "api" | "worker" | "database"
   lastDeployed?: string

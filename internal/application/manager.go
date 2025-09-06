@@ -2,9 +2,14 @@ package application
 
 import (
 	"errors"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strconv"
 	"sync"
 
+	"github.com/9triver/iarnet/internal/config"
 	"github.com/9triver/iarnet/internal/server/request"
 	"github.com/sirupsen/logrus"
 )
@@ -13,13 +18,47 @@ type Manager struct {
 	applications map[string]*AppRef
 	nextAppID    int
 	mu           sync.RWMutex
+	config       *config.Config
 }
 
-func NewManager() *Manager {
+func NewManager(cfg *config.Config) *Manager {
 	return &Manager{
 		applications: make(map[string]*AppRef),
 		nextAppID:    1,
+		config:       cfg,
 	}
+}
+
+// CloneGitRepository 克隆Git仓库到本地目录
+func (m *Manager) CloneGitRepository(gitUrl, branch, appID string) (string, error) {
+	// 从配置中获取工作目录，如果未配置则使用默认值
+	workspaceBaseDir := m.config.WorkspaceDir
+	if workspaceBaseDir == "" {
+		workspaceBaseDir = "./workspaces"
+		logrus.Warn("WorkspaceDir not configured, using default: ./workspaces")
+	}
+	
+	// 创建应用专用的工作目录
+	workDir := filepath.Join(workspaceBaseDir, appID)
+	if err := os.MkdirAll(workDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create workspace directory: %v", err)
+	}
+
+	logrus.Infof("Cloning repository %s (branch: %s) to %s", gitUrl, branch, workDir)
+
+	// 执行git clone命令
+	cmd := exec.Command("git", "clone", "-b", branch, "--single-branch", gitUrl, workDir)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		// 如果克隆失败，清理目录
+		os.RemoveAll(workDir)
+		return "", fmt.Errorf("failed to clone repository: %v", err)
+	}
+
+	logrus.Infof("Successfully cloned repository to %s", workDir)
+	return workDir, nil
 }
 
 func (m *Manager) CreateApplication(createReq *request.CreateApplicationRequest) *AppRef {
@@ -33,11 +72,8 @@ func (m *Manager) CreateApplication(createReq *request.CreateApplicationRequest)
 		ContainerRef: nil,
 		Status:       StatusUndeployed,
 		Type:         createReq.Type,
-		ImportType:   createReq.ImportType,
 		GitUrl:       createReq.GitUrl,
 		Branch:       createReq.Branch,
-		DockerImage:  createReq.DockerImage,
-		DockerTag:    createReq.DockerTag,
 		Description:  createReq.Description,
 		Ports:        createReq.Ports,
 		HealthCheck:  createReq.HealthCheck,

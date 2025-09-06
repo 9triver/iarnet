@@ -40,11 +40,8 @@ import {
 
 interface ApplicationFormData {
   name: string
-  importType: "git" | "docker"
   gitUrl?: string
   branch?: string
-  dockerImage?: string
-  dockerTag?: string
   type: "web" | "api" | "worker" | "database"
   description?: string
   ports?: string
@@ -76,7 +73,7 @@ export default function ApplicationsPage() {
     //   id: "1",
     //   name: "用户管理系统",
     //   description: "基于React和Node.js的用户管理后台系统",
-    //   importType: "git",
+    
     //   gitUrl: "https://github.com/company/user-management",
     //   branch: "main",
     //   status: "running",
@@ -90,7 +87,7 @@ export default function ApplicationsPage() {
     //   id: "2",
     //   name: "数据处理服务",
     //   description: "Python数据处理和分析服务",
-    //   importType: "git",
+    
     //   gitUrl: "https://github.com/company/data-processor",
     //   branch: "develop",
     //   status: "idle",
@@ -102,7 +99,7 @@ export default function ApplicationsPage() {
     //   id: "3",
     //   name: "API网关",
     //   description: "微服务API网关和路由服务",
-    //   importType: "git",
+    
     //   gitUrl: "https://github.com/company/api-gateway",
     //   branch: "main",
     //   status: "running",
@@ -116,9 +113,7 @@ export default function ApplicationsPage() {
     //   id: "4",
     //   name: "Nginx代理服务",
     //   description: "基于Docker的Nginx反向代理服务",
-    //   importType: "docker",
-    //   dockerImage: "nginx",
-    //   dockerTag: "alpine",
+    
     //   status: "running",
     //   type: "web",
     //   lastDeployed: "2024-01-15 16:20:00",
@@ -132,7 +127,7 @@ export default function ApplicationsPage() {
   const [editingApp, setEditingApp] = useState<Application | null>(null)
   const [isImporting, setIsImporting] = useState(false)
   const [importProgress, setImportProgress] = useState(0)
-  const [importType, setImportType] = useState<"git" | "docker">("git")
+
 
   // 获取应用统计数据
   const fetchStats = async () => {
@@ -170,11 +165,8 @@ export default function ApplicationsPage() {
   const form = useForm<ApplicationFormData>({
     defaultValues: {
       name: "",
-      importType: "git",
       gitUrl: "",
       branch: "main",
-      dockerImage: "",
-      dockerTag: "latest",
       type: "web",
       description: "",
       ports: "3000",
@@ -210,11 +202,8 @@ export default function ApplicationsPage() {
       //       ? {
       //           ...app,
       //           name: data.name,
-      //           importType: data.importType,
-      //           gitUrl: data.importType === "git" ? data.gitUrl : undefined,
-      //           branch: data.importType === "git" ? data.branch : undefined,
-      //           dockerImage: data.importType === "docker" ? data.dockerImage : undefined,
-      //           dockerTag: data.importType === "docker" ? data.dockerTag : undefined,
+      //           gitUrl: data.gitUrl,
+//           branch: data.branch,
       //           type: data.type,
       //           description: data.description || "",
       //           ports: ports,
@@ -228,11 +217,8 @@ export default function ApplicationsPage() {
       try {
         const createData = {
           name: data.name,
-          importType: data.importType,
-          gitUrl: data.importType === "git" ? data.gitUrl : undefined,
-          branch: data.importType === "git" ? data.branch : undefined,
-          dockerImage: data.importType === "docker" ? data.dockerImage : undefined,
-          dockerTag: data.importType === "docker" ? data.dockerTag : undefined,
+          gitUrl: data.gitUrl,
+          branch: data.branch,
           type: data.type,
           description: data.description || "",
           ports: ports,
@@ -260,15 +246,8 @@ export default function ApplicationsPage() {
   const handleEdit = (app: Application) => {
     setEditingApp(app)
     form.setValue("name", app.name)
-    form.setValue("importType", app.importType)
-    setImportType(app.importType)
-    if (app.importType === "git") {
-      form.setValue("gitUrl", app.gitUrl || "")
-      form.setValue("branch", app.branch || "main")
-    } else {
-      form.setValue("dockerImage", app.dockerImage || "")
-      form.setValue("dockerTag", app.dockerTag || "latest")
-    }
+    form.setValue("gitUrl", app.gitUrl || "")
+    form.setValue("branch", app.branch || "main")
     form.setValue("type", app.type)
     form.setValue("description", app.description)
     form.setValue("ports", app.ports ? app.ports.join(", ") : "")
@@ -416,86 +395,20 @@ export default function ApplicationsPage() {
 
                       <FormField
                         control={form.control}
-                        name="importType"
+                        name="gitUrl"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>导入方式</FormLabel>
-                            <Select
-                              onValueChange={(value) => {
-                                field.onChange(value)
-                                setImportType(value as "git" | "docker")
-                              }}
-                              defaultValue={field.value}
-                            >
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="选择导入方式" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                <SelectItem value="git">Git仓库</SelectItem>
-                                <SelectItem value="docker">Docker镜像</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <FormDescription>选择应用的导入方式</FormDescription>
+                            <FormLabel>Git仓库URL</FormLabel>
+                            <FormControl>
+                              <Input placeholder="https://github.com/username/repo" {...field} />
+                            </FormControl>
+                            <FormDescription>应用的Git仓库地址</FormDescription>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
 
-                      {importType === "git" ? (
-                        <>
-                          <FormField
-                            control={form.control}
-                            name="gitUrl"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Git仓库URL</FormLabel>
-                                <FormControl>
-                                  <Input placeholder="https://github.com/username/repo" {...field} />
-                                </FormControl>
-                                <FormDescription>应用的Git仓库地址</FormDescription>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </>
-                      ) : (
-                        <>
-                          <div className="grid grid-cols-2 gap-4">
-                            <FormField
-                              control={form.control}
-                              name="dockerImage"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>镜像名称</FormLabel>
-                                  <FormControl>
-                                    <Input placeholder="nginx" {...field} />
-                                  </FormControl>
-                                  <FormDescription>Docker镜像名称</FormDescription>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                            <FormField
-                              control={form.control}
-                              name="dockerTag"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>镜像标签</FormLabel>
-                                  <FormControl>
-                                    <Input placeholder="latest" {...field} />
-                                  </FormControl>
-                                  <FormDescription>Docker镜像标签</FormDescription>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                          </div>
-                        </>
-                      )}
-
-                      {importType === "git" && (
+                      <div className="grid grid-cols-2 gap-4">
                         <FormField
                           control={form.control}
                           name="branch"
@@ -510,9 +423,6 @@ export default function ApplicationsPage() {
                             </FormItem>
                           )}
                         />
-                      )}
-
-                      <div className="grid grid-cols-2 gap-4">
 
                         <FormField
                           control={form.control}
@@ -702,19 +612,11 @@ export default function ApplicationsPage() {
                   <p className="text-sm text-muted-foreground line-clamp-2">{app.description}</p>
 
                   <div className="space-y-2">
-                    {app.importType === "git" ? (
-                      <div className="flex items-center space-x-2 text-sm">
-                        <GitBranch className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-muted-foreground">分支:</span>
-                        <span className="font-mono">{app.branch}</span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center space-x-2 text-sm">
-                        <Package className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-muted-foreground">镜像:</span>
-                        <span className="font-mono">{app.dockerImage}:{app.dockerTag}</span>
-                      </div>
-                    )}
+                    <div className="flex items-center space-x-2 text-sm">
+                      <GitBranch className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-muted-foreground">分支:</span>
+                      <span className="font-mono">{app.branch}</span>
+                    </div>
 
                     {app.ports && app.ports.length > 0 && (
                       <div className="flex items-center space-x-2 text-sm">

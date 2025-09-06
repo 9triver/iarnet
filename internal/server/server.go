@@ -163,8 +163,8 @@ func (s *Server) handleResourceProviders(w http.ResponseWriter, req *http.Reques
 	}
 
 	getResourceProvidersResponse := response.GetResourceProvidersResponse{
-		LocalProvider:         localProvider,
-		ManagedProviders:      managedProviders,
+		LocalProvider:          localProvider,
+		ManagedProviders:       managedProviders,
 		CollaborativeProviders: collaborativeProviders,
 	}
 
@@ -184,11 +184,8 @@ func (s *Server) handleGetApplications(w http.ResponseWriter, req *http.Request)
 		appInfos = append(appInfos, response.ApplicationInfo{
 			ID:           app.ID,
 			Name:         app.Name,
-			ImportType:   app.ImportType,
 			GitUrl:       app.GitUrl,
 			Branch:       app.Branch,
-			DockerImage:  app.DockerImage,
-			DockerTag:    app.DockerTag,
 			Type:         app.Type,
 			Description:  app.Description,
 			Ports:        app.Ports,
@@ -233,7 +230,7 @@ func (s *Server) handleCreateApplication(w http.ResponseWriter, req *http.Reques
 		return
 	}
 
-	logrus.Infof("Creating application: name=%s, importType=%s", createReq.Name, createReq.ImportType)
+	logrus.Infof("Creating application: name=%s", createReq.Name)
 
 	// 验证必填字段
 	if createReq.Name == "" {
@@ -242,59 +239,44 @@ func (s *Server) handleCreateApplication(w http.ResponseWriter, req *http.Reques
 		return
 	}
 
-	if createReq.ImportType != "git" && createReq.ImportType != "docker" {
-		logrus.Warnf("Invalid import type: %s", createReq.ImportType)
-		response.WriteError(w, http.StatusBadRequest, "importType must be 'git' or 'docker'", nil)
+	// 验证Git导入字段
+	logrus.Debugf("Validating git import fields")
+	if createReq.GitUrl == nil || *createReq.GitUrl == "" {
+		logrus.Warn("Git URL is missing for git import")
+		response.WriteError(w, http.StatusBadRequest, "gitUrl is required for git import", nil)
 		return
 	}
-
-	// 根据导入类型验证相应字段
-	logrus.Debugf("Validating import type specific fields for: %s", createReq.ImportType)
-	switch createReq.ImportType {
-	case "git":
-		if createReq.GitUrl == nil || *createReq.GitUrl == "" {
-			logrus.Warn("Git URL is missing for git import")
-			response.WriteError(w, http.StatusBadRequest, "gitUrl is required for git import", nil)
-			return
-		}
-		if createReq.Branch == nil || *createReq.Branch == "" {
-			defaultBranch := "main"
-			createReq.Branch = &defaultBranch
-			logrus.Infof("Using default branch 'main' for git import")
-		}
-		logrus.Infof("Git import validated: url=%s, branch=%s", *createReq.GitUrl, *createReq.Branch)
-	case "docker":
-		if createReq.DockerImage == nil || *createReq.DockerImage == "" {
-			logrus.Warn("Docker image is missing for docker import")
-			response.WriteError(w, http.StatusBadRequest, "dockerImage is required for docker import", nil)
-			return
-		}
-		if createReq.DockerTag == nil || *createReq.DockerTag == "" {
-			defaultTag := "latest"
-			createReq.DockerTag = &defaultTag
-			logrus.Infof("Using default tag 'latest' for docker import")
-		}
-		logrus.Infof("Docker import validated: image=%s, tag=%s", *createReq.DockerImage, *createReq.DockerTag)
+	if createReq.Branch == nil || *createReq.Branch == "" {
+		defaultBranch := "main"
+		createReq.Branch = &defaultBranch
+		logrus.Infof("Using default branch 'main' for git import")
 	}
+	logrus.Infof("Git import validated: url=%s, branch=%s", *createReq.GitUrl, *createReq.Branch)
 
 	// 创建应用
 	logrus.Infof("Creating application instance for: %s", createReq.Name)
 	app := s.appMgr.CreateApplication(&createReq)
 	logrus.Infof("Application created with ID: %s", app.ID)
 
+	// 克隆Git仓库
+	logrus.Infof("Cloning Git repository for application %s", app.ID)
+	workDir, err := s.appMgr.CloneGitRepository(*createReq.GitUrl, *createReq.Branch, app.ID)
+	if err != nil {
+		logrus.Errorf("Failed to clone Git repository for application %s: %v", app.ID, err)
+		// 更新应用状态为失败
+		app.Status = application.StatusFailed
+		response.WriteError(w, http.StatusInternalServerError, "failed to clone git repository", err)
+		return
+	}
+	logrus.Infof("Git repository cloned successfully to: %s", workDir)
+
 	// 构建容器规格
 	logrus.Info("Building container specification")
 	var spec resource.ContainerSpec
-	if createReq.ImportType == "docker" {
-		// Docker 导入方式直接使用镜像
-		spec.Image = *createReq.DockerImage + ":" + *createReq.DockerTag
-		logrus.Infof("Using Docker image: %s", spec.Image)
-	} else {
-		// Git 导入方式需要构建镜像（这里暂时使用占位符，实际需要实现 Git 构建逻辑）
-		spec.Image = "placeholder:" + app.ID // 实际应该是构建后的镜像名
-		logrus.Infof("Using placeholder image for Git import: %s", spec.Image)
-		logrus.Warn("Git build logic not implemented yet, using placeholder image")
-	}
+	// Git 导入方式需要构建镜像（这里暂时使用占位符，实际需要实现 Git 构建逻辑）
+	spec.Image = "nginx" // 实际应该是构建后的镜像名
+	logrus.Infof("Using placeholder image for Git import: %s", spec.Image)
+	logrus.Warn("Git build logic not implemented yet, using placeholder image")
 
 	// 设置默认资源限制
 	spec.CPU = 1.0                   // 1 CPU 核心
@@ -369,11 +351,8 @@ func (s *Server) handleGetApplicationById(w http.ResponseWriter, req *http.Reque
 	appInfo := response.ApplicationInfo{
 		ID:           app.ID,
 		Name:         app.Name,
-		ImportType:   app.ImportType,
 		GitUrl:       app.GitUrl,
 		Branch:       app.Branch,
-		DockerImage:  app.DockerImage,
-		DockerTag:    app.DockerTag,
 		Type:         app.Type,
 		Description:  app.Description,
 		Ports:        app.Ports,

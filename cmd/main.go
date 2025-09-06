@@ -46,7 +46,7 @@ func main() {
 	}
 
 	rm := resource.NewManager(cfg.ResourceLimits)
-	am := application.NewManager()
+	am := application.NewManager(cfg)
 
 	// // 添加一些示例应用数据用于测试
 	// app1 := am.CreateApplication("用户管理系统")

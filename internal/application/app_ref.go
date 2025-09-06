@@ -36,11 +36,8 @@ type AppRef struct {
 	Name         string
 	ContainerRef *resource.ContainerRef
 	Status       Status
-	ImportType   string // "git" or "docker"
 	GitUrl       *string
 	Branch       *string
-	DockerImage  *string
-	DockerTag    *string
 	Type         string // "web", "api", "worker", "database"
 	Description  *string
 	Ports        []int
