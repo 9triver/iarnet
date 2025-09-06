@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { CodeEditor } from "@/components/code-editor"
 import {
   ArrowLeft,
   Package,
@@ -20,12 +21,21 @@ import {
   RefreshCw,
   Terminal,
   Download,
+  Code,
+  ExternalLink,
 } from "lucide-react"
 
 interface LogEntry {
   timestamp: string
   level: string
   message: string
+}
+
+interface CodeBrowserInfo {
+  status: string
+  port?: number
+  start_time?: string
+  work_dir?: string
 }
 
 export default function ApplicationDetailPage() {
@@ -36,12 +46,57 @@ export default function ApplicationDetailPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isLoadingLogs, setIsLoadingLogs] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [codeBrowserStatus, setCodeBrowserStatus] = useState<CodeBrowserInfo | null>(null)
+  const [isStartingCodeBrowser, setIsStartingCodeBrowser] = useState(false)
 
   const applicationId = params.id as string
 
   useEffect(() => {
     loadApplicationDetail()
+    loadCodeBrowserStatus()
   }, [applicationId])
+
+  const loadCodeBrowserStatus = async () => {
+    if (!applicationId) return
+    
+    try {
+      const result = await applicationsAPI.getCodeBrowserStatus(applicationId)
+      setCodeBrowserStatus(result.browser)
+    } catch (err) {
+      console.error('Failed to load code browser status:', err)
+      setCodeBrowserStatus(null)
+    }
+  }
+
+  const handleStartCodeBrowser = async () => {
+    if (!application) return
+    
+    try {
+      setIsStartingCodeBrowser(true)
+      const result = await applicationsAPI.startCodeBrowser(application.id)
+      await loadCodeBrowserStatus()
+      
+      // 打开新窗口访问代码浏览器
+      if (result.url) {
+        window.open(result.url, '_blank')
+      }
+    } catch (err) {
+      console.error('Failed to start code browser:', err)
+    } finally {
+      setIsStartingCodeBrowser(false)
+    }
+  }
+
+  const handleStopCodeBrowser = async () => {
+    if (!application) return
+    
+    try {
+      await applicationsAPI.stopCodeBrowser(application.id)
+      await loadCodeBrowserStatus()
+    } catch (err) {
+      console.error('Failed to stop code browser:', err)
+    }
+  }
 
   const loadApplicationDetail = async () => {
     try {
@@ -360,6 +415,10 @@ export default function ApplicationDetailPage() {
                 <Terminal className="h-4 w-4" />
                 <span>容器日志</span>
               </TabsTrigger>
+              <TabsTrigger value="code" className="flex items-center space-x-2">
+                <Code className="h-4 w-4" />
+                <span>代码浏览</span>
+              </TabsTrigger>
               <TabsTrigger value="metrics" disabled>
                 <Activity className="h-4 w-4 mr-2" />
                 监控指标
@@ -426,6 +485,26 @@ export default function ApplicationDetailPage() {
                       </div>
                     )}
                   </ScrollArea>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="code">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Code className="h-5 w-5" />
+                    <span>代码浏览</span>
+                  </CardTitle>
+                  <CardDescription>
+                    在线浏览和编辑应用源代码，基于 Monaco Editor 的现代化代码编辑体验
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <CodeEditor 
+                    appId={params.id as string} 
+                    className="h-[600px]" 
+                  />
                 </CardContent>
               </Card>
             </TabsContent>

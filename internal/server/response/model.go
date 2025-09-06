@@ -25,8 +25,8 @@ type UsageInfo struct {
 }
 
 type GetResourceProvidersResponse struct {
-	LocalProvider         *ResourceProviderInfo  `json:"local_provider"`         // 本机 provider（无或一个）
-	ManagedProviders      []ResourceProviderInfo `json:"managed_providers"`      // 托管的外部 provider（无或多个）
+	LocalProvider          *ResourceProviderInfo  `json:"local_provider"`          // 本机 provider（无或一个）
+	ManagedProviders       []ResourceProviderInfo `json:"managed_providers"`       // 托管的外部 provider（无或多个）
 	CollaborativeProviders []ResourceProviderInfo `json:"collaborative_providers"` // 通过协作发现的 provider（无或多个）
 }
 
@@ -71,4 +71,28 @@ type RegisterProviderResponse struct {
 // UnregisterProviderResponse 注销资源提供者响应结构
 type UnregisterProviderResponse struct {
 	Message string `json:"message"` // 响应消息
+}
+
+// StartCodeBrowserResponse 启动代码浏览器响应结构
+type StartCodeBrowserResponse struct {
+	Message string `json:"message"` // 响应消息
+	Port    int    `json:"port"`    // 代码浏览器端口
+	URL     string `json:"url"`     // 访问URL
+}
+
+// StopCodeBrowserResponse 停止代码浏览器响应结构
+type StopCodeBrowserResponse struct {
+	Message string `json:"message"` // 响应消息
+}
+
+type GetFileTreeResponse struct {
+	Files []FileInfo `json:"files"`
+}
+
+type FileInfo struct {
+	Name    string `json:"name"`
+	Path    string `json:"path"`
+	IsDir   bool   `json:"is_dir"`
+	Size    int64  `json:"size"`
+	ModTime string `json:"mod_time"`
 }

@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -39,6 +40,11 @@ func NewServer(r runner.Runner, rm *resource.Manager, am *application.Manager) *
 	s.router.HandleFunc("/application/apps/{id}/logs", s.handleGetApplicationLogs).Methods("GET")
 	s.router.HandleFunc("/application/stats", s.handleGetApplicationStats).Methods("GET")
 	s.router.HandleFunc("/application/create", s.handleCreateApplication).Methods("POST")
+	// s.router.HandleFunc("/application/apps/{id}/code-browser", s.handleStartCodeBrowser).Methods("POST")
+	// s.router.HandleFunc("/application/apps/{id}/code-browser", s.handleStopCodeBrowser).Methods("DELETE")
+	// s.router.HandleFunc("/application/apps/{id}/code-browser/status", s.handleGetCodeBrowserStatus).Methods("GET")
+	s.router.HandleFunc("/application/apps/{id}/files", s.handleGetFileTree).Methods("GET")
+	s.router.HandleFunc("/application/apps/{id}/files/content", s.handleGetFileContent).Methods("GET")
 
 	return s
 }
@@ -516,5 +522,146 @@ func (s *Server) handleUnregisterProvider(w http.ResponseWriter, req *http.Reque
 
 	if err := response.WriteSuccess(w, unregisterResp); err != nil {
 		logrus.Errorf("Failed to write unregister provider response: %v", err)
+	}
+}
+
+// handleStartCodeBrowser 启动代码浏览器
+func (s *Server) handleStartCodeBrowser(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	appID := vars["id"]
+
+	// 获取应用信息
+	_, err := s.appMgr.GetApplication(appID)
+	if err != nil {
+		response.WriteError(w, http.StatusNotFound, "Application not found", err)
+		return
+	}
+
+	// 启动代码浏览器
+	port, err := s.appMgr.StartCodeBrowser(appID)
+	if err != nil {
+		response.WriteError(w, http.StatusInternalServerError, "Failed to start code browser", err)
+		return
+	}
+
+	startResponse := response.StartCodeBrowserResponse{
+		Message: "Code browser started successfully",
+		Port:    port,
+		URL:     fmt.Sprintf("http://localhost:%d", port),
+	}
+
+	if err := response.WriteSuccess(w, startResponse); err != nil {
+		logrus.Errorf("Failed to write start code browser response: %v", err)
+		return
+	}
+}
+
+// handleStopCodeBrowser 停止代码浏览器
+func (s *Server) handleStopCodeBrowser(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	appID := vars["id"]
+
+	// 停止代码浏览器
+	err := s.appMgr.StopCodeBrowser(appID)
+	if err != nil {
+		response.WriteError(w, http.StatusInternalServerError, "Failed to stop code browser", err)
+		return
+	}
+
+	stopResponse := response.StopCodeBrowserResponse{
+		Message: "Code browser stopped successfully",
+	}
+
+	if err := response.WriteSuccess(w, stopResponse); err != nil {
+		logrus.Errorf("Failed to write stop code browser response: %v", err)
+		return
+	}
+}
+
+// handleGetCodeBrowserStatus 获取代码浏览器状态
+func (s *Server) handleGetCodeBrowserStatus(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	appID := vars["id"]
+
+	// 获取代码浏览器状态
+	status, err := s.appMgr.GetCodeBrowserStatus(appID)
+	if err != nil {
+		response.WriteError(w, http.StatusInternalServerError, "Failed to get code browser status", err)
+		return
+	}
+
+	if err := response.WriteSuccess(w, status); err != nil {
+		logrus.Errorf("Failed to write code browser status response: %v", err)
+		return
+	}
+}
+
+// handleGetFileTree 获取文件树
+func (s *Server) handleGetFileTree(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	appID := vars["id"]
+
+	// 获取查询参数
+	path := req.URL.Query().Get("path")
+	if path == "" {
+		path = "/"
+	}
+
+	// 通过Application Manager获取文件树
+	fileTree, err := s.appMgr.GetFileTree(appID, path)
+
+	// 转换为响应模型
+	var fileTreeResp []response.FileInfo
+	for _, file := range fileTree {
+		fileTreeResp = append(fileTreeResp, response.FileInfo{
+			Name:    file.Name,
+			Path:    file.Path,
+			IsDir:   file.IsDir,
+			Size:    file.Size,
+			ModTime: file.ModTime,
+		})
+	}
+
+	if err != nil {
+		response.WriteError(w, http.StatusInternalServerError, "Failed to get file tree", err)
+		return
+	}
+
+	if err := response.WriteSuccess(w, response.GetFileTreeResponse{
+		Files: fileTreeResp,
+	}); err != nil {
+		logrus.Errorf("Failed to write file tree response: %v", err)
+		return
+	}
+}
+
+// handleGetFileContent 获取文件内容
+func (s *Server) handleGetFileContent(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	appID := vars["id"]
+
+	// 获取查询参数
+	filePath := req.URL.Query().Get("path")
+	if filePath == "" {
+		response.WriteError(w, http.StatusBadRequest, "File path is required", nil)
+		return
+	}
+
+	// 通过Application Manager获取文件内容
+	content, language, err := s.appMgr.GetFileContent(appID, filePath)
+	if err != nil {
+		response.WriteError(w, http.StatusInternalServerError, "Failed to get file content", err)
+		return
+	}
+
+	fileContent := map[string]interface{}{
+		"content":  content,
+		"language": language,
+		"path":     filePath,
+	}
+
+	if err := response.WriteSuccess(w, fileContent); err != nil {
+		logrus.Errorf("Failed to write file content response: %v", err)
+		return
 	}
 }

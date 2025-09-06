@@ -25,10 +25,19 @@ async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promi
   const data = await response.json()
 
   if (!response.ok) {
-    throw new APIError(response.status, data.error || "API request failed")
+    throw new APIError(response.status, data.message || data.error || "API request failed")
   }
 
-  return data.data
+  // 处理后端标准响应格式 {code, message, data}
+  if (data.code !== undefined) {
+    if (data.code !== 200) {
+      throw new APIError(data.code, data.message || "API request failed")
+    }
+    return data.data
+  }
+
+  // 兼容其他响应格式
+  return data.data || data
 }
 
 // 资源管理 API
@@ -80,6 +89,22 @@ export const applicationsAPI = {
     apiRequest(`/applications/${id}/stop`, {
       method: "POST",
     }),
+  // 代码浏览器相关API
+  startCodeBrowser: (id: string) =>
+    apiRequest<StartCodeBrowserResponse>(`/application/apps/${id}/code-browser`, {
+      method: "POST",
+    }),
+  stopCodeBrowser: (id: string) =>
+    apiRequest(`/application/apps/${id}/code-browser`, {
+      method: "DELETE",
+    }),
+  getCodeBrowserStatus: (id: string) =>
+    apiRequest<GetCodeBrowserStatusResponse>(`/application/apps/${id}/code-browser/status`),
+  // 文件管理相关API
+  getFileTree: (id: string, path: string = '') =>
+    apiRequest<GetFileTreeResponse>(`/application/apps/${id}/files${path ? `?path=${encodeURIComponent(path)}` : ''}`),
+  getFileContent: (id: string, filePath: string) =>
+    apiRequest<GetFileContentResponse>(`/application/apps/${id}/files/content?path=${encodeURIComponent(filePath)}`),
 }
 
 // 状态监控 API

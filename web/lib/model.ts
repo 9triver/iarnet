@@ -47,3 +47,44 @@ interface GetApplicationLogsResponse {
   totalLines: number
   requestedLines: number
 }
+
+interface CodeBrowserInfo {
+  port: number
+  pid: number
+  start_time: string
+  status: "running" | "stopped" | "error"
+  work_dir: string
+  cmd: string
+}
+
+interface StartCodeBrowserResponse {
+  message: string
+  port: number
+  url: string
+}
+
+interface StopCodeBrowserResponse {
+  message: string
+}
+
+interface GetCodeBrowserStatusResponse {
+  browser: CodeBrowserInfo | null
+}
+
+interface FileInfo {
+  name: string
+  path: string
+  is_dir: boolean
+  size: number
+  mod_time: string
+}
+
+interface GetFileTreeResponse {
+  files: FileInfo[]
+}
+
+interface GetFileContentResponse {
+  content: string
+  language: string
+  path: string
+}
