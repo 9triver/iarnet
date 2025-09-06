@@ -612,11 +612,20 @@ export default function ApplicationsPage() {
                   <p className="text-sm text-muted-foreground line-clamp-2">{app.description}</p>
 
                   <div className="space-y-2">
-                    <div className="flex items-center space-x-2 text-sm">
-                      <GitBranch className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-muted-foreground">分支:</span>
-                      <span className="font-mono">{app.branch}</span>
-                    </div>
+                    {app.gitUrl && (
+                      <div className="flex items-center space-x-2 text-sm">
+                        <Package className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-muted-foreground">仓库:</span>
+                        <span className="font-mono text-xs truncate flex-1">{app.gitUrl}</span>
+                      </div>
+                    )}
+                    {app.branch && (
+                      <div className="flex items-center space-x-2 text-sm">
+                        <GitBranch className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-muted-foreground">分支:</span>
+                        <span className="font-mono">{app.branch}</span>
+                      </div>
+                    )}
 
                     {app.ports && app.ports.length > 0 && (
                       <div className="flex items-center space-x-2 text-sm">

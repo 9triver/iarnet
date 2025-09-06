@@ -224,7 +224,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ appId, className }) => {
                 height="100%"
                 language={currentFile.language}
                 value={currentFile.content}
-                theme="vs-dark"
+                theme="vs"
                 options={{
                   readOnly: false,
                   minimap: { enabled: true },

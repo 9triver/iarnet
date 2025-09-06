@@ -363,9 +363,19 @@ export default function ApplicationDetailPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div>
                   <h4 className="text-sm font-medium text-muted-foreground mb-1">Git仓库</h4>
-                  <div className="flex items-center space-x-2 text-sm">
-                    <GitBranch className="h-4 w-4" />
-                    <span className="font-mono">{application.branch}</span>
+                  <div className="space-y-2">
+                    {application.gitUrl && (
+                      <div className="flex items-center space-x-2 text-sm">
+                        <Package className="h-4 w-4" />
+                        <span className="font-mono text-xs break-all">{application.gitUrl}</span>
+                      </div>
+                    )}
+                    {application.branch && (
+                      <div className="flex items-center space-x-2 text-sm">
+                        <GitBranch className="h-4 w-4" />
+                        <span className="font-mono">{application.branch}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
                 
