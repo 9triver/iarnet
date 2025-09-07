@@ -37,7 +37,7 @@ func NewServer(r runner.Runner, rm *resource.Manager, am *application.Manager) *
 
 	s.router.HandleFunc("/application/apps", s.handleGetApplications).Methods("GET")
 	s.router.HandleFunc("/application/apps/{id}", s.handleGetApplicationById).Methods("GET")
-	s.router.HandleFunc("/application/apps/{id}/logs", s.handleGetApplicationLogs).Methods("GET")
+	// s.router.HandleFunc("/application/apps/{id}/logs", s.handleGetApplicationLogs).Methods("GET")
 	s.router.HandleFunc("/application/stats", s.handleGetApplicationStats).Methods("GET")
 	s.router.HandleFunc("/application/create", s.handleCreateApplication).Methods("POST")
 	// s.router.HandleFunc("/application/apps/{id}/code-browser", s.handleStartCodeBrowser).Methods("POST")
@@ -50,10 +50,10 @@ func NewServer(r runner.Runner, rm *resource.Manager, am *application.Manager) *
 	s.router.HandleFunc("/application/apps/{id}/components", s.handleGetApplicationComponents).Methods("GET")
 	s.router.HandleFunc("/application/apps/{id}/analyze", s.handleAnalyzeApplication).Methods("POST")
 	s.router.HandleFunc("/application/apps/{id}/deploy-components", s.handleDeployComponents).Methods("POST")
-	s.router.HandleFunc("/components/{componentId}/start", s.handleStartComponent).Methods("POST")
-	s.router.HandleFunc("/components/{componentId}/stop", s.handleStopComponent).Methods("POST")
-	s.router.HandleFunc("/components/{componentId}/status", s.handleGetComponentStatus).Methods("GET")
-	s.router.HandleFunc("/components/{componentId}/logs", s.handleGetComponentLogs).Methods("GET")
+	s.router.HandleFunc("/application/apps/{id}/components/{componentId}/start", s.handleStartComponent).Methods("POST")
+	s.router.HandleFunc("/application/apps/{id}/components/{componentId}/stop", s.handleStopComponent).Methods("POST")
+	s.router.HandleFunc("/application/apps/{id}/components/{componentId}/status", s.handleGetComponentStatus).Methods("GET")
+	s.router.HandleFunc("/application/apps/{id}/components/{componentId}/logs", s.handleGetComponentLogs).Methods("GET")
 
 	return s
 }
@@ -285,48 +285,9 @@ func (s *Server) handleCreateApplication(w http.ResponseWriter, req *http.Reques
 	}
 	logrus.Infof("Git repository cloned successfully to: %s", workDir)
 
-	// 构建容器规格
-	logrus.Info("Building container specification")
-	var spec resource.ContainerSpec
-	// Git 导入方式需要构建镜像（这里暂时使用占位符，实际需要实现 Git 构建逻辑）
-	spec.Image = "nginx" // 实际应该是构建后的镜像名
-	logrus.Infof("Using placeholder image for Git import: %s", spec.Image)
-	logrus.Warn("Git build logic not implemented yet, using placeholder image")
-
-	// 设置默认资源限制
-	spec.CPU = 1.0                   // 1 CPU 核心
-	spec.Memory = 1024 * 1024 * 1024 // 1GB 内存
-	spec.GPU = 0                     // 默认不使用 GPU
-	logrus.Infof("Resource limits set: CPU=%.1f, Memory=%dMB, GPU=%d", spec.CPU, spec.Memory, spec.GPU)
-
-	if len(createReq.Ports) > 0 {
-		spec.Ports = createReq.Ports
-		logrus.Infof("Ports configured: %v", spec.Ports)
-	} else {
-		logrus.Info("No ports specified for application")
-	}
-
-	// 尝试运行容器（这里可能需要异步处理）
-	logrus.Infof("Starting deployment for application %s", app.ID)
-	ctx := req.Context()
-	containerRef, err := s.resMgr.Deploy(ctx, spec)
-	if err != nil {
-		logrus.Errorf("Failed to deploy application %s: %v", app.ID, err)
-		// 更新应用状态为失败
-		app.Status = application.StatusFailed
-		logrus.Errorf("Application %s status updated to FAILED", app.ID)
-		response.WriteError(w, http.StatusInternalServerError, "failed to deploy application", err)
-		return
-	}
-
-	logrus.Infof("Container deployed successfully for application %s, containerRef: %s", app.ID, containerRef)
-	app.ContainerRef = containerRef
-
-	// 更新应用状态为运行中
-	app.Status = application.StatusRunning
-	logrus.Infof("Application %s status updated to RUNNING", app.ID)
-
-	app.LastDeployed = time.Now()
+	// 应用创建成功，状态保持为未部署
+	// 现在应用不直接对应容器，而是通过组件的方式来部署
+	logrus.Infof("Application %s created successfully, ready for component analysis and deployment", app.ID)
 
 	// 返回简单的成功响应
 	responseData := map[string]interface{}{
@@ -338,7 +299,7 @@ func (s *Server) handleCreateApplication(w http.ResponseWriter, req *http.Reques
 		return
 	}
 
-	logrus.Infof("Successfully created and deployed application: %s (ID: %s, ContainerRef: %s)", createReq.Name, app.ID, containerRef)
+	logrus.Infof("Successfully created application: %s (ID: %s)", createReq.Name, app.ID)
 }
 
 func (s *Server) Start(addr string) error {
@@ -835,16 +796,17 @@ func (s *Server) deployComponent(component *application.Component) error {
 // handleStartComponent 启动组件
 func (s *Server) handleStartComponent(w http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
+	appID := vars["id"]
 	componentID := vars["componentId"]
-	logrus.Infof("Received request to start component: %s", componentID)
+	logrus.Infof("Received request to start component: %s in application: %s", componentID, appID)
 
 	// TODO: 实现组件启动逻辑
 	// 这里需要根据组件ID找到对应的组件并启动
 
 	startResult := map[string]interface{}{
-		"message":     "Component started successfully",
+		"message":      "Component started successfully",
 		"component_id": componentID,
-		"status":      "running",
+		"status":       "running",
 	}
 
 	if err := response.WriteSuccess(w, startResult); err != nil {
@@ -857,16 +819,17 @@ func (s *Server) handleStartComponent(w http.ResponseWriter, req *http.Request) 
 // handleStopComponent 停止组件
 func (s *Server) handleStopComponent(w http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
+	appID := vars["id"]
 	componentID := vars["componentId"]
-	logrus.Infof("Received request to stop component: %s", componentID)
+	logrus.Infof("Received request to stop component: %s in application: %s", componentID, appID)
 
 	// TODO: 实现组件停止逻辑
 	// 这里需要根据组件ID找到对应的组件并停止
 
 	stopResult := map[string]interface{}{
-		"message":     "Component stopped successfully",
+		"message":      "Component stopped successfully",
 		"component_id": componentID,
-		"status":      "stopped",
+		"status":       "stopped",
 	}
 
 	if err := response.WriteSuccess(w, stopResult); err != nil {
@@ -879,8 +842,9 @@ func (s *Server) handleStopComponent(w http.ResponseWriter, req *http.Request) {
 // handleGetComponentStatus 获取组件状态
 func (s *Server) handleGetComponentStatus(w http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
+	appID := vars["id"]
 	componentID := vars["componentId"]
-	logrus.Infof("Received request to get status for component: %s", componentID)
+	logrus.Infof("Received request to get status for component: %s in application: %s", componentID, appID)
 
 	// TODO: 实现组件状态查询逻辑
 	// 这里需要根据组件ID查询组件的实际状态
@@ -904,8 +868,9 @@ func (s *Server) handleGetComponentStatus(w http.ResponseWriter, req *http.Reque
 // handleGetComponentLogs 获取组件日志
 func (s *Server) handleGetComponentLogs(w http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
+	appID := vars["id"]
 	componentID := vars["componentId"]
-	logrus.Infof("Received request to get logs for component: %s", componentID)
+	logrus.Infof("Received request to get logs for component: %s in application: %s", componentID, appID)
 
 	// 获取查询参数
 	linesParam := req.URL.Query().Get("lines")

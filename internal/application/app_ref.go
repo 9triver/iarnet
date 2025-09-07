@@ -2,8 +2,6 @@ package application
 
 import (
 	"time"
-
-	"github.com/9triver/iarnet/internal/resource"
 )
 
 type Status string
@@ -34,7 +32,6 @@ func (s Status) HasError() bool {
 type AppRef struct {
 	ID           string
 	Name         string
-	ContainerRef *resource.ContainerRef
 	Status       Status
 	GitUrl       *string
 	Branch       *string
@@ -46,23 +43,11 @@ type AppRef struct {
 }
 
 func (a *AppRef) GetRunningOn() []string {
-	if a.ContainerRef == nil {
-		return []string{}
-	}
-
-	// TODO: support multi provider
-	return []string{a.ContainerRef.Provider.GetName()}
+	// 应用现在通过组件部署，不再直接对应容器
+	return []string{}
 }
 
 func (a *AppRef) GetLogs(lines int) ([]string, error) {
-	if a.ContainerRef == nil {
-		return []string{}, nil
-	}
-
-	logs, err := a.ContainerRef.Provider.GetLogs(a.ContainerRef.ID, lines)
-	if err != nil {
-		return []string{}, err
-	}
-
-	return logs, nil
+	// 应用现在通过组件部署，日志获取需要从组件层面处理
+	return []string{}, nil
 }

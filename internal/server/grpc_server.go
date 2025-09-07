@@ -9,23 +9,23 @@ import (
 	"github.com/9triver/iarnet/internal/discovery"
 	"github.com/9triver/iarnet/internal/resource"
 	pb "github.com/9triver/iarnet/proto"
-	"google.golang.org/grpc"
 	"github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
 )
 
 // GRPCServer handles peer-to-peer communication
 type GRPCServer struct {
 	pb.UnimplementedPeerServiceServer
-	resMgr *resource.Manager
-	peerMgr *discovery.PeerManager
-	server *grpc.Server
+	resMgr   *resource.Manager
+	peerMgr  *discovery.PeerManager
+	server   *grpc.Server
 	listener net.Listener
 }
 
 // NewGRPCServer creates a new gRPC server for peer communication
 func NewGRPCServer(resMgr *resource.Manager, peerMgr *discovery.PeerManager) *GRPCServer {
 	return &GRPCServer{
-		resMgr: resMgr,
+		resMgr:  resMgr,
 		peerMgr: peerMgr,
 	}
 }
@@ -64,10 +64,10 @@ func (gs *GRPCServer) Stop() {
 // ExchangePeers implements the peer exchange functionality
 func (gs *GRPCServer) ExchangePeers(ctx context.Context, req *pb.ExchangeRequest) (*pb.ExchangeResponse, error) {
 	logrus.Debugf("Received peer exchange request with %d known peers", len(req.KnownPeers))
-	
+
 	// Add received peers to our peer manager
 	gs.peerMgr.AddPeers(req.KnownPeers)
-	
+
 	// Return our known peers
 	return &pb.ExchangeResponse{
 		KnownPeers: gs.peerMgr.GetPeers(),
@@ -77,7 +77,7 @@ func (gs *GRPCServer) ExchangePeers(ctx context.Context, req *pb.ExchangeRequest
 // ExchangeProviders implements provider information exchange
 func (gs *GRPCServer) ExchangeProviders(ctx context.Context, req *pb.ProviderExchangeRequest) (*pb.ProviderExchangeResponse, error) {
 	logrus.Debugf("Received provider exchange request with %d providers", len(req.Providers))
-	
+
 	// Get categorized providers
 	providers := gs.resMgr.GetProviders()
 	var allProviders []*pb.ProviderInfo
@@ -92,7 +92,7 @@ func (gs *GRPCServer) ExchangeProviders(ctx context.Context, req *pb.ProviderExc
 			PeerAddress: "", // Local provider, no peer address
 		})
 	}
-	
+
 	for _, provider := range providers.ManagedProviders {
 		allProviders = append(allProviders, &pb.ProviderInfo{
 			Id:          provider.GetID(),
@@ -104,7 +104,7 @@ func (gs *GRPCServer) ExchangeProviders(ctx context.Context, req *pb.ProviderExc
 			PeerAddress: "", // Remote provider managed locally
 		})
 	}
-	
+
 	return &pb.ProviderExchangeResponse{
 		Providers: allProviders,
 	}, nil
@@ -113,16 +113,16 @@ func (gs *GRPCServer) ExchangeProviders(ctx context.Context, req *pb.ProviderExc
 // CallProvider implements remote provider method calls
 func (gs *GRPCServer) CallProvider(ctx context.Context, req *pb.ProviderCallRequest) (*pb.ProviderCallResponse, error) {
 	logrus.Debugf("Received provider call request for provider %s, method %s", req.ProviderId, req.Method)
-	
+
 	// Find the provider by ID
 	providers := gs.resMgr.GetProviders()
 	var targetProvider resource.Provider
-	
+
 	// Check local provider
 	if providers.LocalProvider != nil && providers.LocalProvider.GetID() == req.ProviderId {
 		targetProvider = providers.LocalProvider
 	}
-	
+
 	// Check managed providers
 	if targetProvider == nil {
 		for _, provider := range providers.ManagedProviders {
@@ -132,14 +132,14 @@ func (gs *GRPCServer) CallProvider(ctx context.Context, req *pb.ProviderCallRequ
 			}
 		}
 	}
-	
+
 	if targetProvider == nil {
 		return &pb.ProviderCallResponse{
 			Success: false,
 			Error:   fmt.Sprintf("provider %s not found", req.ProviderId),
 		}, nil
 	}
-	
+
 	// Execute the method call
 	result, err := gs.executeProviderMethod(targetProvider, req.Method, req.Payload)
 	if err != nil {
@@ -148,7 +148,7 @@ func (gs *GRPCServer) CallProvider(ctx context.Context, req *pb.ProviderCallRequ
 			Error:   err.Error(),
 		}, nil
 	}
-	
+
 	return &pb.ProviderCallResponse{
 		Success: true,
 		Result:  result,
@@ -164,57 +164,57 @@ func (gs *GRPCServer) executeProviderMethod(provider resource.Provider, method s
 			return nil, err
 		}
 		return json.Marshal(capacity)
-		
+
 	case "GetStatus":
 		status := provider.GetStatus()
 		return json.Marshal(status)
-		
+
 	case "Deploy":
 		var params map[string]interface{}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal deploy parameters: %w", err)
 		}
-		
+
 		// Extract ContainerSpec from parameters
 		specData, err := json.Marshal(params["spec"])
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal spec: %w", err)
 		}
-		
+
 		var spec resource.ContainerSpec
 		if err := json.Unmarshal(specData, &spec); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal spec: %w", err)
 		}
-		
+
 		containerID, err := provider.Deploy(context.Background(), spec)
 		if err != nil {
 			return nil, err
 		}
 		return json.Marshal(containerID)
-		
+
 	case "GetLogs":
 		var params map[string]interface{}
 		if err := json.Unmarshal(payload, &params); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal log parameters: %w", err)
 		}
-		
+
 		// Extract parameters
 		containerID, ok := params["containerID"].(string)
 		if !ok {
 			return nil, fmt.Errorf("invalid containerID parameter")
 		}
-		
+
 		lines, ok := params["lines"].(float64) // JSON numbers are float64
 		if !ok {
 			return nil, fmt.Errorf("invalid lines parameter")
 		}
-		
+
 		logs, err := provider.GetLogs(containerID, int(lines))
 		if err != nil {
 			return nil, err
 		}
 		return json.Marshal(logs)
-		
+
 	default:
 		return nil, fmt.Errorf("unknown method: %s", method)
 	}

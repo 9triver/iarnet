@@ -28,14 +28,14 @@ type CodeAnalysisService interface {
 }
 
 type Manager struct {
-	applications     map[string]*AppRef
-	applicationDAGs  map[string]*ApplicationDAG // appID -> DAG
-	nextAppID        int
-	mu               sync.RWMutex
-	config           *config.Config
-	codeBrowsers     map[string]*CodeBrowserInfo // appID -> 代码浏览器信息
-	resourceManager  *resource.Manager
-	analysisService  CodeAnalysisService
+	applications    map[string]*AppRef
+	applicationDAGs map[string]*ApplicationDAG // appID -> DAG
+	nextAppID       int
+	mu              sync.RWMutex
+	config          *config.Config
+	codeBrowsers    map[string]*CodeBrowserInfo // appID -> 代码浏览器信息
+	resourceManager *resource.Manager
+	analysisService CodeAnalysisService
 }
 
 // CodeBrowserInfo 代码浏览器信息
@@ -104,16 +104,15 @@ func (m *Manager) CreateApplication(createReq *request.CreateApplicationRequest)
 	appID := strconv.Itoa(m.nextAppID)
 	m.nextAppID++
 	app := &AppRef{
-		ID:           appID,
-		Name:         createReq.Name,
-		ContainerRef: nil,
-		Status:       StatusUndeployed,
-		Type:         createReq.Type,
-		GitUrl:       createReq.GitUrl,
-		Branch:       createReq.Branch,
-		Description:  createReq.Description,
-		Ports:        createReq.Ports,
-		HealthCheck:  createReq.HealthCheck,
+		ID:          appID,
+		Name:        createReq.Name,
+		Status:      StatusUndeployed,
+		Type:        createReq.Type,
+		GitUrl:      createReq.GitUrl,
+		Branch:      createReq.Branch,
+		Description: createReq.Description,
+		Ports:       createReq.Ports,
+		HealthCheck: createReq.HealthCheck,
 	}
 	m.applications[appID] = app
 	logrus.Infof("Application created in manager: ID=%s, Name=%s, Status=%s", appID, createReq.Name, app.Status)
@@ -563,12 +562,12 @@ func (m *Manager) deployComponents(dag *ApplicationDAG) error {
 	// 按顺序部署组件
 	for i, component := range deploymentOrder {
 		logrus.Infof("Deploying component %d/%d: %s (%s)", i+1, len(deploymentOrder), component.Name, component.ID)
-		
+
 		err := m.deployComponent(component)
 		if err != nil {
 			return fmt.Errorf("failed to deploy component %s: %v", component.ID, err)
 		}
-		
+
 		// 等待组件启动
 		time.Sleep(2 * time.Second)
 	}
@@ -619,17 +618,17 @@ func (m *Manager) deployComponent(component *Component) error {
 func (m *Manager) readApplicationCode(appDir string) (string, error) {
 	// 简化实现：读取主要文件内容
 	var codeContent strings.Builder
-	
+
 	err := filepath.Walk(appDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-		
+
 		// 跳过隐藏文件和目录
 		if strings.HasPrefix(info.Name(), ".") {
 			return nil
 		}
-		
+
 		// 只读取代码文件
 		if !info.IsDir() && m.isCodeFile(info.Name()) {
 			content, err := ioutil.ReadFile(path)
@@ -638,10 +637,10 @@ func (m *Manager) readApplicationCode(appDir string) (string, error) {
 			}
 			codeContent.WriteString(fmt.Sprintf("// File: %s\n%s\n\n", path, string(content)))
 		}
-		
+
 		return nil
 	})
-	
+
 	return codeContent.String(), err
 }
 
@@ -649,7 +648,7 @@ func (m *Manager) readApplicationCode(appDir string) (string, error) {
 func (m *Manager) isCodeFile(filename string) bool {
 	ext := strings.ToLower(filepath.Ext(filename))
 	codeExts := []string{".js", ".ts", ".py", ".go", ".java", ".cpp", ".c", ".php", ".rb", ".cs", ".json", ".yaml", ".yml", ".dockerfile"}
-	
+
 	for _, codeExt := range codeExts {
 		if ext == codeExt {
 			return true
@@ -661,7 +660,7 @@ func (m *Manager) isCodeFile(filename string) bool {
 // detectLanguageFromCode 从代码内容检测编程语言
 func (m *Manager) detectLanguageFromCode(codeContent string) string {
 	content := strings.ToLower(codeContent)
-	
+
 	if strings.Contains(content, "package.json") || strings.Contains(content, "npm") || strings.Contains(content, "node_modules") {
 		return "javascript"
 	}
@@ -674,14 +673,14 @@ func (m *Manager) detectLanguageFromCode(codeContent string) string {
 	if strings.Contains(content, "pom.xml") || strings.Contains(content, "public class") {
 		return "java"
 	}
-	
+
 	return "unknown"
 }
 
 // detectFrameworkFromCode 从代码内容检测框架
 func (m *Manager) detectFrameworkFromCode(codeContent string) string {
 	content := strings.ToLower(codeContent)
-	
+
 	if strings.Contains(content, "next.js") || strings.Contains(content, "next/") {
 		return "next.js"
 	}
@@ -697,7 +696,7 @@ func (m *Manager) detectFrameworkFromCode(codeContent string) string {
 	if strings.Contains(content, "spring") {
 		return "spring"
 	}
-	
+
 	return "unknown"
 }
 
@@ -705,7 +704,7 @@ func (m *Manager) detectFrameworkFromCode(codeContent string) string {
 func (m *Manager) getAvailableProviders() []*proto.ProviderInfo {
 	providers := m.resourceManager.GetProviders()
 	var protoProviders []*proto.ProviderInfo
-	
+
 	// 转换本地提供者
 	if providers.LocalProvider != nil {
 		protoProviders = append(protoProviders, &proto.ProviderInfo{
@@ -715,7 +714,7 @@ func (m *Manager) getAvailableProviders() []*proto.ProviderInfo {
 			Status: 1, // 假设状态为活跃
 		})
 	}
-	
+
 	// 转换管理的提供者
 	for _, provider := range providers.ManagedProviders {
 		protoProviders = append(protoProviders, &proto.ProviderInfo{
@@ -725,7 +724,7 @@ func (m *Manager) getAvailableProviders() []*proto.ProviderInfo {
 			Status: 1,
 		})
 	}
-	
+
 	// 转换协作提供者
 	for _, provider := range providers.CollaborativeProviders {
 		protoProviders = append(protoProviders, &proto.ProviderInfo{
@@ -735,7 +734,7 @@ func (m *Manager) getAvailableProviders() []*proto.ProviderInfo {
 			Status: 1,
 		})
 	}
-	
+
 	return protoProviders
 }
 
@@ -801,12 +800,12 @@ func ConvertToApplicationDAG(appID string, response *proto.CodeAnalysisResponse)
 func (m *Manager) GetApplicationDAG(appID string) (*ApplicationDAG, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	dag, exists := m.applicationDAGs[appID]
 	if !exists {
 		return nil, errors.New("application DAG not found")
 	}
-	
+
 	return dag, nil
 }
 
@@ -814,18 +813,18 @@ func (m *Manager) GetApplicationDAG(appID string) (*ApplicationDAG, error) {
 func (m *Manager) StopApplicationComponents(appID string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	dag, exists := m.applicationDAGs[appID]
 	if !exists {
 		return errors.New("application DAG not found")
 	}
-	
+
 	// 按逆序停止组件
 	deploymentOrder, err := dag.GetDeploymentOrder()
 	if err != nil {
 		return fmt.Errorf("failed to get deployment order: %v", err)
 	}
-	
+
 	// 逆序停止
 	for i := len(deploymentOrder) - 1; i >= 0; i-- {
 		component := deploymentOrder[i]
@@ -836,11 +835,11 @@ func (m *Manager) StopApplicationComponents(appID string) error {
 			logrus.Infof("Stopped component: %s", component.ID)
 		}
 	}
-	
+
 	// 更新应用状态
 	if app, exists := m.applications[appID]; exists {
 		app.Status = StatusStopped
 	}
-	
+
 	return nil
 }

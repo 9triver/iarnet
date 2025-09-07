@@ -69,14 +69,14 @@ func (s *MockCodeAnalysisService) AnalyzeCode(ctx context.Context, req *proto.Co
 // generateMockComponents 生成mock组件（返回固定的测试数据）
 func (s *MockCodeAnalysisService) generateMockComponents(appID, codeContent, metadata map[string]string) ([]*proto.Component, []*proto.DAGEdge) {
 	appIDStr := appID["id"]
-	
+
 	// 返回固定的组件结构
 	components := []*proto.Component{
 		{
 			Id:    fmt.Sprintf("%s-web", appIDStr),
 			Name:  "Web Application",
 			Type:  "web",
-			Image: "nginx:alpine",
+			Image: "nginx:latest",
 			Ports: []int32{80},
 			Environment: map[string]string{
 				"ENV": "production",
@@ -112,8 +112,8 @@ func (s *MockCodeAnalysisService) generateMockComponents(appID, codeContent, met
 	// 返回固定的连接关系
 	edges := []*proto.DAGEdge{
 		{
-			FromComponent: fmt.Sprintf("%s-web", appIDStr),
-			ToComponent:   fmt.Sprintf("%s-api", appIDStr),
+			FromComponent:  fmt.Sprintf("%s-web", appIDStr),
+			ToComponent:    fmt.Sprintf("%s-api", appIDStr),
 			ConnectionType: "http",
 			ConnectionConfig: map[string]string{
 				"host": fmt.Sprintf("%s-api", appIDStr),
