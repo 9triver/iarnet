@@ -938,125 +938,388 @@ type Manager struct {
 
 ### 3.3 关键功能流程
 
-#### 3.3.1 应用部署流程
+#### 3.3.1 智能应用部署流程
+
+**完整应用部署架构：**
 
 ```
-┌─────────────┐    ┌─────────────┐    ┌─────────────┐
-│   Client    │    │ HTTP Server │    │   Runner    │
-└─────────────┘    └─────────────┘    └─────────────┘
-        │                   │                   │
-        │ POST /run         │                   │
-        ├──────────────────►│                   │
-        │                   │                   │
-        │                   │ Validate Request  │
-        │                   ├──────────────────►│
-        │                   │                   │
-        │                   │ Check Resources   │
-        │                   ├──────────────────►│
-        │                   │                   │
-        │                   │ Start Container   │
-        │                   ├──────────────────►│
-        │                   │                   │
-        │                   │ Update Usage      │
-        │                   ├──────────────────►│
-        │                   │                   │
-        │ 202 Accepted      │                   │
-        │◄──────────────────┤                   │
-        │                   │                   │
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│   Client    │    │ HTTP Server │    │ App Manager │    │    Ignis    │    │ Res Manager │    │  Provider   │
+└─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
+        │                   │                   │                   │                   │                   │
+        │ POST /deploy      │                   │                   │                   │                   │
+        ├──────────────────►│                   │                   │                   │                   │
+        │                   │                   │                   │                   │                   │
+        │                   │ Analyze & Deploy  │                   │                   │                   │
+        │                   ├──────────────────►│                   │                   │                   │
+        │                   │                   │                   │                   │                   │
+        │                   │                   │ Clone Repository  │                   │                   │
+        │                   │                   ├──────────────────►│                   │                   │
+        │                   │                   │                   │                   │                   │
+        │                   │                   │ gRPC Call Ignis   │                   │                   │
+        │                   │                   ├──────────────────►│                   │                   │
+        │                   │                   │                   │                   │                   │
+        │                   │                   │                   │ Code Analysis     │                   │
+        │                   │                   │                   ├──────────────────►│                   │
+        │                   │                   │                   │                   │                   │
+        │                   │                   │                   │ Generate DAG      │                   │
+        │                   │                   │                   ├──────────────────►│                   │
+        │                   │                   │                   │                   │                   │
+        │                   │                   │                   │ Select Provider   │                   │
+        │                   │                   │                   ├──────────────────►│                   │
+        │                   │                   │                   │                   │                   │
+        │                   │                   │ Deploy Components │                   │                   │
+        │                   │                   ├──────────────────────────────────────►│                   │
+        │                   │                   │                   │                   │                   │
+        │                   │                   │                   │                   │ Deploy Container  │
+        │                   │                   │                   │                   ├──────────────────►│
+        │                   │                   │                   │                   │                   │
+        │                   │                   │                   │                   │ Update Status     │
+        │                   │                   │                   │                   │◄──────────────────┤
+        │                   │                   │                   │                   │                   │
+        │ 202 Accepted      │                   │                   │                   │                   │
+        │◄──────────────────┤                   │                   │                   │                   │
+        │                   │                   │                   │                   │                   │
 ```
 
-**详细步骤：**
+**详细部署步骤：**
 
-1. **请求接收**：HTTP服务器接收POST /run请求
-2. **参数验证**：验证容器规格参数的有效性
-3. **资源检查**：检查当前资源是否满足容器需求
-4. **容器启动**：调用相应的Runner启动容器
-5. **资源更新**：更新资源使用情况
-6. **响应返回**：返回启动结果给客户端
+1. **请求接收与验证**
+   ```go
+   func (s *Server) handleDeployComponents(w http.ResponseWriter, req *http.Request) {
+       appID := mux.Vars(req)["id"]
+       app, err := s.appMgr.GetApplication(appID)
+       if err != nil {
+           response.WriteError(w, http.StatusNotFound, "application not found", err)
+           return
+       }
+   }
+   ```
 
-#### 3.3.2 资源配额检查流程
+2. **代码仓库克隆**
+   - 从Git仓库拉取指定分支代码
+   - 验证仓库访问权限和分支有效性
+   - 本地存储代码到临时目录
+
+3. **Ignis代码分析平台调用**
+   - App Manager通过gRPC调用Ignis代码分析平台
+   - Ignis自动识别编程语言和框架类型
+   - 分析应用架构和组件依赖关系
+   - 生成应用组件DAG图
+   - 评估资源需求和部署策略
+   - 智能选择最优Provider
+
+4. **组件编排部署**
+   ```go
+   func (m *Manager) deployComponent(component *Component) error {
+       // 通过gRPC调用Ignis获取Provider选择建议
+       ignisResp, err := m.ignisClient.SelectProvider(context.Background(), &proto.ProviderRequest{
+           Resources: &proto.ResourceRequirement{
+               CPU:    component.Resources.CPU,
+               Memory: component.Resources.Memory,
+               GPU:    component.Resources.GPU,
+           },
+       })
+       if err != nil {
+           return fmt.Errorf("failed to select provider: %w", err)
+       }
+       
+       provider, err := m.resourceManager.GetProvider(ignisResp.ProviderID)
+       containerSpec := resource.ContainerSpec{
+           Image:   component.Image,
+           CPU:     component.Resources.CPU,
+           Memory:  component.Resources.Memory,
+           GPU:     component.Resources.GPU,
+       }
+       containerID, err := provider.Deploy(context.Background(), containerSpec)
+       component.Status = ComponentStatusRunning
+       return nil
+   }
+   ```
+
+5. **资源分配与监控**
+   - 实时更新资源使用情况
+   - 启动组件健康检查
+   - 注册服务发现信息
+
+#### 3.3.2 多Provider资源调度流程
+
+**智能资源分配架构：**
 
 ```
-┌─────────────┐    ┌─────────────┐    ┌─────────────┐
-│   Request   │    │ Resource    │    │   Result    │
-│             │    │ Manager     │    │             │
-└─────────────┘    └─────────────┘    └─────────────┘
-        │                   │                   │
-        │ Check Resources   │                   │
-        ├──────────────────►│                   │
-        │                   │                   │
-        │                   │ Get Current Usage │
-        │                   ├──────────────────►│
-        │                   │                   │
-        │                   │ Calculate Total   │
-        │                   ├──────────────────►│
-        │                   │                   │
-        │                   │ Compare Limits    │
-        │                   ├──────────────────►│
-        │                   │                   │
-        │ Allow/Deny        │                   │
-        │◄──────────────────┤                   │
-        │                   │                   │
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│   Request   │    │ Resource    │    │  Provider   │    │   Result    │
+│             │    │ Manager     │    │  Selection  │    │             │
+└─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
+        │                   │                   │                   │
+        │ Resource Request  │                   │                   │
+        ├──────────────────►│                   │                   │
+        │                   │                   │                   │
+        │                   │ Check Internal    │                   │
+        │                   ├──────────────────►│                   │
+        │                   │                   │                   │
+        │                   │ Check External    │                   │
+        │                   ├──────────────────►│                   │
+        │                   │                   │                   │
+        │                   │ Check Discovered  │                   │
+        │                   ├──────────────────►│                   │
+        │                   │                   │                   │
+        │                   │ Select Best       │                   │
+        │                   ├──────────────────►│                   │
+        │                   │                   │                   │
+        │ Provider Found    │                   │                   │
+        │◄──────────────────┤                   │                   │
+        │                   │                   │                   │
 ```
 
-**检查逻辑：**
+**资源调度算法：**
 ```go
-func (rm *ResourceManager) CanAllocate(req ResourceUsage) bool {
-    rm.mu.Lock()
-    defer rm.mu.Unlock()
-    
-    if rm.current.CPU+req.CPU > rm.limits.CPU ||
-       rm.current.Memory+req.Memory > rm.limits.Memory ||
-       rm.current.GPU+req.GPU > rm.limits.GPU {
-        return false
+func (rm *Manager) canAllocate(req Usage) Provider {
+    // 1. 优先检查内部Provider
+    if rm.internalProvider != nil && rm.internalProvider.GetStatus() == StatusConnected {
+        capacity, err := rm.internalProvider.GetCapacity(context.Background())
+        if err == nil && capacity.Available.CPU >= req.CPU &&
+           capacity.Available.Memory >= req.Memory &&
+           capacity.Available.GPU >= req.GPU {
+            return rm.internalProvider
+        }
     }
-    return true
+    
+    // 2. 检查外部Provider
+    for _, provider := range rm.externalProviders {
+        if provider.GetStatus() == StatusConnected {
+            capacity, err := provider.GetCapacity(context.Background())
+            if err == nil && capacity.Available.CPU >= req.CPU &&
+               capacity.Available.Memory >= req.Memory &&
+               capacity.Available.GPU >= req.GPU {
+                return provider
+            }
+        }
+    }
+    
+    // 3. 检查发现的Provider
+    for _, provider := range rm.discoveredProviders {
+        if provider.GetStatus() == StatusConnected {
+            capacity, err := provider.GetCapacity(context.Background())
+            if err == nil && capacity.Available.CPU >= req.CPU &&
+               capacity.Available.Memory >= req.Memory &&
+               capacity.Available.GPU >= req.GPU {
+                return provider
+            }
+        }
+    }
+    
+    return nil // 无可用Provider
 }
 ```
 
-#### 3.3.3 节点发现流程
+**Provider优先级策略：**
+1. **内部Provider**：本地Docker/K8s资源，延迟最低
+2. **外部Provider**：直接管理的远程资源，稳定可靠
+3. **发现Provider**：通过P2P网络发现的资源，动态扩展
+
+#### 3.3.3 智能资源配额检查流程
+
+**多Provider配额管理架构：**
 
 ```
-┌─────────────┐    ┌─────────────┐    ┌─────────────┐
-│   Node A    │    │   Node B    │    │   Node C    │
-└─────────────┘    └─────────────┘    └─────────────┘
-        │                   │                   │
-        │ Exchange Peers    │                   │
-        ├──────────────────►│                   │
-        │                   │                   │
-        │ Known Peers List  │                   │
-        │◄──────────────────┤                   │
-        │                   │                   │
-        │                   │ Exchange Peers    │
-        │                   ├──────────────────►│
-        │                   │                   │
-        │                   │ Known Peers List  │
-        │                   │◄──────────────────┤
-        │                   │                   │
-        │ Update Local List │                   │
-        ├──────────────────►│                   │
-        │                   │                   │
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│   Request   │    │ Resource    │    │  Provider   │    │  Allocator  │
+│             │    │ Manager     │    │ Selection   │    │             │
+└─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
+        │                   │                   │                   │
+        │ Check Resources   │                   │                   │
+        ├──────────────────►│                   │                   │
+        │                   │                   │                   │
+        │                   │ Query Providers   │                   │
+        │                   ├──────────────────►│                   │
+        │                   │                   │                   │
+        │                   │ Provider List     │                   │
+        │                   │◄──────────────────┤                   │
+        │                   │                   │                   │
+        │                   │ Calculate Best    │                   │
+        │                   ├──────────────────────────────────────►│
+        │                   │                   │                   │
+        │                   │ Allocation Plan   │                   │
+        │                   │◄──────────────────────────────────────┤
+        │                   │                   │                   │
+        │ Allow/Deny        │                   │                   │
+        │◄──────────────────┤                   │                   │
+        │                   │                   │                   │
 ```
 
-**Gossip实现：**
+**智能配额检查算法：**
+```go
+func (rm *Manager) CanAllocate(req Usage) (bool, Provider, error) {
+    rm.mu.RLock()
+    defer rm.mu.RUnlock()
+    
+    // 1. 按优先级检查Provider
+    providers := rm.getProvidersByPriority()
+    
+    for _, provider := range providers {
+        if provider.GetStatus() != StatusConnected {
+            continue
+        }
+        
+        // 2. 获取实时容量信息
+        capacity, err := provider.GetCapacity(context.Background())
+        if err != nil {
+            log.Printf("Failed to get capacity from provider %s: %v", 
+                      provider.GetID(), err)
+            continue
+        }
+        
+        // 3. 检查资源可用性
+        if rm.checkResourceAvailability(capacity, req) {
+            return true, provider, nil
+        }
+    }
+    
+    return false, nil, ErrInsufficientResources
+}
+
+func (rm *Manager) checkResourceAvailability(capacity *Capacity, req Usage) bool {
+    return capacity.Available.CPU >= req.CPU &&
+           capacity.Available.Memory >= req.Memory &&
+           capacity.Available.GPU >= req.GPU &&
+           capacity.Available.Storage >= req.Storage
+}
+```
+
+**配额管理特性：**
+1. **实时监控**：持续监控各Provider资源使用情况
+2. **智能调度**：基于负载均衡和资源效率进行调度
+3. **弹性扩展**：自动发现和接入新的资源Provider
+4. **故障转移**：Provider故障时自动切换到备用资源
+
+#### 3.3.4 分布式节点发现流程
+
+**P2P网络节点发现架构：**
+
+```
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│ Local Node  │    │ Peer Manager│    │ DHT Network │    │Remote Nodes │
+└─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
+        │                   │                   │                   │
+        │ Start Discovery   │                   │                   │
+        ├──────────────────►│                   │                   │
+        │                   │                   │                   │
+        │                   │ Bootstrap DHT     │                   │
+        │                   ├──────────────────►│                   │
+        │                   │                   │                   │
+        │                   │ Announce Self     │                   │
+        │                   ├──────────────────►│                   │
+        │                   │                   │                   │
+        │                   │ Query Peers       │                   │
+        │                   ├──────────────────►│                   │
+        │                   │                   │                   │
+        │                   │ Peer List         │                   │
+        │                   │◄──────────────────┤                   │
+        │                   │                   │                   │
+        │                   │ Connect Peers     │                   │
+        │                   ├──────────────────────────────────────►│
+        │                   │                   │                   │
+        │                   │ Handshake        │                   │
+        │                   │◄──────────────────────────────────────┤
+        │                   │                   │                   │
+        │ Peers Available   │                   │                   │
+        │◄──────────────────┤                   │                   │
+        │                   │                   │                   │
+```
+
+**节点发现实现：**
+```go
+type PeerManager struct {
+    nodeID      string
+    peers       map[string]*Peer
+    dht         *DHT
+    commManager *communication.Manager
+    mu          sync.RWMutex
+}
+
+func (pm *PeerManager) StartDiscovery() error {
+    // 1. 启动DHT网络
+    if err := pm.dht.Bootstrap(); err != nil {
+        return fmt.Errorf("failed to bootstrap DHT: %w", err)
+    }
+    
+    // 2. 在DHT中宣告自己
+    if err := pm.dht.Announce(pm.nodeID); err != nil {
+        return fmt.Errorf("failed to announce node: %w", err)
+    }
+    
+    // 3. 定期查询新节点
+    go pm.periodicPeerDiscovery()
+    
+    return nil
+}
+
+func (pm *PeerManager) periodicPeerDiscovery() {
+    ticker := time.NewTicker(30 * time.Second)
+    defer ticker.Stop()
+    
+    for range ticker.C {
+        peers, err := pm.dht.FindPeers("iarnet")
+        if err != nil {
+            continue
+        }
+        
+        for _, peer := range peers {
+            if peer.ID != pm.nodeID {
+                pm.connectToPeer(peer)
+            }
+        }
+    }
+}
+```
+
+**Gossip协议实现：**
 ```go
 func (pm *PeerManager) gossipOnce() {
-    known := pm.GetPeers()
-    for _, peerAddr := range known {
-        conn, err := grpc.Dial(peerAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-        if err != nil {
-            continue
-        }
-        client := proto.NewPeerServiceClient(conn)
-        resp, err := client.ExchangePeers(context.Background(), &proto.ExchangeRequest{KnownPeers: known})
-        if err != nil {
-            conn.Close()
-            continue
-        }
-        pm.AddPeers(resp.KnownPeers)
-        conn.Close()
+    pm.mu.RLock()
+    known := make([]string, 0, len(pm.peers))
+    for addr := range pm.peers {
+        known = append(known, addr)
+    }
+    pm.mu.RUnlock()
+    
+    // 随机选择部分节点进行Gossip
+    for _, peerAddr := range pm.selectRandomPeers(known, 3) {
+        go pm.exchangePeersWithNode(peerAddr, known)
     }
 }
+
+func (pm *PeerManager) exchangePeersWithNode(peerAddr string, known []string) {
+    conn, err := grpc.Dial(peerAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+    if err != nil {
+        pm.removePeer(peerAddr) // 连接失败，移除节点
+        return
+    }
+    defer conn.Close()
+    
+    client := proto.NewPeerServiceClient(conn)
+    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+    defer cancel()
+    
+    resp, err := client.ExchangePeers(ctx, &proto.ExchangeRequest{
+        NodeId:     pm.nodeID,
+        KnownPeers: known,
+    })
+    if err != nil {
+        pm.removePeer(peerAddr)
+        return
+    }
+    
+    pm.AddPeers(resp.KnownPeers)
+}
+```
+
+**节点连接与验证：**
+1. **身份验证**：验证节点身份和网络权限
+2. **能力协商**：交换节点资源能力信息
+3. **状态同步**：同步网络状态和拓扑信息
+4. **心跳维护**：定期检查连接状态
 ```
 
 ### 3.4 接口设计（API Spec）
