@@ -105,7 +105,7 @@ export const applicationsAPI = {
     apiRequest<GetFileTreeResponse>(`/application/apps/${id}/files${path ? `?path=${encodeURIComponent(path)}` : ''}`),
   getFileContent: (id: string, filePath: string) =>
     apiRequest<GetFileContentResponse>(`/application/apps/${id}/files/content?path=${encodeURIComponent(filePath)}`),
-  // 组件相关API
+  // Actor组件相关API
   getComponents: (id: string) =>
     apiRequest(`/application/apps/${id}/components`),
   analyzeApplication: (id: string) =>
@@ -118,7 +118,7 @@ export const applicationsAPI = {
     }),
 }
 
-// 组件管理 API
+// Actor组件管理 API
 export const componentsAPI = {
   start: (componentId: string) =>
     apiRequest(`/components/${componentId}/start`, {

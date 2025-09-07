@@ -264,7 +264,7 @@ export default function StatusPage() {
 
   const generateTopologyNodes = () => {
     const nodeCount = Math.floor(Math.random() * 6) + 3 // 3-8 nodes
-    const components = ["Web Server", "API Gateway", "Database", "Cache", "Queue", "Worker", "Load Balancer", "Monitor"]
+    const components = ["Web服务Actor", "API网关Actor", "计算处理Actor", "缓存代理Actor", "消息队列Actor", "工作处理Actor", "负载均衡Actor", "监控Actor"]
     const nodes = []
 
     for (let i = 0; i < nodeCount; i++) {

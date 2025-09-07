@@ -17,11 +17,11 @@ import (
 type CommunicationType string
 
 const (
-	CommunicationHTTP     CommunicationType = "http"
-	CommunicationGRPC     CommunicationType = "grpc"
-	CommunicationDatabase CommunicationType = "database"
-	CommunicationQueue    CommunicationType = "queue"
-	CommunicationFile     CommunicationType = "file"
+	CommunicationHTTP   CommunicationType = "http"
+	CommunicationGRPC   CommunicationType = "grpc"
+	CommunicationStream CommunicationType = "stream"  // 流式通信
+	CommunicationQueue  CommunicationType = "queue"
+	CommunicationFile   CommunicationType = "file"
 )
 
 // ServiceEndpoint 服务端点
@@ -92,7 +92,7 @@ func (m *Manager) RegisterServiceEndpoint(componentID string, component *applica
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// 获取组件的容器信息
+	// 获取Actor组件的容器信息
 	if component.ContainerRef == nil {
 		return fmt.Errorf("component %s has no container reference", componentID)
 	}
@@ -113,7 +113,7 @@ func (m *Manager) RegisterServiceEndpoint(componentID string, component *applica
 			Protocol:    m.inferProtocolFromComponent(component),
 			HealthPath:  m.getHealthPath(component),
 			Metadata: map[string]string{
-				"component_type": string(component.Type),
+				"actor_type": string(component.Type),
 				"provider_id":    component.ProviderID,
 				"image":          component.Image,
 			},
@@ -289,19 +289,34 @@ type ContainerNetworkInfo struct {
 	Ports []int  `json:"ports"`
 }
 
-// inferProtocolFromComponent 从组件推断协议类型
+// inferProtocolFromComponent 从Actor组件推断协议类型
 func (m *Manager) inferProtocolFromComponent(component *application.Component) CommunicationType {
 	switch component.Type {
-	case application.ComponentTypeDatabase:
-		return CommunicationDatabase
-	case application.ComponentTypeCache:
-		return CommunicationHTTP
+	case application.ComponentTypeGateway:
+		return CommunicationHTTP // 网关通常使用HTTP
+	case application.ComponentTypeWeb:
+		return CommunicationHTTP // Web服务使用HTTP
+	case application.ComponentTypeAPI:
+		return CommunicationHTTP // API服务使用HTTP
+	case application.ComponentTypeWorker:
+		return CommunicationQueue // Worker通常通过消息队列通信
+	case application.ComponentTypeCompute:
+		// 计算服务可能使用gRPC或流式通信
+		if len(component.Ports) > 0 {
+			port := component.Ports[0]
+			if port >= 5000 && port <= 5999 {
+				return CommunicationGRPC // 高性能计算服务使用gRPC
+			}
+		}
+		return CommunicationStream // 默认流式通信
 	default:
 		// 根据镜像或端口推断
 		if len(component.Ports) > 0 {
 			port := component.Ports[0]
 			if port == 80 || port == 443 || port == 8080 {
 				return CommunicationHTTP
+			} else if port >= 9000 && port <= 9999 {
+				return CommunicationGRPC
 			}
 		}
 		return CommunicationHTTP // 默认HTTP

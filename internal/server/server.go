@@ -648,7 +648,7 @@ func (s *Server) handleGetFileContent(w http.ResponseWriter, req *http.Request) 
 	}
 }
 
-// handleGetApplicationComponents 获取应用的组件信息
+// handleGetApplicationComponents 获取应用的Actor组件信息
 func (s *Server) handleGetApplicationComponents(w http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 	appID := vars["id"]
@@ -677,7 +677,7 @@ func (s *Server) handleGetApplicationComponents(w http.ResponseWriter, req *http
 	logrus.Debugf("Successfully sent components for application: %s", appID)
 }
 
-// handleAnalyzeApplication 分析应用代码并生成组件DAG
+// handleAnalyzeApplication 分析应用代码并生成Actor组件DAG
 func (s *Server) handleAnalyzeApplication(w http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 	appID := vars["id"]
@@ -715,7 +715,7 @@ func (s *Server) handleAnalyzeApplication(w http.ResponseWriter, req *http.Reque
 	logrus.Debugf("Successfully analyzed application: %s", appID)
 }
 
-// handleDeployComponents 部署应用的所有组件
+// handleDeployComponents 部署应用的所有Actor组件
 func (s *Server) handleDeployComponents(w http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 	appID := vars["id"]

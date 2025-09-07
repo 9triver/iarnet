@@ -37,11 +37,11 @@ interface CodeBrowserInfo {
   work_dir?: string
 }
 
-// 组件类型定义
+// 组件类型定义 - 表示分布式部署的actor类型
 interface Component {
   id: string
   name: string
-  type: "frontend" | "backend" | "database" | "cache" | "queue" | "gateway"
+  type: "web" | "api" | "worker" | "compute" | "gateway"
   status: "running" | "stopped" | "deploying" | "error"
   image: string
   ports: number[]
@@ -64,7 +64,7 @@ interface Component {
 interface DAGEdge {
   from: string
   to: string
-  type: "http" | "grpc" | "database" | "queue" | "file"
+  type: "http" | "grpc" | "stream" | "queue" | "file"
 }
 
 interface ApplicationDAG {
@@ -98,11 +98,10 @@ export default function ApplicationDetailPage() {
   // 组件类型图标
   const getComponentTypeIcon = (type: Component["type"]) => {
     const iconMap = {
-      frontend: Globe,
-      backend: Box,
-      database: Database,
-      cache: MemoryStick,
-      queue: Network,
+      web: Globe,
+      api: Box,
+      worker: Cpu,
+      compute: Activity,
       gateway: GitBranch,
     }
     const Icon = iconMap[type] || Package
@@ -112,12 +111,11 @@ export default function ApplicationDetailPage() {
   // 组件类型标签
   const getComponentTypeLabel = (type: Component["type"]) => {
     const labelMap = {
-      frontend: "前端",
-      backend: "后端",
-      database: "数据库",
-      cache: "缓存",
-      queue: "消息队列",
-      gateway: "网关",
+      web: "Web服务Actor",
+      api: "API服务Actor",
+      worker: "工作处理Actor",
+      compute: "计算处理Actor",
+      gateway: "网关代理Actor",
     }
     return labelMap[type] || type
   }
@@ -149,8 +147,8 @@ export default function ApplicationDetailPage() {
       const component = dag.components[componentId]
       if (!component) return { x: 0, y: 0 }
 
-      // 根据组件类型和依赖关系计算位置
-      const typeOrder = { frontend: 0, gateway: 1, backend: 2, cache: 3, database: 4, queue: 5 }
+      // 根据Actor组件类型和依赖关系计算位置
+      const typeOrder = { web: 0, gateway: 1, api: 2, worker: 3, compute: 4 }
       const layer = typeOrder[component.type] || 0
       const x = 50 + layer * 150
       const y = 50 + (index % 3) * 100
@@ -469,7 +467,7 @@ export default function ApplicationDetailPage() {
                 </div>
               )}
               
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr] lg:grid-cols-[2fr_1fr_1fr_1fr] gap-4">
                 <div>
                   <h4 className="text-sm font-medium text-muted-foreground mb-1">Git仓库</h4>
                   <div className="space-y-2">
@@ -484,6 +482,17 @@ export default function ApplicationDetailPage() {
                         <GitBranch className="h-4 w-4" />
                         <span className="font-mono">{application.branch}</span>
                       </div>
+                    )}
+                  </div>
+                </div>
+                
+                <div>
+                  <h4 className="text-sm font-medium text-muted-foreground mb-1">组件数量</h4>
+                  <div className="flex items-center space-x-2 text-sm">
+                    <Package className="h-4 w-4" />
+                    <span>{components.length} 个组件</span>
+                    {isLoadingComponents && (
+                      <RefreshCw className="h-3 w-3 animate-spin" />
                     )}
                   </div>
                 </div>
@@ -523,17 +532,6 @@ export default function ApplicationDetailPage() {
                     </div>
                   </div>
                 )}
-                
-                <div>
-                  <h4 className="text-sm font-medium text-muted-foreground mb-1">组件数量</h4>
-                  <div className="flex items-center space-x-2 text-sm">
-                    <Package className="h-4 w-4" />
-                    <span>{components.length} 个组件</span>
-                    {isLoadingComponents && (
-                      <RefreshCw className="h-3 w-3 animate-spin" />
-                    )}
-                  </div>
-                </div>
               </div>
             </CardContent>
           </Card>
@@ -583,7 +581,7 @@ export default function ApplicationDetailPage() {
                     </div>
                   </div>
                   <CardDescription>
-                    管理应用的组件，包括前端、后端、数据库等
+                    管理应用的Actor组件，包括Web服务、API服务、工作处理等可分布式部署的执行单元
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -625,7 +623,7 @@ export default function ApplicationDetailPage() {
                               <span>组件依赖图</span>
                             </CardTitle>
                             <CardDescription>
-                              显示应用组件之间的依赖关系和数据流向
+                              显示应用Actor组件之间的依赖关系和数据流向
                             </CardDescription>
                           </CardHeader>
                           <CardContent>

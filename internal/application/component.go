@@ -8,15 +8,15 @@ import (
 	"github.com/9triver/iarnet/internal/resource"
 )
 
-// ComponentType 定义组件类型
+// ComponentType 定义组件类型 - 表示分布式部署的actor类型
 type ComponentType string
 
 const (
-	ComponentTypeWeb      ComponentType = "web"
-	ComponentTypeAPI      ComponentType = "api"
-	ComponentTypeWorker   ComponentType = "worker"
-	ComponentTypeDatabase ComponentType = "database"
-	ComponentTypeCache    ComponentType = "cache"
+	ComponentTypeWeb        ComponentType = "web"        // Web服务actor
+	ComponentTypeAPI        ComponentType = "api"        // API服务actor
+	ComponentTypeWorker     ComponentType = "worker"     // 工作处理actor
+	ComponentTypeCompute    ComponentType = "compute"    // 计算处理actor
+	ComponentTypeGateway    ComponentType = "gateway"    // 网关代理actor
 )
 
 // ConnectionType 定义组件间连接类型
@@ -25,11 +25,11 @@ type ConnectionType string
 const (
 	ConnectionTypeHTTP         ConnectionType = "http"
 	ConnectionTypeGRPC         ConnectionType = "grpc"
-	ConnectionTypeDatabase     ConnectionType = "database"
+	ConnectionTypeStream       ConnectionType = "stream"       // 流式连接
 	ConnectionTypeMessageQueue ConnectionType = "message_queue"
 )
 
-// Component 表示应用的一个组件
+// Component 表示应用的一个组件 - 可分布式部署的actor执行单元
 type Component struct {
 	ID               string                 `json:"id"`
 	Name             string                 `json:"name"`

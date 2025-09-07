@@ -66,58 +66,306 @@ func (s *MockCodeAnalysisService) AnalyzeCode(ctx context.Context, req *proto.Co
 	}, nil
 }
 
-// generateMockComponents 生成mock组件（返回固定的测试数据）
+// generateMockComponents 生成复杂的mock Actor组件DAG（返回多层架构的测试数据）
 func (s *MockCodeAnalysisService) generateMockComponents(appID, codeContent, metadata map[string]string) ([]*proto.Component, []*proto.DAGEdge) {
 	appIDStr := appID["id"]
 
-	// 返回固定的组件结构
+	// 创建复杂的多层Actor组件架构
 	components := []*proto.Component{
+		// Gateway层 - 网关代理Actor
 		{
-			Id:    fmt.Sprintf("%s-web", appIDStr),
-			Name:  "Web Application",
-			Type:  "web",
-			Image: "nginx:latest",
-			Ports: []int32{80},
+			Id:    fmt.Sprintf("%s-gateway", appIDStr),
+			Name:  "API Gateway",
+			Type:  "gateway",
+			Image: "nginx:alpine",
+			Ports: []int32{80, 443},
 			Environment: map[string]string{
-				"ENV": "production",
-			},
-			Resources: &proto.ResourceRequirements{
-				Cpu:     1.0,
-				Memory:  1.0,
-				Gpu:     0,
-				Storage: 10.0,
-			},
-			ProviderType: "docker",
-		},
-		{
-			Id:    fmt.Sprintf("%s-api", appIDStr),
-			Name:  "API Server",
-			Type:  "api",
-			Image: "node:16-alpine",
-			Ports: []int32{3000},
-			Environment: map[string]string{
-				"NODE_ENV": "production",
-				"PORT":     "3000",
+				"NGINX_HOST": "localhost",
+				"NGINX_PORT": "80",
+				"SSL_ENABLED": "true",
 			},
 			Resources: &proto.ResourceRequirements{
 				Cpu:     0.5,
 				Memory:  0.5,
 				Gpu:     0,
+				Storage: 2.0,
+			},
+			ProviderType: "docker",
+		},
+		// Web层 - Web服务Actor
+		{
+			Id:    fmt.Sprintf("%s-web-frontend", appIDStr),
+			Name:  "Frontend Web Service",
+			Type:  "web",
+			Image: "node:18-alpine",
+			Ports: []int32{3000},
+			Environment: map[string]string{
+				"NODE_ENV": "production",
+				"PORT": "3000",
+				"API_BASE_URL": "http://user-api:4000",
+			},
+			Resources: &proto.ResourceRequirements{
+				Cpu:     1.0,
+				Memory:  1.0,
+				Gpu:     0,
 				Storage: 5.0,
 			},
 			ProviderType: "docker",
 		},
+		// API层 - 用户服务Actor
+		{
+			Id:    fmt.Sprintf("%s-user-api", appIDStr),
+			Name:  "User Management API",
+			Type:  "api",
+			Image: "node:18-alpine",
+			Ports: []int32{4000},
+			Environment: map[string]string{
+				"NODE_ENV": "production",
+				"PORT": "4000",
+				"DB_HOST": "postgres",
+				"REDIS_URL": "redis://cache:6379",
+			},
+			Resources: &proto.ResourceRequirements{
+				Cpu:     1.5,
+				Memory:  2.0,
+				Gpu:     0,
+				Storage: 8.0,
+			},
+			ProviderType: "docker",
+		},
+		// API层 - 订单服务Actor
+		{
+			Id:    fmt.Sprintf("%s-order-api", appIDStr),
+			Name:  "Order Management API",
+			Type:  "api",
+			Image: "openjdk:11-jre-slim",
+			Ports: []int32{4001},
+			Environment: map[string]string{
+				"SPRING_PROFILES_ACTIVE": "production",
+				"SERVER_PORT": "4001",
+				"DATABASE_URL": "jdbc:postgresql://postgres:5432/orders",
+				"MESSAGE_QUEUE_URL": "amqp://rabbitmq:5672",
+			},
+			Resources: &proto.ResourceRequirements{
+				Cpu:     2.0,
+				Memory:  3.0,
+				Gpu:     0,
+				Storage: 10.0,
+			},
+			ProviderType: "docker",
+		},
+		// Worker层 - 邮件处理Actor
+		{
+			Id:    fmt.Sprintf("%s-email-worker", appIDStr),
+			Name:  "Email Processing Worker",
+			Type:  "worker",
+			Image: "python:3.9-slim",
+			Ports: []int32{},
+			Environment: map[string]string{
+				"WORKER_TYPE": "email",
+				"QUEUE_URL": "amqp://rabbitmq:5672",
+				"SMTP_HOST": "smtp.gmail.com",
+				"SMTP_PORT": "587",
+			},
+			Resources: &proto.ResourceRequirements{
+				Cpu:     0.5,
+				Memory:  1.0,
+				Gpu:     0,
+				Storage: 3.0,
+			},
+			ProviderType: "docker",
+		},
+		// Worker层 - 报表生成Actor
+		{
+			Id:    fmt.Sprintf("%s-report-worker", appIDStr),
+			Name:  "Report Generation Worker",
+			Type:  "worker",
+			Image: "python:3.9-slim",
+			Ports: []int32{},
+			Environment: map[string]string{
+				"WORKER_TYPE": "report",
+				"QUEUE_URL": "amqp://rabbitmq:5672",
+				"OUTPUT_FORMAT": "pdf,excel",
+				"STORAGE_PATH": "/app/reports",
+			},
+			Resources: &proto.ResourceRequirements{
+				Cpu:     1.0,
+				Memory:  2.0,
+				Gpu:     0,
+				Storage: 15.0,
+			},
+			ProviderType: "docker",
+		},
+		// Compute层 - 数据分析Actor
+		{
+			Id:    fmt.Sprintf("%s-analytics-compute", appIDStr),
+			Name:  "Data Analytics Engine",
+			Type:  "compute",
+			Image: "python:3.9-slim",
+			Ports: []int32{5000},
+			Environment: map[string]string{
+				"COMPUTE_TYPE": "analytics",
+				"SPARK_MASTER": "local[*]",
+				"DATA_SOURCE": "postgresql://postgres:5432/analytics",
+				"CACHE_ENABLED": "true",
+			},
+			Resources: &proto.ResourceRequirements{
+				Cpu:     4.0,
+				Memory:  8.0,
+				Gpu:     1,
+				Storage: 50.0,
+			},
+			ProviderType: "k8s",
+		},
+		// Compute层 - 机器学习Actor
+		{
+			Id:    fmt.Sprintf("%s-ml-compute", appIDStr),
+			Name:  "Machine Learning Service",
+			Type:  "compute",
+			Image: "tensorflow/tensorflow:latest-gpu",
+			Ports: []int32{5001},
+			Environment: map[string]string{
+				"COMPUTE_TYPE": "ml",
+				"MODEL_PATH": "/app/models",
+				"GPU_ENABLED": "true",
+				"BATCH_SIZE": "32",
+			},
+			Resources: &proto.ResourceRequirements{
+				Cpu:     2.0,
+				Memory:  16.0,
+				Gpu:     2,
+				Storage: 100.0,
+			},
+			ProviderType: "k8s",
+		},
 	}
 
-	// 返回固定的连接关系
+	// 创建复杂的连接关系网络
 	edges := []*proto.DAGEdge{
+		// Gateway -> Web Frontend
 		{
-			FromComponent:  fmt.Sprintf("%s-web", appIDStr),
-			ToComponent:    fmt.Sprintf("%s-api", appIDStr),
+			FromComponent:  fmt.Sprintf("%s-gateway", appIDStr),
+			ToComponent:    fmt.Sprintf("%s-web-frontend", appIDStr),
 			ConnectionType: "http",
 			ConnectionConfig: map[string]string{
-				"host": fmt.Sprintf("%s-api", appIDStr),
+				"host": fmt.Sprintf("%s-web-frontend", appIDStr),
 				"port": "3000",
+				"path": "/",
+				"method": "GET,POST",
+			},
+		},
+		// Gateway -> User API
+		{
+			FromComponent:  fmt.Sprintf("%s-gateway", appIDStr),
+			ToComponent:    fmt.Sprintf("%s-user-api", appIDStr),
+			ConnectionType: "http",
+			ConnectionConfig: map[string]string{
+				"host": fmt.Sprintf("%s-user-api", appIDStr),
+				"port": "4000",
+				"path": "/api/users",
+				"method": "GET,POST,PUT,DELETE",
+			},
+		},
+		// Gateway -> Order API
+		{
+			FromComponent:  fmt.Sprintf("%s-gateway", appIDStr),
+			ToComponent:    fmt.Sprintf("%s-order-api", appIDStr),
+			ConnectionType: "http",
+			ConnectionConfig: map[string]string{
+				"host": fmt.Sprintf("%s-order-api", appIDStr),
+				"port": "4001",
+				"path": "/api/orders",
+				"method": "GET,POST,PUT,DELETE",
+			},
+		},
+		// Web Frontend -> User API
+		{
+			FromComponent:  fmt.Sprintf("%s-web-frontend", appIDStr),
+			ToComponent:    fmt.Sprintf("%s-user-api", appIDStr),
+			ConnectionType: "http",
+			ConnectionConfig: map[string]string{
+				"host": fmt.Sprintf("%s-user-api", appIDStr),
+				"port": "4000",
+				"timeout": "30s",
+			},
+		},
+		// Web Frontend -> Order API
+		{
+			FromComponent:  fmt.Sprintf("%s-web-frontend", appIDStr),
+			ToComponent:    fmt.Sprintf("%s-order-api", appIDStr),
+			ConnectionType: "http",
+			ConnectionConfig: map[string]string{
+				"host": fmt.Sprintf("%s-order-api", appIDStr),
+				"port": "4001",
+				"timeout": "30s",
+			},
+		},
+		// Order API -> Email Worker (异步消息)
+		{
+			FromComponent:  fmt.Sprintf("%s-order-api", appIDStr),
+			ToComponent:    fmt.Sprintf("%s-email-worker", appIDStr),
+			ConnectionType: "queue",
+			ConnectionConfig: map[string]string{
+				"queue_name": "email_notifications",
+				"exchange": "orders",
+				"routing_key": "order.created",
+			},
+		},
+		// Order API -> Report Worker (异步消息)
+		{
+			FromComponent:  fmt.Sprintf("%s-order-api", appIDStr),
+			ToComponent:    fmt.Sprintf("%s-report-worker", appIDStr),
+			ConnectionType: "queue",
+			ConnectionConfig: map[string]string{
+				"queue_name": "report_generation",
+				"exchange": "orders",
+				"routing_key": "order.completed",
+			},
+		},
+		// User API -> Analytics Compute (数据流)
+		{
+			FromComponent:  fmt.Sprintf("%s-user-api", appIDStr),
+			ToComponent:    fmt.Sprintf("%s-analytics-compute", appIDStr),
+			ConnectionType: "stream",
+			ConnectionConfig: map[string]string{
+				"stream_name": "user_events",
+				"format": "json",
+				"batch_size": "1000",
+			},
+		},
+		// Order API -> Analytics Compute (数据流)
+		{
+			FromComponent:  fmt.Sprintf("%s-order-api", appIDStr),
+			ToComponent:    fmt.Sprintf("%s-analytics-compute", appIDStr),
+			ConnectionType: "stream",
+			ConnectionConfig: map[string]string{
+				"stream_name": "order_events",
+				"format": "json",
+				"batch_size": "500",
+			},
+		},
+		// Analytics Compute -> ML Compute (计算管道)
+		{
+			FromComponent:  fmt.Sprintf("%s-analytics-compute", appIDStr),
+			ToComponent:    fmt.Sprintf("%s-ml-compute", appIDStr),
+			ConnectionType: "grpc",
+			ConnectionConfig: map[string]string{
+				"host": fmt.Sprintf("%s-ml-compute", appIDStr),
+				"port": "5001",
+				"service": "MLPredictionService",
+				"method": "Predict",
+			},
+		},
+		// ML Compute -> User API (预测结果反馈)
+		{
+			FromComponent:  fmt.Sprintf("%s-ml-compute", appIDStr),
+			ToComponent:    fmt.Sprintf("%s-user-api", appIDStr),
+			ConnectionType: "http",
+			ConnectionConfig: map[string]string{
+				"host": fmt.Sprintf("%s-user-api", appIDStr),
+				"port": "4000",
+				"path": "/api/ml/predictions",
+				"method": "POST",
 			},
 		},
 	}
