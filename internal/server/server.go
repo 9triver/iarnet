@@ -56,6 +56,8 @@ func NewServer(r runner.Runner, rm *resource.Manager, am *application.Manager) *
 	s.router.HandleFunc("/application/apps/{id}/components/{componentId}/stop", s.handleStopComponent).Methods("POST")
 	s.router.HandleFunc("/application/apps/{id}/components/{componentId}/status", s.handleGetComponentStatus).Methods("GET")
 	s.router.HandleFunc("/application/apps/{id}/components/{componentId}/logs", s.handleGetComponentLogs).Methods("GET")
+	s.router.HandleFunc("/application/apps/{id}/components/{componentId}/resource-usage", s.handleGetComponentResourceUsage).Methods("GET")
+	s.router.HandleFunc("/application/components/resource-usage", s.handleGetAllComponentsResourceUsage).Methods("GET")
 
 	return s
 }
@@ -958,4 +960,128 @@ func (s *Server) handleDeleteApplication(w http.ResponseWriter, req *http.Reques
 		return
 	}
 	logrus.Infof("Successfully deleted application: %s", appID)
+}
+
+// handleGetComponentResourceUsage 获取单个组件的实时资源使用状态
+func (s *Server) handleGetComponentResourceUsage(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	appID := vars["id"]
+	componentID := vars["componentId"]
+	logrus.Infof("Received request to get resource usage for component: %s in application: %s", componentID, appID)
+
+	// TODO: 实现组件实时资源使用状态查询逻辑
+	// 这里需要根据组件ID查询组件的实际资源使用情况
+
+	resourceUsage := map[string]interface{}{
+		"component_id": componentID,
+		"application_id": appID,
+		"timestamp": time.Now().Unix(),
+		"cpu": map[string]interface{}{
+			"usage_percent": 45.2,
+			"cores_used": 1.8,
+			"total_cores": 4,
+		},
+		"memory": map[string]interface{}{
+			"usage_bytes": 536870912, // 512MB
+			"usage_percent": 25.6,
+			"total_bytes": 2147483648, // 2GB
+		},
+		"network": map[string]interface{}{
+			"bytes_in": 1048576,  // 1MB
+			"bytes_out": 2097152, // 2MB
+			"packets_in": 1024,
+			"packets_out": 2048,
+		},
+		"disk": map[string]interface{}{
+			"read_bytes": 10485760,  // 10MB
+			"write_bytes": 5242880, // 5MB
+			"usage_bytes": 1073741824, // 1GB
+			"usage_percent": 10.5,
+		},
+		"status": "running",
+		"uptime_seconds": 9000, // 2.5 hours
+	}
+
+	if err := response.WriteSuccess(w, resourceUsage); err != nil {
+		logrus.Errorf("Failed to write component resource usage response: %v", err)
+		return
+	}
+	logrus.Debugf("Successfully retrieved resource usage for component: %s", componentID)
+}
+
+// handleGetAllComponentsResourceUsage 获取所有组件的实时资源使用状态
+func (s *Server) handleGetAllComponentsResourceUsage(w http.ResponseWriter, req *http.Request) {
+	logrus.Info("Received request to get resource usage for all components")
+
+	// TODO: 实现所有组件实时资源使用状态查询逻辑
+	// 这里需要查询所有运行中组件的实际资源使用情况
+
+	// 模拟多个组件的资源使用数据
+	allComponentsUsage := map[string]interface{}{
+		"timestamp": time.Now().Unix(),
+		"total_components": 3,
+		"components": []map[string]interface{}{
+			{
+				"component_id": "comp-001",
+				"application_id": "app-001",
+				"name": "web-server",
+				"cpu": map[string]interface{}{
+					"usage_percent": 45.2,
+					"cores_used": 1.8,
+					"total_cores": 4,
+				},
+				"memory": map[string]interface{}{
+					"usage_bytes": 536870912,
+					"usage_percent": 25.6,
+					"total_bytes": 2147483648,
+				},
+				"status": "running",
+			},
+			{
+				"component_id": "comp-002",
+				"application_id": "app-001",
+				"name": "database",
+				"cpu": map[string]interface{}{
+					"usage_percent": 23.8,
+					"cores_used": 0.95,
+					"total_cores": 4,
+				},
+				"memory": map[string]interface{}{
+					"usage_bytes": 1073741824,
+					"usage_percent": 51.2,
+					"total_bytes": 2147483648,
+				},
+				"status": "running",
+			},
+			{
+				"component_id": "comp-003",
+				"application_id": "app-002",
+				"name": "api-gateway",
+				"cpu": map[string]interface{}{
+					"usage_percent": 12.5,
+					"cores_used": 0.5,
+					"total_cores": 4,
+				},
+				"memory": map[string]interface{}{
+					"usage_bytes": 268435456,
+					"usage_percent": 12.8,
+					"total_bytes": 2147483648,
+				},
+				"status": "running",
+			},
+		},
+		"summary": map[string]interface{}{
+			"total_cpu_usage_percent": 27.2,
+			"total_memory_usage_bytes": 1879048192,
+			"total_memory_usage_percent": 29.9,
+			"running_components": 3,
+			"stopped_components": 0,
+		},
+	}
+
+	if err := response.WriteSuccess(w, allComponentsUsage); err != nil {
+		logrus.Errorf("Failed to write all components resource usage response: %v", err)
+		return
+	}
+	logrus.Debug("Successfully retrieved resource usage for all components")
 }
