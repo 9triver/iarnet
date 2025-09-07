@@ -20,16 +20,15 @@ import {
   Square,
   RefreshCw,
   Terminal,
-  Download,
   Code,
-  ExternalLink,
+  Globe,
+  Box,
+  Database,
+  Network,
+  Cpu,
+  MemoryStick,
+  HardDrive,
 } from "lucide-react"
-
-interface LogEntry {
-  timestamp: string
-  level: string
-  message: string
-}
 
 interface CodeBrowserInfo {
   status: string
@@ -38,13 +37,53 @@ interface CodeBrowserInfo {
   work_dir?: string
 }
 
+// 组件类型定义
+interface Component {
+  id: string
+  name: string
+  type: "frontend" | "backend" | "database" | "cache" | "queue" | "gateway"
+  status: "running" | "stopped" | "deploying" | "error"
+  image: string
+  ports: number[]
+  dependencies: string[]
+  resources: {
+    cpu: number
+    memory: number
+    gpu?: number
+  }
+  providerID: string
+  containerRef?: {
+    id: string
+    name: string
+  }
+  createdAt: string
+  updatedAt: string
+}
+
+// DAG图边定义
+interface DAGEdge {
+  from: string
+  to: string
+  type: "http" | "grpc" | "database" | "queue" | "file"
+}
+
+interface ApplicationDAG {
+  applicationID: string
+  components: { [key: string]: Component }
+  edges?: DAGEdge[]
+  globalConfig?: { [key: string]: string }
+  analysisMetadata?: { [key: string]: any }
+  createdAt?: string
+  updatedAt?: string
+}
+
 export default function ApplicationDetailPage() {
   const params = useParams()
   const router = useRouter()
   const [application, setApplication] = useState<Application | null>(null)
-  const [logs, setLogs] = useState<LogEntry[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [isLoadingLogs, setIsLoadingLogs] = useState(false)
+  const [components, setComponents] = useState<Component[]>([])
+  const [isLoadingComponents, setIsLoadingComponents] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [codeBrowserStatus, setCodeBrowserStatus] = useState<CodeBrowserInfo | null>(null)
   const [isStartingCodeBrowser, setIsStartingCodeBrowser] = useState(false)
@@ -53,8 +92,140 @@ export default function ApplicationDetailPage() {
 
   useEffect(() => {
     loadApplicationDetail()
-    loadCodeBrowserStatus()
+    loadComponents()
   }, [applicationId])
+
+  // 组件类型图标
+  const getComponentTypeIcon = (type: Component["type"]) => {
+    const iconMap = {
+      frontend: Globe,
+      backend: Box,
+      database: Database,
+      cache: MemoryStick,
+      queue: Network,
+      gateway: GitBranch,
+    }
+    const Icon = iconMap[type] || Package
+    return <Icon className="w-4 h-4" />
+  }
+
+  // 组件类型标签
+  const getComponentTypeLabel = (type: Component["type"]) => {
+    const labelMap = {
+      frontend: "前端",
+      backend: "后端",
+      database: "数据库",
+      cache: "缓存",
+      queue: "消息队列",
+      gateway: "网关",
+    }
+    return labelMap[type] || type
+  }
+
+  // 组件状态指示器
+  const ComponentStatusIndicator = ({ status }: { status: Component["status"] }) => {
+    const statusConfig = {
+      running: { color: "bg-green-500", text: "运行中" },
+      stopped: { color: "bg-gray-500", text: "已停止" },
+      deploying: { color: "bg-blue-500", text: "部署中" },
+      error: { color: "bg-red-500", text: "错误" },
+    }
+    const config = statusConfig[status] || { color: "bg-gray-400", text: "未知" }
+    return (
+      <div className="flex items-center space-x-2">
+        <div className={`w-2 h-2 rounded-full ${config.color}`} />
+        <span className="text-sm">{config.text}</span>
+      </div>
+    )
+  }
+
+  // DAG图可视化组件
+  const DAGVisualization = ({ dag }: { dag: ApplicationDAG }) => {
+    const [selectedComponent, setSelectedComponent] = useState<string | null>(null)
+    const componentsArray = Object.values(dag.components)
+
+    // 简化的DAG布局算法
+    const getComponentPosition = (componentId: string, index: number) => {
+      const component = dag.components[componentId]
+      if (!component) return { x: 0, y: 0 }
+
+      // 根据组件类型和依赖关系计算位置
+      const typeOrder = { frontend: 0, gateway: 1, backend: 2, cache: 3, database: 4, queue: 5 }
+      const layer = typeOrder[component.type] || 0
+      const x = 50 + layer * 150
+      const y = 50 + (index % 3) * 100
+
+      return { x, y }
+    }
+
+    return (
+      <div className="relative w-full h-96 border rounded-lg bg-gray-50 overflow-auto">
+        <svg className="absolute inset-0 w-full h-full">
+          {/* 绘制连接线 */}
+          {dag.edges?.map((edge, index) => {
+            const fromComponent = dag.components[edge.from]
+            const toComponent = dag.components[edge.to]
+            if (!fromComponent || !toComponent) return null
+
+            const fromIndex = componentsArray.findIndex(c => c.id === edge.from)
+            const toIndex = componentsArray.findIndex(c => c.id === edge.to)
+            const fromPos = getComponentPosition(edge.from, fromIndex)
+            const toPos = getComponentPosition(edge.to, toIndex)
+
+            return (
+              <line
+                key={index}
+                x1={fromPos.x + 60}
+                y1={fromPos.y + 30}
+                x2={toPos.x}
+                y2={toPos.y + 30}
+                stroke="#6b7280"
+                strokeWidth="2"
+                markerEnd="url(#arrowhead)"
+              />
+            )
+          })}
+
+          {/* 箭头标记 */}
+          <defs>
+            <marker
+              id="arrowhead"
+              markerWidth="10"
+              markerHeight="7"
+              refX="9"
+              refY="3.5"
+              orient="auto"
+            >
+              <polygon points="0 0, 10 3.5, 0 7" fill="#6b7280" />
+            </marker>
+          </defs>
+        </svg>
+
+        {/* 绘制组件节点 */}
+        {componentsArray.map((component, index) => {
+          const position = getComponentPosition(component.id, index)
+          return (
+            <div
+              key={component.id}
+              className={`absolute w-32 h-16 border-2 rounded-lg bg-white shadow-sm cursor-pointer transition-all ${
+                selectedComponent === component.id ? "border-blue-500 shadow-md" : "border-gray-300"
+              }`}
+              style={{ left: position.x, top: position.y }}
+              onClick={() => setSelectedComponent(component.id)}
+            >
+              <div className="p-2 h-full flex flex-col justify-between">
+                <div className="flex items-center space-x-1">
+                  {getComponentTypeIcon(component.type)}
+                  <span className="text-xs font-medium truncate">{component.name}</span>
+                </div>
+                <ComponentStatusIndicator status={component.status} />
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
 
   const loadCodeBrowserStatus = async () => {
     if (!applicationId) return
@@ -121,71 +292,20 @@ export default function ApplicationDetailPage() {
     }
   }
 
-  const loadLogs = async () => {
-    if (!application) return
+  const loadComponents = async () => {
+    if (!applicationId) return
     
+    setIsLoadingComponents(true)
     try {
-      setIsLoadingLogs(true)
-      
-      // 从后端 API 获取真实的日志数据
-      const response = await applicationsAPI.getLogs(application.id, 100)
-      
-      // 将后端返回的日志字符串数组转换为 LogEntry 格式
-      const logEntries: LogEntry[] = response.logs.map((logLine: string, index: number) => {
-        // 尝试解析 Docker 日志格式，支持 ISO 8601 时间格式
-        const timestampMatch = logLine.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?)\s*/)
-        const levelMatch = logLine.match(/\[(INFO|DEBUG|WARN|ERROR|TRACE)\]/i)
-        
-        let timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19)
-        let level = 'INFO'
-        let message = logLine
-        
-        if (timestampMatch) {
-          // 将 ISO 8601 格式转换为本地时间显示格式
-          const date = new Date(timestampMatch[1])
-          timestamp = date.toLocaleString('zh-CN', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            hour12: false
-          }).replace(/\//g, '-')
-        }
-        
-        if (levelMatch) {
-          level = levelMatch[1].toUpperCase()
-        }
-        
-        // 提取消息部分，去除时间戳
-        if (timestampMatch) {
-          message = logLine.substring(timestampMatch[0].length).trim()
-        }
-        
-        // 如果消息为空，使用原始日志行
-        if (!message) {
-          message = logLine
-        }
-        
-        return {
-          timestamp,
-          level,
-          message
-        }
-      })
-      
-      setLogs(logEntries)
-    } catch (err) {
-      console.error('Failed to load logs:', err)
-      // 如果 API 调用失败，显示错误信息
-      setLogs([{
-        timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
-        level: 'ERROR',
-        message: '无法加载日志数据'
-      }])
+      const dag = await applicationsAPI.getComponents(applicationId) as ApplicationDAG
+      // 将DAG中的components对象转换为数组
+      const componentsArray = dag.components ? Object.values(dag.components) as Component[] : []
+      setComponents(componentsArray)
+    } catch (error) {
+      console.error('Failed to load components:', error)
+      setComponents([])
     } finally {
-      setIsLoadingLogs(false)
+      setIsLoadingComponents(false)
     }
   }
 
@@ -211,23 +331,7 @@ export default function ApplicationDetailPage() {
     }
   }
 
-  const getStatusBadge = (status: string) => {
-    const statusConfig = {
-      running: { variant: "default" as const, label: "运行中", color: "bg-green-500" },
-      stopped: { variant: "secondary" as const, label: "已停止", color: "bg-gray-500" },
-      error: { variant: "destructive" as const, label: "错误", color: "bg-red-500" },
-      deploying: { variant: "outline" as const, label: "部署中", color: "bg-blue-500" },
-      idle: { variant: "outline" as const, label: "未部署", color: "bg-orange-500" },
-    }
-    
-    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.idle
-    return (
-      <Badge variant={config.variant} className="flex items-center space-x-1">
-        <div className={`w-2 h-2 rounded-full ${config.color}`} />
-        <span>{config.label}</span>
-      </Badge>
-    )
-  }
+
 
   const getTypeIcon = (type: string) => {
     switch (type) {
@@ -254,20 +358,25 @@ export default function ApplicationDetailPage() {
     return typeLabels[type as keyof typeof typeLabels] || type
   }
 
-  const getLevelColor = (level: string) => {
-    switch (level.toUpperCase()) {
-      case "ERROR":
-        return "text-red-500"
-      case "WARN":
-        return "text-yellow-500"
-      case "INFO":
-        return "text-blue-500"
-      case "DEBUG":
-        return "text-gray-500"
-      default:
-        return "text-gray-700"
+  const getStatusBadge = (status: string) => {
+    const statusConfig = {
+      running: { variant: "default" as const, label: "运行中", color: "bg-green-500" },
+      stopped: { variant: "secondary" as const, label: "已停止", color: "bg-gray-500" },
+      error: { variant: "destructive" as const, label: "错误", color: "bg-red-500" },
+      deploying: { variant: "outline" as const, label: "部署中", color: "bg-blue-500" },
+      idle: { variant: "outline" as const, label: "未部署", color: "bg-orange-500" },
     }
+    
+    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.idle
+    return (
+      <Badge variant={config.variant} className="flex items-center space-x-1">
+        <div className={`w-2 h-2 rounded-full ${config.color}`} />
+        <span>{config.label}</span>
+      </Badge>
+    )
   }
+
+
 
   if (isLoading) {
     return (
@@ -414,16 +523,27 @@ export default function ApplicationDetailPage() {
                     </div>
                   </div>
                 )}
+                
+                <div>
+                  <h4 className="text-sm font-medium text-muted-foreground mb-1">组件数量</h4>
+                  <div className="flex items-center space-x-2 text-sm">
+                    <Package className="h-4 w-4" />
+                    <span>{components.length} 个组件</span>
+                    {isLoadingComponents && (
+                      <RefreshCw className="h-3 w-3 animate-spin" />
+                    )}
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
 
           {/* Tabs */}
-          <Tabs defaultValue="logs" className="space-y-4">
+          <Tabs defaultValue="components" className="space-y-4">
             <TabsList>
-              <TabsTrigger value="logs" className="flex items-center space-x-2">
-                <Terminal className="h-4 w-4" />
-                <span>容器日志</span>
+              <TabsTrigger value="components" className="flex items-center space-x-2">
+                <Package className="h-4 w-4" />
+                <span>组件管理</span>
               </TabsTrigger>
               <TabsTrigger value="code" className="flex items-center space-x-2">
                 <Code className="h-4 w-4" />
@@ -439,62 +559,166 @@ export default function ApplicationDetailPage() {
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="logs">
+            <TabsContent value="components">
               <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <CardTitle className="flex items-center space-x-2">
-                      <Terminal className="h-5 w-5" />
-                      <span>容器日志</span>
+                      <Package className="h-5 w-5" />
+                      <span>组件管理</span>
                     </CardTitle>
                     <div className="flex items-center space-x-2">
-                      <Button variant="outline" size="sm" onClick={loadLogs} disabled={isLoadingLogs}>
-                        <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingLogs ? 'animate-spin' : ''}`} />
+                      <Button variant="outline" size="sm" onClick={loadComponents} disabled={isLoadingComponents}>
+                        <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingComponents ? 'animate-spin' : ''}`} />
                         刷新
                       </Button>
-                      <Button variant="outline" size="sm">
-                        <Download className="h-4 w-4 mr-2" />
-                        下载
+                      <Button variant="outline" size="sm" onClick={() => applicationsAPI.analyzeApplication(applicationId)}>
+                        <Activity className="h-4 w-4 mr-2" />
+                        分析
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => applicationsAPI.deployComponents(applicationId)}>
+                        <Play className="h-4 w-4 mr-2" />
+                        部署
                       </Button>
                     </div>
                   </div>
                   <CardDescription>
-                    查看应用容器的实时日志输出
+                    管理应用的组件，包括前端、后端、数据库等
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <ScrollArea className="h-96 w-full border rounded-md p-4 bg-black text-green-400 font-mono text-sm">
-                    {logs.length === 0 ? (
-                      <div className="flex items-center justify-center h-full text-gray-500">
-                        {isLoadingLogs ? (
-                          <div className="flex items-center space-x-2">
-                            <RefreshCw className="h-4 w-4 animate-spin" />
-                            <span>加载日志中...</span>
-                          </div>
-                        ) : (
-                          <div className="text-center">
-                            <Terminal className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                            <p>暂无日志数据</p>
-                            <Button variant="link" onClick={loadLogs} className="text-green-400 mt-2">
-                              点击加载日志
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="space-y-1">
-                        {logs.map((log, index) => (
-                          <div key={index} className="flex space-x-3">
-                            <span className="text-gray-400 shrink-0">{log.timestamp}</span>
-                            <span className={`shrink-0 font-bold ${getLevelColor(log.level)}`}>
-                              [{log.level}]
-                            </span>
-                            <span className="break-all">{log.message}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </ScrollArea>
+                  {components.length === 0 ? (
+                    <div className="flex items-center justify-center h-64 text-gray-500">
+                      {isLoadingComponents ? (
+                        <div className="flex items-center space-x-2">
+                          <RefreshCw className="h-4 w-4 animate-spin" />
+                          <span>加载组件中...</span>
+                        </div>
+                      ) : (
+                        <div className="text-center">
+                          <Package className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                          <p>暂无组件数据</p>
+                          <Button variant="link" onClick={loadComponents} className="mt-2">
+                            点击加载组件
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <Tabs defaultValue="dag" className="space-y-4">
+                      <TabsList>
+                        <TabsTrigger value="dag" className="flex items-center space-x-2">
+                          <GitBranch className="h-4 w-4" />
+                          <span>DAG图</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="list" className="flex items-center space-x-2">
+                          <Box className="h-4 w-4" />
+                          <span>组件列表</span>
+                        </TabsTrigger>
+                      </TabsList>
+
+                      <TabsContent value="dag" className="space-y-4">
+                        <Card>
+                          <CardHeader>
+                            <CardTitle className="flex items-center space-x-2">
+                              <GitBranch className="w-5 h-5" />
+                              <span>组件依赖图</span>
+                            </CardTitle>
+                            <CardDescription>
+                              显示应用组件之间的依赖关系和数据流向
+                            </CardDescription>
+                          </CardHeader>
+                          <CardContent>
+                            <DAGVisualization dag={{
+                              applicationID: applicationId,
+                              components: components.reduce((acc, comp) => {
+                                acc[comp.id] = comp
+                                return acc
+                              }, {} as { [key: string]: Component }),
+                              edges: components.flatMap(comp => 
+                                (comp.dependencies || []).map(depId => ({
+                                  from: depId,
+                                  to: comp.id,
+                                  type: "http" as const
+                                }))
+                              )
+                            }} />
+                          </CardContent>
+                        </Card>
+                      </TabsContent>
+
+                      <TabsContent value="list" className="space-y-4">
+                        <div className="space-y-2">
+                          {components.map((component) => (
+                            <div key={component.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50">
+                              <div className="flex items-center space-x-4 flex-1">
+                                <div className="flex items-center space-x-2">
+                                  {getComponentTypeIcon(component.type)}
+                                  <div>
+                                    <h4 className="font-semibold">{component.name}</h4>
+                                    <p className="text-sm text-muted-foreground">
+                                      {getComponentTypeLabel(component.type)}
+                                    </p>
+                                  </div>
+                                </div>
+                                
+                                <div className="flex items-center space-x-6 text-sm">
+                                  <div className="flex items-center space-x-1">
+                                    <span className="text-muted-foreground">镜像:</span>
+                                    <span className="font-mono text-xs">{component.image}</span>
+                                  </div>
+                                  
+                                  {component.ports.length > 0 && (
+                                    <div className="flex items-center space-x-1">
+                                      <span className="text-muted-foreground">端口:</span>
+                                      <span className="font-mono text-xs">{component.ports.join(', ')}</span>
+                                    </div>
+                                  )}
+                                  
+                                  <div className="flex items-center space-x-1">
+                                    <span className="text-muted-foreground">CPU:</span>
+                                    <span>{component.resources.cpu} 核</span>
+                                  </div>
+                                  
+                                  <div className="flex items-center space-x-1">
+                                    <span className="text-muted-foreground">内存:</span>
+                                    <span>{component.resources.memory} MB</span>
+                                  </div>
+                                  
+                                  {(component.dependencies || []).length > 0 && (
+                                    <div className="flex items-center space-x-1">
+                                      <span className="text-muted-foreground">依赖:</span>
+                                      <span className="text-xs">{(component.dependencies || []).length} 个</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              
+                              <div className="flex items-center space-x-2">
+                                <ComponentStatusIndicator status={component.status} />
+                                
+                                {component.status === "running" ? (
+                                  <Button variant="outline" size="sm">
+                                    <Square className="h-3 w-3 mr-1" />
+                                    停止
+                                  </Button>
+                                ) : (
+                                  <Button size="sm">
+                                    <Play className="h-3 w-3 mr-1" />
+                                    启动
+                                  </Button>
+                                )}
+                                
+                                <Button variant="outline" size="sm">
+                                  <Terminal className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </TabsContent>
+                    </Tabs>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>

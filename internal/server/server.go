@@ -289,9 +289,21 @@ func (s *Server) handleCreateApplication(w http.ResponseWriter, req *http.Reques
 	// 现在应用不直接对应容器，而是通过组件的方式来部署
 	logrus.Infof("Application %s created successfully, ready for component analysis and deployment", app.ID)
 
+	// 自动触发代码分析
+	logrus.Infof("Starting automatic code analysis for application %s", app.ID)
+	go func() {
+		if err := s.appMgr.AnalyzeAndDeployApplication(app.ID); err != nil {
+			logrus.Errorf("Failed to analyze application %s: %v", app.ID, err)
+			// 更新应用状态为失败
+			app.Status = application.StatusFailed
+		} else {
+			logrus.Infof("Application %s analyzed and deployed successfully", app.ID)
+		}
+	}()
+
 	// 返回简单的成功响应
 	responseData := map[string]interface{}{
-		"message": "Application created successfully",
+		"message": "Application created successfully and analysis started",
 		"id":      app.ID,
 	}
 	if err := response.WriteSuccess(w, responseData); err != nil {
