@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+package ignis;
+
+option go_package = "./proto";
+
+// Code Analysis Service for Ignis Platform
+service CodeAnalysisService {
+  rpc AnalyzeCode(CodeAnalysisRequest) returns (CodeAnalysisResponse);
+}
+
+// Provider information for analysis
+message ProviderInfo {
+  string id = 1;
+  string name = 2;
+  string type = 3;
+  string host = 4;
+  int32 port = 5;
+  int32 status = 6;
+  string peer_address = 7;  // Which peer manages this provider
+}
+
+// Code Analysis Messages
+message CodeAnalysisRequest {
+  string application_id = 1;
+  string code_content = 2;  // Base64 encoded code archive
+  repeated ProviderInfo available_providers = 3;
+  map<string, string> metadata = 4;  // Additional metadata like language, framework
+}
+
+message Component {
+  string id = 1;
+  string name = 2;
+  string type = 3;  // "web", "api", "worker", "database", "cache"
+  string image = 4;  // Docker image or build instructions
+  repeated string dependencies = 5;  // Component IDs this depends on
+  repeated int32 ports = 6;
+  map<string, string> environment = 7;
+  ResourceRequirements resources = 8;
+  string provider_type = 9;  // Preferred provider type
+  string provider_id = 10;  // Specific provider ID if required
+  bytes deployment_config = 11;  // Serialized deployment configuration
+}
+
+message ResourceRequirements {
+  double cpu = 1;
+  double memory = 2;  // In GB
+  double gpu = 3;
+  double storage = 4;  // In GB
+}
+
+message DAGEdge {
+  string from_component = 1;
+  string to_component = 2;
+  string connection_type = 3;  // "http", "grpc", "database", "message_queue"
+  map<string, string> connection_config = 4;
+}
+
+message CodeAnalysisResponse {
+  bool success = 1;
+  string error = 2;
+  repeated Component components = 3;
+  repeated DAGEdge edges = 4;
+  map<string, string> global_config = 5;  // Global configuration like secrets, env vars
+  string analysis_metadata = 6;  // JSON metadata about the analysis
+}

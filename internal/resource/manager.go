@@ -317,6 +317,11 @@ func (rm *Manager) Deploy(ctx context.Context, containerSpec ContainerSpec) (*Co
 	return containerRef, nil
 }
 
+// CanAllocate 检查是否可以分配指定的资源
+func (rm *Manager) CanAllocate(req Usage) Provider {
+	return rm.canAllocate(req)
+}
+
 func (rm *Manager) canAllocate(req Usage) Provider {
 	logrus.Debugf("Checking resource allocation: Requested(CPU=%.1f, Memory=%.1f, GPU=%.1f)", req.CPU, req.Memory, req.GPU)
 

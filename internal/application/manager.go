@@ -1,6 +1,8 @@
 package application
 
 import (
+	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -14,16 +16,26 @@ import (
 	"time"
 
 	"github.com/9triver/iarnet/internal/config"
+	"github.com/9triver/iarnet/internal/resource"
 	"github.com/9triver/iarnet/internal/server/request"
+	"github.com/9triver/iarnet/proto"
 	"github.com/sirupsen/logrus"
 )
 
+// CodeAnalysisService 代码分析服务接口
+type CodeAnalysisService interface {
+	AnalyzeCode(ctx context.Context, req *proto.CodeAnalysisRequest) (*proto.CodeAnalysisResponse, error)
+}
+
 type Manager struct {
-	applications map[string]*AppRef
-	nextAppID    int
-	mu           sync.RWMutex
-	config       *config.Config
-	codeBrowsers map[string]*CodeBrowserInfo // appID -> 代码浏览器信息
+	applications     map[string]*AppRef
+	applicationDAGs  map[string]*ApplicationDAG // appID -> DAG
+	nextAppID        int
+	mu               sync.RWMutex
+	config           *config.Config
+	codeBrowsers     map[string]*CodeBrowserInfo // appID -> 代码浏览器信息
+	resourceManager  *resource.Manager
+	analysisService  CodeAnalysisService
 }
 
 // CodeBrowserInfo 代码浏览器信息
@@ -36,13 +48,22 @@ type CodeBrowserInfo struct {
 	Cmd       *exec.Cmd `json:"-"`
 }
 
-func NewManager(config *config.Config) *Manager {
-	return &Manager{
-		applications: make(map[string]*AppRef),
-		nextAppID:    1,
-		config:       config,
-		codeBrowsers: make(map[string]*CodeBrowserInfo),
+func NewManager(config *config.Config, resourceManager *resource.Manager) *Manager {
+	m := &Manager{
+		applications:    make(map[string]*AppRef),
+		applicationDAGs: make(map[string]*ApplicationDAG),
+		nextAppID:       1,
+		config:          config,
+		codeBrowsers:    make(map[string]*CodeBrowserInfo),
+		resourceManager: resourceManager,
 	}
+	// analysisService will be set via SetAnalysisService method
+	return m
+}
+
+// SetAnalysisService 设置代码分析服务
+func (m *Manager) SetAnalysisService(service CodeAnalysisService) {
+	m.analysisService = service
 }
 
 // CloneGitRepository 克隆Git仓库到本地目录
@@ -457,4 +478,369 @@ func (m *Manager) detectLanguage(ext string) string {
 		return lang
 	}
 	return "plaintext"
+}
+
+// AnalyzeAndDeployApplication 分析代码并部署应用组件
+func (m *Manager) AnalyzeAndDeployApplication(appID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	app, exists := m.applications[appID]
+	if !exists {
+		return errors.New("application not found")
+	}
+
+	// 更新应用状态为部署中
+	app.Status = StatusDeploying
+	logrus.Infof("Starting component analysis and deployment for application: %s", appID)
+
+	// 读取应用代码
+	workspaceDir := m.config.WorkspaceDir
+	if workspaceDir == "" {
+		workspaceDir = "./workspaces"
+	}
+	appDir := filepath.Join(workspaceDir, appID)
+
+	codeContent, err := m.readApplicationCode(appDir)
+	if err != nil {
+		app.Status = StatusFailed
+		return fmt.Errorf("failed to read application code: %v", err)
+	}
+
+	// 获取可用的资源提供者
+	availableProviders := m.getAvailableProviders()
+
+	// 调用代码分析服务
+	analysisReq := &proto.CodeAnalysisRequest{
+		ApplicationId:      appID,
+		CodeContent:        base64.StdEncoding.EncodeToString([]byte(codeContent)),
+		AvailableProviders: availableProviders,
+		Metadata: map[string]string{
+			"language":  m.detectLanguageFromCode(codeContent),
+			"framework": m.detectFrameworkFromCode(codeContent),
+		},
+	}
+
+	analysisResp, err := m.analysisService.AnalyzeCode(context.Background(), analysisReq)
+	if err != nil {
+		app.Status = StatusFailed
+		return fmt.Errorf("code analysis failed: %v", err)
+	}
+
+	if !analysisResp.Success {
+		app.Status = StatusFailed
+		return fmt.Errorf("code analysis failed: %s", analysisResp.Error)
+	}
+
+	// 转换为应用DAG
+	dag := ConvertToApplicationDAG(appID, analysisResp)
+	m.applicationDAGs[appID] = dag
+
+	// 部署组件
+	err = m.deployComponents(dag)
+	if err != nil {
+		app.Status = StatusFailed
+		return fmt.Errorf("component deployment failed: %v", err)
+	}
+
+	app.Status = StatusRunning
+	app.LastDeployed = time.Now()
+	logrus.Infof("Successfully deployed application %s with %d components", appID, len(dag.Components))
+
+	return nil
+}
+
+// deployComponents 部署DAG中的所有组件
+func (m *Manager) deployComponents(dag *ApplicationDAG) error {
+	// 获取部署顺序
+	deploymentOrder, err := dag.GetDeploymentOrder()
+	if err != nil {
+		return fmt.Errorf("failed to get deployment order: %v", err)
+	}
+
+	logrus.Infof("Deploying %d components in order", len(deploymentOrder))
+
+	// 按顺序部署组件
+	for i, component := range deploymentOrder {
+		logrus.Infof("Deploying component %d/%d: %s (%s)", i+1, len(deploymentOrder), component.Name, component.ID)
+		
+		err := m.deployComponent(component)
+		if err != nil {
+			return fmt.Errorf("failed to deploy component %s: %v", component.ID, err)
+		}
+		
+		// 等待组件启动
+		time.Sleep(2 * time.Second)
+	}
+
+	return nil
+}
+
+// deployComponent 部署单个组件
+func (m *Manager) deployComponent(component *Component) error {
+	component.Status = ComponentStatusDeploying
+
+	// 获取指定的资源提供者
+	provider, err := m.resourceManager.GetProvider(component.ProviderID)
+	if err != nil {
+		return fmt.Errorf("failed to get provider %s: %v", component.ProviderID, err)
+	}
+
+	// 创建容器规格
+	containerSpec := resource.ContainerSpec{
+		Image:   component.Image,
+		Ports:   component.Ports,
+		Command: []string{}, // 可以根据组件类型设置默认命令
+		CPU:     component.Resources.CPU,
+		Memory:  component.Resources.Memory,
+		GPU:     component.Resources.GPU,
+	}
+
+	// 使用指定的资源提供者部署容器
+	containerID, err := provider.Deploy(context.Background(), containerSpec)
+	if err != nil {
+		return fmt.Errorf("failed to deploy container: %v", err)
+	}
+
+	// 创建容器引用
+	component.ContainerRef = &resource.ContainerRef{
+		ID:       containerID,
+		Provider: provider,
+		Spec:     containerSpec,
+	}
+	component.Status = ComponentStatusRunning
+	component.UpdatedAt = time.Now()
+
+	logrus.Infof("Successfully deployed component %s on provider %s", component.ID, component.ProviderID)
+	return nil
+}
+
+// readApplicationCode 读取应用代码内容
+func (m *Manager) readApplicationCode(appDir string) (string, error) {
+	// 简化实现：读取主要文件内容
+	var codeContent strings.Builder
+	
+	err := filepath.Walk(appDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		
+		// 跳过隐藏文件和目录
+		if strings.HasPrefix(info.Name(), ".") {
+			return nil
+		}
+		
+		// 只读取代码文件
+		if !info.IsDir() && m.isCodeFile(info.Name()) {
+			content, err := ioutil.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			codeContent.WriteString(fmt.Sprintf("// File: %s\n%s\n\n", path, string(content)))
+		}
+		
+		return nil
+	})
+	
+	return codeContent.String(), err
+}
+
+// isCodeFile 判断是否为代码文件
+func (m *Manager) isCodeFile(filename string) bool {
+	ext := strings.ToLower(filepath.Ext(filename))
+	codeExts := []string{".js", ".ts", ".py", ".go", ".java", ".cpp", ".c", ".php", ".rb", ".cs", ".json", ".yaml", ".yml", ".dockerfile"}
+	
+	for _, codeExt := range codeExts {
+		if ext == codeExt {
+			return true
+		}
+	}
+	return false
+}
+
+// detectLanguageFromCode 从代码内容检测编程语言
+func (m *Manager) detectLanguageFromCode(codeContent string) string {
+	content := strings.ToLower(codeContent)
+	
+	if strings.Contains(content, "package.json") || strings.Contains(content, "npm") || strings.Contains(content, "node_modules") {
+		return "javascript"
+	}
+	if strings.Contains(content, "requirements.txt") || strings.Contains(content, "import ") && strings.Contains(content, "def ") {
+		return "python"
+	}
+	if strings.Contains(content, "go.mod") || strings.Contains(content, "package main") {
+		return "go"
+	}
+	if strings.Contains(content, "pom.xml") || strings.Contains(content, "public class") {
+		return "java"
+	}
+	
+	return "unknown"
+}
+
+// detectFrameworkFromCode 从代码内容检测框架
+func (m *Manager) detectFrameworkFromCode(codeContent string) string {
+	content := strings.ToLower(codeContent)
+	
+	if strings.Contains(content, "next.js") || strings.Contains(content, "next/") {
+		return "next.js"
+	}
+	if strings.Contains(content, "react") {
+		return "react"
+	}
+	if strings.Contains(content, "django") {
+		return "django"
+	}
+	if strings.Contains(content, "flask") {
+		return "flask"
+	}
+	if strings.Contains(content, "spring") {
+		return "spring"
+	}
+	
+	return "unknown"
+}
+
+// getAvailableProviders 获取可用的资源提供者
+func (m *Manager) getAvailableProviders() []*proto.ProviderInfo {
+	providers := m.resourceManager.GetProviders()
+	var protoProviders []*proto.ProviderInfo
+	
+	// 转换本地提供者
+	if providers.LocalProvider != nil {
+		protoProviders = append(protoProviders, &proto.ProviderInfo{
+			Id:     providers.LocalProvider.GetID(),
+			Name:   providers.LocalProvider.GetName(),
+			Type:   string(providers.LocalProvider.GetType()),
+			Status: 1, // 假设状态为活跃
+		})
+	}
+	
+	// 转换管理的提供者
+	for _, provider := range providers.ManagedProviders {
+		protoProviders = append(protoProviders, &proto.ProviderInfo{
+			Id:     provider.GetID(),
+			Name:   provider.GetName(),
+			Type:   string(provider.GetType()),
+			Status: 1,
+		})
+	}
+	
+	// 转换协作提供者
+	for _, provider := range providers.CollaborativeProviders {
+		protoProviders = append(protoProviders, &proto.ProviderInfo{
+			Id:     provider.GetID(),
+			Name:   provider.GetName(),
+			Type:   string(provider.GetType()),
+			Status: 1,
+		})
+	}
+	
+	return protoProviders
+}
+
+// ConvertToApplicationDAG 将proto响应转换为应用DAG
+func ConvertToApplicationDAG(appID string, response *proto.CodeAnalysisResponse) *ApplicationDAG {
+	dag := &ApplicationDAG{
+		ApplicationID:    appID,
+		Components:       make(map[string]*Component),
+		Edges:            make([]DAGEdge, 0),
+		GlobalConfig:     response.GlobalConfig,
+		AnalysisMetadata: make(map[string]interface{}),
+		CreatedAt:        time.Now(),
+		UpdatedAt:        time.Now(),
+	}
+
+	// 转换组件
+	for _, protoComp := range response.Components {
+		comp := &Component{
+			ID:           protoComp.Id,
+			Name:         protoComp.Name,
+			Type:         ComponentType(protoComp.Type),
+			Image:        protoComp.Image,
+			Dependencies: protoComp.Dependencies,
+			Ports:        make([]int, len(protoComp.Ports)),
+			Environment:  protoComp.Environment,
+			Resources: ResourceRequirements{
+				CPU:     protoComp.Resources.Cpu,
+				Memory:  protoComp.Resources.Memory,
+				GPU:     protoComp.Resources.Gpu,
+				Storage: protoComp.Resources.Storage,
+			},
+			ProviderType:     protoComp.ProviderType,
+			ProviderID:       protoComp.ProviderId,
+			DeploymentConfig: make(map[string]interface{}),
+			Status:           ComponentStatusPending,
+			CreatedAt:        time.Now(),
+			UpdatedAt:        time.Now(),
+		}
+
+		// 转换端口
+		for i, port := range protoComp.Ports {
+			comp.Ports[i] = int(port)
+		}
+
+		dag.Components[comp.ID] = comp
+	}
+
+	// 转换边
+	for _, protoEdge := range response.Edges {
+		edge := DAGEdge{
+			FromComponent:    protoEdge.FromComponent,
+			ToComponent:      protoEdge.ToComponent,
+			ConnectionType:   ConnectionType(protoEdge.ConnectionType),
+			ConnectionConfig: protoEdge.ConnectionConfig,
+		}
+		dag.Edges = append(dag.Edges, edge)
+	}
+
+	return dag
+}
+
+// GetApplicationDAG 获取应用的DAG图
+func (m *Manager) GetApplicationDAG(appID string) (*ApplicationDAG, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	
+	dag, exists := m.applicationDAGs[appID]
+	if !exists {
+		return nil, errors.New("application DAG not found")
+	}
+	
+	return dag, nil
+}
+
+// StopApplicationComponents 停止应用的所有组件
+func (m *Manager) StopApplicationComponents(appID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	
+	dag, exists := m.applicationDAGs[appID]
+	if !exists {
+		return errors.New("application DAG not found")
+	}
+	
+	// 按逆序停止组件
+	deploymentOrder, err := dag.GetDeploymentOrder()
+	if err != nil {
+		return fmt.Errorf("failed to get deployment order: %v", err)
+	}
+	
+	// 逆序停止
+	for i := len(deploymentOrder) - 1; i >= 0; i-- {
+		component := deploymentOrder[i]
+		if component.ContainerRef != nil {
+			// 这里应该调用provider的停止方法
+			// provider.Stop(component.ContainerRef.ID)
+			component.Status = ComponentStatusStopped
+			logrus.Infof("Stopped component: %s", component.ID)
+		}
+	}
+	
+	// 更新应用状态
+	if app, exists := m.applications[appID]; exists {
+		app.Status = StatusStopped
+	}
+	
+	return nil
 }

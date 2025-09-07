@@ -9,6 +9,8 @@ import (
 type ContainerSpec struct {
 	Image   string
 	Command []string
+	EnvVars map[string]string
+	Ports   []int
 	CPU     float64
 	Memory  float64
 	GPU     float64

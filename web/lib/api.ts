@@ -105,6 +105,33 @@ export const applicationsAPI = {
     apiRequest<GetFileTreeResponse>(`/application/apps/${id}/files${path ? `?path=${encodeURIComponent(path)}` : ''}`),
   getFileContent: (id: string, filePath: string) =>
     apiRequest<GetFileContentResponse>(`/application/apps/${id}/files/content?path=${encodeURIComponent(filePath)}`),
+  // 组件相关API
+  getComponents: (id: string) =>
+    apiRequest(`/application/apps/${id}/components`),
+  analyzeApplication: (id: string) =>
+    apiRequest(`/application/apps/${id}/analyze`, {
+      method: "POST",
+    }),
+  deployComponents: (id: string) =>
+    apiRequest(`/application/apps/${id}/deploy-components`, {
+      method: "POST",
+    }),
+}
+
+// 组件管理 API
+export const componentsAPI = {
+  start: (componentId: string) =>
+    apiRequest(`/components/${componentId}/start`, {
+      method: "POST",
+    }),
+  stop: (componentId: string) =>
+    apiRequest(`/components/${componentId}/stop`, {
+      method: "POST",
+    }),
+  getStatus: (componentId: string) =>
+    apiRequest(`/components/${componentId}/status`),
+  getLogs: (componentId: string, lines?: number) =>
+    apiRequest(`/components/${componentId}/logs${lines ? `?lines=${lines}` : ''}`),
 }
 
 // 状态监控 API

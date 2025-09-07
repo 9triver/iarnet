@@ -109,99 +109,6 @@ func (x *ExchangeResponse) GetKnownPeers() []string {
 	return nil
 }
 
-// Provider information exchange
-type ProviderInfo struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Type          string                 `protobuf:"bytes,3,opt,name=type,proto3" json:"type,omitempty"`
-	Host          string                 `protobuf:"bytes,4,opt,name=host,proto3" json:"host,omitempty"`
-	Port          int32                  `protobuf:"varint,5,opt,name=port,proto3" json:"port,omitempty"`
-	Status        int32                  `protobuf:"varint,6,opt,name=status,proto3" json:"status,omitempty"`
-	PeerAddress   string                 `protobuf:"bytes,7,opt,name=peer_address,json=peerAddress,proto3" json:"peer_address,omitempty"` // Which peer manages this provider
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ProviderInfo) Reset() {
-	*x = ProviderInfo{}
-	mi := &file_proto_peer_proto_msgTypes[2]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ProviderInfo) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ProviderInfo) ProtoMessage() {}
-
-func (x *ProviderInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_peer_proto_msgTypes[2]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ProviderInfo.ProtoReflect.Descriptor instead.
-func (*ProviderInfo) Descriptor() ([]byte, []int) {
-	return file_proto_peer_proto_rawDescGZIP(), []int{2}
-}
-
-func (x *ProviderInfo) GetId() string {
-	if x != nil {
-		return x.Id
-	}
-	return ""
-}
-
-func (x *ProviderInfo) GetName() string {
-	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
-func (x *ProviderInfo) GetType() string {
-	if x != nil {
-		return x.Type
-	}
-	return ""
-}
-
-func (x *ProviderInfo) GetHost() string {
-	if x != nil {
-		return x.Host
-	}
-	return ""
-}
-
-func (x *ProviderInfo) GetPort() int32 {
-	if x != nil {
-		return x.Port
-	}
-	return 0
-}
-
-func (x *ProviderInfo) GetStatus() int32 {
-	if x != nil {
-		return x.Status
-	}
-	return 0
-}
-
-func (x *ProviderInfo) GetPeerAddress() string {
-	if x != nil {
-		return x.PeerAddress
-	}
-	return ""
-}
-
 type ProviderExchangeRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Providers     []*ProviderInfo        `protobuf:"bytes,1,rep,name=providers,proto3" json:"providers,omitempty"`
@@ -211,7 +118,7 @@ type ProviderExchangeRequest struct {
 
 func (x *ProviderExchangeRequest) Reset() {
 	*x = ProviderExchangeRequest{}
-	mi := &file_proto_peer_proto_msgTypes[3]
+	mi := &file_proto_peer_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -223,7 +130,7 @@ func (x *ProviderExchangeRequest) String() string {
 func (*ProviderExchangeRequest) ProtoMessage() {}
 
 func (x *ProviderExchangeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_peer_proto_msgTypes[3]
+	mi := &file_proto_peer_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -236,7 +143,7 @@ func (x *ProviderExchangeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProviderExchangeRequest.ProtoReflect.Descriptor instead.
 func (*ProviderExchangeRequest) Descriptor() ([]byte, []int) {
-	return file_proto_peer_proto_rawDescGZIP(), []int{3}
+	return file_proto_peer_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *ProviderExchangeRequest) GetProviders() []*ProviderInfo {
@@ -255,7 +162,7 @@ type ProviderExchangeResponse struct {
 
 func (x *ProviderExchangeResponse) Reset() {
 	*x = ProviderExchangeResponse{}
-	mi := &file_proto_peer_proto_msgTypes[4]
+	mi := &file_proto_peer_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -267,7 +174,7 @@ func (x *ProviderExchangeResponse) String() string {
 func (*ProviderExchangeResponse) ProtoMessage() {}
 
 func (x *ProviderExchangeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_peer_proto_msgTypes[4]
+	mi := &file_proto_peer_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -280,7 +187,7 @@ func (x *ProviderExchangeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProviderExchangeResponse.ProtoReflect.Descriptor instead.
 func (*ProviderExchangeResponse) Descriptor() ([]byte, []int) {
-	return file_proto_peer_proto_rawDescGZIP(), []int{4}
+	return file_proto_peer_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ProviderExchangeResponse) GetProviders() []*ProviderInfo {
@@ -302,7 +209,7 @@ type ProviderCallRequest struct {
 
 func (x *ProviderCallRequest) Reset() {
 	*x = ProviderCallRequest{}
-	mi := &file_proto_peer_proto_msgTypes[5]
+	mi := &file_proto_peer_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -314,7 +221,7 @@ func (x *ProviderCallRequest) String() string {
 func (*ProviderCallRequest) ProtoMessage() {}
 
 func (x *ProviderCallRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_peer_proto_msgTypes[5]
+	mi := &file_proto_peer_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -327,7 +234,7 @@ func (x *ProviderCallRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProviderCallRequest.ProtoReflect.Descriptor instead.
 func (*ProviderCallRequest) Descriptor() ([]byte, []int) {
-	return file_proto_peer_proto_rawDescGZIP(), []int{5}
+	return file_proto_peer_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ProviderCallRequest) GetProviderId() string {
@@ -362,7 +269,7 @@ type ProviderCallResponse struct {
 
 func (x *ProviderCallResponse) Reset() {
 	*x = ProviderCallResponse{}
-	mi := &file_proto_peer_proto_msgTypes[6]
+	mi := &file_proto_peer_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -374,7 +281,7 @@ func (x *ProviderCallResponse) String() string {
 func (*ProviderCallResponse) ProtoMessage() {}
 
 func (x *ProviderCallResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_peer_proto_msgTypes[6]
+	mi := &file_proto_peer_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -387,7 +294,7 @@ func (x *ProviderCallResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProviderCallResponse.ProtoReflect.Descriptor instead.
 func (*ProviderCallResponse) Descriptor() ([]byte, []int) {
-	return file_proto_peer_proto_rawDescGZIP(), []int{6}
+	return file_proto_peer_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ProviderCallResponse) GetSuccess() bool {
@@ -415,25 +322,17 @@ var File_proto_peer_proto protoreflect.FileDescriptor
 
 const file_proto_peer_proto_rawDesc = "" +
 	"\n" +
-	"\x10proto/peer.proto\x12\x04peer\"2\n" +
+	"\x10proto/peer.proto\x12\x04peer\x1a\x11proto/ignis.proto\"2\n" +
 	"\x0fExchangeRequest\x12\x1f\n" +
 	"\vknown_peers\x18\x01 \x03(\tR\n" +
 	"knownPeers\"3\n" +
 	"\x10ExchangeResponse\x12\x1f\n" +
 	"\vknown_peers\x18\x01 \x03(\tR\n" +
-	"knownPeers\"\xa9\x01\n" +
-	"\fProviderInfo\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
-	"\x04type\x18\x03 \x01(\tR\x04type\x12\x12\n" +
-	"\x04host\x18\x04 \x01(\tR\x04host\x12\x12\n" +
-	"\x04port\x18\x05 \x01(\x05R\x04port\x12\x16\n" +
-	"\x06status\x18\x06 \x01(\x05R\x06status\x12!\n" +
-	"\fpeer_address\x18\a \x01(\tR\vpeerAddress\"K\n" +
-	"\x17ProviderExchangeRequest\x120\n" +
-	"\tproviders\x18\x01 \x03(\v2\x12.peer.ProviderInfoR\tproviders\"L\n" +
-	"\x18ProviderExchangeResponse\x120\n" +
-	"\tproviders\x18\x01 \x03(\v2\x12.peer.ProviderInfoR\tproviders\"h\n" +
+	"knownPeers\"L\n" +
+	"\x17ProviderExchangeRequest\x121\n" +
+	"\tproviders\x18\x01 \x03(\v2\x13.ignis.ProviderInfoR\tproviders\"M\n" +
+	"\x18ProviderExchangeResponse\x121\n" +
+	"\tproviders\x18\x01 \x03(\v2\x13.ignis.ProviderInfoR\tproviders\"h\n" +
 	"\x13ProviderCallRequest\x12\x1f\n" +
 	"\vprovider_id\x18\x01 \x01(\tR\n" +
 	"providerId\x12\x16\n" +
@@ -460,25 +359,25 @@ func file_proto_peer_proto_rawDescGZIP() []byte {
 	return file_proto_peer_proto_rawDescData
 }
 
-var file_proto_peer_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_proto_peer_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_proto_peer_proto_goTypes = []any{
 	(*ExchangeRequest)(nil),          // 0: peer.ExchangeRequest
 	(*ExchangeResponse)(nil),         // 1: peer.ExchangeResponse
-	(*ProviderInfo)(nil),             // 2: peer.ProviderInfo
-	(*ProviderExchangeRequest)(nil),  // 3: peer.ProviderExchangeRequest
-	(*ProviderExchangeResponse)(nil), // 4: peer.ProviderExchangeResponse
-	(*ProviderCallRequest)(nil),      // 5: peer.ProviderCallRequest
-	(*ProviderCallResponse)(nil),     // 6: peer.ProviderCallResponse
+	(*ProviderExchangeRequest)(nil),  // 2: peer.ProviderExchangeRequest
+	(*ProviderExchangeResponse)(nil), // 3: peer.ProviderExchangeResponse
+	(*ProviderCallRequest)(nil),      // 4: peer.ProviderCallRequest
+	(*ProviderCallResponse)(nil),     // 5: peer.ProviderCallResponse
+	(*ProviderInfo)(nil),             // 6: ignis.ProviderInfo
 }
 var file_proto_peer_proto_depIdxs = []int32{
-	2, // 0: peer.ProviderExchangeRequest.providers:type_name -> peer.ProviderInfo
-	2, // 1: peer.ProviderExchangeResponse.providers:type_name -> peer.ProviderInfo
+	6, // 0: peer.ProviderExchangeRequest.providers:type_name -> ignis.ProviderInfo
+	6, // 1: peer.ProviderExchangeResponse.providers:type_name -> ignis.ProviderInfo
 	0, // 2: peer.PeerService.ExchangePeers:input_type -> peer.ExchangeRequest
-	3, // 3: peer.PeerService.ExchangeProviders:input_type -> peer.ProviderExchangeRequest
-	5, // 4: peer.PeerService.CallProvider:input_type -> peer.ProviderCallRequest
+	2, // 3: peer.PeerService.ExchangeProviders:input_type -> peer.ProviderExchangeRequest
+	4, // 4: peer.PeerService.CallProvider:input_type -> peer.ProviderCallRequest
 	1, // 5: peer.PeerService.ExchangePeers:output_type -> peer.ExchangeResponse
-	4, // 6: peer.PeerService.ExchangeProviders:output_type -> peer.ProviderExchangeResponse
-	6, // 7: peer.PeerService.CallProvider:output_type -> peer.ProviderCallResponse
+	3, // 6: peer.PeerService.ExchangeProviders:output_type -> peer.ProviderExchangeResponse
+	5, // 7: peer.PeerService.CallProvider:output_type -> peer.ProviderCallResponse
 	5, // [5:8] is the sub-list for method output_type
 	2, // [2:5] is the sub-list for method input_type
 	2, // [2:2] is the sub-list for extension type_name
@@ -491,13 +390,14 @@ func file_proto_peer_proto_init() {
 	if File_proto_peer_proto != nil {
 		return
 	}
+	file_proto_ignis_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_peer_proto_rawDesc), len(file_proto_peer_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -676,6 +676,15 @@ export default function ApplicationsPage() {
                       </Button>
                     )}
 
+                    <Button 
+                      size="sm" 
+                      variant="ghost"
+                      onClick={(e) => { e.stopPropagation(); router.push(`/applications/${app.id}/components`); }}
+                    >
+                      <Package className="h-4 w-4" />
+                      组件
+                    </Button>
+
                     <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); handleEdit(app); }}>
                       <Settings className="h-4 w-4" />
                     </Button>

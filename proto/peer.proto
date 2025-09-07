@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package peer;
 
+import "proto/ignis.proto";
+
 option go_package = "./proto";
 
 service PeerService {
@@ -18,23 +20,12 @@ message ExchangeResponse {
   repeated string known_peers = 1;
 }
 
-// Provider information exchange
-message ProviderInfo {
-  string id = 1;
-  string name = 2;
-  string type = 3;
-  string host = 4;
-  int32 port = 5;
-  int32 status = 6;
-  string peer_address = 7;  // Which peer manages this provider
-}
-
 message ProviderExchangeRequest {
-  repeated ProviderInfo providers = 1;
+  repeated ignis.ProviderInfo providers = 1;
 }
 
 message ProviderExchangeResponse {
-  repeated ProviderInfo providers = 1;
+  repeated ignis.ProviderInfo providers = 1;
 }
 
 // Remote provider method calls

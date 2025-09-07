@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/9triver/iarnet/internal/analysis"
 	"github.com/9triver/iarnet/internal/application"
 	"github.com/9triver/iarnet/internal/config"
 	"github.com/9triver/iarnet/internal/discovery"
@@ -46,7 +47,11 @@ func main() {
 	}
 
 	rm := resource.NewManager(cfg.ResourceLimits)
-	am := application.NewManager(cfg)
+	am := application.NewManager(cfg, rm)
+	
+	// 创建并设置代码分析服务
+	analysisService := analysis.NewMockCodeAnalysisService(rm)
+	am.SetAnalysisService(analysisService)
 
 	// // 添加一些示例应用数据用于测试
 	// app1 := am.CreateApplication("用户管理系统")

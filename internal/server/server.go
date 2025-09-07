@@ -46,6 +46,15 @@ func NewServer(r runner.Runner, rm *resource.Manager, am *application.Manager) *
 	s.router.HandleFunc("/application/apps/{id}/files", s.handleGetFileTree).Methods("GET")
 	s.router.HandleFunc("/application/apps/{id}/files/content", s.handleGetFileContent).Methods("GET")
 
+	// 组件相关API
+	s.router.HandleFunc("/application/apps/{id}/components", s.handleGetApplicationComponents).Methods("GET")
+	s.router.HandleFunc("/application/apps/{id}/analyze", s.handleAnalyzeApplication).Methods("POST")
+	s.router.HandleFunc("/application/apps/{id}/deploy-components", s.handleDeployComponents).Methods("POST")
+	s.router.HandleFunc("/components/{componentId}/start", s.handleStartComponent).Methods("POST")
+	s.router.HandleFunc("/components/{componentId}/stop", s.handleStopComponent).Methods("POST")
+	s.router.HandleFunc("/components/{componentId}/status", s.handleGetComponentStatus).Methods("GET")
+	s.router.HandleFunc("/components/{componentId}/logs", s.handleGetComponentLogs).Methods("GET")
+
 	return s
 }
 
@@ -664,4 +673,276 @@ func (s *Server) handleGetFileContent(w http.ResponseWriter, req *http.Request) 
 		logrus.Errorf("Failed to write file content response: %v", err)
 		return
 	}
+}
+
+// handleGetApplicationComponents 获取应用的组件信息
+func (s *Server) handleGetApplicationComponents(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	appID := vars["id"]
+	logrus.Infof("Received request to get components for application: %s", appID)
+
+	// 验证应用是否存在
+	_, err := s.appMgr.GetApplication(appID)
+	if err != nil {
+		logrus.Warnf("Application not found: %s", appID)
+		response.WriteError(w, http.StatusNotFound, "application not found", err)
+		return
+	}
+
+	// 获取应用的DAG信息
+	dag, err := s.appMgr.GetApplicationDAG(appID)
+	if err != nil {
+		logrus.Warnf("No DAG found for application: %s", appID)
+		response.WriteError(w, http.StatusNotFound, "application DAG not found", err)
+		return
+	}
+
+	if err := response.WriteSuccess(w, dag); err != nil {
+		logrus.Errorf("Failed to write components response: %v", err)
+		return
+	}
+	logrus.Debugf("Successfully sent components for application: %s", appID)
+}
+
+// handleAnalyzeApplication 分析应用代码并生成组件DAG
+func (s *Server) handleAnalyzeApplication(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	appID := vars["id"]
+	logrus.Infof("Received request to analyze application: %s", appID)
+
+	// 验证应用是否存在
+	app, err := s.appMgr.GetApplication(appID)
+	if err != nil {
+		logrus.Warnf("Application not found: %s", appID)
+		response.WriteError(w, http.StatusNotFound, "application not found", err)
+		return
+	}
+
+	// 执行代码分析
+	err = s.appMgr.AnalyzeAndDeployApplication(appID)
+	if err != nil {
+		logrus.Errorf("Failed to analyze application %s: %v", appID, err)
+		response.WriteError(w, http.StatusInternalServerError, "failed to analyze application", err)
+		return
+	}
+
+	// 更新应用状态
+	s.appMgr.UpdateApplicationStatus(appID, "analyzed")
+
+	analysisResult := map[string]interface{}{
+		"message":     "Application analyzed successfully",
+		"application": app.Name,
+		"status":      "analyzed",
+	}
+
+	if err := response.WriteSuccess(w, analysisResult); err != nil {
+		logrus.Errorf("Failed to write analysis response: %v", err)
+		return
+	}
+	logrus.Debugf("Successfully analyzed application: %s", appID)
+}
+
+// handleDeployComponents 部署应用的所有组件
+func (s *Server) handleDeployComponents(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	appID := vars["id"]
+	logrus.Infof("Received request to deploy components for application: %s", appID)
+
+	// 验证应用是否存在
+	app, err := s.appMgr.GetApplication(appID)
+	if err != nil {
+		logrus.Warnf("Application not found: %s", appID)
+		response.WriteError(w, http.StatusNotFound, "application not found", err)
+		return
+	}
+
+	// 获取DAG信息
+	dag, err := s.appMgr.GetApplicationDAG(appID)
+	if err != nil {
+		logrus.Warnf("No DAG found for application: %s", appID)
+		response.WriteError(w, http.StatusNotFound, "application DAG not found, please analyze first", err)
+		return
+	}
+
+	// 部署所有组件
+	deployedComponents := []string{}
+	for _, component := range dag.Components {
+		err := s.deployComponent(component)
+		if err != nil {
+			logrus.Errorf("Failed to deploy component %s: %v", component.ID, err)
+			continue
+		}
+		deployedComponents = append(deployedComponents, component.ID)
+	}
+
+	// 更新应用状态
+	s.appMgr.UpdateApplicationStatus(appID, "deployed")
+
+	deployResult := map[string]interface{}{
+		"message":             "Components deployed successfully",
+		"application":         app.Name,
+		"total_components":    len(dag.Components),
+		"deployed_components": deployedComponents,
+		"failed_components":   len(dag.Components) - len(deployedComponents),
+	}
+
+	if err := response.WriteSuccess(w, deployResult); err != nil {
+		logrus.Errorf("Failed to write deploy response: %v", err)
+		return
+	}
+	logrus.Debugf("Successfully deployed components for application: %s", appID)
+}
+
+// deployComponent 部署单个组件的辅助函数
+func (s *Server) deployComponent(component *application.Component) error {
+	// 创建容器规格
+	spec := runner.ContainerSpec{
+		Image:   component.Image,
+		CPU:     component.Resources.CPU,
+		Memory:  component.Resources.Memory,
+		GPU:     component.Resources.GPU,
+		EnvVars: component.EnvVars,
+		Ports:   component.Ports,
+	}
+
+	// 检查资源是否可用
+	usageReq := resource.Usage{
+		CPU:    component.Resources.CPU,
+		Memory: component.Resources.Memory,
+		GPU:    component.Resources.GPU,
+	}
+
+	if err := s.resMgr.CanAllocate(usageReq); err != nil {
+		return fmt.Errorf("insufficient resources: %v", err)
+	}
+
+	// 运行容器
+	if err := s.runner.Run(s.ctx, spec); err != nil {
+		return fmt.Errorf("failed to run container: %v", err)
+	}
+
+	// 分配资源
+	s.resMgr.Allocate(usageReq)
+
+	// 更新组件状态
+	component.Status = "running"
+	now := time.Now()
+	component.DeployedAt = &now
+
+	return nil
+}
+
+// handleStartComponent 启动组件
+func (s *Server) handleStartComponent(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	componentID := vars["componentId"]
+	logrus.Infof("Received request to start component: %s", componentID)
+
+	// TODO: 实现组件启动逻辑
+	// 这里需要根据组件ID找到对应的组件并启动
+
+	startResult := map[string]interface{}{
+		"message":     "Component started successfully",
+		"component_id": componentID,
+		"status":      "running",
+	}
+
+	if err := response.WriteSuccess(w, startResult); err != nil {
+		logrus.Errorf("Failed to write start component response: %v", err)
+		return
+	}
+	logrus.Debugf("Successfully started component: %s", componentID)
+}
+
+// handleStopComponent 停止组件
+func (s *Server) handleStopComponent(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	componentID := vars["componentId"]
+	logrus.Infof("Received request to stop component: %s", componentID)
+
+	// TODO: 实现组件停止逻辑
+	// 这里需要根据组件ID找到对应的组件并停止
+
+	stopResult := map[string]interface{}{
+		"message":     "Component stopped successfully",
+		"component_id": componentID,
+		"status":      "stopped",
+	}
+
+	if err := response.WriteSuccess(w, stopResult); err != nil {
+		logrus.Errorf("Failed to write stop component response: %v", err)
+		return
+	}
+	logrus.Debugf("Successfully stopped component: %s", componentID)
+}
+
+// handleGetComponentStatus 获取组件状态
+func (s *Server) handleGetComponentStatus(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	componentID := vars["componentId"]
+	logrus.Infof("Received request to get status for component: %s", componentID)
+
+	// TODO: 实现组件状态查询逻辑
+	// 这里需要根据组件ID查询组件的实际状态
+
+	componentStatus := map[string]interface{}{
+		"component_id": componentID,
+		"status":       "running",
+		"cpu_usage":    "45%",
+		"memory_usage": "512MB",
+		"uptime":       "2h 30m",
+		"last_updated": time.Now().Format("2006-01-02 15:04:05"),
+	}
+
+	if err := response.WriteSuccess(w, componentStatus); err != nil {
+		logrus.Errorf("Failed to write component status response: %v", err)
+		return
+	}
+	logrus.Debugf("Successfully retrieved status for component: %s", componentID)
+}
+
+// handleGetComponentLogs 获取组件日志
+func (s *Server) handleGetComponentLogs(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	componentID := vars["componentId"]
+	logrus.Infof("Received request to get logs for component: %s", componentID)
+
+	// 获取查询参数
+	linesParam := req.URL.Query().Get("lines")
+	lines := 100 // 默认返回100行
+	if linesParam != "" {
+		if parsedLines, err := strconv.Atoi(linesParam); err == nil && parsedLines > 0 {
+			lines = parsedLines
+		}
+	}
+
+	// TODO: 实现组件日志获取逻辑
+	// 这里需要根据组件ID获取组件的实际日志
+
+	// 模拟日志数据
+	mockLogs := []string{
+		"2024-01-15 10:00:01 [INFO] Component started successfully",
+		"2024-01-15 10:00:02 [INFO] Initializing component services",
+		"2024-01-15 10:00:03 [INFO] Component is ready to serve requests",
+		"2024-01-15 10:00:04 [DEBUG] Processing request from upstream component",
+		"2024-01-15 10:00:05 [INFO] Request processed successfully",
+	}
+
+	// 限制返回的日志行数
+	if len(mockLogs) > lines {
+		mockLogs = mockLogs[len(mockLogs)-lines:]
+	}
+
+	logsResponse := map[string]interface{}{
+		"component_id":    componentID,
+		"logs":            mockLogs,
+		"total_lines":     len(mockLogs),
+		"requested_lines": lines,
+	}
+
+	if err := response.WriteSuccess(w, logsResponse); err != nil {
+		logrus.Errorf("Failed to write component logs response: %v", err)
+		return
+	}
+	logrus.Debugf("Successfully retrieved logs for component: %s", componentID)
 }
