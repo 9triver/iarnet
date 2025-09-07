@@ -37,6 +37,7 @@ func NewServer(r runner.Runner, rm *resource.Manager, am *application.Manager) *
 
 	s.router.HandleFunc("/application/apps", s.handleGetApplications).Methods("GET")
 	s.router.HandleFunc("/application/apps/{id}", s.handleGetApplicationById).Methods("GET")
+	s.router.HandleFunc("/application/apps/{id}", s.handleDeleteApplication).Methods("DELETE")
 	// s.router.HandleFunc("/application/apps/{id}/logs", s.handleGetApplicationLogs).Methods("GET")
 	s.router.HandleFunc("/application/stats", s.handleGetApplicationStats).Methods("GET")
 	s.router.HandleFunc("/application/create", s.handleCreateApplication).Methods("POST")
@@ -922,4 +923,38 @@ func (s *Server) handleGetComponentLogs(w http.ResponseWriter, req *http.Request
 		return
 	}
 	logrus.Debugf("Successfully retrieved logs for component: %s", componentID)
+}
+
+// handleDeleteApplication 处理删除应用请求
+func (s *Server) handleDeleteApplication(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	appID := vars["id"]
+	logrus.Infof("Received request to delete application ID: %s", appID)
+
+	// 验证应用是否存在
+	_, err := s.appMgr.GetApplication(appID)
+	if err != nil {
+		logrus.Warnf("Application not found for deletion request: %s", appID)
+		response.WriteError(w, http.StatusNotFound, "application not found", err)
+		return
+	}
+
+	// 删除应用
+	if err := s.appMgr.DeleteApplication(appID); err != nil {
+		logrus.Errorf("Failed to delete application %s: %v", appID, err)
+		response.WriteError(w, http.StatusInternalServerError, "failed to delete application", err)
+		return
+	}
+
+	// 返回成功响应
+	deleteResponse := map[string]interface{}{
+		"message": "Application deleted successfully",
+		"app_id": appID,
+	}
+
+	if err := response.WriteSuccess(w, deleteResponse); err != nil {
+		logrus.Errorf("Failed to write delete response: %v", err)
+		return
+	}
+	logrus.Infof("Successfully deleted application: %s", appID)
 }

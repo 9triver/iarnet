@@ -140,6 +140,62 @@ func (m *Manager) GetAllApplications() []*AppRef {
 	return apps
 }
 
+// DeleteApplication 删除应用
+func (m *Manager) DeleteApplication(appID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	
+	// 检查应用是否存在
+	app, ok := m.applications[appID]
+	if !ok {
+		logrus.Warnf("Attempted to delete non-existent application: %s", appID)
+		return errors.New("application not found")
+	}
+	
+	// 如果应用正在运行，先停止它
+	if app.Status == StatusRunning {
+		logrus.Infof("Stopping running application before deletion: %s", appID)
+		if err := m.StopApplicationComponents(appID); err != nil {
+			logrus.Warnf("Failed to stop application components during deletion: %v", err)
+			// 继续删除，即使停止失败
+		}
+	}
+	
+	// 停止代码浏览器（如果正在运行）
+	if _, exists := m.codeBrowsers[appID]; exists {
+		logrus.Infof("Stopping code browser for application: %s", appID)
+		if err := m.StopCodeBrowser(appID); err != nil {
+			logrus.Warnf("Failed to stop code browser during deletion: %v", err)
+		}
+		delete(m.codeBrowsers, appID)
+	}
+	
+	// 删除应用DAG
+	if _, exists := m.applicationDAGs[appID]; exists {
+		delete(m.applicationDAGs, appID)
+		logrus.Infof("Deleted application DAG for: %s", appID)
+	}
+	
+	// 删除应用目录（如果存在）
+	workspaceDir := m.config.WorkspaceDir
+	if workspaceDir == "" {
+		workspaceDir = "./workspaces"
+	}
+	appDir := filepath.Join(workspaceDir, appID)
+	if _, err := os.Stat(appDir); err == nil {
+		if err := os.RemoveAll(appDir); err != nil {
+			logrus.Warnf("Failed to remove application directory %s: %v", appDir, err)
+			// 继续删除，即使目录删除失败
+		}
+	}
+	
+	// 从内存中删除应用
+	delete(m.applications, appID)
+	logrus.Infof("Application deleted successfully: ID=%s, Name=%s", appID, app.Name)
+	
+	return nil
+}
+
 // UpdateApplicationStatus 更新应用状态
 func (m *Manager) UpdateApplicationStatus(appID string, status Status) error {
 	m.mu.Lock()

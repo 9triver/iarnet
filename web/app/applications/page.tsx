@@ -255,8 +255,16 @@ export default function ApplicationsPage() {
     setIsDialogOpen(true)
   }
 
-  const handleDelete = (id: string) => {
-    setApplications((prev) => prev.filter((app) => app.id !== id))
+  const handleDelete = async (id: string) => {
+    try {
+      // 调用后端API删除应用
+      await applicationsAPI.delete(id)
+      // 删除成功后，重新获取应用列表
+      handleRefreshData()
+    } catch (error) {
+      console.error('Failed to delete application:', error)
+      // 可以在这里添加错误提示
+    }
   }
 
   const handleRun = (id: string) => {

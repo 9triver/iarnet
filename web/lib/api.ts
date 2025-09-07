@@ -78,7 +78,7 @@ export const applicationsAPI = {
       body: JSON.stringify(app),
     }),
   delete: (id: string) =>
-    apiRequest(`/applications/${id}`, {
+    apiRequest(`/application/apps/${id}`, {
       method: "DELETE",
     }),
   deploy: (id: string) =>
