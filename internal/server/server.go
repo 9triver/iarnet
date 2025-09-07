@@ -29,18 +29,19 @@ type Server struct {
 func NewServer(r runner.Runner, rm *resource.Manager, am *application.Manager) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{router: mux.NewRouter(), runner: r, resMgr: rm, appMgr: am, ctx: ctx, cancel: cancel}
-	s.router.HandleFunc("/run", s.handleRun).Methods("POST")
+	// s.router.HandleFunc("/run", s.handleRun).Methods("POST")
 	s.router.HandleFunc("/resource/capacity", s.handleResourceCapacity).Methods("GET")
 	s.router.HandleFunc("/resource/providers", s.handleResourceProviders).Methods("GET")
 	s.router.HandleFunc("/resource/providers", s.handleRegisterProvider).Methods("POST")
 	s.router.HandleFunc("/resource/providers/{id}", s.handleUnregisterProvider).Methods("DELETE")
 
 	s.router.HandleFunc("/application/apps", s.handleGetApplications).Methods("GET")
+	s.router.HandleFunc("/application/apps", s.handleCreateApplication).Methods("POST")
 	s.router.HandleFunc("/application/apps/{id}", s.handleGetApplicationById).Methods("GET")
 	s.router.HandleFunc("/application/apps/{id}", s.handleDeleteApplication).Methods("DELETE")
 	// s.router.HandleFunc("/application/apps/{id}/logs", s.handleGetApplicationLogs).Methods("GET")
 	s.router.HandleFunc("/application/stats", s.handleGetApplicationStats).Methods("GET")
-	s.router.HandleFunc("/application/create", s.handleCreateApplication).Methods("POST")
+	// s.router.HandleFunc("/application/create", s.handleCreateApplication).Methods("POST")
 	// s.router.HandleFunc("/application/apps/{id}/code-browser", s.handleStartCodeBrowser).Methods("POST")
 	// s.router.HandleFunc("/application/apps/{id}/code-browser", s.handleStopCodeBrowser).Methods("DELETE")
 	// s.router.HandleFunc("/application/apps/{id}/code-browser/status", s.handleGetCodeBrowserStatus).Methods("GET")
@@ -949,7 +950,7 @@ func (s *Server) handleDeleteApplication(w http.ResponseWriter, req *http.Reques
 	// 返回成功响应
 	deleteResponse := map[string]interface{}{
 		"message": "Application deleted successfully",
-		"app_id": appID,
+		"app_id":  appID,
 	}
 
 	if err := response.WriteSuccess(w, deleteResponse); err != nil {

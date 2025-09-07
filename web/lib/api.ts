@@ -68,7 +68,7 @@ export const applicationsAPI = {
   getById: (id: string) => apiRequest<Application>(`/application/apps/${id}`),
   getLogs: (id: string, lines?: number) => apiRequest<GetApplicationLogsResponse>(`/application/apps/${id}/logs${lines ? `?lines=${lines}` : ''}`),
   create: (app: any) =>
-    apiRequest("/application/create", {
+    apiRequest("/application/apps", {
       method: "POST",
       body: JSON.stringify(app),
     }),

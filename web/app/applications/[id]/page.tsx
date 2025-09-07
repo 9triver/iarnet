@@ -42,7 +42,7 @@ interface Component {
   id: string
   name: string
   type: "web" | "api" | "worker" | "compute" | "gateway"
-  status: "running" | "stopped" | "deploying" | "error"
+  status: "running" | "stopped" | "deploying" | "error" | "pending" | "unknown"
   image: string
   ports: number[]
   dependencies: string[]
@@ -62,9 +62,9 @@ interface Component {
 
 // DAG图边定义
 interface DAGEdge {
-  from: string
-  to: string
-  type: "http" | "grpc" | "stream" | "queue" | "file"
+  from_component: string
+  to_component: string
+  connection_type: "http" | "grpc" | "stream" | "queue" | "file"
 }
 
 interface ApplicationDAG {
@@ -127,6 +127,8 @@ export default function ApplicationDetailPage() {
       stopped: { color: "bg-gray-500", text: "已停止" },
       deploying: { color: "bg-blue-500", text: "部署中" },
       error: { color: "bg-red-500", text: "错误" },
+      pending: { color: "bg-yellow-500", text: "待部署" },
+      unknown: { color: "bg-gray-400", text: "未知" },
     }
     const config = statusConfig[status] || { color: "bg-gray-400", text: "未知" }
     return (
@@ -161,14 +163,14 @@ export default function ApplicationDetailPage() {
         <svg className="absolute inset-0 w-full h-full">
           {/* 绘制连接线 */}
           {dag.edges?.map((edge, index) => {
-            const fromComponent = dag.components[edge.from]
-            const toComponent = dag.components[edge.to]
+            const fromComponent = dag.components[edge.from_component]
+            const toComponent = dag.components[edge.to_component]
             if (!fromComponent || !toComponent) return null
 
-            const fromIndex = componentsArray.findIndex(c => c.id === edge.from)
-            const toIndex = componentsArray.findIndex(c => c.id === edge.to)
-            const fromPos = getComponentPosition(edge.from, fromIndex)
-            const toPos = getComponentPosition(edge.to, toIndex)
+            const fromIndex = componentsArray.findIndex(c => c.id === edge.from_component)
+            const toIndex = componentsArray.findIndex(c => c.id === edge.to_component)
+            const fromPos = getComponentPosition(edge.from_component, fromIndex)
+            const toPos = getComponentPosition(edge.to_component, toIndex)
 
             return (
               <line
@@ -177,9 +179,11 @@ export default function ApplicationDetailPage() {
                 y1={fromPos.y + 30}
                 x2={toPos.x}
                 y2={toPos.y + 30}
-                stroke="#6b7280"
-                strokeWidth="2"
+                stroke="#94a3b8"
+                strokeWidth="1.5"
                 markerEnd="url(#arrowhead)"
+                strokeDasharray="none"
+                opacity="0.8"
               />
             )
           })}
@@ -188,13 +192,14 @@ export default function ApplicationDetailPage() {
           <defs>
             <marker
               id="arrowhead"
-              markerWidth="10"
-              markerHeight="7"
-              refX="9"
-              refY="3.5"
+              markerWidth="8"
+              markerHeight="6"
+              refX="7"
+              refY="3"
               orient="auto"
+              markerUnits="strokeWidth"
             >
-              <polygon points="0 0, 10 3.5, 0 7" fill="#6b7280" />
+              <polygon points="0 0, 8 3, 0 6" fill="#94a3b8" opacity="0.8" />
             </marker>
           </defs>
         </svg>
@@ -290,18 +295,23 @@ export default function ApplicationDetailPage() {
     }
   }
 
+  const [applicationDAG, setApplicationDAG] = useState<ApplicationDAG | null>(null)
+
   const loadComponents = async () => {
     if (!applicationId) return
     
     setIsLoadingComponents(true)
     try {
       const dag = await applicationsAPI.getComponents(applicationId) as ApplicationDAG
+      // 保存完整的DAG数据
+      setApplicationDAG(dag)
       // 将DAG中的components对象转换为数组
       const componentsArray = dag.components ? Object.values(dag.components) as Component[] : []
       setComponents(componentsArray)
     } catch (error) {
       console.error('Failed to load components:', error)
       setComponents([])
+      setApplicationDAG(null)
     } finally {
       setIsLoadingComponents(false)
     }
@@ -627,20 +637,13 @@ export default function ApplicationDetailPage() {
                             </CardDescription>
                           </CardHeader>
                           <CardContent>
-                            <DAGVisualization dag={{
-                              applicationID: applicationId,
-                              components: components.reduce((acc, comp) => {
-                                acc[comp.id] = comp
-                                return acc
-                              }, {} as { [key: string]: Component }),
-                              edges: components.flatMap(comp => 
-                                (comp.dependencies || []).map(depId => ({
-                                  from: depId,
-                                  to: comp.id,
-                                  type: "http" as const
-                                }))
-                              )
-                            }} />
+                            {applicationDAG ? (
+                              <DAGVisualization dag={applicationDAG} />
+                            ) : (
+                              <div className="flex items-center justify-center h-64 text-muted-foreground">
+                                {isLoadingComponents ? "加载组件数据中..." : "暂无组件数据"}
+                              </div>
+                            )}
                           </CardContent>
                         </Card>
                       </TabsContent>
