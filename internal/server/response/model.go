@@ -96,3 +96,27 @@ type FileInfo struct {
 	Size    int64  `json:"size"`
 	ModTime string `json:"mod_time"`
 }
+
+// PeerNodeInfo peer节点信息
+type PeerNodeInfo struct {
+	Address string `json:"address"` // peer节点地址
+	Status  string `json:"status"`  // 节点状态: "connected", "disconnected", "unknown"
+}
+
+// GetPeerNodesResponse 获取peer节点列表响应
+type GetPeerNodesResponse struct {
+	Nodes []PeerNodeInfo `json:"nodes"` // peer节点列表
+	Total int            `json:"total"` // 总数
+}
+
+// AddPeerNodeResponse 添加peer节点响应
+type AddPeerNodeResponse struct {
+	Message string `json:"message"` // 响应消息
+	Address string `json:"address"` // 添加的节点地址
+}
+
+// RemovePeerNodeResponse 删除peer节点响应
+type RemovePeerNodeResponse struct {
+	Message string `json:"message"` // 响应消息
+	Address string `json:"address"` // 删除的节点地址
+}

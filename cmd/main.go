@@ -77,7 +77,7 @@ func main() {
 	}()
 
 	// Start HTTP server
-	srv := server.NewServer(r, rm, am)
+	srv := server.NewServer(r, rm, am, pm)
 	go func() {
 		if err := srv.Start(cfg.ListenAddr); err != nil {
 			log.Fatalf("HTTP server: %v", err)

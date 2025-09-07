@@ -32,3 +32,8 @@ type K8sProviderConfig struct {
 	Namespace         string `json:"namespace,omitempty"`      // Kubernetes命名空间
 	Context           string `json:"context,omitempty"`        // kubeconfig上下文
 }
+
+// AddPeerNodeRequest 添加peer节点请求结构
+type AddPeerNodeRequest struct {
+	Address string `json:"address"` // peer节点地址，格式: host:port
+}

@@ -62,6 +62,17 @@ func (pm *PeerManager) AddPeers(newPeers []string) {
 	}
 }
 
+// RemovePeer removes a peer from the known peers list
+func (pm *PeerManager) RemovePeer(peerAddr string) bool {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	if _, exists := pm.peers[peerAddr]; exists {
+		delete(pm.peers, peerAddr)
+		return true
+	}
+	return false
+}
+
 // GetDiscoveredProviders returns all discovered providers
 func (pm *PeerManager) GetDiscoveredProviders() []*DiscoveredProvider {
 	pm.mu.Lock()

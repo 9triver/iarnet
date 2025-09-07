@@ -281,73 +281,340 @@ interface MetricData {
 ## 5. API设计
 
 ### 5.1 API架构
-采用RESTful API设计，所有API路径以`/api`为前缀。
+采用RESTful API设计，后端Go服务提供核心API，前端Next.js提供代理API。
+
+**后端Go服务API（端口8080）：**
+- 直接处理业务逻辑
+- 提供资源管理、应用管理等核心功能
+- 使用统一的响应格式：`{"code": 200, "message": "success", "data": {...}}`
+
+**前端Next.js API（端口3000）：**
+- 提供`/api`路径的代理接口
+- 处理前端特定的数据格式转换
+- 兼容前端组件的数据结构
 
 ### 5.2 资源管理API
 
+#### 后端Go服务接口
 ```
-GET    /api/resources           # 获取所有资源
-POST   /api/resources           # 创建新资源
-PUT    /api/resources/:id       # 更新资源
-DELETE /api/resources/:id       # 删除资源
+GET    /resource/capacity       # 获取资源容量信息
+GET    /resource/providers      # 获取所有资源提供者
+POST   /resource/providers      # 注册新的资源提供者
+DELETE /resource/providers/{id} # 注销资源提供者
+```
+
+#### 前端Next.js代理接口
+```
+GET    /api/resources           # 获取所有资源（代理到后端）
+POST   /api/resources           # 创建新资源（代理到后端）
+PUT    /api/resources/{id}      # 更新资源
+DELETE /api/resources/{id}      # 删除资源
 ```
 
 #### 请求/响应示例
+
+**注册Docker资源提供者：**
 ```json
-// POST /api/resources
+// POST /resource/providers
 {
-  "name": "生产环境集群",
-  "type": "kubernetes",
-  "url": "https://k8s-prod.example.com",
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "description": "生产环境Kubernetes集群"
+  "type": "docker",
+  "config": {
+    "host": "tcp://192.168.1.100:2376",
+    "tlsCertPath": "/path/to/certs",
+    "tlsVerify": true,
+    "apiVersion": "1.41"
+  }
 }
 
 // Response
 {
-  "success": true,
+  "code": 200,
+  "message": "Provider registered successfully",
   "data": {
-    "id": "1",
-    "name": "生产环境集群",
-    "type": "kubernetes",
-    "url": "https://k8s-prod.example.com",
-    "status": "connected",
-    "cpu": { "total": 32, "used": 18 },
-    "memory": { "total": 128, "used": 76 },
-    "storage": { "total": 2048, "used": 1024 },
-    "lastUpdated": "2024-01-15T14:30:00Z"
+    "id": "provider_123",
+    "type": "docker",
+    "status": "connected"
+  }
+}
+```
+
+**注册Kubernetes资源提供者：**
+```json
+// POST /resource/providers
+{
+  "type": "k8s",
+  "config": {
+    "kubeConfigContent": "apiVersion: v1\nkind: Config...",
+    "namespace": "default",
+    "context": "my-context"
+  }
+}
+```
+
+**获取资源提供者列表：**
+```json
+// GET /resource/providers
+// Response
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "local_provider": {
+      "id": "local_docker",
+      "name": "Local Docker",
+      "type": "docker",
+      "host": "localhost",
+      "port": 2376,
+      "status": "connected",
+      "cpu_usage": {"total": 8, "used": 2},
+      "memory_usage": {"total": 16, "used": 4},
+      "last_update_time": "2024-01-15T14:30:00Z"
+    },
+    "managed_providers": [],
+    "collaborative_providers": []
   }
 }
 ```
 
 ### 5.3 应用管理API
 
+#### 后端Go服务接口
+```
+GET    /application/apps        # 获取所有应用
+POST   /application/apps        # 创建新应用
+GET    /application/apps/{id}   # 获取单个应用详情
+DELETE /application/apps/{id}   # 删除应用
+GET    /application/stats       # 获取应用统计信息
+
+# 文件管理
+GET    /application/apps/{id}/files         # 获取应用文件树
+GET    /application/apps/{id}/files/content # 获取文件内容
+
+# 组件管理
+GET    /application/apps/{id}/components                    # 获取应用组件
+POST   /application/apps/{id}/analyze                       # 分析应用架构
+POST   /application/apps/{id}/deploy-components             # 部署组件
+POST   /application/apps/{id}/components/{componentId}/start # 启动组件
+POST   /application/apps/{id}/components/{componentId}/stop  # 停止组件
+GET    /application/apps/{id}/components/{componentId}/status # 获取组件状态
+GET    /application/apps/{id}/components/{componentId}/logs   # 获取组件日志
+GET    /application/apps/{id}/components/{componentId}/resource-usage # 获取组件资源使用
+GET    /application/components/resource-usage               # 获取所有组件资源使用
+```
+
+#### 前端Next.js代理接口
 ```
 GET    /api/applications        # 获取所有应用
 POST   /api/applications        # 创建新应用
-PUT    /api/applications/:id    # 更新应用
-DELETE /api/applications/:id    # 删除应用
-POST   /api/applications/:id/deploy  # 部署应用
-POST   /api/applications/:id/stop    # 停止应用
+POST   /api/applications/{id}/deploy # 部署应用
+POST   /api/applications/{id}/stop   # 停止应用
+```
+
+#### 请求/响应示例
+
+**创建应用：**
+```json
+// POST /application/apps
+{
+  "name": "用户管理系统",
+  "description": "基于React和Node.js的用户管理后台系统",
+  "git_url": "https://github.com/company/user-management",
+  "branch": "main",
+  "type": "web",
+  "ports": [3000],
+  "health_check": "/health"
+}
+
+// Response
+{
+  "code": 200,
+  "message": "Application created successfully",
+  "data": {
+    "id": "app_123",
+    "name": "用户管理系统",
+    "status": "idle",
+    "created_at": "2024-01-15T14:30:00Z"
+  }
+}
+```
+
+**获取应用列表：**
+```json
+// GET /application/apps
+// Response
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "applications": [
+      {
+        "id": "app_123",
+        "name": "用户管理系统",
+        "git_url": "https://github.com/company/user-management",
+        "branch": "main",
+        "type": "web",
+        "description": "基于React和Node.js的用户管理后台系统",
+        "ports": [3000],
+        "health_check": "/health",
+        "status": "running",
+        "last_deployed": "2024-01-15 14:30:00",
+        "running_on": ["local_docker"]
+      }
+    ]
+  }
+}
 ```
 
 ### 5.4 状态监控API
 
+#### 前端Next.js接口
 ```
 GET    /api/status              # 获取所有应用状态
-POST   /api/status/:id/restart  # 重启应用
+POST   /api/status/{id}/restart # 重启应用
 ```
 
-### 5.5 错误处理
-所有API遵循统一的错误响应格式：
+#### 响应示例
+```json
+// GET /api/status
+{
+  "success": true,
+  "data": [
+    {
+      "id": "1",
+      "name": "用户管理系统",
+      "status": "running",
+      "uptime": "7天 12小时 30分钟",
+      "cpu": 45,
+      "memory": 67,
+      "network": 23,
+      "storage": 34,
+      "instances": 3,
+      "healthCheck": "healthy",
+      "lastRestart": "2024-01-08 09:15:00",
+      "runningOn": ["生产环境集群"],
+      "logs": [
+        {
+          "timestamp": "2024-01-15T14:30:00Z",
+          "level": "info",
+          "message": "Application is running normally"
+        }
+      ]
+    }
+  ]
+}
+```
 
+### 5.5 Peer节点管理API
+
+#### 后端Go服务接口
+```
+GET    /peer/nodes              # 获取peer节点列表
+POST   /peer/nodes              # 添加peer节点
+DELETE /peer/nodes/{address}    # 删除peer节点
+```
+
+#### 前端Next.js代理接口
+```
+GET    /api/peer/nodes          # 获取peer节点列表
+POST   /api/peer/nodes          # 添加peer节点
+DELETE /api/peer/nodes/{address} # 删除peer节点
+```
+
+#### 请求/响应示例
+
+**获取peer节点列表：**
+```bash
+curl -X GET http://localhost:8080/peer/nodes
+```
+
+```json
+// Response
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "nodes": [
+      {
+        "address": "192.168.1.100:8080",
+        "status": "unknown"
+      },
+      {
+        "address": "192.168.1.101:8080",
+        "status": "unknown"
+      }
+    ],
+    "total": 2
+  }
+}
+```
+
+**添加peer节点：**
+```bash
+curl -X POST http://localhost:8080/peer/nodes \
+  -H "Content-Type: application/json" \
+  -d '{"address": "192.168.1.102:8080"}'
+```
+
+```json
+// Response
+{
+  "code": 200,
+  "message": "Peer node added successfully",
+  "data": {
+    "address": "192.168.1.102:8080"
+  }
+}
+```
+
+**删除peer节点：**
+```bash
+curl -X DELETE http://localhost:8080/peer/nodes/192.168.1.102:8080
+```
+
+```json
+// Response
+{
+  "code": 200,
+  "message": "Peer node removed successfully",
+  "data": {
+    "address": "192.168.1.102:8080"
+  }
+}
+```
+
+### 5.6 统一错误处理
+
+#### 后端Go服务错误格式
+```json
+{
+  "code": 404,
+  "message": "Resource not found",
+  "data": null
+}
+```
+
+#### 前端Next.js错误格式
 ```json
 {
   "success": false,
-  "error": "错误描述信息",
-  "code": "ERROR_CODE"
+  "error": {
+    "code": "RESOURCE_NOT_FOUND",
+    "message": "指定的资源不存在",
+    "details": {
+      "resource_id": "123",
+      "timestamp": "2024-01-15T14:30:00Z"
+    }
+  }
 }
 ```
+
+#### 常见错误码
+- `200`: 成功
+- `400`: 请求参数错误
+- `401`: 未授权
+- `403`: 禁止访问
+- `404`: 资源不存在
+- `500`: 服务器内部错误
 
 ## 6. 状态管理
 

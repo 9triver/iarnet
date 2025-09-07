@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/9triver/iarnet/internal/application"
+	"github.com/9triver/iarnet/internal/discovery"
 	"github.com/9triver/iarnet/internal/resource"
 	"github.com/9triver/iarnet/internal/runner"
 	"github.com/9triver/iarnet/internal/server/request"
@@ -22,13 +23,14 @@ type Server struct {
 	runner runner.Runner
 	resMgr *resource.Manager
 	appMgr *application.Manager
+	peerMgr *discovery.PeerManager
 	ctx    context.Context
 	cancel context.CancelFunc
 }
 
-func NewServer(r runner.Runner, rm *resource.Manager, am *application.Manager) *Server {
+func NewServer(r runner.Runner, rm *resource.Manager, am *application.Manager, pm *discovery.PeerManager) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
-	s := &Server{router: mux.NewRouter(), runner: r, resMgr: rm, appMgr: am, ctx: ctx, cancel: cancel}
+	s := &Server{router: mux.NewRouter(), runner: r, resMgr: rm, appMgr: am, peerMgr: pm, ctx: ctx, cancel: cancel}
 	// s.router.HandleFunc("/run", s.handleRun).Methods("POST")
 	s.router.HandleFunc("/resource/capacity", s.handleResourceCapacity).Methods("GET")
 	s.router.HandleFunc("/resource/providers", s.handleResourceProviders).Methods("GET")
@@ -58,6 +60,11 @@ func NewServer(r runner.Runner, rm *resource.Manager, am *application.Manager) *
 	s.router.HandleFunc("/application/apps/{id}/components/{componentId}/logs", s.handleGetComponentLogs).Methods("GET")
 	s.router.HandleFunc("/application/apps/{id}/components/{componentId}/resource-usage", s.handleGetComponentResourceUsage).Methods("GET")
 	s.router.HandleFunc("/application/components/resource-usage", s.handleGetAllComponentsResourceUsage).Methods("GET")
+
+	// Peer管理相关API
+	s.router.HandleFunc("/peer/nodes", s.handleGetPeerNodes).Methods("GET")
+	s.router.HandleFunc("/peer/nodes", s.handleAddPeerNode).Methods("POST")
+	s.router.HandleFunc("/peer/nodes/{id}", s.handleRemovePeerNode).Methods("DELETE")
 
 	return s
 }
@@ -1084,4 +1091,103 @@ func (s *Server) handleGetAllComponentsResourceUsage(w http.ResponseWriter, req 
 		return
 	}
 	logrus.Debug("Successfully retrieved resource usage for all components")
+}
+
+// handleGetPeerNodes 处理获取peer节点列表请求
+func (s *Server) handleGetPeerNodes(w http.ResponseWriter, req *http.Request) {
+	logrus.Info("Received request to get peer nodes")
+
+	// 获取所有已知的peer节点
+	peers := s.peerMgr.GetPeers()
+	var nodes []response.PeerNodeInfo
+
+	for _, peerAddr := range peers {
+		// 简单的状态检查，这里可以根据需要实现更复杂的健康检查
+		status := "unknown"
+		nodes = append(nodes, response.PeerNodeInfo{
+			Address: peerAddr,
+			Status:  status,
+		})
+	}
+
+	getPeerNodesResponse := response.GetPeerNodesResponse{
+		Nodes: nodes,
+		Total: len(nodes),
+	}
+
+	if err := response.WriteSuccess(w, getPeerNodesResponse); err != nil {
+		logrus.Errorf("Failed to write peer nodes response: %v", err)
+		return
+	}
+	logrus.Debug("Successfully sent peer nodes response")
+}
+
+// handleAddPeerNode 处理添加peer节点请求
+func (s *Server) handleAddPeerNode(w http.ResponseWriter, req *http.Request) {
+	logrus.Info("Received request to add peer node")
+
+	var addReq request.AddPeerNodeRequest
+	if err := json.NewDecoder(req.Body).Decode(&addReq); err != nil {
+		logrus.Errorf("Failed to decode add peer node request: %v", err)
+		response.WriteError(w, http.StatusBadRequest, "invalid request body", err)
+		return
+	}
+
+	// 验证地址格式
+	if addReq.Address == "" {
+		logrus.Error("Peer address is required")
+		response.WriteError(w, http.StatusBadRequest, "peer address is required", nil)
+		return
+	}
+
+	// 添加peer节点
+	s.peerMgr.AddPeers([]string{addReq.Address})
+	logrus.Infof("Added peer node: %s", addReq.Address)
+
+	addPeerResponse := response.AddPeerNodeResponse{
+		Message: "Peer node added successfully",
+		Address: addReq.Address,
+	}
+
+	if err := response.WriteSuccess(w, addPeerResponse); err != nil {
+		logrus.Errorf("Failed to write add peer node response: %v", err)
+		return
+	}
+	logrus.Debug("Successfully sent add peer node response")
+}
+
+// handleRemovePeerNode 处理删除peer节点请求
+func (s *Server) handleRemovePeerNode(w http.ResponseWriter, req *http.Request) {
+	logrus.Info("Received request to remove peer node")
+
+	// 从URL路径中获取peer节点ID（地址）
+	vars := mux.Vars(req)
+	peerAddr := vars["id"]
+
+	if peerAddr == "" {
+		logrus.Error("Peer address is required")
+		response.WriteError(w, http.StatusBadRequest, "peer address is required", nil)
+		return
+	}
+
+	// 删除peer节点
+	removed := s.peerMgr.RemovePeer(peerAddr)
+	if !removed {
+		logrus.Warnf("Peer node not found: %s", peerAddr)
+		response.WriteError(w, http.StatusNotFound, "peer node not found", nil)
+		return
+	}
+
+	logrus.Infof("Removed peer node: %s", peerAddr)
+
+	removePeerResponse := response.RemovePeerNodeResponse{
+		Message: "Peer node removed successfully",
+		Address: peerAddr,
+	}
+
+	if err := response.WriteSuccess(w, removePeerResponse); err != nil {
+		logrus.Errorf("Failed to write remove peer node response: %v", err)
+		return
+	}
+	logrus.Debug("Successfully sent remove peer node response")
 }
