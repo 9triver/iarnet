@@ -1,3 +1,7 @@
+github.com/9triver/ignis v0.0.0-20250510112700-286d2d207e3a h1:6rL32fJKx0S9Yc0DtGJ9aODHQxxRxI1V37z42alu83I=
+github.com/9triver/ignis v0.0.0-20250510112700-286d2d207e3a/go.mod h1:duywGA3XmrqWIHiUa11gJ47xOLFHkkYazMWH5q43yAY=
+github.com/9triver/ignis/ignis-go v0.0.0-20250510112700-286d2d207e3a h1:t0Xknpg4+ThOPrGtaCz0NlNHRMLsBGMPa7Aym4yduDA=
+github.com/9triver/ignis/ignis-go v0.0.0-20250510112700-286d2d207e3a/go.mod h1:SapZP8tAXZQoaPgmtqv+dbXL7c6XQ0OndaEKzIGNRwk=
 github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERoyfY=
 github.com/Microsoft/go-winio v0.6.2/go.mod h1:yd8OoFMLzJbo9gZq8j5qaps8bJ9aShtEA8Ipt1oGCvU=
 github.com/containerd/errdefs v1.0.0 h1:tg5yIfIlQIrxYtu9ajqY42W3lpS19XqdxRQeEwYG8PI=
