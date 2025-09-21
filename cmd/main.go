@@ -13,7 +13,6 @@ import (
 	"github.com/9triver/iarnet/internal/config"
 	"github.com/9triver/iarnet/internal/discovery"
 	"github.com/9triver/iarnet/internal/resource"
-	"github.com/9triver/iarnet/internal/runner"
 	"github.com/9triver/iarnet/internal/server"
 	"github.com/sirupsen/logrus"
 )
@@ -33,22 +32,22 @@ func main() {
 	}
 	logrus.Infof("Running in mode: %s", cfg.Mode)
 
-	var r runner.Runner
-	switch cfg.Mode {
-	case "standalone":
-		r, err = runner.NewStandaloneRunner()
-	case "k8s":
-		r, err = runner.NewK8sRunner()
-	default:
-		log.Fatalf("Invalid mode: %s", cfg.Mode)
-	}
+	// var r runner.Runner
+	// switch cfg.Mode {
+	// case "standalone":
+	// 	r, err = runner.NewStandaloneRunner()
+	// case "k8s":
+	// 	r, err = runner.NewK8sRunner()
+	// default:
+	// 	log.Fatalf("Invalid mode: %s", cfg.Mode)
+	// }
 	if err != nil {
 		log.Fatalf("Runner init: %v", err)
 	}
 
 	rm := resource.NewManager(cfg.ResourceLimits)
 	am := application.NewManager(cfg, rm)
-	
+
 	// 创建并设置代码分析服务
 	analysisService := analysis.NewMockCodeAnalysisService(rm)
 	am.SetAnalysisService(analysisService)
@@ -77,7 +76,7 @@ func main() {
 	}()
 
 	// Start HTTP server
-	srv := server.NewServer(r, rm, am, pm)
+	srv := server.NewServer(rm, am, pm)
 	go func() {
 		if err := srv.Start(cfg.ListenAddr); err != nil {
 			log.Fatalf("HTTP server: %v", err)

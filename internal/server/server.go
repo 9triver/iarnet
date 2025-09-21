@@ -11,7 +11,6 @@ import (
 	"github.com/9triver/iarnet/internal/application"
 	"github.com/9triver/iarnet/internal/discovery"
 	"github.com/9triver/iarnet/internal/resource"
-	"github.com/9triver/iarnet/internal/runner"
 	"github.com/9triver/iarnet/internal/server/request"
 	"github.com/9triver/iarnet/internal/server/response"
 	"github.com/gorilla/mux"
@@ -19,18 +18,17 @@ import (
 )
 
 type Server struct {
-	router *mux.Router
-	runner runner.Runner
-	resMgr *resource.Manager
-	appMgr *application.Manager
+	router  *mux.Router
+	resMgr  *resource.Manager
+	appMgr  *application.Manager
 	peerMgr *discovery.PeerManager
-	ctx    context.Context
-	cancel context.CancelFunc
+	ctx     context.Context
+	cancel  context.CancelFunc
 }
 
-func NewServer(r runner.Runner, rm *resource.Manager, am *application.Manager, pm *discovery.PeerManager) *Server {
+func NewServer(rm *resource.Manager, am *application.Manager, pm *discovery.PeerManager) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
-	s := &Server{router: mux.NewRouter(), runner: r, resMgr: rm, appMgr: am, peerMgr: pm, ctx: ctx, cancel: cancel}
+	s := &Server{router: mux.NewRouter(), resMgr: rm, appMgr: am, peerMgr: pm, ctx: ctx, cancel: cancel}
 	// s.router.HandleFunc("/run", s.handleRun).Methods("POST")
 	s.router.HandleFunc("/resource/capacity", s.handleResourceCapacity).Methods("GET")
 	s.router.HandleFunc("/resource/providers", s.handleResourceProviders).Methods("GET")
@@ -70,22 +68,22 @@ func NewServer(r runner.Runner, rm *resource.Manager, am *application.Manager, p
 }
 
 func (s *Server) handleRun(w http.ResponseWriter, req *http.Request) {
-	var spec runner.ContainerSpec
-	if err := json.NewDecoder(req.Body).Decode(&spec); err != nil {
-		response.WriteError(w, http.StatusBadRequest, "invalid request body", err)
-		return
-	}
-	usageReq := resource.Usage{CPU: spec.CPU, Memory: spec.Memory, GPU: spec.GPU}
-	// if s.resMgr.CanAllocate(usageReq) == nil {
-	// 	response.ServiceUnavailable("Resource limit exceeded").WriteJSON(w)
+	// var spec runner.ContainerSpec
+	// if err := json.NewDecoder(req.Body).Decode(&spec); err != nil {
+	// 	response.WriteError(w, http.StatusBadRequest, "invalid request body", err)
 	// 	return
 	// }
-	if err := s.runner.Run(s.ctx, spec); err != nil {
-		response.WriteError(w, http.StatusInternalServerError, "failed to run container", err)
-		return
-	}
-	s.resMgr.Allocate(usageReq)
-	response.Accepted("Container run request accepted").WriteJSON(w)
+	// usageReq := resource.Usage{CPU: spec.CPU, Memory: spec.Memory, GPU: spec.GPU}
+	// // if s.resMgr.CanAllocate(usageReq) == nil {
+	// // 	response.ServiceUnavailable("Resource limit exceeded").WriteJSON(w)
+	// // 	return
+	// // }
+	// if err := s.runner.Run(s.ctx, spec); err != nil {
+	// 	response.WriteError(w, http.StatusInternalServerError, "failed to run container", err)
+	// 	return
+	// }
+	// s.resMgr.Allocate(usageReq)
+	// response.Accepted("Container run request accepted").WriteJSON(w)
 }
 
 func (s *Server) handleResourceCapacity(w http.ResponseWriter, req *http.Request) {
@@ -779,39 +777,39 @@ func (s *Server) handleDeployComponents(w http.ResponseWriter, req *http.Request
 
 // deployComponent 部署单个组件的辅助函数
 func (s *Server) deployComponent(component *application.Component) error {
-	// 创建容器规格
-	spec := runner.ContainerSpec{
-		Image:   component.Image,
-		CPU:     component.Resources.CPU,
-		Memory:  component.Resources.Memory,
-		GPU:     component.Resources.GPU,
-		EnvVars: component.EnvVars,
-		Ports:   component.Ports,
-	}
+	// // 创建容器规格
+	// spec := runner.ContainerSpec{
+	// 	Image:   component.Image,
+	// 	CPU:     component.Resources.CPU,
+	// 	Memory:  component.Resources.Memory,
+	// 	GPU:     component.Resources.GPU,
+	// 	EnvVars: component.EnvVars,
+	// 	Ports:   component.Ports,
+	// }
 
-	// 检查资源是否可用
-	usageReq := resource.Usage{
-		CPU:    component.Resources.CPU,
-		Memory: component.Resources.Memory,
-		GPU:    component.Resources.GPU,
-	}
+	// // 检查资源是否可用
+	// usageReq := resource.Usage{
+	// 	CPU:    component.Resources.CPU,
+	// 	Memory: component.Resources.Memory,
+	// 	GPU:    component.Resources.GPU,
+	// }
 
-	if err := s.resMgr.CanAllocate(usageReq); err != nil {
-		return fmt.Errorf("insufficient resources: %v", err)
-	}
+	// if err := s.resMgr.CanAllocate(usageReq); err != nil {
+	// 	return fmt.Errorf("insufficient resources: %v", err)
+	// }
 
-	// 运行容器
-	if err := s.runner.Run(s.ctx, spec); err != nil {
-		return fmt.Errorf("failed to run container: %v", err)
-	}
+	// // // 运行容器
+	// // if err := s.runner.Run(s.ctx, spec); err != nil {
+	// // 	return fmt.Errorf("failed to run container: %v", err)
+	// // }
 
-	// 分配资源
-	s.resMgr.Allocate(usageReq)
+	// // 分配资源
+	// s.resMgr.Allocate(usageReq)
 
-	// 更新组件状态
-	component.Status = "running"
-	now := time.Now()
-	component.DeployedAt = &now
+	// // 更新组件状态
+	// component.Status = "running"
+	// now := time.Now()
+	// component.DeployedAt = &now
 
 	return nil
 }
@@ -980,32 +978,32 @@ func (s *Server) handleGetComponentResourceUsage(w http.ResponseWriter, req *htt
 	// 这里需要根据组件ID查询组件的实际资源使用情况
 
 	resourceUsage := map[string]interface{}{
-		"component_id": componentID,
+		"component_id":   componentID,
 		"application_id": appID,
-		"timestamp": time.Now().Unix(),
+		"timestamp":      time.Now().Unix(),
 		"cpu": map[string]interface{}{
 			"usage_percent": 45.2,
-			"cores_used": 1.8,
-			"total_cores": 4,
+			"cores_used":    1.8,
+			"total_cores":   4,
 		},
 		"memory": map[string]interface{}{
-			"usage_bytes": 536870912, // 512MB
+			"usage_bytes":   536870912, // 512MB
 			"usage_percent": 25.6,
-			"total_bytes": 2147483648, // 2GB
+			"total_bytes":   2147483648, // 2GB
 		},
 		"network": map[string]interface{}{
-			"bytes_in": 1048576,  // 1MB
-			"bytes_out": 2097152, // 2MB
-			"packets_in": 1024,
+			"bytes_in":    1048576, // 1MB
+			"bytes_out":   2097152, // 2MB
+			"packets_in":  1024,
 			"packets_out": 2048,
 		},
 		"disk": map[string]interface{}{
-			"read_bytes": 10485760,  // 10MB
-			"write_bytes": 5242880, // 5MB
-			"usage_bytes": 1073741824, // 1GB
+			"read_bytes":    10485760,   // 10MB
+			"write_bytes":   5242880,    // 5MB
+			"usage_bytes":   1073741824, // 1GB
 			"usage_percent": 10.5,
 		},
-		"status": "running",
+		"status":         "running",
 		"uptime_seconds": 9000, // 2.5 hours
 	}
 
@@ -1025,64 +1023,64 @@ func (s *Server) handleGetAllComponentsResourceUsage(w http.ResponseWriter, req 
 
 	// 模拟多个组件的资源使用数据
 	allComponentsUsage := map[string]interface{}{
-		"timestamp": time.Now().Unix(),
+		"timestamp":        time.Now().Unix(),
 		"total_components": 3,
 		"components": []map[string]interface{}{
 			{
-				"component_id": "comp-001",
+				"component_id":   "comp-001",
 				"application_id": "app-001",
-				"name": "web-server",
+				"name":           "web-server",
 				"cpu": map[string]interface{}{
 					"usage_percent": 45.2,
-					"cores_used": 1.8,
-					"total_cores": 4,
+					"cores_used":    1.8,
+					"total_cores":   4,
 				},
 				"memory": map[string]interface{}{
-					"usage_bytes": 536870912,
+					"usage_bytes":   536870912,
 					"usage_percent": 25.6,
-					"total_bytes": 2147483648,
+					"total_bytes":   2147483648,
 				},
 				"status": "running",
 			},
 			{
-				"component_id": "comp-002",
+				"component_id":   "comp-002",
 				"application_id": "app-001",
-				"name": "database",
+				"name":           "database",
 				"cpu": map[string]interface{}{
 					"usage_percent": 23.8,
-					"cores_used": 0.95,
-					"total_cores": 4,
+					"cores_used":    0.95,
+					"total_cores":   4,
 				},
 				"memory": map[string]interface{}{
-					"usage_bytes": 1073741824,
+					"usage_bytes":   1073741824,
 					"usage_percent": 51.2,
-					"total_bytes": 2147483648,
+					"total_bytes":   2147483648,
 				},
 				"status": "running",
 			},
 			{
-				"component_id": "comp-003",
+				"component_id":   "comp-003",
 				"application_id": "app-002",
-				"name": "api-gateway",
+				"name":           "api-gateway",
 				"cpu": map[string]interface{}{
 					"usage_percent": 12.5,
-					"cores_used": 0.5,
-					"total_cores": 4,
+					"cores_used":    0.5,
+					"total_cores":   4,
 				},
 				"memory": map[string]interface{}{
-					"usage_bytes": 268435456,
+					"usage_bytes":   268435456,
 					"usage_percent": 12.8,
-					"total_bytes": 2147483648,
+					"total_bytes":   2147483648,
 				},
 				"status": "running",
 			},
 		},
 		"summary": map[string]interface{}{
-			"total_cpu_usage_percent": 27.2,
-			"total_memory_usage_bytes": 1879048192,
+			"total_cpu_usage_percent":    27.2,
+			"total_memory_usage_bytes":   1879048192,
 			"total_memory_usage_percent": 29.9,
-			"running_components": 3,
-			"stopped_components": 0,
+			"running_components":         3,
+			"stopped_components":         0,
 		},
 	}
 
