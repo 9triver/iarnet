@@ -32,15 +32,6 @@ func main() {
 	}
 	logrus.Infof("Running in mode: %s", cfg.Mode)
 
-	// var r runner.Runner
-	// switch cfg.Mode {
-	// case "standalone":
-	// 	r, err = runner.NewStandaloneRunner()
-	// case "k8s":
-	// 	r, err = runner.NewK8sRunner()
-	// default:
-	// 	log.Fatalf("Invalid mode: %s", cfg.Mode)
-	// }
 	if err != nil {
 		log.Fatalf("Runner init: %v", err)
 	}
