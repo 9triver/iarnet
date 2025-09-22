@@ -1,0 +1,13 @@
+# Lucas + ActorC 示例依赖
+# 
+# 安装方法:
+# pip install -r requirements.txt
+
+# Lucas 框架 (从本地安装)
+# 请确保已经安装了 Lucas 框架
+
+# ActorC 客户端 (从本地安装)
+# 请确保已经安装了 ActorC 客户端
+
+# 基础依赖
+numpy>=1.21.0
