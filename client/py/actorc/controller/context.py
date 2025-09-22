@@ -19,7 +19,10 @@ import threading
 actorContext: "ActorContext | None" = None
 
 
-class ActorContext:
+from abc import ABC
+
+class ActorContext(ABC):
+
     @staticmethod
     def createContext(master_address: str = "localhost:50051"):
         global actorContext
@@ -40,11 +43,13 @@ class ActorContext:
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
 
+    @abstractmethod
     def _generate(self):
         while True:
             msg = self._q.get()
             yield msg
 
+    @abstractmethod
     def _run(self):
         while True:
             for response in self._response_stream:
@@ -59,9 +64,11 @@ class ActorContext:
                     self._result_map[key] = value
             time.sleep(1)
 
+    @abstractmethod
     def get_result(self, key: str) -> platform_pb2.Flow:
         return self._result_map.get(key)
 
+    @abstractmethod
     def send(self, message: controller_pb2.Message):
         self._q.put(message)
 

@@ -8,5 +8,16 @@ PROTO_PATH = os.path.join(PACKAGE_PATH, "protos")
 
 sys.path.append(PROTO_PATH)
 
+# 导入新的接口和类
+from .controller.base import IActorContext, ActorContextConfig
+from .controller.factory import ActorContextFactory, EnvironmentDetector
+from .controller.context import ActorContext
 
-__all__ = ["PROTO_PATH"]
+__all__ = [
+    "PROTO_PATH",
+    "IActorContext", 
+    "ActorContextConfig",
+    "ActorContextFactory",
+    "EnvironmentDetector", 
+    "ActorContext"
+]

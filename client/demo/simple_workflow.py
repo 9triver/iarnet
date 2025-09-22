@@ -22,8 +22,9 @@ from actorc.controller.context import (
 )
 
 # 创建 ActorC 上下文连接
-# 注意：确保 ActorC 服务运行在 localhost:8082
-context = ActorContext.createContext("localhost:8082")
+# 新版本支持自动环境检测，无需手动指定地址
+# 会根据当前环境（本地/Docker/Kubernetes）自动选择合适的连接方式
+context = ActorContext.createContext()
 
 
 @function(
