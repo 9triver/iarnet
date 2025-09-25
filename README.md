@@ -14,6 +14,10 @@
 
 
 ## Build
+
+cd ./external/runner
+docker build -t iarnet-app-runner:latest .
+
 go build -o cps ./cmd
 
 ## Run Standalone

@@ -20,6 +20,8 @@ import (
 	"github.com/9triver/iarnet/internal/server/request"
 	"github.com/9triver/iarnet/proto"
 	"github.com/9triver/ignis/platform"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/client"
 	"github.com/sirupsen/logrus"
 )
 
@@ -38,6 +40,8 @@ type Manager struct {
 	resourceManager *resource.Manager
 	analysisService CodeAnalysisService
 	ignisPlatform   *platform.Platform
+	dockerClient    *client.Client
+	runnerImage     string
 }
 
 // CodeBrowserInfo 代码浏览器信息
@@ -51,6 +55,23 @@ type CodeBrowserInfo struct {
 }
 
 func NewManager(config *config.Config, resourceManager *resource.Manager, ignisPlatform *platform.Platform) *Manager {
+
+	// 连接本地docker
+	cli, err := client.NewClientWithOpts(client.FromEnv)
+	if err != nil {
+		logrus.Errorf("Failed to create docker client: %v", err)
+		return nil
+	}
+
+	// 测试docker连接
+	_, err = cli.Ping(context.Background())
+	if err != nil {
+		logrus.Errorf("Failed to ping docker daemon: %v", err)
+		return nil
+	}
+
+	logrus.Info("Successfully connected to docker daemon")
+
 	m := &Manager{
 		applications:    make(map[string]*AppRef),
 		applicationDAGs: make(map[string]*ApplicationDAG),
@@ -59,7 +80,9 @@ func NewManager(config *config.Config, resourceManager *resource.Manager, ignisP
 		codeBrowsers:    make(map[string]*CodeBrowserInfo),
 		resourceManager: resourceManager,
 		ignisPlatform:   ignisPlatform,
+		dockerClient:    cli,
 	}
+
 	// analysisService will be set via SetAnalysisService method
 	return m
 }
@@ -69,39 +92,67 @@ func (m *Manager) SetAnalysisService(service CodeAnalysisService) {
 	m.analysisService = service
 }
 
-// CloneGitRepository 克隆Git仓库到本地目录
-func (m *Manager) CloneGitRepository(gitUrl, branch, appID string) (string, error) {
-	// 从配置中获取工作目录，如果未配置则使用默认值
-	workspaceBaseDir := m.config.WorkspaceDir
-	if workspaceBaseDir == "" {
-		workspaceBaseDir = "./workspaces"
-		logrus.Warn("WorkspaceDir not configured, using default: ./workspaces")
+// RunApplication 克隆Git仓库到本地目录
+func (m *Manager) RunApplication(appID string) error {
+	app, err := m.GetApplication(appID)
+	if err != nil {
+		return fmt.Errorf("failed to get application: %w", err)
 	}
 
-	// 创建应用专用的工作目录
-	workDir := filepath.Join(workspaceBaseDir, appID)
-	if err := os.MkdirAll(workDir, 0755); err != nil {
-		return "", fmt.Errorf("failed to create workspace directory: %v", err)
+	if app.ContainerID == nil {
+		logrus.Infof("Application %s has not created container", appID)
+	} else {
+		logrus.Infof("Application %s has container ID %s", appID, *app.ContainerID)
+		err = m.dockerClient.ContainerRemove(context.Background(), *app.ContainerID, container.RemoveOptions{
+			Force: true,
+		})
+		if err != nil {
+			logrus.Errorf("Failed to remove container %s: %v", *app.ContainerID, err)
+			return fmt.Errorf("failed to remove container: %w", err)
+		} else {
+			logrus.Infof("Successfully removed container %s", *app.ContainerID)
+		}
 	}
 
-	logrus.Infof("Cloning repository %s (branch: %s) to %s", gitUrl, branch, workDir)
-
-	// 执行git clone命令
-	cmd := exec.Command("git", "clone", "-b", branch, "--single-branch", gitUrl, workDir)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		// 如果克隆失败，清理目录
-		os.RemoveAll(workDir)
-		return "", fmt.Errorf("failed to clone repository: %v", err)
+	// 创建容器
+	containerID, err := m.dockerClient.ContainerCreate(context.TODO(), &container.Config{
+		Image: m.config.RunnerImage,
+		Env:   []string{"APP_ID=" + appID, "IGNIS_PORT=" + m.config.Ignis.Port, "EXECUTE_CMD=" + *app.ExecuteCmd},
+	}, nil, nil, nil, "")
+	if err != nil {
+		logrus.Errorf("Failed to create container for application %s: %v", appID, err)
+		return fmt.Errorf("failed to create container: %w", err)
 	}
 
-	logrus.Infof("Successfully cloned repository to %s", workDir)
-	return workDir, nil
+	app.ContainerID = &containerID.ID
+
+	return nil
 }
 
-func (m *Manager) CreateApplication(createReq *request.CreateApplicationRequest) *AppRef {
+// StopApplication 停止应用容器
+func (m *Manager) StopApplication(appID string) error {
+	app, err := m.GetApplication(appID)
+	if err != nil {
+		return fmt.Errorf("failed to get application: %w", err)
+	}
+
+	if app.ContainerID == nil {
+		logrus.Infof("Application %s is not running", appID)
+	} else {
+		logrus.Infof("Application %s is running, container ID: %s", appID, *app.ContainerID)
+		err = m.dockerClient.ContainerStop(context.Background(), *app.ContainerID, container.StopOptions{})
+		if err != nil {
+			logrus.Errorf("Failed to stop container %s: %v", *app.ContainerID, err)
+			return fmt.Errorf("failed to stop container: %w", err)
+		} else {
+			logrus.Infof("Successfully stopped container %s", *app.ContainerID)
+		}
+	}
+
+	return nil
+}
+
+func (m *Manager) CreateApplication(createReq *request.CreateApplicationRequest) (*AppRef, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	appID := strconv.Itoa(m.nextAppID)
@@ -115,12 +166,41 @@ func (m *Manager) CreateApplication(createReq *request.CreateApplicationRequest)
 		Branch:      createReq.Branch,
 		Description: createReq.Description,
 		Ports:       createReq.Ports,
+		ContainerID: nil,
 		HealthCheck: createReq.HealthCheck,
 	}
 	m.applications[appID] = app
 	logrus.Infof("Application created in manager: ID=%s, Name=%s, Status=%s", appID, createReq.Name, app.Status)
 
-	return app
+	// 从配置中获取工作目录，如果未配置则使用默认值
+	workspaceBaseDir := m.config.WorkspaceDir
+	if workspaceBaseDir == "" {
+		workspaceBaseDir = "./workspaces"
+		logrus.Warn("WorkspaceDir not configured, using default: ./workspaces")
+	}
+
+	// 创建应用专用的工作目录
+	workDir := filepath.Join(workspaceBaseDir, appID)
+	if err := os.MkdirAll(workDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create workspace directory: %v", err)
+	}
+
+	logrus.Infof("Cloning repository %s (branch: %s) to %s", *createReq.GitUrl, *createReq.Branch, workDir)
+
+	// 执行git clone命令
+	cmd := exec.Command("git", "clone", "-b", *createReq.Branch, "--single-branch", *createReq.GitUrl, workDir)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		// 如果克隆失败，清理目录
+		os.RemoveAll(workDir)
+		return nil, fmt.Errorf("failed to clone repository: %v", err)
+	}
+
+	logrus.Infof("Successfully cloned repository to %s", workDir)
+
+	return app, nil
 }
 
 func (m *Manager) GetApplication(appID string) (*AppRef, error) {

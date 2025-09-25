@@ -279,12 +279,17 @@ func (s *Server) handleCreateApplication(w http.ResponseWriter, req *http.Reques
 
 	// 创建应用
 	logrus.Infof("Creating application instance for: %s", createReq.Name)
-	app := s.appMgr.CreateApplication(&createReq)
+	app, err := s.appMgr.CreateApplication(&createReq)
+	if err != nil {
+		logrus.Errorf("Failed to create application instance: %v", err)
+		response.WriteError(w, http.StatusInternalServerError, "failed to create application instance", err)
+		return
+	}
 	logrus.Infof("Application created with ID: %s", app.ID)
 
 	// 克隆Git仓库
 	logrus.Infof("Cloning Git repository for application %s", app.ID)
-	workDir, err := s.appMgr.CloneGitRepository(*createReq.GitUrl, *createReq.Branch, app.ID)
+	err = s.appMgr.RunApplication(app.ID)
 	if err != nil {
 		logrus.Errorf("Failed to clone Git repository for application %s: %v", app.ID, err)
 		// 更新应用状态为失败

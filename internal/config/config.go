@@ -14,10 +14,11 @@ type Config struct {
 	ResourceLimits map[string]string `yaml:"resource_limits"`  // e.g., {"cpu": "4", "memory": "8Gi", "gpu": "2"}
 	WorkspaceDir   string            `yaml:"workspace_dir"`    // e.g., "./workspaces" - directory for git repositories
 	Ignis          IgnisConfig       `yaml:"ignis"`            // Ignis integration configuration
+	RunnerImage    string            `yaml:"runner_image"`     // e.g., "python:3.11-alpine" - image to use for runner containers
 }
 
 type IgnisConfig struct {
-	MasterAddress string `yaml:"master_address"` // e.g., "localhost:50051"
+	Port string `yaml:"port"` // e.g., "50051"
 }
 
 func LoadConfig(file string) (*Config, error) {

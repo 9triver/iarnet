@@ -10,4 +10,4 @@ resource_limits:
   gpu: "4"      # Total GPUs
 workspace_dir: "../workspaces"  # Directory for storing cloned git repositories
 ignis:
-  master_address: "localhost:50051"
+  port: "50001"

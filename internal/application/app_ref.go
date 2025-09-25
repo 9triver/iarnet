@@ -39,7 +39,9 @@ type AppRef struct {
 	Description  *string
 	Ports        []int
 	HealthCheck  *string
+	ContainerID  *string
 	LastDeployed time.Time
+	ExecuteCmd   *string
 }
 
 func (a *AppRef) GetRunningOn() []string {
