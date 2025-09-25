@@ -19,6 +19,7 @@ import (
 	"github.com/9triver/iarnet/internal/resource"
 	"github.com/9triver/iarnet/internal/server/request"
 	"github.com/9triver/iarnet/proto"
+	"github.com/9triver/ignis/platform"
 	"github.com/sirupsen/logrus"
 )
 
@@ -36,6 +37,7 @@ type Manager struct {
 	codeBrowsers    map[string]*CodeBrowserInfo // appID -> 代码浏览器信息
 	resourceManager *resource.Manager
 	analysisService CodeAnalysisService
+	ignisPlatform   *platform.Platform
 }
 
 // CodeBrowserInfo 代码浏览器信息
@@ -48,7 +50,7 @@ type CodeBrowserInfo struct {
 	Cmd       *exec.Cmd `json:"-"`
 }
 
-func NewManager(config *config.Config, resourceManager *resource.Manager) *Manager {
+func NewManager(config *config.Config, resourceManager *resource.Manager, ignisPlatform *platform.Platform) *Manager {
 	m := &Manager{
 		applications:    make(map[string]*AppRef),
 		applicationDAGs: make(map[string]*ApplicationDAG),
@@ -56,6 +58,7 @@ func NewManager(config *config.Config, resourceManager *resource.Manager) *Manag
 		config:          config,
 		codeBrowsers:    make(map[string]*CodeBrowserInfo),
 		resourceManager: resourceManager,
+		ignisPlatform:   ignisPlatform,
 	}
 	// analysisService will be set via SetAnalysisService method
 	return m
