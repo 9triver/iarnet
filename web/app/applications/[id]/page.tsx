@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { CodeEditor } from "@/components/code-editor"
 import {
   ArrowLeft,
@@ -28,6 +29,7 @@ import {
   Cpu,
   MemoryStick,
   HardDrive,
+  FileText,
 } from "lucide-react"
 
 interface CodeBrowserInfo {
@@ -87,6 +89,10 @@ export default function ApplicationDetailPage() {
   const [error, setError] = useState<string | null>(null)
   const [codeBrowserStatus, setCodeBrowserStatus] = useState<CodeBrowserInfo | null>(null)
   const [isStartingCodeBrowser, setIsStartingCodeBrowser] = useState(false)
+  const [logs, setLogs] = useState<string[]>([])
+  const [isLoadingLogs, setIsLoadingLogs] = useState(false)
+  const [logLines, setLogLines] = useState(100)
+  const [activeTab, setActiveTab] = useState("components")
 
   const applicationId = params.id as string
 
@@ -94,6 +100,21 @@ export default function ApplicationDetailPage() {
     loadApplicationDetail()
     loadComponents()
   }, [applicationId])
+
+  // 当日志行数改变时重新加载日志
+  useEffect(() => {
+    if (applicationId && activeTab === "logs") {
+      loadLogs()
+    }
+  }, [logLines])
+
+  // 处理标签页切换
+  const handleTabChange = (value: string) => {
+    setActiveTab(value)
+    if (value === "logs" && applicationId) {
+      loadLogs()
+    }
+  }
 
   // 组件类型图标
   const getComponentTypeIcon = (type: Component["type"]) => {
@@ -269,6 +290,21 @@ export default function ApplicationDetailPage() {
       await loadCodeBrowserStatus()
     } catch (err) {
       console.error('Failed to stop code browser:', err)
+    }
+  }
+
+  const loadLogs = async () => {
+    if (!applicationId) return
+    
+    try {
+      setIsLoadingLogs(true)
+      const response = await applicationsAPI.getLogs(applicationId, logLines)
+      setLogs(response.logs || [])
+    } catch (err) {
+      console.error('Failed to load logs:', err)
+      setLogs([])
+    } finally {
+      setIsLoadingLogs(false)
     }
   }
 
@@ -557,11 +593,15 @@ export default function ApplicationDetailPage() {
           </Card>
 
           {/* Tabs */}
-          <Tabs defaultValue="components" className="space-y-4">
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
             <TabsList>
               <TabsTrigger value="components" className="flex items-center space-x-2">
                 <Package className="h-4 w-4" />
                 <span>组件管理</span>
+              </TabsTrigger>
+              <TabsTrigger value="logs" className="flex items-center space-x-2">
+                <FileText className="h-4 w-4" />
+                <span>应用日志</span>
               </TabsTrigger>
               <TabsTrigger value="code" className="flex items-center space-x-2">
                 <Code className="h-4 w-4" />
@@ -730,6 +770,64 @@ export default function ApplicationDetailPage() {
                       </TabsContent>
                     </Tabs>
                   )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="logs">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="flex items-center space-x-2">
+                        <FileText className="h-5 w-5" />
+                        <span>应用日志</span>
+                      </CardTitle>
+                      <CardDescription>
+                        查看应用运行时的实时日志输出
+                      </CardDescription>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Select value={logLines.toString()} onValueChange={(value) => setLogLines(Number(value))}>
+                        <SelectTrigger className="w-32">
+                          <SelectValue placeholder="选择行数" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="50">最近 50 行</SelectItem>
+                          <SelectItem value="100">最近 100 行</SelectItem>
+                          <SelectItem value="200">最近 200 行</SelectItem>
+                          <SelectItem value="500">最近 500 行</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button variant="outline" size="sm" onClick={loadLogs} disabled={isLoadingLogs}>
+                        <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingLogs ? 'animate-spin' : ''}`} />
+                        刷新
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <ScrollArea className="h-[500px] w-full border rounded-md p-4 bg-gray-50 dark:bg-gray-900">
+                    {isLoadingLogs ? (
+                      <div className="flex items-center justify-center h-32">
+                        <RefreshCw className="h-6 w-6 animate-spin mr-2" />
+                        <span>加载日志中...</span>
+                      </div>
+                    ) : logs.length > 0 ? (
+                      <div className="space-y-1">
+                        {logs.map((log, index) => (
+                          <div key={index} className="text-sm font-mono text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
+                            {log}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center h-32 text-muted-foreground">
+                        <FileText className="h-8 w-8 mr-2 opacity-50" />
+                        <span>暂无日志数据</span>
+                      </div>
+                    )}
+                  </ScrollArea>
                 </CardContent>
               </Card>
             </TabsContent>

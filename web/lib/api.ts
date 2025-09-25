@@ -105,6 +105,33 @@ export const applicationsAPI = {
     apiRequest<GetFileTreeResponse>(`/application/apps/${id}/files${path ? `?path=${encodeURIComponent(path)}` : ''}`),
   getFileContent: (id: string, filePath: string) =>
     apiRequest<GetFileContentResponse>(`/application/apps/${id}/files/content?path=${encodeURIComponent(filePath)}`),
+  saveFileContent: (id: string, filePath: string, content: string) =>
+    apiRequest<SaveFileResponse>(`/application/apps/${id}/files/content?path=${encodeURIComponent(filePath)}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        content,
+      }),
+    }),
+  createFile: (id: string, filePath: string) =>
+    apiRequest<CreateFileResponse>(`/application/apps/${id}/files`, {
+      method: "POST",
+      body: JSON.stringify({ filePath }),
+    }),
+  deleteFile: (id: string, filePath: string) =>
+    apiRequest<DeleteFileResponse>(`/application/apps/${id}/files`, {
+      method: "DELETE",
+      body: JSON.stringify({ filePath }),
+    }),
+  createDirectory: (id: string, dirPath: string) =>
+    apiRequest<CreateDirectoryResponse>(`/application/apps/${id}/directories`, {
+      method: "POST",
+      body: JSON.stringify({ dirPath }),
+    }),
+  deleteDirectory: (id: string, dirPath: string) =>
+    apiRequest<DeleteDirectoryResponse>(`/application/apps/${id}/directories`, {
+      method: "DELETE",
+      body: JSON.stringify({ dirPath }),
+    }),
   // Actor组件相关API
   getComponents: (id: string) =>
     apiRequest(`/application/apps/${id}/components`),

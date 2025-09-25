@@ -47,6 +47,11 @@ func NewServer(rm *resource.Manager, am *application.Manager, pm *discovery.Peer
 	// s.router.HandleFunc("/application/apps/{id}/code-browser/status", s.handleGetCodeBrowserStatus).Methods("GET")
 	s.router.HandleFunc("/application/apps/{id}/files", s.handleGetFileTree).Methods("GET")
 	s.router.HandleFunc("/application/apps/{id}/files/content", s.handleGetFileContent).Methods("GET")
+	s.router.HandleFunc("/application/apps/{id}/files/content", s.handleSaveFileContent).Methods("PUT")
+	s.router.HandleFunc("/application/apps/{id}/files", s.handleCreateFile).Methods("POST")
+	s.router.HandleFunc("/application/apps/{id}/files", s.handleDeleteFile).Methods("DELETE")
+	s.router.HandleFunc("/application/apps/{id}/directories", s.handleCreateDirectory).Methods("POST")
+	s.router.HandleFunc("/application/apps/{id}/directories", s.handleDeleteDirectory).Methods("DELETE")
 
 	// 组件相关API
 	s.router.HandleFunc("/application/apps/{id}/components", s.handleGetApplicationComponents).Methods("GET")
@@ -193,6 +198,147 @@ func (s *Server) handleResourceProviders(w http.ResponseWriter, req *http.Reques
 	}
 
 	if err := response.WriteSuccess(w, getResourceProvidersResponse); err != nil {
+		logrus.Errorf("Failed to write response: %v", err)
+	}
+}
+
+// handleSaveFileContent 保存文件内容
+func (s *Server) handleSaveFileContent(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	appID := vars["id"]
+	filePath := req.URL.Query().Get("path")
+
+	if filePath == "" {
+		response.WriteError(w, http.StatusBadRequest, "file path is required", nil)
+		return
+	}
+
+	var saveReq request.SaveFileRequest
+	if err := json.NewDecoder(req.Body).Decode(&saveReq); err != nil {
+		response.WriteError(w, http.StatusBadRequest, "invalid request body", err)
+		return
+	}
+
+	err := s.appMgr.SaveFileContent(appID, filePath, saveReq.Content)
+	if err != nil {
+		response.WriteError(w, http.StatusInternalServerError, "failed to save file", err)
+		return
+	}
+
+	saveResponse := response.SaveFileResponse{
+		Message:  "File saved successfully",
+		FilePath: filePath,
+	}
+
+	if err := response.WriteSuccess(w, saveResponse); err != nil {
+		logrus.Errorf("Failed to write response: %v", err)
+	}
+}
+
+// handleCreateFile 创建新文件
+func (s *Server) handleCreateFile(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	appID := vars["id"]
+
+	var createReq request.CreateFileRequest
+	if err := json.NewDecoder(req.Body).Decode(&createReq); err != nil {
+		response.WriteError(w, http.StatusBadRequest, "invalid request body", err)
+		return
+	}
+
+	err := s.appMgr.CreateFile(appID, createReq.FilePath)
+	if err != nil {
+		response.WriteError(w, http.StatusInternalServerError, "failed to create file", err)
+		return
+	}
+
+	createResponse := response.CreateFileResponse{
+		Message:  "File created successfully",
+		FilePath: createReq.FilePath,
+	}
+
+	if err := response.WriteSuccess(w, createResponse); err != nil {
+		logrus.Errorf("Failed to write response: %v", err)
+	}
+}
+
+// handleDeleteFile 删除文件
+func (s *Server) handleDeleteFile(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	appID := vars["id"]
+	filePath := req.URL.Query().Get("path")
+
+	if filePath == "" {
+		response.WriteError(w, http.StatusBadRequest, "file path is required", nil)
+		return
+	}
+
+	err := s.appMgr.DeleteFile(appID, filePath)
+	if err != nil {
+		response.WriteError(w, http.StatusInternalServerError, "failed to delete file", err)
+		return
+	}
+
+	deleteResponse := response.DeleteFileResponse{
+		Message:  "File deleted successfully",
+		FilePath: filePath,
+	}
+
+	if err := response.WriteSuccess(w, deleteResponse); err != nil {
+		logrus.Errorf("Failed to write response: %v", err)
+	}
+}
+
+// handleCreateDirectory 创建新目录
+func (s *Server) handleCreateDirectory(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	appID := vars["id"]
+
+	var createReq request.CreateDirectoryRequest
+	if err := json.NewDecoder(req.Body).Decode(&createReq); err != nil {
+		response.WriteError(w, http.StatusBadRequest, "invalid request body", err)
+		return
+	}
+
+	err := s.appMgr.CreateDirectory(appID, createReq.DirectoryPath)
+	if err != nil {
+		response.WriteError(w, http.StatusInternalServerError, "failed to create directory", err)
+		return
+	}
+
+	createResponse := response.CreateDirectoryResponse{
+		Message:       "Directory created successfully",
+		DirectoryPath: createReq.DirectoryPath,
+	}
+
+	if err := response.WriteSuccess(w, createResponse); err != nil {
+		logrus.Errorf("Failed to write response: %v", err)
+	}
+}
+
+// handleDeleteDirectory 删除目录
+func (s *Server) handleDeleteDirectory(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	appID := vars["id"]
+	dirPath := req.URL.Query().Get("path")
+
+	if dirPath == "" {
+		response.WriteError(w, http.StatusBadRequest, "directory path is required", nil)
+		return
+	}
+
+	err := s.appMgr.DeleteDirectory(appID, dirPath)
+	if err != nil {
+		response.WriteError(w, http.StatusInternalServerError, "failed to delete directory", err)
+		return
+	}
+
+	deleteResponse := response.DeleteDirectoryResponse{
+		Message:       "Directory deleted successfully",
+		DirectoryPath: dirPath,
+	}
+
+	if err := response.WriteSuccess(w, deleteResponse); err != nil {
 		logrus.Errorf("Failed to write response: %v", err)
 	}
 }
@@ -371,8 +517,8 @@ func (s *Server) handleGetApplicationLogs(w http.ResponseWriter, req *http.Reque
 		return
 	}
 
-	// 模拟日志数据（实际应该从容器运行时获取）
-	logs, err := app.GetLogs(lines)
+	// 从Docker容器获取真实日志
+	logs, err := s.appMgr.GetApplicationLogs(appID, lines)
 	if err != nil {
 		logrus.Errorf("Failed to get logs for application %s: %v", appID, err)
 		response.WriteError(w, http.StatusInternalServerError, "failed to get logs", err)

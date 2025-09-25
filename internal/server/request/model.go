@@ -38,3 +38,19 @@ type K8sProviderConfig struct {
 type AddPeerNodeRequest struct {
 	Address string `json:"address"` // peer节点地址，格式: host:port
 }
+
+// SaveFileRequest 保存文件请求结构
+type SaveFileRequest struct {
+	Content string `json:"content"` // 文件内容
+}
+
+// CreateFileRequest 创建文件请求结构
+type CreateFileRequest struct {
+	FilePath string `json:"filePath"` // 文件路径
+	Content  string `json:"content"`  // 文件内容
+}
+
+// CreateDirectoryRequest 创建目录请求结构
+type CreateDirectoryRequest struct {
+	DirectoryPath string `json:"directoryPath"` // 目录路径
+}

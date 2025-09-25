@@ -5,9 +5,23 @@ import Editor from '@monaco-editor/react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
-import { ChevronRight, ChevronDown, File, Folder, Code } from 'lucide-react'
+import { ChevronRight, ChevronDown, File, Folder, Code, Save, Plus, Trash } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { applicationsAPI } from '@/lib/api'
+import { toast } from 'sonner'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
 
 interface FileContent {
@@ -30,6 +44,8 @@ interface FileTreeItemProps {
   onFolderToggle: (path: string) => void
   expandedFolders: Set<string>
   selectedFile?: string
+  onFileDelete: (path: string, isDir: boolean) => void
+  onFileCreate: (path: string, isDir: boolean) => void
 }
 
 const FileTreeItem: React.FC<FileTreeItemProps> = ({
@@ -38,7 +54,9 @@ const FileTreeItem: React.FC<FileTreeItemProps> = ({
   onFileSelect,
   onFolderToggle,
   expandedFolders,
-  selectedFile
+  selectedFile,
+  onFileDelete,
+  onFileCreate
 }) => {
   const isExpanded = expandedFolders.has(file.path)
   const isSelected = selectedFile === file.path
@@ -77,6 +95,83 @@ const FileTreeItem: React.FC<FileTreeItemProps> = ({
         </>
       )}
       <span className="truncate">{file.name}</span>
+      <div className="flex-grow" />
+      {file.is_dir && (
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-muted-foreground hover:bg-transparent hover:text-foreground"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Plus className="h-3 w-3" />
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>创建新文件/文件夹</AlertDialogTitle>
+              <AlertDialogDescription>
+                在 <span className="font-semibold">{file.path}</span> 中创建新文件或文件夹。
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="name" className="text-right">
+                  名称
+                </Label>
+                <Input id="name" defaultValue="" className="col-span-3" />
+              </div>
+              <div className="flex items-center space-x-2">
+                <input type="radio" id="file" name="type" value="file" defaultChecked />
+                <Label htmlFor="file">文件</Label>
+                <input type="radio" id="folder" name="type" value="folder" />
+                <Label htmlFor="folder">文件夹</Label>
+              </div>
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel>取消</AlertDialogCancel>
+              <AlertDialogAction onClick={() => {
+                const nameInput = document.getElementById('name') as HTMLInputElement
+                const typeInputs = document.getElementsByName('type') as NodeListOf<HTMLInputElement>
+                let type = 'file'
+                typeInputs.forEach(input => {
+                  if (input.checked) {
+                    type = input.value
+                  }
+                })
+                if (nameInput.value) {
+                  onFileCreate(`${file.path}/${nameInput.value}`, type === 'folder')
+                }
+              }}>创建</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 text-muted-foreground hover:bg-transparent hover:text-foreground"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Trash className="h-3 w-3" />
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除</AlertDialogTitle>
+            <AlertDialogDescription>
+              您确定要删除 <span className="font-semibold">{file.path}</span> 吗？此操作不可撤销。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={() => onFileDelete(file.path, file.is_dir)}>删除</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
@@ -88,6 +183,8 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ appId, className }) => {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['/']))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [editorContent, setEditorContent] = useState<string | undefined>(undefined)
+  const [isDirty, setIsDirty] = useState(false)
 
   // 获取文件树
   const fetchFileTree = async (path: string = '/') => {
@@ -122,7 +219,9 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ appId, className }) => {
          mod_time: '', // 文件内容接口不返回mod_time
          language: result.language
        })
+       setEditorContent(result.content)
        setSelectedFilePath(filePath)
+       setIsDirty(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
@@ -130,8 +229,80 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ appId, className }) => {
     }
   }
 
+  // 保存文件内容
+  const handleSaveFile = async () => {
+    if (!currentFile || editorContent === undefined) return
+
+    try {
+      setLoading(true)
+      await applicationsAPI.saveFileContent(appId, currentFile.path, editorContent)
+      toast.success('文件保存成功')
+      setIsDirty(false)
+      // 重新获取文件内容以更新mod_time等信息
+      fetchFileContent(currentFile.path)
+    } catch (err) {
+      toast.error('文件保存失败', { description: err instanceof Error ? err.message : '未知错误' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // 创建文件/目录
+  const handleCreateFileOrDirectory = async (path: string, isDir: boolean) => {
+    try {
+      setLoading(true)
+      if (isDir) {
+        await applicationsAPI.createDirectory(appId, path)
+        toast.success(`目录 ${path} 创建成功`)
+      } else {
+        await applicationsAPI.createFile(appId, path)
+        toast.success(`文件 ${path} 创建成功`)
+      }
+      // 刷新父目录的文件树
+      const parentPath = path.substring(0, path.lastIndexOf('/')) || '/'
+      fetchFileTree(parentPath)
+    } catch (err) {
+      toast.error('创建失败', { description: err instanceof Error ? err.message : '未知错误' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // 删除文件/目录
+  const handleDeleteFileOrDirectory = async (path: string, isDir: boolean) => {
+    try {
+      setLoading(true)
+      if (isDir) {
+        await applicationsAPI.deleteDirectory(appId, path)
+        toast.success(`目录 ${path} 删除成功`)
+      } else {
+        await applicationsAPI.deleteFile(appId, path)
+        toast.success(`文件 ${path} 删除成功`)
+      }
+      // 刷新父目录的文件树
+      const parentPath = path.substring(0, path.lastIndexOf('/')) || '/'
+      fetchFileTree(parentPath)
+      // 如果删除的是当前打开的文件，则清空编辑器
+      if (selectedFilePath === path) {
+        setCurrentFile(null)
+        setSelectedFilePath(undefined)
+        setEditorContent(undefined)
+        setIsDirty(false)
+      }
+    } catch (err) {
+      toast.error('删除失败', { description: err instanceof Error ? err.message : '未知错误' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
   // 处理文件选择
   const handleFileSelect = (filePath: string) => {
+    if (isDirty) {
+      // 提示用户保存或放弃更改
+      // 暂时直接切换，后续可以添加确认弹窗
+      console.warn('当前文件有未保存的更改，已放弃。')
+    }
     fetchFileContent(filePath)
   }
 
@@ -165,6 +336,8 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ appId, className }) => {
           onFolderToggle={handleFolderToggle}
           expandedFolders={expandedFolders}
           selectedFile={selectedFilePath}
+          onFileDelete={handleDeleteFileOrDirectory}
+          onFileCreate={handleCreateFileOrDirectory}
         />
       )
       
@@ -210,12 +383,21 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ appId, className }) => {
         {currentFile ? (
           <>
             {/* 文件标签栏 */}
-            <div className="p-3 border-b bg-background">
+            <div className="p-3 border-b bg-background flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <File className="h-4 w-4" />
                 <span className="font-medium">{currentFile.path}</span>
-                <span className="text-sm text-muted-foreground">({currentFile.size} bytes)</span>
+                {isDirty && <span className="text-sm text-orange-500">(未保存)</span>}
               </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleSaveFile}
+                disabled={!isDirty || loading}
+              >
+                <Save className="h-4 w-4 mr-2" />
+                保存
+              </Button>
             </div>
             
             {/* Monaco Editor */}
@@ -223,7 +405,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ appId, className }) => {
               <Editor
                 height="100%"
                 language={currentFile.language}
-                value={currentFile.content}
+                value={editorContent}
                 theme="vs"
                 options={{
                   readOnly: false,
@@ -238,6 +420,12 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ appId, className }) => {
                   lineDecorationsWidth: 10,
                   lineNumbersMinChars: 3,
                   glyphMargin: false,
+                }}
+                onMount={(editor) => {
+                  editor.onDidChangeModelContent(() => {
+                    setEditorContent(editor.getValue())
+                    setIsDirty(true)
+                  })
                 }}
                 loading={<div className="flex items-center justify-center h-full">加载编辑器...</div>}
               />

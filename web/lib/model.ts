@@ -89,3 +89,28 @@ interface GetFileContentResponse {
   language: string
   path: string
 }
+
+interface SaveFileResponse {
+  message: string
+  filePath: string
+}
+
+interface CreateFileResponse {
+  message: string
+  filePath: string
+}
+
+interface DeleteFileResponse {
+  message: string
+  filePath: string
+}
+
+interface CreateDirectoryResponse {
+  message: string
+  directoryPath: string
+}
+
+interface DeleteDirectoryResponse {
+  message: string
+  directoryPath: string
+}

@@ -136,6 +136,162 @@ func (m *Manager) RunApplication(appID string) error {
 	return nil
 }
 
+// SaveFileContent 保存文件内容
+func (m *Manager) SaveFileContent(appID, filePath, content string) error {
+	m.mu.RLock()
+	app, exists := m.applications[appID]
+	m.mu.RUnlock()
+
+	if !exists {
+		return fmt.Errorf("application %s not found", appID)
+	}
+
+	// 构建完整的文件路径
+	fullPath := filepath.Join(*app.CodeDir, filePath)
+
+	// 确保目录存在
+	dir := filepath.Dir(fullPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory: %v", err)
+	}
+
+	// 写入文件内容
+	if err := ioutil.WriteFile(fullPath, []byte(content), 0644); err != nil {
+		return fmt.Errorf("failed to save file: %v", err)
+	}
+
+	logrus.Infof("Saved file: %s for application %s", filePath, appID)
+	return nil
+}
+
+// CreateFile 创建新文件
+func (m *Manager) CreateFile(appID, filePath string) error {
+	m.mu.RLock()
+	app, exists := m.applications[appID]
+	m.mu.RUnlock()
+
+	if !exists {
+		return fmt.Errorf("application %s not found", appID)
+	}
+
+	// 构建完整的文件路径
+	fullPath := filepath.Join(*app.CodeDir, filePath)
+
+	// 检查文件是否已存在
+	if _, err := os.Stat(fullPath); err == nil {
+		return fmt.Errorf("file already exists: %s", filePath)
+	}
+
+	// 确保目录存在
+	dir := filepath.Dir(fullPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory: %v", err)
+	}
+
+	// 创建空文件
+	file, err := os.Create(fullPath)
+	if err != nil {
+		return fmt.Errorf("failed to create file: %v", err)
+	}
+	file.Close()
+
+	logrus.Infof("Created file: %s for application %s", filePath, appID)
+	return nil
+}
+
+// DeleteFile 删除文件
+func (m *Manager) DeleteFile(appID, filePath string) error {
+	m.mu.RLock()
+	app, exists := m.applications[appID]
+	m.mu.RUnlock()
+
+	if !exists {
+		return fmt.Errorf("application %s not found", appID)
+	}
+
+	// 构建完整的文件路径
+	fullPath := filepath.Join(*app.CodeDir, filePath)
+
+	// 检查文件是否存在
+	info, err := os.Stat(fullPath)
+	if err != nil {
+		return fmt.Errorf("file not found: %s", filePath)
+	}
+
+	// 确保是文件而不是目录
+	if info.IsDir() {
+		return fmt.Errorf("path is a directory, not a file: %s", filePath)
+	}
+
+	// 删除文件
+	if err := os.Remove(fullPath); err != nil {
+		return fmt.Errorf("failed to delete file: %v", err)
+	}
+
+	logrus.Infof("Deleted file: %s for application %s", filePath, appID)
+	return nil
+}
+
+// CreateDirectory 创建目录
+func (m *Manager) CreateDirectory(appID, dirPath string) error {
+	m.mu.RLock()
+	app, exists := m.applications[appID]
+	m.mu.RUnlock()
+
+	if !exists {
+		return fmt.Errorf("application %s not found", appID)
+	}
+
+	// 构建完整的目录路径
+	fullPath := filepath.Join(*app.CodeDir, dirPath)
+
+	// 检查目录是否已存在
+	if _, err := os.Stat(fullPath); err == nil {
+		return fmt.Errorf("directory already exists: %s", dirPath)
+	}
+
+	// 创建目录
+	if err := os.MkdirAll(fullPath, 0755); err != nil {
+		return fmt.Errorf("failed to create directory: %v", err)
+	}
+
+	logrus.Infof("Created directory: %s for application %s", dirPath, appID)
+	return nil
+}
+
+// DeleteDirectory 删除目录
+func (m *Manager) DeleteDirectory(appID, dirPath string) error {
+	m.mu.RLock()
+	app, exists := m.applications[appID]
+	m.mu.RUnlock()
+
+	if !exists {
+		return fmt.Errorf("application %s not found", appID)
+	}
+
+	// 构建完整的目录路径
+	fullPath := filepath.Join(*app.CodeDir, dirPath)
+
+	// 检查目录是否存在
+	info, err := os.Stat(fullPath)
+	if err != nil {
+		return fmt.Errorf("directory not found: %s", dirPath)
+	}
+
+	// 确保是目录而不是文件
+	if !info.IsDir() {
+		return fmt.Errorf("path is a file, not a directory: %s", dirPath)
+	}
+
+	// 删除目录及其内容
+	if err := os.RemoveAll(fullPath); err != nil {
+		return fmt.Errorf("failed to delete directory: %v", err)
+	}
+
+	logrus.Infof("Deleted directory: %s for application %s", dirPath, appID)
+	return nil
+}
+
 // StopApplication 停止应用容器
 func (m *Manager) StopApplication(appID string) error {
 	app, err := m.GetApplication(appID)
@@ -506,7 +662,7 @@ func (m *Manager) GetFileTree(appID, path string) ([]FileInfo, error) {
 	}
 
 	// 读取目录内容
-	files, err := ioutil.ReadDir(requestPath)
+	files, err := os.ReadDir(requestPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read directory: %v", err)
 	}
@@ -514,17 +670,33 @@ func (m *Manager) GetFileTree(appID, path string) ([]FileInfo, error) {
 	// 构建文件信息列表
 	var fileInfos []FileInfo
 	for _, file := range files {
+		if file.Name() == ".git" {
+			continue
+		}
+
 		relativePath := filepath.Join(path, file.Name())
 		if path == "/" || path == "" {
 			relativePath = file.Name()
+		}
+
+		// 获取文件信息,处理可能的错误
+		info, err := file.Info()
+		var size int64
+		var modTime string
+		if err != nil {
+			size = 0 // 如果获取失败则设为0
+			modTime = ""
+		} else {
+			size = info.Size()
+			modTime = info.ModTime().Format("2006-01-02 15:04:05")
 		}
 
 		fileInfo := FileInfo{
 			Name:    file.Name(),
 			Path:    relativePath,
 			IsDir:   file.IsDir(),
-			Size:    file.Size(),
-			ModTime: file.ModTime().Format("2006-01-02 15:04:05"),
+			Size:    size,
+			ModTime: modTime,
 		}
 		fileInfos = append(fileInfos, fileInfo)
 	}
@@ -957,6 +1129,79 @@ func (m *Manager) GetApplicationDAG(appID string) (*ApplicationDAG, error) {
 	}
 
 	return dag, nil
+}
+
+// GetApplicationLogs 获取应用的Docker容器日志
+func (m *Manager) GetApplicationLogs(appID string, lines int) ([]string, error) {
+	m.mu.RLock()
+	app, exists := m.applications[appID]
+	m.mu.RUnlock()
+
+	if !exists {
+		return nil, fmt.Errorf("application %s not found", appID)
+	}
+
+	// 如果应用没有容器ID，返回空日志
+	if app.ContainerID == nil || *app.ContainerID == "" {
+		return []string{
+			"Application is not running in a container",
+			"No logs available",
+		}, nil
+	}
+
+	// 直接使用Docker client获取日志
+	logs, err := m.getDockerLogs(*app.ContainerID, lines)
+	if err != nil {
+		logrus.Errorf("Failed to get logs for container %s: %v", *app.ContainerID, err)
+		return []string{
+			fmt.Sprintf("Error retrieving logs: %v", err),
+		}, nil
+	}
+
+	return logs, nil
+}
+
+// getDockerLogs 直接使用Docker client获取容器日志
+func (m *Manager) getDockerLogs(containerID string, lines int) ([]string, error) {
+	if m.dockerClient == nil {
+		return []string{"Docker client not available"}, nil
+	}
+
+	ctx := context.Background()
+	
+	// 设置日志选项
+	options := container.LogsOptions{
+		ShowStdout: true,
+		ShowStderr: true,
+		Tail:       strconv.Itoa(lines),
+		Timestamps: true,
+	}
+
+	// 获取容器日志
+	logs, err := m.dockerClient.ContainerLogs(ctx, containerID, options)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get container logs: %v", err)
+	}
+	defer logs.Close()
+
+	// 读取日志内容
+	logBytes, err := ioutil.ReadAll(logs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read logs: %v", err)
+	}
+
+	// 将日志按行分割
+	logLines := strings.Split(string(logBytes), "\n")
+	
+	// 过滤空行
+	var filteredLogs []string
+	for _, line := range logLines {
+		if strings.TrimSpace(line) != "" {
+			filteredLogs = append(filteredLogs, line)
+		}
+	}
+
+	return filteredLogs, nil
 }
 
 // StopApplicationComponents 停止应用的所有组件

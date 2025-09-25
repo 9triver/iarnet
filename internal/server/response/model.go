@@ -115,8 +115,38 @@ type AddPeerNodeResponse struct {
 	Address string `json:"address"` // 添加的节点地址
 }
 
-// RemovePeerNodeResponse 删除peer节点响应
+// RemovePeerNodeResponse 删除peer节点响应结构
 type RemovePeerNodeResponse struct {
 	Message string `json:"message"` // 响应消息
 	Address string `json:"address"` // 删除的节点地址
+}
+
+// SaveFileResponse 保存文件响应结构
+type SaveFileResponse struct {
+	Message  string `json:"message"`  // 响应消息
+	FilePath string `json:"filePath"` // 文件路径
+}
+
+// CreateFileResponse 创建文件响应结构
+type CreateFileResponse struct {
+	Message  string `json:"message"`  // 响应消息
+	FilePath string `json:"filePath"` // 文件路径
+}
+
+// DeleteFileResponse 删除文件响应结构
+type DeleteFileResponse struct {
+	Message  string `json:"message"`  // 响应消息
+	FilePath string `json:"filePath"` // 文件路径
+}
+
+// CreateDirectoryResponse 创建目录响应结构
+type CreateDirectoryResponse struct {
+	Message       string `json:"message"`       // 响应消息
+	DirectoryPath string `json:"directoryPath"` // 目录路径
+}
+
+// DeleteDirectoryResponse 删除目录响应结构
+type DeleteDirectoryResponse struct {
+	Message       string `json:"message"`       // 响应消息
+	DirectoryPath string `json:"directoryPath"` // 目录路径
 }

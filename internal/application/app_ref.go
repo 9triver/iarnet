@@ -51,6 +51,16 @@ func (a *AppRef) GetRunningOn() []string {
 }
 
 func (a *AppRef) GetLogs(lines int) ([]string, error) {
-	// 应用现在通过组件部署，日志获取需要从组件层面处理
-	return []string{}, nil
+	// 这个方法现在主要用于兼容性，实际的日志获取通过Manager.GetApplicationLogs进行
+	if a.ContainerID == nil || *a.ContainerID == "" {
+		return []string{
+			"Application is not running in a container",
+			"No logs available",
+		}, nil
+	}
+	
+	return []string{
+		"Application logs should be retrieved through Manager.GetApplicationLogs",
+		"Container ID: " + *a.ContainerID,
+	}, nil
 }
