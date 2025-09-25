@@ -287,38 +287,15 @@ func (s *Server) handleCreateApplication(w http.ResponseWriter, req *http.Reques
 	}
 	logrus.Infof("Application created with ID: %s", app.ID)
 
-	// 克隆Git仓库
-	logrus.Infof("Cloning Git repository for application %s", app.ID)
-	err = s.appMgr.RunApplication(app.ID)
-	if err != nil {
-		logrus.Errorf("Failed to clone Git repository for application %s: %v", app.ID, err)
-		// 更新应用状态为失败
-		app.Status = application.StatusFailed
-		response.WriteError(w, http.StatusInternalServerError, "failed to clone git repository", err)
-		return
-	}
-	logrus.Infof("Git repository cloned successfully to: %s", workDir)
-
 	// 应用创建成功，状态保持为未部署
-	// 现在应用不直接对应容器，而是通过组件的方式来部署
-	logrus.Infof("Application %s created successfully, ready for component analysis and deployment", app.ID)
-
-	// 自动触发代码分析
-	logrus.Infof("Starting automatic code analysis for application %s", app.ID)
-	go func() {
-		if err := s.appMgr.AnalyzeAndDeployApplication(app.ID); err != nil {
-			logrus.Errorf("Failed to analyze application %s: %v", app.ID, err)
-			// 更新应用状态为失败
-			app.Status = application.StatusFailed
-		} else {
-			logrus.Infof("Application %s analyzed and deployed successfully", app.ID)
-		}
-	}()
+	// 应用导入后不自动启动，等待用户手动启动
+	logrus.Infof("Application %s imported successfully, status: %s", app.ID, app.Status)
 
 	// 返回简单的成功响应
 	responseData := map[string]interface{}{
-		"message": "Application created successfully and analysis started",
+		"message": "Application imported successfully",
 		"id":      app.ID,
+		"status":  string(app.Status),
 	}
 	if err := response.WriteSuccess(w, responseData); err != nil {
 		logrus.Errorf("Failed to write create application response: %v", err)

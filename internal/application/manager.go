@@ -41,7 +41,6 @@ type Manager struct {
 	analysisService CodeAnalysisService
 	ignisPlatform   *platform.Platform
 	dockerClient    *client.Client
-	runnerImage     string
 }
 
 // CodeBrowserInfo 代码浏览器信息
@@ -92,7 +91,7 @@ func (m *Manager) SetAnalysisService(service CodeAnalysisService) {
 	m.analysisService = service
 }
 
-// RunApplication 克隆Git仓库到本地目录
+// RunApplication 运行应用容器
 func (m *Manager) RunApplication(appID string) error {
 	app, err := m.GetApplication(appID)
 	if err != nil {
@@ -118,7 +117,15 @@ func (m *Manager) RunApplication(appID string) error {
 	containerID, err := m.dockerClient.ContainerCreate(context.TODO(), &container.Config{
 		Image: m.config.RunnerImage,
 		Env:   []string{"APP_ID=" + appID, "IGNIS_PORT=" + m.config.Ignis.Port, "EXECUTE_CMD=" + *app.ExecuteCmd},
-	}, nil, nil, nil, "")
+		Volumes: map[string]struct{}{
+			"/iarnet/app": {}, // 将应用代码目录挂载到容器的 /iarnet/app 路径下
+		},
+	}, &container.HostConfig{
+		Binds: []string{
+			*app.CodeDir + ":/iarnet/app", // 将宿主机的 app.CodeDir 挂载到容器的 /iarnet/app
+		},
+	}, nil, nil, "iarnet-app-runner-"+appID)
+
 	if err != nil {
 		logrus.Errorf("Failed to create container for application %s: %v", appID, err)
 		return fmt.Errorf("failed to create container: %w", err)
@@ -155,22 +162,9 @@ func (m *Manager) StopApplication(appID string) error {
 func (m *Manager) CreateApplication(createReq *request.CreateApplicationRequest) (*AppRef, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	appID := strconv.Itoa(m.nextAppID)
 	m.nextAppID++
-	app := &AppRef{
-		ID:          appID,
-		Name:        createReq.Name,
-		Status:      StatusUndeployed,
-		Type:        createReq.Type,
-		GitUrl:      createReq.GitUrl,
-		Branch:      createReq.Branch,
-		Description: createReq.Description,
-		Ports:       createReq.Ports,
-		ContainerID: nil,
-		HealthCheck: createReq.HealthCheck,
-	}
-	m.applications[appID] = app
-	logrus.Infof("Application created in manager: ID=%s, Name=%s, Status=%s", appID, createReq.Name, app.Status)
 
 	// 从配置中获取工作目录，如果未配置则使用默认值
 	workspaceBaseDir := m.config.WorkspaceDir
@@ -184,6 +178,23 @@ func (m *Manager) CreateApplication(createReq *request.CreateApplicationRequest)
 	if err := os.MkdirAll(workDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create workspace directory: %v", err)
 	}
+
+	app := &AppRef{
+		ID:          appID,
+		Name:        createReq.Name,
+		Status:      StatusUndeployed,
+		Type:        createReq.Type,
+		GitUrl:      createReq.GitUrl,
+		Branch:      createReq.Branch,
+		Description: createReq.Description,
+		Ports:       createReq.Ports,
+		ContainerID: nil,
+		HealthCheck: createReq.HealthCheck,
+		ExecuteCmd:  createReq.ExecuteCmd,
+		CodeDir:     &workDir,
+	}
+	m.applications[appID] = app
+	logrus.Infof("Application created in manager: ID=%s, Name=%s, Status=%s", appID, createReq.Name, app.Status)
 
 	logrus.Infof("Cloning repository %s (branch: %s) to %s", *createReq.GitUrl, *createReq.Branch, workDir)
 

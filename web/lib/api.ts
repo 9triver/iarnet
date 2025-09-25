@@ -73,7 +73,7 @@ export const applicationsAPI = {
       body: JSON.stringify(app),
     }),
   update: (id: string, app: any) =>
-    apiRequest(`/applications/${id}`, {
+    apiRequest(`/application/apps/${id}`, {
       method: "PUT",
       body: JSON.stringify(app),
     }),

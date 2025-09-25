@@ -42,6 +42,7 @@ type AppRef struct {
 	ContainerID  *string
 	LastDeployed time.Time
 	ExecuteCmd   *string
+	CodeDir      *string
 }
 
 func (a *AppRef) GetRunningOn() []string {

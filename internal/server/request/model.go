@@ -9,6 +9,7 @@ type CreateApplicationRequest struct {
 	Description *string `json:"description,omitempty"`
 	Ports       []int   `json:"ports,omitempty"`
 	HealthCheck *string `json:"healthCheck,omitempty"`
+	ExecuteCmd  *string `json:"executeCmd,omitempty"`
 }
 
 // RegisterProviderRequest 注册资源提供者请求结构
@@ -28,9 +29,9 @@ type DockerProviderConfig struct {
 
 // K8sProviderConfig Kubernetes提供者配置
 type K8sProviderConfig struct {
-	KubeConfigContent string `json:"kubeConfigContent"` // kubeconfig文件内容
-	Namespace         string `json:"namespace,omitempty"`      // Kubernetes命名空间
-	Context           string `json:"context,omitempty"`        // kubeconfig上下文
+	KubeConfigContent string `json:"kubeConfigContent"`   // kubeconfig文件内容
+	Namespace         string `json:"namespace,omitempty"` // Kubernetes命名空间
+	Context           string `json:"context,omitempty"`   // kubeconfig上下文
 }
 
 // AddPeerNodeRequest 添加peer节点请求结构

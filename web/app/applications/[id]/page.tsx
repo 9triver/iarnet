@@ -520,6 +520,16 @@ export default function ApplicationDetailPage() {
                   </div>
                 )}
                 
+                {application.executeCmd && (
+                  <div>
+                    <h4 className="text-sm font-medium text-muted-foreground mb-1">执行命令</h4>
+                    <div className="flex items-center space-x-2 text-sm">
+                      <Terminal className="h-4 w-4" />
+                      <span className="font-mono text-xs break-all">{application.executeCmd}</span>
+                    </div>
+                  </div>
+                )}
+                
                 {application.lastDeployed && (
                   <div>
                     <h4 className="text-sm font-medium text-muted-foreground mb-1">最后部署</h4>

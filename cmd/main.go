@@ -14,8 +14,6 @@ import (
 	"github.com/9triver/iarnet/internal/discovery"
 	"github.com/9triver/iarnet/internal/resource"
 	"github.com/9triver/iarnet/internal/server"
-	"github.com/9triver/ignis/configs"
-	"github.com/9triver/ignis/platform"
 	"github.com/sirupsen/logrus"
 )
 
@@ -38,19 +36,22 @@ func main() {
 		log.Fatalf("Runner init: %v", err)
 	}
 
-	// 初始化 Ignis 平台
-	var ignis *platform.Platform = nil
-	if cfg.Ignis.MasterAddress != "" {
-		ignis = platform.NewPlatform(context.Background(), &configs.Config{
-			RpcAddr: cfg.Ignis.MasterAddress,
-		})
-		if err != nil {
-			log.Fatalf("Ignis platform init: %v", err)
-		}
-	}
+	// // 初始化 Ignis 平台
+	// var ignis *platform.Platform = nil
+	// if cfg.Ignis.MasterAddress != "" {
+	// 	ignis = platform.NewPlatform(context.Background(), &configs.Config{
+	// 		RpcAddr: cfg.Ignis.MasterAddress,
+	// 	})
+	// 	if err != nil {
+	// 		log.Fatalf("Ignis platform init: %v", err)
+	// 	}
+	// }
 
 	rm := resource.NewManager(cfg.ResourceLimits)
-	am := application.NewManager(cfg, rm, ignis)
+	am := application.NewManager(cfg, rm, nil)
+	if am == nil {
+		log.Fatal("Failed to create application manager - Docker connection failed")
+	}
 
 	// 创建并设置代码分析服务
 	analysisService := analysis.NewMockCodeAnalysisService(rm)

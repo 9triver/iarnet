@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { applicationsAPI } from "@/lib/api"
+import { useToast } from "@/hooks/use-toast"
 import { Sidebar } from "@/components/sidebar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -46,6 +47,7 @@ interface ApplicationFormData {
   description?: string
   ports?: string
   healthCheck?: string
+  executeCmd: string
 }
 
 interface ApplicationStats {
@@ -59,6 +61,7 @@ interface ApplicationStats {
 
 export default function ApplicationsPage() {
   const router = useRouter()
+  const { toast } = useToast()
   const [stats, setStats] = useState<ApplicationStats>({
     total: 0,
     running: 0,
@@ -171,6 +174,7 @@ export default function ApplicationsPage() {
       description: "",
       ports: "3000",
       healthCheck: "",
+      executeCmd: "",
     },
   })
 
@@ -194,24 +198,42 @@ export default function ApplicationsPage() {
     const ports = parsePorts(data.ports)
 
     if (editingApp) {
-      // TODO
-      // // 编辑现有应用 - 只更新本地状态
-      // setApplications((prev) =>
-      //   prev.map((app) =>
-      //     app.id === editingApp.id
-      //       ? {
-      //           ...app,
-      //           name: data.name,
-      //           gitUrl: data.gitUrl,
-//           branch: data.branch,
-      //           type: data.type,
-      //           description: data.description || "",
-      //           ports: ports,
-      //           healthCheck: data.healthCheck,
-      //         }
-      //       : app,
-      //   ),
-      // )
+      // 编辑现有应用 - 调用后端API
+      try {
+        const updateData = {
+          name: data.name,
+          type: data.type,
+          description: data.description || "",
+          ports: ports,
+          healthCheck: data.healthCheck,
+          executeCmd: data.executeCmd,
+        }
+
+        if (await applicationsAPI.update(editingApp.id, updateData)) {
+          // 更新成功后，重新获取所有应用数据
+          handleRefreshData()
+          toast({
+            title: "更新成功",
+            description: `应用 "${data.name}" 已成功更新`,
+            variant: "default",
+          })
+        } else {
+          toast({
+            title: "更新失败",
+            description: "应用更新失败，请稍后重试",
+            variant: "destructive",
+          })
+          return
+        }
+      } catch (error) {
+        console.error('Failed to update application:', error)
+        toast({
+          title: "更新失败",
+          description: "应用更新时发生错误，请稍后重试",
+          variant: "destructive",
+        })
+        return
+      }
     } else {
       // 创建新应用 - 调用后端API
       try {
@@ -223,17 +245,31 @@ export default function ApplicationsPage() {
           description: data.description || "",
           ports: ports,
           healthCheck: data.healthCheck,
+          executeCmd: data.executeCmd,
         }
 
         if (await applicationsAPI.create(createData)) { // TODO: fix
           // 创建成功后，重新获取所有应用数据
           handleRefreshData()
+          toast({
+            title: "创建成功",
+            description: `应用 "${data.name}" 已成功创建`,
+            variant: "default",
+          })
         } else {
-          console.error('Failed to create application')
+          toast({
+            title: "创建失败",
+            description: "应用创建失败，请稍后重试",
+            variant: "destructive",
+          })
         }
       } catch (error) {
         console.error('Failed to create application:', error)
-        // 可以在这里添加错误提示
+        toast({
+          title: "创建失败",
+          description: "应用创建时发生错误，请稍后重试",
+          variant: "destructive",
+        })
         return
       }
     }
@@ -252,6 +288,7 @@ export default function ApplicationsPage() {
     form.setValue("description", app.description)
     form.setValue("ports", app.ports ? app.ports.join(", ") : "")
     form.setValue("healthCheck", app.healthCheck)
+    form.setValue("executeCmd", app.executeCmd || "")
     setIsDialogOpen(true)
   }
 
@@ -408,9 +445,15 @@ export default function ApplicationsPage() {
                           <FormItem>
                             <FormLabel>Git仓库URL</FormLabel>
                             <FormControl>
-                              <Input placeholder="https://github.com/username/repo" {...field} />
+                              <Input 
+                                placeholder="https://github.com/username/repo" 
+                                disabled={!!editingApp}
+                                {...field} 
+                              />
                             </FormControl>
-                            <FormDescription>应用的Git仓库地址</FormDescription>
+                            <FormDescription>
+                              {editingApp ? "Git仓库地址不支持修改" : "应用的Git仓库地址"}
+                            </FormDescription>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -424,9 +467,15 @@ export default function ApplicationsPage() {
                             <FormItem>
                               <FormLabel>分支</FormLabel>
                               <FormControl>
-                                <Input placeholder="main" {...field} />
+                                <Input 
+                                  placeholder="main" 
+                                  disabled={!!editingApp}
+                                  {...field} 
+                                />
                               </FormControl>
-                              <FormDescription>要部署的Git分支</FormDescription>
+                              <FormDescription>
+                                {editingApp ? "分支不支持修改" : "要部署的Git分支"}
+                              </FormDescription>
                               <FormMessage />
                             </FormItem>
                           )}
@@ -492,6 +541,21 @@ export default function ApplicationsPage() {
                           )}
                         />
                       </div>
+
+                      <FormField
+                        control={form.control}
+                        name="executeCmd"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>执行命令</FormLabel>
+                            <FormControl>
+                              <Input placeholder="npm start, python app.py, ./start.sh" {...field} />
+                            </FormControl>
+                            <FormDescription>应用启动时执行的命令</FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
                       <FormField
                         control={form.control}

@@ -34,6 +34,7 @@ interface Application {
   runningOn?: string[]
   ports?: number[]
   healthCheck?: string
+  executeCmd: string
 }
 
 interface GetApplicationsResponse {
