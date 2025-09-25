@@ -232,3 +232,8 @@ charts/*.tgz
 # Monitoring and metrics
 prometheus_data/
 grafana_data/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
