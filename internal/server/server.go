@@ -85,6 +85,9 @@ func (s *Server) handleUpdateApplication(w http.ResponseWriter, req *http.Reques
 		response.WriteError(w, http.StatusBadRequest, "invalid request body", err)
 		return
 	}
+	// 序列化为JSON以便于阅读
+	updateJSON, _ := json.Marshal(updateApp)
+	logrus.Infof("Updating application id:%s with %s", id, string(updateJSON))
 	if err := s.appMgr.UpdateApplication(s.ctx, id, &updateApp); err != nil {
 		response.WriteError(w, http.StatusInternalServerError, "failed to update application", err)
 		return
@@ -384,6 +387,7 @@ func (s *Server) handleGetApplications(w http.ResponseWriter, req *http.Request)
 			LastDeployed: app.LastDeployed.Format("2006-01-02 15:04:05"),
 			RunningOn:    app.GetRunningOn(),
 			RunnerEnv:    app.RunnerEnv,
+			ExecuteCmd:   app.ExecuteCmd,
 		})
 	}
 
@@ -479,6 +483,8 @@ func (s *Server) Start(addr string) error {
 
 func (s *Server) Stop() {
 	s.cancel()
+	s.appMgr.Stop()
+	logrus.Info("Server stopped")
 }
 
 // handleGetApplicationById 处理获取单个应用详情请求

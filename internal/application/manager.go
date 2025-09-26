@@ -86,6 +86,18 @@ func NewManager(config *config.Config, resourceManager *resource.Manager, ignisP
 	return m
 }
 
+func (m *Manager) Stop() {
+	// 移除工作目录
+	if m.config.WorkspaceDir != "" {
+		if err := os.RemoveAll(m.config.WorkspaceDir); err != nil {
+			logrus.Errorf("Failed to remove workspace directory %s: %v", m.config.WorkspaceDir, err)
+		} else {
+			logrus.Infof("Successfully removed workspace directory: %s", m.config.WorkspaceDir)
+		}
+	}
+	logrus.Info("Application manager stopped")
+}
+
 func (m *Manager) UpdateApplication(ctx context.Context, appID string, app *request.UpdateApplicationRequest) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

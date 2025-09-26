@@ -76,7 +76,7 @@ export default function ApplicationsPage() {
     //   id: "1",
     //   name: "用户管理系统",
     //   description: "基于React和Node.js的用户管理后台系统",
-    
+
     //   gitUrl: "https://github.com/company/user-management",
     //   branch: "main",
     //   status: "running",
@@ -90,7 +90,7 @@ export default function ApplicationsPage() {
     //   id: "2",
     //   name: "数据处理服务",
     //   description: "Python数据处理和分析服务",
-    
+
     //   gitUrl: "https://github.com/company/data-processor",
     //   branch: "develop",
     //   status: "idle",
@@ -102,7 +102,7 @@ export default function ApplicationsPage() {
     //   id: "3",
     //   name: "API网关",
     //   description: "微服务API网关和路由服务",
-    
+
     //   gitUrl: "https://github.com/company/api-gateway",
     //   branch: "main",
     //   status: "running",
@@ -116,7 +116,7 @@ export default function ApplicationsPage() {
     //   id: "4",
     //   name: "Nginx代理服务",
     //   description: "基于Docker的Nginx反向代理服务",
-    
+
     //   status: "running",
     //   type: "web",
     //   lastDeployed: "2024-01-15 16:20:00",
@@ -212,16 +212,12 @@ export default function ApplicationsPage() {
         }
 
         console.log('更新应用数据:', updateData)
+        await applicationsAPI.update(editingApp.id, updateData)
+         // 更新成功后，重新获取所有应用数据
+        console.log('更新成功后，重新获取所有应用数据')
+        handleRefreshData()
+        toast.success(`应用 "${data.name}" 已成功更新`)
 
-        if (await applicationsAPI.update(editingApp.id, updateData)) {
-          // 更新成功后，重新获取所有应用数据
-          console.log('更新成功后，重新获取所有应用数据')
-          handleRefreshData()
-          toast.success(`应用 "${data.name}" 已成功更新`)
-        } else {
-          toast.error("应用更新失败，请稍后重试")
-          return
-        }
       } catch (error) {
         console.error('Failed to update application:', error)
         toast.error("应用更新时发生错误，请稍后重试")
@@ -428,10 +424,10 @@ export default function ApplicationsPage() {
                           <FormItem>
                             <FormLabel>Git仓库URL</FormLabel>
                             <FormControl>
-                              <Input 
-                                placeholder="https://github.com/username/repo" 
+                              <Input
+                                placeholder="https://github.com/username/repo"
                                 disabled={!!editingApp}
-                                {...field} 
+                                {...field}
                               />
                             </FormControl>
                             <FormDescription>
@@ -450,10 +446,10 @@ export default function ApplicationsPage() {
                             <FormItem>
                               <FormLabel>分支</FormLabel>
                               <FormControl>
-                                <Input 
-                                  placeholder="main" 
+                                <Input
+                                  placeholder="main"
                                   disabled={!!editingApp}
-                                  {...field} 
+                                  {...field}
                                 />
                               </FormControl>
                               <FormDescription>
@@ -668,8 +664,8 @@ export default function ApplicationsPage() {
           {/* Applications Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {applications.map((app) => (
-              <Card 
-                key={app.id} 
+              <Card
+                key={app.id}
                 className="hover:shadow-lg transition-shadow cursor-pointer"
                 onClick={() => router.push(`/applications/${app.id}`)}
               >
