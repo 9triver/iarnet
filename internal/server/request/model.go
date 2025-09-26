@@ -10,6 +10,7 @@ type CreateApplicationRequest struct {
 	Ports       []int   `json:"ports,omitempty"`
 	HealthCheck *string `json:"healthCheck,omitempty"`
 	ExecuteCmd  *string `json:"executeCmd,omitempty"`
+	RunnerEnv   *string `json:"runnerEnv,omitempty"` // 运行环境，如 "python", "node", "go" 等
 }
 
 // RegisterProviderRequest 注册资源提供者请求结构

@@ -113,9 +113,18 @@ func (m *Manager) RunApplication(appID string) error {
 		}
 	}
 
+	if app.RunnerEnv == nil {
+		return fmt.Errorf("application %s has no runner image", appID)
+	}
+
+	runnerImage, ok := m.config.RunnerImages[*app.RunnerEnv]
+	if !ok || runnerImage == "" {
+		return fmt.Errorf("application %s has no runner image", appID)
+	}
+
 	// 创建容器
 	containerID, err := m.dockerClient.ContainerCreate(context.TODO(), &container.Config{
-		Image: m.config.RunnerImage,
+		Image: runnerImage,
 		Env:   []string{"APP_ID=" + appID, "IGNIS_PORT=" + m.config.Ignis.Port, "EXECUTE_CMD=" + *app.ExecuteCmd},
 		Volumes: map[string]struct{}{
 			"/iarnet/app": {}, // 将应用代码目录挂载到容器的 /iarnet/app 路径下
@@ -347,6 +356,7 @@ func (m *Manager) CreateApplication(createReq *request.CreateApplicationRequest)
 		ContainerID: nil,
 		HealthCheck: createReq.HealthCheck,
 		ExecuteCmd:  createReq.ExecuteCmd,
+		RunnerEnv:   createReq.RunnerEnv,
 		CodeDir:     &workDir,
 	}
 	m.applications[appID] = app
@@ -1168,7 +1178,7 @@ func (m *Manager) getDockerLogs(containerID string, lines int) ([]string, error)
 	}
 
 	ctx := context.Background()
-	
+
 	// 设置日志选项
 	options := container.LogsOptions{
 		ShowStdout: true,
@@ -1192,7 +1202,7 @@ func (m *Manager) getDockerLogs(containerID string, lines int) ([]string, error)
 
 	// 将日志按行分割
 	logLines := strings.Split(string(logBytes), "\n")
-	
+
 	// 过滤空行
 	var filteredLogs []string
 	for _, line := range logLines {

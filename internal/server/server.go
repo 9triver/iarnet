@@ -363,6 +363,7 @@ func (s *Server) handleGetApplications(w http.ResponseWriter, req *http.Request)
 			Status:       app.Status,
 			LastDeployed: app.LastDeployed.Format("2006-01-02 15:04:05"),
 			RunningOn:    app.GetRunningOn(),
+			RunnerEnv:    app.RunnerEnv,
 		})
 	}
 
@@ -485,6 +486,7 @@ func (s *Server) handleGetApplicationById(w http.ResponseWriter, req *http.Reque
 		Status:       app.Status,
 		LastDeployed: app.LastDeployed.Format("2006-01-02 15:04:05"),
 		RunningOn:    app.GetRunningOn(),
+		RunnerEnv:    app.RunnerEnv,
 	}
 
 	if err := response.WriteSuccess(w, appInfo); err != nil {

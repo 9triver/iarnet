@@ -48,6 +48,7 @@ interface ApplicationFormData {
   ports?: string
   healthCheck?: string
   executeCmd: string
+  runnerEnv?: string
 }
 
 interface ApplicationStats {
@@ -175,6 +176,7 @@ export default function ApplicationsPage() {
       ports: "3000",
       healthCheck: "",
       executeCmd: "",
+      runnerEnv: "",
     },
   })
 
@@ -207,6 +209,7 @@ export default function ApplicationsPage() {
           ports: ports,
           healthCheck: data.healthCheck,
           executeCmd: data.executeCmd,
+          runnerEnv: data.runnerEnv,
         }
 
         if (await applicationsAPI.update(editingApp.id, updateData)) {
@@ -246,6 +249,7 @@ export default function ApplicationsPage() {
           ports: ports,
           healthCheck: data.healthCheck,
           executeCmd: data.executeCmd,
+          runnerEnv: data.runnerEnv,
         }
 
         if (await applicationsAPI.create(createData)) { // TODO: fix
@@ -289,6 +293,7 @@ export default function ApplicationsPage() {
     form.setValue("ports", app.ports ? app.ports.join(", ") : "")
     form.setValue("healthCheck", app.healthCheck)
     form.setValue("executeCmd", app.executeCmd || "")
+    form.setValue("runnerEnv", app.runnerEnv || "")
     setIsDialogOpen(true)
   }
 
@@ -552,6 +557,31 @@ export default function ApplicationsPage() {
                               <Input placeholder="npm start, python app.py, ./start.sh" {...field} />
                             </FormControl>
                             <FormDescription>应用启动时执行的命令</FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="runnerEnv"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>运行环境</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="选择运行环境" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="docker">Docker容器</SelectItem>
+                                <SelectItem value="kubernetes">Kubernetes集群</SelectItem>
+                                <SelectItem value="local">本地环境</SelectItem>
+                                <SelectItem value="cloud">云平台</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormDescription>选择应用的运行环境</FormDescription>
                             <FormMessage />
                           </FormItem>
                         )}

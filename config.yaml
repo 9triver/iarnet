@@ -11,3 +11,5 @@ resource_limits:
 workspace_dir: "../workspaces"  # Directory for storing cloned git repositories
 ignis:
   port: "50001"
+runner_images:
+  "python:3.11-latest": "iarnet/runner:python_3.11-latest"

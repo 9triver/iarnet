@@ -13,6 +13,7 @@ const APP_CODE_PATH = "/iarnet/app/"
 func main() {
 	appID := os.Getenv("APP_ID")
 	ignisPort := os.Getenv("IGNIS_PORT")
+	envInstallCmd := os.Getenv("ENV_INSTALL_CMD")
 	executeCmd := os.Getenv("EXECUTE_CMD")
 
 	if appID == "" {
@@ -30,6 +31,13 @@ func main() {
 	logrus.Infof("Registering app %s to Ignis platform at port %s", appID, ignisPort)
 
 	exec.Command("cd", APP_CODE_PATH)
+
+	if envInstallCmd != "" {
+		cmd := strings.Split(envInstallCmd, " ")
+		if err := exec.Command(cmd[0], cmd[1:]...).Run(); err != nil {
+			logrus.Fatalf("failed to install env %s: %v", envInstallCmd, err)
+		}
+	}
 
 	cmd := strings.Split(executeCmd, " ")
 	if err := exec.Command(cmd[0], cmd[1:]...).Run(); err != nil {

@@ -43,6 +43,7 @@ type AppRef struct {
 	LastDeployed time.Time
 	ExecuteCmd   *string
 	CodeDir      *string
+	RunnerEnv    *string
 }
 
 func (a *AppRef) GetRunningOn() []string {
@@ -58,7 +59,7 @@ func (a *AppRef) GetLogs(lines int) ([]string, error) {
 			"No logs available",
 		}, nil
 	}
-	
+
 	return []string{
 		"Application logs should be retrieved through Manager.GetApplicationLogs",
 		"Container ID: " + *a.ContainerID,

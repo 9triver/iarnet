@@ -48,6 +48,7 @@ type ApplicationInfo struct {
 	LastDeployed string             `json:"lastDeployed"`
 	RunningOn    []string           `json:"runningOn"`
 	Status       application.Status `json:"status"`
+	RunnerEnv    *string            `json:"runnerEnv,omitempty"` // 运行环境，如 "python", "node", "go" 等
 }
 
 type GetApplicationsResponse struct {
