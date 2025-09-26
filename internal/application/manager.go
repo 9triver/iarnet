@@ -86,6 +86,46 @@ func NewManager(config *config.Config, resourceManager *resource.Manager, ignisP
 	return m
 }
 
+func (m *Manager) UpdateApplication(ctx context.Context, appID string, app *request.UpdateApplicationRequest) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	appRef, ok := m.applications[appID]
+	if !ok {
+		return fmt.Errorf("application %s not found", appID)
+	}
+
+	if app.Name != nil {
+		appRef.Name = *app.Name
+	}
+	if app.GitUrl != nil {
+		appRef.GitUrl = app.GitUrl
+	}
+	if app.Branch != nil {
+		appRef.Branch = app.Branch
+	}
+	if app.Type != nil {
+		appRef.Type = *app.Type
+	}
+	if app.Description != nil {
+		appRef.Description = app.Description
+	}
+	if app.Ports != nil {
+		appRef.Ports = *app.Ports
+	}
+	if app.HealthCheck != nil {
+		appRef.HealthCheck = app.HealthCheck
+	}
+	if app.ExecuteCmd != nil {
+		appRef.ExecuteCmd = app.ExecuteCmd
+	}
+	if app.RunnerEnv != nil {
+		appRef.RunnerEnv = app.RunnerEnv
+	}
+
+	return nil
+}
+
 // SetAnalysisService 设置代码分析服务
 func (m *Manager) SetAnalysisService(service CodeAnalysisService) {
 	m.analysisService = service

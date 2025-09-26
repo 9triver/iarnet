@@ -30,7 +30,7 @@ async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promi
 
   // 处理后端标准响应格式 {code, message, data}
   if (data.code !== undefined) {
-    if (data.code !== 200) {
+    if (data.code < 200 || data.code >= 300) {
       throw new APIError(data.code, data.message || "API request failed")
     }
     return data.data

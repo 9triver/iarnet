@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { applicationsAPI } from "@/lib/api"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 import { Sidebar } from "@/components/sidebar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -62,7 +62,6 @@ interface ApplicationStats {
 
 export default function ApplicationsPage() {
   const router = useRouter()
-  const { toast } = useToast()
   const [stats, setStats] = useState<ApplicationStats>({
     total: 0,
     running: 0,
@@ -212,29 +211,20 @@ export default function ApplicationsPage() {
           runnerEnv: data.runnerEnv,
         }
 
+        console.log('更新应用数据:', updateData)
+
         if (await applicationsAPI.update(editingApp.id, updateData)) {
           // 更新成功后，重新获取所有应用数据
+          console.log('更新成功后，重新获取所有应用数据')
           handleRefreshData()
-          toast({
-            title: "更新成功",
-            description: `应用 "${data.name}" 已成功更新`,
-            variant: "default",
-          })
+          toast.success(`应用 "${data.name}" 已成功更新`)
         } else {
-          toast({
-            title: "更新失败",
-            description: "应用更新失败，请稍后重试",
-            variant: "destructive",
-          })
+          toast.error("应用更新失败，请稍后重试")
           return
         }
       } catch (error) {
         console.error('Failed to update application:', error)
-        toast({
-          title: "更新失败",
-          description: "应用更新时发生错误，请稍后重试",
-          variant: "destructive",
-        })
+        toast.error("应用更新时发生错误，请稍后重试")
         return
       }
     } else {
@@ -255,25 +245,13 @@ export default function ApplicationsPage() {
         if (await applicationsAPI.create(createData)) { // TODO: fix
           // 创建成功后，重新获取所有应用数据
           handleRefreshData()
-          toast({
-            title: "创建成功",
-            description: `应用 "${data.name}" 已成功创建`,
-            variant: "default",
-          })
+          toast.success(`应用 "${data.name}" 已成功创建`)
         } else {
-          toast({
-            title: "创建失败",
-            description: "应用创建失败，请稍后重试",
-            variant: "destructive",
-          })
+          toast.error("应用创建失败，请稍后重试")
         }
       } catch (error) {
         console.error('Failed to create application:', error)
-        toast({
-          title: "创建失败",
-          description: "应用创建时发生错误，请稍后重试",
-          variant: "destructive",
-        })
+        toast.error("应用创建时发生错误，请稍后重试")
         return
       }
     }

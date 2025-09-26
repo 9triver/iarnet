@@ -4,6 +4,7 @@ import type React from "react"
 
 import { useEffect } from "react"
 import { useIARNetStore } from "@/lib/store"
+import { Toaster } from "sonner"
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const initializeData = useIARNetStore((state) => state.initializeData)
@@ -13,5 +14,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
     initializeData()
   }, [initializeData])
 
-  return <>{children}</>
+  return (
+    <>
+      {children}
+      <Toaster position="top-right" richColors />
+    </>
+  )
 }

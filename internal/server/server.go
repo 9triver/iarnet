@@ -38,6 +38,7 @@ func NewServer(rm *resource.Manager, am *application.Manager, pm *discovery.Peer
 	s.router.HandleFunc("/application/apps", s.handleGetApplications).Methods("GET")
 	s.router.HandleFunc("/application/apps", s.handleCreateApplication).Methods("POST")
 	s.router.HandleFunc("/application/apps/{id}", s.handleGetApplicationById).Methods("GET")
+	s.router.HandleFunc("/application/apps/{id}", s.handleUpdateApplication).Methods("PUT")
 	s.router.HandleFunc("/application/apps/{id}", s.handleDeleteApplication).Methods("DELETE")
 	// s.router.HandleFunc("/application/apps/{id}/logs", s.handleGetApplicationLogs).Methods("GET")
 	s.router.HandleFunc("/application/stats", s.handleGetApplicationStats).Methods("GET")
@@ -70,6 +71,25 @@ func NewServer(rm *resource.Manager, am *application.Manager, pm *discovery.Peer
 	s.router.HandleFunc("/peer/nodes/{id}", s.handleRemovePeerNode).Methods("DELETE")
 
 	return s
+}
+
+func (s *Server) handleUpdateApplication(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	id := vars["id"]
+	if id == "" {
+		response.WriteError(w, http.StatusBadRequest, "application id is required", nil)
+		return
+	}
+	var updateApp request.UpdateApplicationRequest
+	if err := json.NewDecoder(req.Body).Decode(&updateApp); err != nil {
+		response.WriteError(w, http.StatusBadRequest, "invalid request body", err)
+		return
+	}
+	if err := s.appMgr.UpdateApplication(s.ctx, id, &updateApp); err != nil {
+		response.WriteError(w, http.StatusInternalServerError, "failed to update application", err)
+		return
+	}
+	response.Accepted("Application updated").WriteJSON(w)
 }
 
 func (s *Server) handleRun(w http.ResponseWriter, req *http.Request) {

@@ -55,3 +55,16 @@ type CreateFileRequest struct {
 type CreateDirectoryRequest struct {
 	DirectoryPath string `json:"directoryPath"` // 目录路径
 }
+
+// UpdateApplicationRequest 更新应用请求结构
+type UpdateApplicationRequest struct {
+	Name        *string `json:"name,omitempty"`
+	GitUrl      *string `json:"gitUrl,omitempty"`
+	Branch      *string `json:"branch,omitempty"`
+	Type        *string `json:"type,omitempty"` // "web", "api", "worker", "database"
+	Description *string `json:"description,omitempty"`
+	Ports       *[]int  `json:"ports,omitempty"`
+	HealthCheck *string `json:"healthCheck,omitempty"`
+	ExecuteCmd  *string `json:"executeCmd,omitempty"`
+	RunnerEnv   *string `json:"runnerEnv,omitempty"` // 运行环境，如 "python", "node", "go" 等
+}
