@@ -1,4 +1,4 @@
-interface ResourceProvider {
+export interface ResourceProvider {
   id: string
   name: string
   host: string
@@ -16,13 +16,13 @@ interface ResourceProvider {
   last_update_time: string
 }
 
-interface GetResourceProvidersResponse {
+export interface GetResourceProvidersResponse {
   local_provider: ResourceProvider | null         // 本机 provider（无或一个）
   managed_providers: ResourceProvider[]      // 托管的 provider（无或多个）
   collaborative_providers: ResourceProvider[] // 通过协作发现的 provider（无或多个）
 }
 
-interface Application {
+export interface Application {
   id: string
   name: string
   description: string
@@ -38,11 +38,11 @@ interface Application {
   runnerEnv?: string
 }
 
-interface GetApplicationsResponse {
+export interface GetApplicationsResponse {
   applications: Application[]
 }
 
-interface GetApplicationLogsResponse {
+export interface GetApplicationLogsResponse {
   applicationId: string
   applicationName: string
   logs: string[]
@@ -50,7 +50,24 @@ interface GetApplicationLogsResponse {
   requestedLines: number
 }
 
-interface CodeBrowserInfo {
+export interface LogEntry {
+  id: string
+  timestamp: string
+  level: string
+  app: string
+  message: string
+  details: string
+}
+
+export interface GetApplicationLogsParsedResponse {
+  applicationId: string
+  applicationName: string
+  logs: LogEntry[]
+  totalLines: number
+  requestedLines: number
+}
+
+export interface CodeBrowserInfo {
   port: number
   pid: number
   start_time: string
@@ -59,21 +76,21 @@ interface CodeBrowserInfo {
   cmd: string
 }
 
-interface StartCodeBrowserResponse {
+export interface StartCodeBrowserResponse {
   message: string
   port: number
   url: string
 }
 
-interface StopCodeBrowserResponse {
+export interface StopCodeBrowserResponse {
   message: string
 }
 
-interface GetCodeBrowserStatusResponse {
+export interface GetCodeBrowserStatusResponse {
   browser: CodeBrowserInfo | null
 }
 
-interface FileInfo {
+export interface FileInfo {
   name: string
   path: string
   is_dir: boolean
@@ -81,37 +98,45 @@ interface FileInfo {
   mod_time: string
 }
 
-interface GetFileTreeResponse {
+export interface GetFileTreeResponse {
   files: FileInfo[]
 }
 
-interface GetFileContentResponse {
+export interface GetFileContentResponse {
   content: string
   language: string
   path: string
 }
 
-interface SaveFileResponse {
+export interface SaveFileResponse {
   message: string
   filePath: string
 }
 
-interface CreateFileResponse {
+export interface CreateFileResponse {
   message: string
   filePath: string
 }
 
-interface DeleteFileResponse {
+export interface DeleteFileResponse {
   message: string
   filePath: string
 }
 
-interface CreateDirectoryResponse {
+export interface CreateDirectoryResponse {
   message: string
   directoryPath: string
 }
 
-interface DeleteDirectoryResponse {
+export interface DeleteDirectoryResponse {
   message: string
   directoryPath: string
+}
+
+export interface RunnerEnvironment {
+  name: string
+}
+
+export interface GetRunnerEnvironmentsResponse {
+  environments: RunnerEnvironment[]
 }

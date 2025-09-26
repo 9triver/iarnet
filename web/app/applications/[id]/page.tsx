@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { applicationsAPI } from "@/lib/api"
+import type { LogEntry, Application } from "@/lib/model"
 import { Sidebar } from "@/components/sidebar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -10,6 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
 import { CodeEditor } from "@/components/code-editor"
 import {
   ArrowLeft,
@@ -30,6 +32,13 @@ import {
   MemoryStick,
   HardDrive,
   FileText,
+  Info,
+  AlertTriangle,
+  AlertCircle,
+  CheckCircle,
+  Search,
+  Filter,
+  X,
 } from "lucide-react"
 
 interface CodeBrowserInfo {
@@ -89,10 +98,12 @@ export default function ApplicationDetailPage() {
   const [error, setError] = useState<string | null>(null)
   const [codeBrowserStatus, setCodeBrowserStatus] = useState<CodeBrowserInfo | null>(null)
   const [isStartingCodeBrowser, setIsStartingCodeBrowser] = useState(false)
-  const [logs, setLogs] = useState<string[]>([])
+  const [logs, setLogs] = useState<LogEntry[]>([])
   const [isLoadingLogs, setIsLoadingLogs] = useState(false)
   const [logLines, setLogLines] = useState(100)
   const [activeTab, setActiveTab] = useState("components")
+  const [logSearchTerm, setLogSearchTerm] = useState("")
+  const [logLevelFilter, setLogLevelFilter] = useState<string>("all")
 
   const applicationId = params.id as string
 
@@ -231,9 +242,8 @@ export default function ApplicationDetailPage() {
           return (
             <div
               key={component.id}
-              className={`absolute w-32 h-16 border-2 rounded-lg bg-white shadow-sm cursor-pointer transition-all ${
-                selectedComponent === component.id ? "border-blue-500 shadow-md" : "border-gray-300"
-              }`}
+              className={`absolute w-32 h-16 border-2 rounded-lg bg-white shadow-sm cursor-pointer transition-all ${selectedComponent === component.id ? "border-blue-500 shadow-md" : "border-gray-300"
+                }`}
               style={{ left: position.x, top: position.y }}
               onClick={() => setSelectedComponent(component.id)}
             >
@@ -253,7 +263,7 @@ export default function ApplicationDetailPage() {
 
   const loadCodeBrowserStatus = async () => {
     if (!applicationId) return
-    
+
     try {
       const result = await applicationsAPI.getCodeBrowserStatus(applicationId)
       setCodeBrowserStatus(result.browser)
@@ -265,12 +275,12 @@ export default function ApplicationDetailPage() {
 
   const handleStartCodeBrowser = async () => {
     if (!application) return
-    
+
     try {
       setIsStartingCodeBrowser(true)
       const result = await applicationsAPI.startCodeBrowser(application.id)
       await loadCodeBrowserStatus()
-      
+
       // 打开新窗口访问代码浏览器
       if (result.url) {
         window.open(result.url, '_blank')
@@ -284,7 +294,7 @@ export default function ApplicationDetailPage() {
 
   const handleStopCodeBrowser = async () => {
     if (!application) return
-    
+
     try {
       await applicationsAPI.stopCodeBrowser(application.id)
       await loadCodeBrowserStatus()
@@ -295,10 +305,10 @@ export default function ApplicationDetailPage() {
 
   const loadLogs = async () => {
     if (!applicationId) return
-    
+
     try {
       setIsLoadingLogs(true)
-      const response = await applicationsAPI.getLogs(applicationId, logLines)
+      const response = await applicationsAPI.getLogsParsed(applicationId, logLines)
       setLogs(response.logs || [])
     } catch (err) {
       console.error('Failed to load logs:', err)
@@ -312,16 +322,16 @@ export default function ApplicationDetailPage() {
     try {
       setIsLoading(true)
       setError(null)
-      
+
       // 获取应用详情
       const response = await applicationsAPI.getAll()
-      const app = response.applications.find(app => app.id === applicationId)
-      
+      const app = response.applications.find((app: Application) => app.id === applicationId)
+
       if (!app) {
         setError("应用不存在")
         return
       }
-      
+
       setApplication(app)
     } catch (err) {
       console.error('Failed to load application detail:', err)
@@ -335,7 +345,7 @@ export default function ApplicationDetailPage() {
 
   const loadComponents = async () => {
     if (!applicationId) return
-    
+
     setIsLoadingComponents(true)
     try {
       const dag = await applicationsAPI.getComponents(applicationId) as ApplicationDAG
@@ -355,9 +365,9 @@ export default function ApplicationDetailPage() {
 
   const handleStart = async () => {
     if (!application) return
-    
+
     try {
-      await applicationsAPI.deploy(application.id)
+      await applicationsAPI.run(application.id)
       await loadApplicationDetail()
     } catch (err) {
       console.error('Failed to start application:', err)
@@ -366,7 +376,7 @@ export default function ApplicationDetailPage() {
 
   const handleStop = async () => {
     if (!application) return
-    
+
     try {
       await applicationsAPI.stop(application.id)
       await loadApplicationDetail()
@@ -410,7 +420,7 @@ export default function ApplicationDetailPage() {
       deploying: { variant: "outline" as const, label: "部署中", color: "bg-blue-500" },
       idle: { variant: "outline" as const, label: "未部署", color: "bg-orange-500" },
     }
-    
+
     const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.idle
     return (
       <Badge variant={config.variant} className="flex items-center space-x-1">
@@ -480,7 +490,7 @@ export default function ApplicationDetailPage() {
                 </div>
               </div>
             </div>
-            
+
             <div className="flex items-center space-x-2">
               {application.status === "running" ? (
                 <Button variant="outline" onClick={handleStop}>
@@ -512,7 +522,7 @@ export default function ApplicationDetailPage() {
                   <p className="text-sm">{application.description}</p>
                 </div>
               )}
-              
+
               <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr] lg:grid-cols-[2fr_1fr_1fr_1fr] gap-4">
                 <div>
                   <h4 className="text-sm font-medium text-muted-foreground mb-1">Git仓库</h4>
@@ -531,7 +541,7 @@ export default function ApplicationDetailPage() {
                     )}
                   </div>
                 </div>
-                
+
                 <div>
                   <h4 className="text-sm font-medium text-muted-foreground mb-1">组件数量</h4>
                   <div className="flex items-center space-x-2 text-sm">
@@ -542,12 +552,12 @@ export default function ApplicationDetailPage() {
                     )}
                   </div>
                 </div>
-                
+
                 {application.ports && application.ports.length > 0 && (
                   <div>
                     <h4 className="text-sm font-medium text-muted-foreground mb-1">端口</h4>
                     <div className="flex flex-wrap gap-1">
-                      {application.ports.map((port, index) => (
+                      {application.ports.map((port: number, index: number) => (
                         <Badge key={index} variant="outline" className="text-xs font-mono">
                           {port}
                         </Badge>
@@ -555,7 +565,7 @@ export default function ApplicationDetailPage() {
                     </div>
                   </div>
                 )}
-                
+
                 {application.executeCmd && (
                   <div>
                     <h4 className="text-sm font-medium text-muted-foreground mb-1">执行命令</h4>
@@ -565,7 +575,7 @@ export default function ApplicationDetailPage() {
                     </div>
                   </div>
                 )}
-                
+
                 {application.lastDeployed && (
                   <div>
                     <h4 className="text-sm font-medium text-muted-foreground mb-1">最后部署</h4>
@@ -575,12 +585,12 @@ export default function ApplicationDetailPage() {
                     </div>
                   </div>
                 )}
-                
+
                 {application.runningOn && application.runningOn.length > 0 && (
                   <div>
                     <h4 className="text-sm font-medium text-muted-foreground mb-1">运行节点</h4>
                     <div className="flex flex-wrap gap-1">
-                      {application.runningOn.map((resource, index) => (
+                      {application.runningOn.map((resource: string, index: number) => (
                         <Badge key={index} variant="secondary" className="text-xs">
                           {resource}
                         </Badge>
@@ -712,30 +722,30 @@ export default function ApplicationDetailPage() {
                                     </p>
                                   </div>
                                 </div>
-                                
+
                                 <div className="flex items-center space-x-6 text-sm">
                                   <div className="flex items-center space-x-1">
                                     <span className="text-muted-foreground">镜像:</span>
                                     <span className="font-mono text-xs">{component.image}</span>
                                   </div>
-                                  
+
                                   {component.ports.length > 0 && (
                                     <div className="flex items-center space-x-1">
                                       <span className="text-muted-foreground">端口:</span>
                                       <span className="font-mono text-xs">{component.ports.join(', ')}</span>
                                     </div>
                                   )}
-                                  
+
                                   <div className="flex items-center space-x-1">
                                     <span className="text-muted-foreground">CPU:</span>
                                     <span>{component.resources.cpu} 核</span>
                                   </div>
-                                  
+
                                   <div className="flex items-center space-x-1">
                                     <span className="text-muted-foreground">内存:</span>
                                     <span>{component.resources.memory} MB</span>
                                   </div>
-                                  
+
                                   {(component.dependencies || []).length > 0 && (
                                     <div className="flex items-center space-x-1">
                                       <span className="text-muted-foreground">依赖:</span>
@@ -744,10 +754,10 @@ export default function ApplicationDetailPage() {
                                   )}
                                 </div>
                               </div>
-                              
+
                               <div className="flex items-center space-x-2">
                                 <ComponentStatusIndicator status={component.status} />
-                                
+
                                 {component.status === "running" ? (
                                   <Button variant="outline" size="sm">
                                     <Square className="h-3 w-3 mr-1" />
@@ -759,7 +769,7 @@ export default function ApplicationDetailPage() {
                                     启动
                                   </Button>
                                 )}
-                                
+
                                 <Button variant="outline" size="sm">
                                   <Terminal className="h-3 w-3" />
                                 </Button>
@@ -805,6 +815,40 @@ export default function ApplicationDetailPage() {
                       </Button>
                     </div>
                   </div>
+                  <div className="flex items-center space-x-2 mt-4">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input
+                        placeholder="搜索日志内容..."
+                        value={logSearchTerm}
+                        onChange={(e) => setLogSearchTerm(e.target.value)}
+                        className="pl-10"
+                      />
+                      {logSearchTerm && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+                          onClick={() => setLogSearchTerm("")}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      )}
+                    </div>
+                    <Select value={logLevelFilter} onValueChange={setLogLevelFilter}>
+                      <SelectTrigger className="w-32">
+                        <Filter className="h-4 w-4 mr-2" />
+                        <SelectValue placeholder="级别" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">所有级别</SelectItem>
+                        <SelectItem value="error">错误</SelectItem>
+                        <SelectItem value="warn">警告</SelectItem>
+                        <SelectItem value="info">信息</SelectItem>
+                        <SelectItem value="debug">调试</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <ScrollArea className="h-[500px] w-full border rounded-md p-4 bg-gray-50 dark:bg-gray-900">
@@ -814,13 +858,108 @@ export default function ApplicationDetailPage() {
                         <span>加载日志中...</span>
                       </div>
                     ) : logs.length > 0 ? (
-                      <div className="space-y-1">
-                        {logs.map((log, index) => (
-                          <div key={index} className="text-sm font-mono text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
-                            {log}
+                      (() => {
+                        // 过滤日志
+                        const filteredLogs = logs.filter(log => {
+                          // 级别过滤
+                          if (logLevelFilter !== "all" && log.level.toLowerCase() !== logLevelFilter) {
+                            return false
+                          }
+                          // 搜索过滤
+                          if (logSearchTerm) {
+                            const searchLower = logSearchTerm.toLowerCase()
+                            return log.message.toLowerCase().includes(searchLower) ||
+                              (log.details && log.details.toLowerCase().includes(searchLower))
+                          }
+                          return true
+                        })
+
+                        // 高亮搜索文本的函数
+                        const highlightText = (text: string, searchTerm: string) => {
+                          if (!searchTerm) return text
+                          const regex = new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi')
+                          const parts = text.split(regex)
+                          return parts.map((part, index) =>
+                            regex.test(part) ?
+                              <span key={index} className="bg-yellow-200 dark:bg-yellow-800 px-1 rounded">{part}</span> :
+                              part
+                          )
+                        }
+
+                        const getLevelIcon = (level: string) => {
+                          switch (level.toLowerCase()) {
+                            case 'error':
+                              return <AlertCircle className="h-4 w-4 text-red-500" />
+                            case 'warn':
+                            case 'warning':
+                              return <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                            case 'info':
+                              return <Info className="h-4 w-4 text-blue-500" />
+                            case 'debug':
+                              return <Terminal className="h-4 w-4 text-gray-500" />
+                            default:
+                              return <CheckCircle className="h-4 w-4 text-green-500" />
+                          }
+                        }
+
+                        const getLevelColor = (level: string) => {
+                          switch (level.toLowerCase()) {
+                            case 'error':
+                              return 'text-red-600 dark:text-red-400'
+                            case 'warn':
+                            case 'warning':
+                              return 'text-yellow-600 dark:text-yellow-400'
+                            case 'info':
+                              return 'text-blue-600 dark:text-blue-400'
+                            case 'debug':
+                              return 'text-gray-600 dark:text-gray-400'
+                            default:
+                              return 'text-green-600 dark:text-green-400'
+                          }
+                        }
+
+                        return (
+                          <div className="space-y-2">
+                            {(logSearchTerm || logLevelFilter !== "all") && (
+                              <div className="mb-3 text-sm text-gray-600 dark:text-gray-400 border-b pb-2">
+                                显示 {filteredLogs.length} / {logs.length} 条日志
+                                {logSearchTerm && <span className="ml-2">搜索: "{logSearchTerm}"</span>}
+                                {logLevelFilter !== "all" && <span className="ml-2">级别: {logLevelFilter}</span>}
+                              </div>
+                            )}
+                            {filteredLogs.length > 0 ? (
+                              filteredLogs.map((log, index) => (
+                                <div key={log.id || index} className="border-l-2 border-gray-200 dark:border-gray-700 pl-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-r">
+                                  <div className="flex items-start space-x-2">
+                                    <div className="flex items-center space-x-2 min-w-0 flex-1">
+                                      {getLevelIcon(log.level)}
+                                      <span className={`text-xs font-medium uppercase tracking-wide ${getLevelColor(log.level)}`}>
+                                        {log.level}
+                                      </span>
+                                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                                        {new Date(log.timestamp).toLocaleString()}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="mt-1 text-sm font-mono text-gray-800 dark:text-gray-200">
+                                    {highlightText(log.message, logSearchTerm)}
+                                  </div>
+                                  {log.details && (
+                                    <div className="mt-1 text-xs text-gray-600 dark:text-gray-400 font-mono bg-gray-100 dark:bg-gray-800 p-2 rounded">
+                                      {highlightText(log.details, logSearchTerm)}
+                                    </div>
+                                  )}
+                                </div>
+                              ))
+                            ) : (
+                              <div className="flex items-center justify-center h-32 text-muted-foreground">
+                                <Search className="h-8 w-8 mr-2 opacity-50" />
+                                <span>没有找到匹配的日志</span>
+                              </div>
+                            )}
                           </div>
-                        ))}
-                      </div>
+                        )
+                      })()
                     ) : (
                       <div className="flex items-center justify-center h-32 text-muted-foreground">
                         <FileText className="h-8 w-8 mr-2 opacity-50" />
@@ -844,9 +983,9 @@ export default function ApplicationDetailPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="p-0">
-                  <CodeEditor 
-                    appId={params.id as string} 
-                    className="h-[600px]" 
+                  <CodeEditor
+                    appId={params.id as string}
+                    className="h-[600px]"
                   />
                 </CardContent>
               </Card>

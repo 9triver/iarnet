@@ -34,15 +34,21 @@ func main() {
 
 	if envInstallCmd != "" {
 		cmd := strings.Split(envInstallCmd, " ")
-		if err := exec.Command(cmd[0], cmd[1:]...).Run(); err != nil {
+		envCmd := exec.Command(cmd[0], cmd[1:]...)
+		envCmd.Stdout = os.Stdout
+		envCmd.Stderr = os.Stderr
+		if err := envCmd.Run(); err != nil {
 			logrus.Fatalf("failed to install env %s: %v", envInstallCmd, err)
 		}
 	}
 
 	cmd := strings.Split(executeCmd, " ")
-	if err := exec.Command(cmd[0], cmd[1:]...).Run(); err != nil {
+	execCmd := exec.Command(cmd[0], cmd[1:]...)
+	execCmd.Stdout = os.Stdout
+	execCmd.Stderr = os.Stderr
+	if err := execCmd.Run(); err != nil {
 		logrus.Fatalf("failed to execute command %s: %v", executeCmd, err)
 	}
 
-	logrus.Infof("Successfully registered app %s to Ignis platform", appID)
+	logrus.Infof("Successfully executed app %s", appID)
 }

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/9triver/iarnet/internal/application"
+	"github.com/9triver/iarnet/internal/config"
 	"github.com/9triver/iarnet/internal/discovery"
 	"github.com/9triver/iarnet/internal/resource"
 	"github.com/9triver/iarnet/internal/server/request"
@@ -22,13 +23,14 @@ type Server struct {
 	resMgr  *resource.Manager
 	appMgr  *application.Manager
 	peerMgr *discovery.PeerManager
+	config  *config.Config
 	ctx     context.Context
 	cancel  context.CancelFunc
 }
 
-func NewServer(rm *resource.Manager, am *application.Manager, pm *discovery.PeerManager) *Server {
+func NewServer(rm *resource.Manager, am *application.Manager, pm *discovery.PeerManager, cfg *config.Config) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
-	s := &Server{router: mux.NewRouter(), resMgr: rm, appMgr: am, peerMgr: pm, ctx: ctx, cancel: cancel}
+	s := &Server{router: mux.NewRouter(), resMgr: rm, appMgr: am, peerMgr: pm, config: cfg, ctx: ctx, cancel: cancel}
 	// s.router.HandleFunc("/run", s.handleRun).Methods("POST")
 	s.router.HandleFunc("/resource/capacity", s.handleResourceCapacity).Methods("GET")
 	s.router.HandleFunc("/resource/providers", s.handleResourceProviders).Methods("GET")
@@ -40,8 +42,12 @@ func NewServer(rm *resource.Manager, am *application.Manager, pm *discovery.Peer
 	s.router.HandleFunc("/application/apps/{id}", s.handleGetApplicationById).Methods("GET")
 	s.router.HandleFunc("/application/apps/{id}", s.handleUpdateApplication).Methods("PUT")
 	s.router.HandleFunc("/application/apps/{id}", s.handleDeleteApplication).Methods("DELETE")
-	// s.router.HandleFunc("/application/apps/{id}/logs", s.handleGetApplicationLogs).Methods("GET")
+	s.router.HandleFunc("/application/apps/{id}/run", s.handleRunApplication).Methods("POST")
+	s.router.HandleFunc("/application/apps/{id}/stop", s.handleStopApplication).Methods("POST")
+	s.router.HandleFunc("/application/apps/{id}/logs", s.handleGetApplicationLogs).Methods("GET")
+	s.router.HandleFunc("/application/apps/{id}/logs/parsed", s.handleGetApplicationLogsParsed).Methods("GET")
 	s.router.HandleFunc("/application/stats", s.handleGetApplicationStats).Methods("GET")
+	s.router.HandleFunc("/application/runner-environments", s.handleGetRunnerEnvironments).Methods("GET")
 	// s.router.HandleFunc("/application/create", s.handleCreateApplication).Methods("POST")
 	// s.router.HandleFunc("/application/apps/{id}/code-browser", s.handleStartCodeBrowser).Methods("POST")
 	// s.router.HandleFunc("/application/apps/{id}/code-browser", s.handleStopCodeBrowser).Methods("DELETE")
@@ -568,6 +574,56 @@ func (s *Server) handleGetApplicationLogs(w http.ResponseWriter, req *http.Reque
 
 	if err := response.WriteSuccess(w, logsResponse); err != nil {
 		logrus.Errorf("Failed to write logs response: %v", err)
+		return
+	}
+}
+
+// handleGetApplicationLogsParsed 处理获取应用解析后日志请求
+func (s *Server) handleGetApplicationLogsParsed(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	appID := vars["id"]
+	logrus.Infof("Received request to get parsed logs for application ID: %s", appID)
+
+	// 获取查询参数
+	linesParam := req.URL.Query().Get("lines")
+	lines := 100 // 默认返回100行
+	if linesParam != "" {
+		if parsedLines, err := strconv.Atoi(linesParam); err == nil && parsedLines > 0 {
+			lines = parsedLines
+		}
+	}
+
+	// 验证应用是否存在
+	app, err := s.appMgr.GetApplication(appID)
+	if err != nil {
+		logrus.Warnf("Application not found for parsed logs request: %s", appID)
+		response.WriteError(w, http.StatusNotFound, "application not found", err)
+		return
+	}
+
+	// 从Docker容器获取解析后的日志
+	logs, err := s.appMgr.GetApplicationLogsParsed(appID, lines)
+	if err != nil {
+		logrus.Errorf("Failed to get parsed logs for application %s: %v", appID, err)
+		response.WriteError(w, http.StatusInternalServerError, "failed to get parsed logs", err)
+		return
+	}
+
+	// 限制返回的日志行数
+	if len(logs) > lines {
+		logs = logs[len(logs)-lines:]
+	}
+
+	logsResponse := &response.GetApplicationLogsParsedResponse{
+		ApplicationId:   appID,
+		ApplicationName: app.Name,
+		Logs:            logs,
+		TotalLines:      len(logs),
+		RequestedLines:  lines,
+	}
+
+	if err := response.WriteSuccess(w, logsResponse); err != nil {
+		logrus.Errorf("Failed to write parsed logs response: %v", err)
 		return
 	}
 }
@@ -1344,4 +1400,137 @@ func (s *Server) handleRemovePeerNode(w http.ResponseWriter, req *http.Request) 
 		return
 	}
 	logrus.Debug("Successfully sent remove peer node response")
+}
+
+func (s *Server) handleGetRunnerEnvironments(w http.ResponseWriter, req *http.Request) {
+	logrus.Debug("Received get runner environments request")
+
+	// 从配置中获取运行环境信息
+	runnerEnvs := make([]response.RunnerEnvironment, 0)
+
+	for name := range s.config.RunnerImages {
+		runnerEnvs = append(runnerEnvs, response.RunnerEnvironment{
+			Name: name,
+		})
+	}
+
+	runnerEnvsResponse := map[string]interface{}{
+		"environments": runnerEnvs,
+	}
+
+	if err := response.WriteSuccess(w, runnerEnvsResponse); err != nil {
+		logrus.Errorf("Failed to write runner environments response: %v", err)
+		return
+	}
+	logrus.Debug("Successfully sent runner environments response")
+}
+
+// handleRunApplication 处理运行应用请求
+func (s *Server) handleRunApplication(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	appID := vars["id"]
+	logrus.Infof("Received request to run application: %s", appID)
+
+	// 更新应用状态为部署中
+	err := s.appMgr.UpdateApplicationStatus(appID, application.StatusDeploying)
+	if err != nil {
+		logrus.Errorf("Failed to update application status: %v", err)
+		response.WriteError(w, http.StatusNotFound, "application not found", err)
+		return
+	}
+
+	// 运行应用
+	err = s.appMgr.RunApplication(appID)
+	if err != nil {
+		logrus.Errorf("Failed to run application %s: %v", appID, err)
+		// 更新状态为失败
+		s.appMgr.UpdateApplicationStatus(appID, application.StatusFailed)
+		response.WriteError(w, http.StatusInternalServerError, "failed to run application", err)
+		return
+	}
+
+	// 更新应用状态为运行中
+	err = s.appMgr.UpdateApplicationStatus(appID, application.StatusRunning)
+	if err != nil {
+		logrus.Errorf("Failed to update application status to running: %v", err)
+	}
+
+	// 获取更新后的应用信息
+	app, err := s.appMgr.GetApplication(appID)
+	if err != nil {
+		logrus.Errorf("Failed to get application after running: %v", err)
+		response.WriteError(w, http.StatusInternalServerError, "failed to get application", err)
+		return
+	}
+
+	appInfo := response.ApplicationInfo{
+		ID:           app.ID,
+		Name:         app.Name,
+		GitUrl:       app.GitUrl,
+		Branch:       app.Branch,
+		Type:         app.Type,
+		Description:  app.Description,
+		Ports:        app.Ports,
+		HealthCheck:  app.HealthCheck,
+		Status:       app.Status,
+		LastDeployed: app.LastDeployed.Format("2006-01-02 15:04:05"),
+		RunningOn:    app.GetRunningOn(),
+		RunnerEnv:    app.RunnerEnv,
+	}
+
+	if err := response.WriteSuccess(w, appInfo); err != nil {
+		logrus.Errorf("Failed to write run application response: %v", err)
+		return
+	}
+	logrus.Infof("Successfully started application: %s", appID)
+}
+
+// handleStopApplication 处理停止应用请求
+func (s *Server) handleStopApplication(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	appID := vars["id"]
+	logrus.Infof("Received request to stop application: %s", appID)
+
+	// 停止应用
+	err := s.appMgr.StopApplication(appID)
+	if err != nil {
+		logrus.Errorf("Failed to stop application %s: %v", appID, err)
+		response.WriteError(w, http.StatusInternalServerError, "failed to stop application", err)
+		return
+	}
+
+	// 更新应用状态为已停止
+	err = s.appMgr.UpdateApplicationStatus(appID, application.StatusStopped)
+	if err != nil {
+		logrus.Errorf("Failed to update application status to stopped: %v", err)
+	}
+
+	// 获取更新后的应用信息
+	app, err := s.appMgr.GetApplication(appID)
+	if err != nil {
+		logrus.Errorf("Failed to get application after stopping: %v", err)
+		response.WriteError(w, http.StatusInternalServerError, "failed to get application", err)
+		return
+	}
+
+	appInfo := response.ApplicationInfo{
+		ID:           app.ID,
+		Name:         app.Name,
+		GitUrl:       app.GitUrl,
+		Branch:       app.Branch,
+		Type:         app.Type,
+		Description:  app.Description,
+		Ports:        app.Ports,
+		HealthCheck:  app.HealthCheck,
+		Status:       app.Status,
+		LastDeployed: app.LastDeployed.Format("2006-01-02 15:04:05"),
+		RunningOn:    app.GetRunningOn(),
+		RunnerEnv:    app.RunnerEnv,
+	}
+
+	if err := response.WriteSuccess(w, appInfo); err != nil {
+		logrus.Errorf("Failed to write stop application response: %v", err)
+		return
+	}
+	logrus.Infof("Successfully stopped application: %s", appID)
 }

@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -28,6 +29,17 @@ import (
 // CodeAnalysisService 代码分析服务接口
 type CodeAnalysisService interface {
 	AnalyzeCode(ctx context.Context, req *proto.CodeAnalysisRequest) (*proto.CodeAnalysisResponse, error)
+}
+
+// LogEntry 表示解析后的日志条目
+type LogEntry struct {
+	ID        string `json:"id"`        // 日志条目唯一标识
+	Timestamp string `json:"timestamp"` // 时间戳
+	Level     string `json:"level"`     // 日志级别 (error, warn, info, debug)
+	App       string `json:"app"`       // 应用名称
+	Message   string `json:"message"`   // 日志消息
+	Details   string `json:"details"`   // 详细信息（可选）
+	RawLine   string `json:"raw_line"`  // 原始日志行
 }
 
 type Manager struct {
@@ -56,7 +68,7 @@ type CodeBrowserInfo struct {
 func NewManager(config *config.Config, resourceManager *resource.Manager, ignisPlatform *platform.Platform) *Manager {
 
 	// 连接本地docker
-	cli, err := client.NewClientWithOpts(client.FromEnv)
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithVersion("1.51"))
 	if err != nil {
 		logrus.Errorf("Failed to create docker client: %v", err)
 		return nil
@@ -174,22 +186,30 @@ func (m *Manager) RunApplication(appID string) error {
 		return fmt.Errorf("application %s has no runner image", appID)
 	}
 
+	hostPath, err := filepath.Abs(*app.CodeDir)
+	if err != nil {
+		return err
+	}
+
 	// 创建容器
 	containerID, err := m.dockerClient.ContainerCreate(context.TODO(), &container.Config{
 		Image: runnerImage,
 		Env:   []string{"APP_ID=" + appID, "IGNIS_PORT=" + m.config.Ignis.Port, "EXECUTE_CMD=" + *app.ExecuteCmd},
-		Volumes: map[string]struct{}{
-			"/iarnet/app": {}, // 将应用代码目录挂载到容器的 /iarnet/app 路径下
-		},
 	}, &container.HostConfig{
 		Binds: []string{
-			*app.CodeDir + ":/iarnet/app", // 将宿主机的 app.CodeDir 挂载到容器的 /iarnet/app
+			hostPath + ":/iarnet/app", // 将宿主机的 app.CodeDir 挂载到容器的 /iarnet/app
 		},
 	}, nil, nil, "iarnet-app-runner-"+appID)
 
 	if err != nil {
 		logrus.Errorf("Failed to create container for application %s: %v", appID, err)
 		return fmt.Errorf("failed to create container: %w", err)
+	}
+
+	// 启动容器
+	if err := m.dockerClient.ContainerStart(context.TODO(), containerID.ID, container.StartOptions{}); err != nil {
+		logrus.Errorf("Failed to start container %s: %v", containerID.ID, err)
+		return fmt.Errorf("failed to start container: %w", err)
 	}
 
 	app.ContainerID = &containerID.ID
@@ -1223,6 +1243,66 @@ func (m *Manager) GetApplicationLogs(appID string, lines int) ([]string, error) 
 	return logs, nil
 }
 
+// GetApplicationLogsParsed 获取应用的解析后的Docker容器日志
+func (m *Manager) GetApplicationLogsParsed(appID string, lines int) ([]*LogEntry, error) {
+	m.mu.RLock()
+	app, exists := m.applications[appID]
+	m.mu.RUnlock()
+
+	if !exists {
+		return nil, fmt.Errorf("application %s not found", appID)
+	}
+
+	// 如果应用没有容器ID，返回空日志
+	if app.ContainerID == nil || *app.ContainerID == "" {
+		return []*LogEntry{
+			{
+				ID:        fmt.Sprintf("%d", time.Now().UnixNano()),
+				Timestamp: time.Now().Format("2006-01-02 15:04:05"),
+				Level:     "info",
+				App:       app.Name,
+				Message:   "Application is not running in a container",
+				RawLine:   "Application is not running in a container",
+			},
+			{
+				ID:        fmt.Sprintf("%d", time.Now().UnixNano()+1),
+				Timestamp: time.Now().Format("2006-01-02 15:04:05"),
+				Level:     "info",
+				App:       app.Name,
+				Message:   "No logs available",
+				RawLine:   "No logs available",
+			},
+		}, nil
+	}
+
+	// 直接使用Docker client获取日志
+	rawLogs, err := m.getDockerLogs(*app.ContainerID, lines)
+	if err != nil {
+		logrus.Errorf("Failed to get logs for container %s: %v", *app.ContainerID, err)
+		return []*LogEntry{
+			{
+				ID:        fmt.Sprintf("%d", time.Now().UnixNano()),
+				Timestamp: time.Now().Format("2006-01-02 15:04:05"),
+				Level:     "error",
+				App:       app.Name,
+				Message:   fmt.Sprintf("Error retrieving logs: %v", err),
+				RawLine:   fmt.Sprintf("Error retrieving logs: %v", err),
+			},
+		}, nil
+	}
+
+	// 解析每一行日志
+	var parsedLogs []*LogEntry
+	for _, line := range rawLogs {
+		if strings.TrimSpace(line) != "" {
+			parsedLog := m.parseDockerLogLine(line, app.Name)
+			parsedLogs = append(parsedLogs, parsedLog)
+		}
+	}
+
+	return parsedLogs, nil
+}
+
 // getDockerLogs 直接使用Docker client获取容器日志
 func (m *Manager) getDockerLogs(containerID string, lines int) ([]string, error) {
 	if m.dockerClient == nil {
@@ -1264,6 +1344,151 @@ func (m *Manager) getDockerLogs(containerID string, lines int) ([]string, error)
 	}
 
 	return filteredLogs, nil
+}
+
+// parseDockerLogLine 解析单行Docker日志
+func (m *Manager) parseDockerLogLine(line, appName string) *LogEntry {
+	// 生成唯一ID
+	id := fmt.Sprintf("%d", time.Now().UnixNano())
+	
+	// Docker日志格式通常为: 2024-01-15T10:30:45.123456789Z message
+	// 或者带有stream前缀: stdout/stderr 2024-01-15T10:30:45.123456789Z message
+	
+	// 移除Docker stream前缀 (stdout/stderr)
+	cleanLine := line
+	if strings.HasPrefix(line, "stdout ") || strings.HasPrefix(line, "stderr ") {
+		parts := strings.SplitN(line, " ", 2)
+		if len(parts) > 1 {
+			cleanLine = parts[1]
+		}
+	}
+	
+	// 使用正则表达式匹配时间戳
+	timestampRegex := regexp.MustCompile(`^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?)\s+(.*)$`)
+	matches := timestampRegex.FindStringSubmatch(cleanLine)
+	
+	var timestamp, message string
+	if len(matches) >= 3 {
+		timestamp = matches[1]
+		message = matches[2]
+	} else {
+		// 如果没有匹配到时间戳，使用当前时间
+		timestamp = time.Now().Format(time.RFC3339)
+		message = cleanLine
+	}
+	
+	// 解析结构化日志和提取msg内容
+	parsedMessage, level := m.parseStructuredLog(message)
+	
+	// 如果没有从结构化日志中检测到级别，使用通用检测
+	if level == "" {
+		level = m.detectLogLevel(parsedMessage)
+	}
+	
+	// 格式化时间戳为更友好的格式
+	if parsedTime, err := time.Parse(time.RFC3339, timestamp); err == nil {
+		timestamp = parsedTime.Format("2006-01-02 15:04:05")
+	}
+	
+	return &LogEntry{
+		ID:        id,
+		Timestamp: timestamp,
+		Level:     level,
+		App:       appName,
+		Message:   parsedMessage,
+		RawLine:   line,
+	}
+}
+
+// parseStructuredLog 解析结构化日志，提取msg内容和级别
+func (m *Manager) parseStructuredLog(message string) (string, string) {
+	// 检查是否为结构化日志格式: time="..." level=... msg="..."
+	structuredRegex := regexp.MustCompile(`time="[^"]*"\s+level=(\w+)\s+msg="([^"]*)"`)
+	matches := structuredRegex.FindStringSubmatch(message)
+	
+	if len(matches) >= 3 {
+		level := strings.ToLower(matches[1])
+		msg := matches[2]
+		return msg, level
+	}
+	
+	// 检查其他可能的结构化格式: level=... msg="..."
+	altStructuredRegex := regexp.MustCompile(`level=(\w+)\s+msg="([^"]*)"`)
+	altMatches := altStructuredRegex.FindStringSubmatch(message)
+	
+	if len(altMatches) >= 3 {
+		level := strings.ToLower(altMatches[1])
+		msg := altMatches[2]
+		return msg, level
+	}
+	
+	// 对于非结构化日志，检查是否有内嵌的时间戳前缀需要移除
+	// 格式如: 2025-09-26T13:28:51.152575929Z hello world
+	cleanedMessage := m.removeEmbeddedTimestamp(message)
+	
+	return cleanedMessage, ""
+}
+
+// removeEmbeddedTimestamp 移除消息中嵌入的时间戳前缀
+func (m *Manager) removeEmbeddedTimestamp(message string) string {
+	// 匹配各种时间戳格式并移除，包括前面可能的乱码字符
+	timestampPatterns := []string{
+		// 带乱码前缀和+的ISO 8601格式: [乱码]+2025-09-26T13:39:04.056588557Z hello world
+		`^[^\d]*\+?\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?\s+`,
+		// 带乱码前缀的ISO 8601格式: [乱码]2025-09-26T13:28:51.152575929Z
+		`^[^\d]*\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?\s+`,
+		// 简单日期时间格式: 2025-09-26 13:28:51
+		`^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?\s+`,
+		// 其他常见格式
+		`^\[\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\]\s+`,
+	}
+	
+	for _, pattern := range timestampPatterns {
+		regex := regexp.MustCompile(pattern)
+		if regex.MatchString(message) {
+			return regex.ReplaceAllString(message, "")
+		}
+	}
+	
+	return message
+}
+
+// detectLogLevel 从日志消息中检测日志级别
+func (m *Manager) detectLogLevel(message string) string {
+	messageLower := strings.ToLower(message)
+	
+	// 检查常见的日志级别关键词
+	if strings.Contains(messageLower, "error") || strings.Contains(messageLower, "err") ||
+		strings.Contains(messageLower, "fatal") || strings.Contains(messageLower, "panic") ||
+		strings.Contains(messageLower, "exception") || strings.Contains(messageLower, "failed") {
+		return "error"
+	}
+	
+	if strings.Contains(messageLower, "warn") || strings.Contains(messageLower, "warning") {
+		return "warn"
+	}
+	
+	if strings.Contains(messageLower, "debug") || strings.Contains(messageLower, "trace") {
+		return "debug"
+	}
+	
+	// 检查日志级别标记 [ERROR], [WARN], [INFO], [DEBUG]
+	levelRegex := regexp.MustCompile(`\[(ERROR|WARN|WARNING|INFO|DEBUG|TRACE)\]`)
+	if matches := levelRegex.FindStringSubmatch(message); len(matches) > 1 {
+		switch strings.ToLower(matches[1]) {
+		case "error":
+			return "error"
+		case "warn", "warning":
+			return "warn"
+		case "debug", "trace":
+			return "debug"
+		case "info":
+			return "info"
+		}
+	}
+	
+	// 默认为info级别
+	return "info"
 }
 
 // StopApplicationComponents 停止应用的所有组件

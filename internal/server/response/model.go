@@ -64,6 +64,14 @@ type GetApplicationLogsResponse struct {
 	RequestedLines  int      `json:"requestedLines"`
 }
 
+type GetApplicationLogsParsedResponse struct {
+	ApplicationId   string                    `json:"applicationId"`
+	ApplicationName string                    `json:"applicationName"`
+	Logs            []*application.LogEntry   `json:"logs"`
+	TotalLines      int                       `json:"totalLines"`
+	RequestedLines  int                       `json:"requestedLines"`
+}
+
 // RegisterProviderResponse 注册资源提供者响应结构
 type RegisterProviderResponse struct {
 	ProviderID string `json:"providerId"` // 生成的提供者ID
@@ -151,4 +159,8 @@ type CreateDirectoryResponse struct {
 type DeleteDirectoryResponse struct {
 	Message       string `json:"message"`       // 响应消息
 	DirectoryPath string `json:"directoryPath"` // 目录路径
+}
+
+type RunnerEnvironment struct {
+	Name string `json:"name"`
 }

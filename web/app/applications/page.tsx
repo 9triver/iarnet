@@ -38,6 +38,7 @@ import {
   Database,
   RefreshCw,
 } from "lucide-react"
+import { Application, RunnerEnvironment } from "@/lib/model"
 
 interface ApplicationFormData {
   name: string
@@ -130,6 +131,7 @@ export default function ApplicationsPage() {
   const [editingApp, setEditingApp] = useState<Application | null>(null)
   const [isImporting, setIsImporting] = useState(false)
   const [importProgress, setImportProgress] = useState(0)
+  const [runnerEnvironments, setRunnerEnvironments] = useState<RunnerEnvironment[]>([])
 
 
   // 获取应用统计数据
@@ -154,9 +156,26 @@ export default function ApplicationsPage() {
     }
   }
 
+  const fetchRunnerEnvironments = async () => {
+    try {
+      const response = await applicationsAPI.getRunnerEnvironments()
+      setRunnerEnvironments(response.environments)
+    } catch (fetchError) {
+      console.error('Failed to fetch runner environments:', fetchError)
+      // 如果获取失败，使用默认的运行环境选项
+      setRunnerEnvironments([
+        { name: "docker" },
+        { name: "kubernetes" },
+        { name: "local" },
+        { name: "cloud" }
+      ])
+    }
+  }
+
   useEffect(() => {
     fetchStats()
     fetchApplications()
+    fetchRunnerEnvironments()
   }, [])
 
   // 刷新数据
@@ -213,7 +232,7 @@ export default function ApplicationsPage() {
 
         console.log('更新应用数据:', updateData)
         await applicationsAPI.update(editingApp.id, updateData)
-         // 更新成功后，重新获取所有应用数据
+        // 更新成功后，重新获取所有应用数据
         console.log('更新成功后，重新获取所有应用数据')
         handleRefreshData()
         toast.success(`应用 "${data.name}" 已成功更新`)
@@ -283,29 +302,60 @@ export default function ApplicationsPage() {
     }
   }
 
-  const handleRun = (id: string) => {
-    setApplications((prev) => prev.map((app) => (app.id === id ? { ...app, status: "deploying" } : app)))
-
-    setTimeout(() => {
+  const handleRun = async (id: string) => {
+    try {
+      // 立即更新UI状态为部署中
+      setApplications((prev) => prev.map((app) => (app.id === id ? { ...app, status: "deploying" } : app)))
+      
+      // 调用后端API运行应用
+      const updatedApp = await applicationsAPI.run(id)
+      
+      // 更新应用状态
       setApplications((prev) =>
         prev.map((app) =>
           app.id === id
             ? {
-              ...app,
-              status: "running",
-              lastDeployed: new Date().toLocaleString(),
-              runningOn: ["生产环境集群"],
-            }
+                ...app,
+                status: updatedApp.status,
+                lastDeployed: updatedApp.lastDeployed || new Date().toLocaleString(),
+                runningOn: updatedApp.runningOn || ["本地环境"],
+              }
             : app,
         ),
       )
-    }, 3000)
+      
+      toast.success(`应用 "${updatedApp.name}" 已成功启动`)
+    } catch (error) {
+      console.error('Failed to run application:', error)
+      // 如果失败，恢复状态
+      setApplications((prev) => prev.map((app) => (app.id === id ? { ...app, status: "stopped" } : app)))
+      toast.error("应用启动失败，请稍后重试")
+    }
   }
 
-  const handleStop = (id: string) => {
-    setApplications((prev) =>
-      prev.map((app) => (app.id === id ? { ...app, status: "stopped", runningOn: undefined } : app)),
-    )
+  const handleStop = async (id: string) => {
+    try {
+      // 调用后端API停止应用
+      const updatedApp = await applicationsAPI.stop(id)
+      
+      // 更新应用状态
+      setApplications((prev) =>
+        prev.map((app) =>
+          app.id === id
+            ? {
+                ...app,
+                status: updatedApp.status,
+                runningOn: updatedApp.runningOn,
+              }
+            : app,
+        ),
+      )
+      
+      toast.success(`应用 "${updatedApp.name}" 已成功停止`)
+    } catch (error) {
+      console.error('Failed to stop application:', error)
+      toast.error("应用停止失败，请稍后重试")
+    }
   }
 
   const getStatusBadge = (status: Application["status"]) => {
@@ -549,10 +599,11 @@ export default function ApplicationsPage() {
                                 </SelectTrigger>
                               </FormControl>
                               <SelectContent>
-                                <SelectItem value="docker">Docker容器</SelectItem>
-                                <SelectItem value="kubernetes">Kubernetes集群</SelectItem>
-                                <SelectItem value="local">本地环境</SelectItem>
-                                <SelectItem value="cloud">云平台</SelectItem>
+                                {runnerEnvironments.map((env) => (
+                                  <SelectItem key={env.name} value={env.name}>
+                                    {env.name}
+                                  </SelectItem>
+                                ))}
                               </SelectContent>
                             </Select>
                             <FormDescription>选择应用的运行环境</FormDescription>

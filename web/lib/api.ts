@@ -1,3 +1,5 @@
+import { Application, CreateDirectoryResponse, CreateFileResponse, DeleteDirectoryResponse, DeleteFileResponse, GetApplicationLogsParsedResponse, GetApplicationLogsResponse, GetApplicationsResponse, GetCodeBrowserStatusResponse, GetFileContentResponse, GetFileTreeResponse, GetRunnerEnvironmentsResponse, SaveFileResponse, StartCodeBrowserResponse } from "./model"
+
 // API 客户端工具函数
 const API_BASE = "/api"
 
@@ -67,6 +69,7 @@ export const applicationsAPI = {
   getStats: () => apiRequest("/application/stats"),
   getById: (id: string) => apiRequest<Application>(`/application/apps/${id}`),
   getLogs: (id: string, lines?: number) => apiRequest<GetApplicationLogsResponse>(`/application/apps/${id}/logs${lines ? `?lines=${lines}` : ''}`),
+  getLogsParsed: (id: string, lines?: number) => apiRequest<GetApplicationLogsParsedResponse>(`/application/apps/${id}/logs/parsed${lines ? `?lines=${lines}` : ''}`),
   create: (app: any) =>
     apiRequest("/application/apps", {
       method: "POST",
@@ -81,12 +84,12 @@ export const applicationsAPI = {
     apiRequest(`/application/apps/${id}`, {
       method: "DELETE",
     }),
-  deploy: (id: string) =>
-    apiRequest(`/applications/${id}/deploy`, {
+  run: (id: string) =>
+    apiRequest<Application>(`/application/apps/${id}/run`, {
       method: "POST",
     }),
   stop: (id: string) =>
-    apiRequest(`/applications/${id}/stop`, {
+    apiRequest<Application>(`/application/apps/${id}/stop`, {
       method: "POST",
     }),
   // 代码浏览器相关API
@@ -143,6 +146,8 @@ export const applicationsAPI = {
     apiRequest(`/application/apps/${id}/deploy-components`, {
       method: "POST",
     }),
+  getRunnerEnvironments: () =>
+    apiRequest<GetRunnerEnvironmentsResponse>("/application/runner-environments"),
 }
 
 // Actor组件管理 API
