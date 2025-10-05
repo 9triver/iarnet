@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package ignis;
 
-option go_package = "./proto";
+option go_package = "./go/proto";
 
 // Code Analysis Service for Ignis Platform
 service CodeAnalysisService {
@@ -10,6 +10,8 @@ service CodeAnalysisService {
 }
 
 // Provider information for analysis
+
+
 message ProviderInfo {
   string id = 1;
   string name = 2;
@@ -64,3 +66,21 @@ message CodeAnalysisResponse {
   map<string, string> global_config = 5;  // Global configuration like secrets, env vars
   string analysis_metadata = 6;  // JSON metadata about the analysis
 }
+
+// Application Registration Messages
+message ApplicationRegistrationRequest {
+  string application_id = 1;
+}
+
+message ApplicationRegistrationResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+// 应用注册服务
+service ApplicationRegistrationService {
+  rpc RegisterApplication(ApplicationRegistrationRequest) returns (ApplicationRegistrationResponse);
+}
+
+// 生成 proto 代码的命令
+// protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative proto/ignis.proto

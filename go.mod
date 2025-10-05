@@ -2,6 +2,11 @@ module github.com/9triver/iarnet
 
 go 1.25.0
 
+replace (
+	github.com/9triver/ignis => ./ignis
+	github.com/9triver/ignis/proto => ./proto/go/proto
+)
+
 require (
 	github.com/gorilla/mux v1.8.1
 	github.com/moby/moby/api v1.52.0-alpha.1

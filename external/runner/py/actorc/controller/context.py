@@ -1,3 +1,4 @@
+import logging
 from lucas import Runtime, Function
 from lucas.serverless_function import Metadata
 from lucas.workflow.executor import Executor
@@ -22,20 +23,27 @@ actorContext: "ActorContext | None" = None
 
 class ActorContext:
     @staticmethod
-    def createContext(master_address: str = None):
+    def createContext(master_address: str = None, application_id: str = None):
         global actorContext
         if actorContext is None:
-            if master_address is None:
-                master_address = os.getenv("IGNIS_ADDR", "localhost:50051")
-            actorContext = ActorContext(master_address)
+            if ignis_address is None:
+                ignis_address = os.getenv("IGNIS_ADDR", "localhost:50051")
+            if application_id is None:
+                application_id = os.getenv("APPLICATION_ID", None)
+            actorContext = ActorContext(ignis_address, application_id)
         return actorContext
 
-    def __init__(self, master_address: str = None):
-        if master_address is None:
-            master_address = os.getenv("IGNIS_ADDR", "localhost:50051")
-        self._master_address = master_address
+    def __init__(self, ignis_address: str = None, application_id: str = None):
+        if ignis_address is None:
+            logging.error("IGNIS_ADDR is not set")
+            raise ValueError("IGNIS_ADDR is not set")
+        if application_id is None:
+            logging.error("APPLICATION_ID is not set")
+            raise ValueError("APPLICATION_ID is not set")
+        self._ignis_address = ignis_address
+        self._application_id = application_id
         self._channel = grpc.insecure_channel(
-            master_address,
+            ignis_address,
             options=[("grpc.max_receive_message_length", 512 * 1024 * 1024)],
         )
         self._stub = controller_pb2_grpc.ServiceStub(self._channel)
@@ -44,6 +52,25 @@ class ActorContext:
         self._result_map: dict[str, platform_pb2.Flow] = {}
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
+
+        # register application
+        self.send(controller_pb2.Message(
+            Type=controller_pb2.CommandType.FR_REGISTER_REQUEST,
+            RegisterRequest=controller_pb2.RegisterRequest(
+                ApplicationID=application_id,
+            ),
+        ))
+
+        # wait for ready
+        for response in self._response_stream:
+            response: controller_pb2.Message
+            if response.Type == controller_pb2.CommandType.ACK:
+                ack: controller_pb2.Ack = response.Ack
+                if ack.Error != "":
+                    logging.error(f"Register application failed: {ack.Error}")
+                    raise ValueError(f"Register application failed: {ack.Error}")
+                break
+
 
     def _generate(self):
         while True:

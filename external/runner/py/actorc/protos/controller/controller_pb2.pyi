@@ -17,6 +17,7 @@ class CommandType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     FR_APPEND_PY_FUNC: _ClassVar[CommandType]
     FR_APPEND_ARG: _ClassVar[CommandType]
     BK_RETURN_RESULT: _ClassVar[CommandType]
+    FR_REGISTER_REQUEST: _ClassVar[CommandType]
 UNSPECIFIED: CommandType
 ACK: CommandType
 FR_READY: CommandType
@@ -25,6 +26,7 @@ FR_APPEND_ACTOR: CommandType
 FR_APPEND_PY_FUNC: CommandType
 FR_APPEND_ARG: CommandType
 BK_RETURN_RESULT: CommandType
+FR_REGISTER_REQUEST: CommandType
 
 class Ack(_message.Message):
     __slots__ = ("Error",)
@@ -120,8 +122,14 @@ class ReturnResult(_message.Message):
     Error: str
     def __init__(self, SessionID: _Optional[str] = ..., InstanceID: _Optional[str] = ..., Name: _Optional[str] = ..., Value: _Optional[_Union[Data, _Mapping]] = ..., Error: _Optional[str] = ...) -> None: ...
 
+class RegisterRequest(_message.Message):
+    __slots__ = ("ApplicationID",)
+    APPLICATIONID_FIELD_NUMBER: _ClassVar[int]
+    ApplicationID: str
+    def __init__(self, ApplicationID: _Optional[str] = ...) -> None: ...
+
 class Message(_message.Message):
-    __slots__ = ("Type", "Ack", "Ready", "AppendData", "AppendActor", "AppendPyFunc", "AppendArg", "ReturnResult")
+    __slots__ = ("Type", "Ack", "Ready", "AppendData", "AppendActor", "AppendPyFunc", "AppendArg", "ReturnResult", "RegisterRequest")
     TYPE_FIELD_NUMBER: _ClassVar[int]
     ACK_FIELD_NUMBER: _ClassVar[int]
     READY_FIELD_NUMBER: _ClassVar[int]
@@ -130,6 +138,7 @@ class Message(_message.Message):
     APPENDPYFUNC_FIELD_NUMBER: _ClassVar[int]
     APPENDARG_FIELD_NUMBER: _ClassVar[int]
     RETURNRESULT_FIELD_NUMBER: _ClassVar[int]
+    REGISTERREQUEST_FIELD_NUMBER: _ClassVar[int]
     Type: CommandType
     Ack: Ack
     Ready: Ready
@@ -138,4 +147,5 @@ class Message(_message.Message):
     AppendPyFunc: AppendPyFunc
     AppendArg: AppendArg
     ReturnResult: ReturnResult
-    def __init__(self, Type: _Optional[_Union[CommandType, str]] = ..., Ack: _Optional[_Union[Ack, _Mapping]] = ..., Ready: _Optional[_Union[Ready, _Mapping]] = ..., AppendData: _Optional[_Union[AppendData, _Mapping]] = ..., AppendActor: _Optional[_Union[AppendActor, _Mapping]] = ..., AppendPyFunc: _Optional[_Union[AppendPyFunc, _Mapping]] = ..., AppendArg: _Optional[_Union[AppendArg, _Mapping]] = ..., ReturnResult: _Optional[_Union[ReturnResult, _Mapping]] = ...) -> None: ...
+    RegisterRequest: RegisterRequest
+    def __init__(self, Type: _Optional[_Union[CommandType, str]] = ..., Ack: _Optional[_Union[Ack, _Mapping]] = ..., Ready: _Optional[_Union[Ready, _Mapping]] = ..., AppendData: _Optional[_Union[AppendData, _Mapping]] = ..., AppendActor: _Optional[_Union[AppendActor, _Mapping]] = ..., AppendPyFunc: _Optional[_Union[AppendPyFunc, _Mapping]] = ..., AppendArg: _Optional[_Union[AppendArg, _Mapping]] = ..., ReturnResult: _Optional[_Union[ReturnResult, _Mapping]] = ..., RegisterRequest: _Optional[_Union[RegisterRequest, _Mapping]] = ...) -> None: ...
