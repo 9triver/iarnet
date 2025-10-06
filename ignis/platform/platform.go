@@ -5,11 +5,15 @@ import (
 	"path"
 
 	"github.com/asynkron/protoactor-go/actor"
+	"github.com/sirupsen/logrus"
 
 	"github.com/9triver/ignis/actor/remote"
 	"github.com/9triver/ignis/actor/remote/ipc"
 	"github.com/9triver/ignis/actor/remote/rpc"
 	"github.com/9triver/ignis/configs"
+	"github.com/9triver/ignis/platform/control"
+	"github.com/9triver/ignis/proto"
+	"github.com/9triver/ignis/proto/controller"
 	"github.com/9triver/ignis/utils"
 )
 
@@ -22,6 +26,10 @@ type Platform struct {
 	cm remote.ControllerManager
 	// Executor connection manager
 	em remote.ExecutorManager
+	// Application infos
+	appInfos map[string]*ApplicationInfo
+	// Controller actor refs
+	controllerActorRefs map[string]*proto.ActorRef
 }
 
 func (p *Platform) Run() error {
@@ -40,6 +48,37 @@ func (p *Platform) Run() error {
 		}
 	}()
 
+	go func() {
+		for {
+			ctrlr := p.cm.NextController()
+			if ctrlr == nil {
+				continue
+			}
+			msg := <-ctrlr.RecvChan()
+			if msg.Type == controller.CommandType_FR_REGISTER_REQUEST {
+				req := msg.GetRegisterRequest()
+				if req == nil {
+					logrus.Error("Register request is nil")
+					continue
+				}
+				appID := req.GetApplicationID()
+				if _, ok := p.appInfos[appID]; ok {
+					logrus.Errorf("Application ID %s is conflicted", appID)
+					continue
+				}
+				appInfo := &ApplicationInfo{ID: appID}
+				actorRef := control.SpawnTaskControllerV2(p.sys.Root, appID, appInfo, ctrlr, func() {
+					delete(p.appInfos, appID)
+				})
+				p.appInfos[appID] = appInfo
+				p.controllerActorRefs[appID] = actorRef
+				logrus.Infof("Application %s is registered", appID)
+			} else {
+				logrus.Errorf("The first message %s is not register request", msg.Type)
+			}
+		}
+	}()
+
 	<-ctx.Done()
 	return ctx.Err()
 }
@@ -54,4 +93,8 @@ func NewPlatform(ctx context.Context, cfg *configs.Config) *Platform {
 		cm:  rpc.NewManager(cfg.RpcAddr),
 		em:  ipc.NewManager(ipcAddr),
 	}
+}
+
+type ApplicationInfo struct {
+	ID string
 }

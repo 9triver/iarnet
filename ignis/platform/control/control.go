@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/asynkron/protoactor-go/actor"
+	"github.com/sirupsen/logrus"
 
 	"github.com/9triver/ignis/actor/compute"
 	"github.com/9triver/ignis/actor/functions"
@@ -20,6 +21,8 @@ type Controller struct {
 	manager    *functions.VenvManager
 	controller remote.Controller
 	store      *proto.StoreRef
+	appID      string
+	appInfo    ApplicationInfo
 
 	nodes    map[string]*task.Node
 	groups   map[string]*task.ActorGroup
@@ -234,5 +237,41 @@ func SpawnTaskController(
 		Store: store,
 		ID:    "controller",
 		PID:   pid,
+	}
+}
+
+type ApplicationInfo interface{}
+
+// For iarnet
+func SpawnTaskControllerV2(ctx *actor.RootContext, appID string,
+	appInfo ApplicationInfo, c remote.Controller, onClose func()) *proto.ActorRef {
+	props := actor.PropsFromProducer(func() actor.Actor {
+		return &Controller{
+			// manager:    venvs,
+			controller: c,
+			appID:      appID,
+			appInfo:    appInfo,
+			// store:      store,
+			nodes:    make(map[string]*task.Node),
+			groups:   make(map[string]*task.ActorGroup),
+			runtimes: make(map[string]*task.Runtime),
+		}
+	})
+
+	controllerID := fmt.Sprintf("controller-%s", appID)
+	pid, _ := ctx.SpawnNamed(props, controllerID)
+	logrus.Infof("control: spawn controller %s with pid %s", controllerID, pid)
+
+	go func() {
+		defer onClose()
+		for msg := range c.RecvChan() {
+			ctx.Send(pid, msg)
+		}
+	}()
+
+	return &proto.ActorRef{
+		// Store: store,
+		ID:  controllerID,
+		PID: pid,
 	}
 }
