@@ -37,23 +37,27 @@ func (p *Platform) Run() error {
 	defer cancel()
 
 	go func() {
+		logrus.Infof("Controller Manager listening on %s", p.cm.Addr())
 		if err := p.cm.Run(ctx); err != nil {
 			panic(err)
 		}
 	}()
 
 	go func() {
+		logrus.Infof("Executor Manager listening on %s", p.em.Addr())
 		if err := p.em.Run(ctx); err != nil {
 			panic(err)
 		}
 	}()
 
 	go func() {
+		logrus.Info("Waiting for new client connection...")
 		for {
 			ctrlr := p.cm.NextController()
 			if ctrlr == nil {
 				continue
 			}
+			logrus.Info("New client is connected")
 			msg := <-ctrlr.RecvChan()
 			if msg.Type == controller.CommandType_FR_REGISTER_REQUEST {
 				req := msg.GetRegisterRequest()
@@ -90,7 +94,7 @@ func NewPlatform(ctx context.Context, cfg *configs.Config) *Platform {
 	return &Platform{
 		ctx: ctx,
 		sys: actor.NewActorSystem(opt),
-		cm:  rpc.NewManager(cfg.RpcAddr),
+		cm:  rpc.NewManager(cfg.RPCAddr),
 		em:  ipc.NewManager(ipcAddr),
 	}
 }

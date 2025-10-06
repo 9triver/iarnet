@@ -9,6 +9,7 @@ import (
 	"github.com/9triver/ignis/actor/remote"
 	"github.com/9triver/ignis/proto/controller"
 	"github.com/9triver/ignis/proto/executor"
+	"github.com/sirupsen/logrus"
 )
 
 type ConnectionManager struct {
@@ -26,6 +27,8 @@ func (cm *ConnectionManager) Run(ctx context.Context) error {
 	defer cm.es.close()
 
 	lis, err := net.Listen("tcp", cm.addr)
+	logrus.Infof("RPC server listening on %s", cm.addr)
+
 	if err != nil {
 		return err
 	}

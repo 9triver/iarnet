@@ -18,7 +18,7 @@ type Config struct {
 }
 
 type IgnisConfig struct {
-	Port string `yaml:"port"` // e.g., "50051"
+	Port int32 `yaml:"port"` // e.g., "50051"
 }
 
 type RunnerImageConfig map[string]string

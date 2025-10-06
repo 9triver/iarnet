@@ -10,6 +10,6 @@ resource_limits:
   gpu: "4"      # Total GPUs
 workspace_dir: "../workspaces"  # Directory for storing cloned git repositories
 ignis:
-  port: "50001"
+  port: 50001
 runner_images:
   "python:3.11-latest": "iarnet/runner:python_3.11-latest"

@@ -94,7 +94,6 @@ func NewManager(config *config.Config, resourceManager *resource.Manager, ignisP
 		dockerClient:    cli,
 	}
 
-	// analysisService will be set via SetAnalysisService method
 	return m
 }
 
@@ -194,7 +193,7 @@ func (m *Manager) RunApplication(appID string) error {
 	// 创建容器
 	containerID, err := m.dockerClient.ContainerCreate(context.TODO(), &container.Config{
 		Image: runnerImage,
-		Env:   []string{"APP_ID=" + appID, "IGNIS_PORT=" + m.config.Ignis.Port, "EXECUTE_CMD=" + *app.ExecuteCmd},
+		Env:   []string{"APP_ID=" + appID, "IGNIS_PORT=" + strconv.FormatInt(int64(m.config.Ignis.Port), 10), "EXECUTE_CMD=" + *app.ExecuteCmd},
 	}, &container.HostConfig{
 		Binds: []string{
 			hostPath + ":/iarnet/app", // 将宿主机的 app.CodeDir 挂载到容器的 /iarnet/app
@@ -1350,10 +1349,10 @@ func (m *Manager) getDockerLogs(containerID string, lines int) ([]string, error)
 func (m *Manager) parseDockerLogLine(line, appName string) *LogEntry {
 	// 生成唯一ID
 	id := fmt.Sprintf("%d", time.Now().UnixNano())
-	
+
 	// Docker日志格式通常为: 2024-01-15T10:30:45.123456789Z message
 	// 或者带有stream前缀: stdout/stderr 2024-01-15T10:30:45.123456789Z message
-	
+
 	// 移除Docker stream前缀 (stdout/stderr)
 	cleanLine := line
 	if strings.HasPrefix(line, "stdout ") || strings.HasPrefix(line, "stderr ") {
@@ -1362,11 +1361,11 @@ func (m *Manager) parseDockerLogLine(line, appName string) *LogEntry {
 			cleanLine = parts[1]
 		}
 	}
-	
+
 	// 使用正则表达式匹配时间戳
 	timestampRegex := regexp.MustCompile(`^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?)\s+(.*)$`)
 	matches := timestampRegex.FindStringSubmatch(cleanLine)
-	
+
 	var timestamp, message string
 	if len(matches) >= 3 {
 		timestamp = matches[1]
@@ -1376,20 +1375,20 @@ func (m *Manager) parseDockerLogLine(line, appName string) *LogEntry {
 		timestamp = time.Now().Format(time.RFC3339)
 		message = cleanLine
 	}
-	
+
 	// 解析结构化日志和提取msg内容
 	parsedMessage, level := m.parseStructuredLog(message)
-	
+
 	// 如果没有从结构化日志中检测到级别，使用通用检测
 	if level == "" {
 		level = m.detectLogLevel(parsedMessage)
 	}
-	
+
 	// 格式化时间戳为更友好的格式
 	if parsedTime, err := time.Parse(time.RFC3339, timestamp); err == nil {
 		timestamp = parsedTime.Format("2006-01-02 15:04:05")
 	}
-	
+
 	return &LogEntry{
 		ID:        id,
 		Timestamp: timestamp,
@@ -1405,27 +1404,27 @@ func (m *Manager) parseStructuredLog(message string) (string, string) {
 	// 检查是否为结构化日志格式: time="..." level=... msg="..."
 	structuredRegex := regexp.MustCompile(`time="[^"]*"\s+level=(\w+)\s+msg="([^"]*)"`)
 	matches := structuredRegex.FindStringSubmatch(message)
-	
+
 	if len(matches) >= 3 {
 		level := strings.ToLower(matches[1])
 		msg := matches[2]
 		return msg, level
 	}
-	
+
 	// 检查其他可能的结构化格式: level=... msg="..."
 	altStructuredRegex := regexp.MustCompile(`level=(\w+)\s+msg="([^"]*)"`)
 	altMatches := altStructuredRegex.FindStringSubmatch(message)
-	
+
 	if len(altMatches) >= 3 {
 		level := strings.ToLower(altMatches[1])
 		msg := altMatches[2]
 		return msg, level
 	}
-	
+
 	// 对于非结构化日志，检查是否有内嵌的时间戳前缀需要移除
 	// 格式如: 2025-09-26T13:28:51.152575929Z hello world
 	cleanedMessage := m.removeEmbeddedTimestamp(message)
-	
+
 	return cleanedMessage, ""
 }
 
@@ -1442,36 +1441,36 @@ func (m *Manager) removeEmbeddedTimestamp(message string) string {
 		// 其他常见格式
 		`^\[\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\]\s+`,
 	}
-	
+
 	for _, pattern := range timestampPatterns {
 		regex := regexp.MustCompile(pattern)
 		if regex.MatchString(message) {
 			return regex.ReplaceAllString(message, "")
 		}
 	}
-	
+
 	return message
 }
 
 // detectLogLevel 从日志消息中检测日志级别
 func (m *Manager) detectLogLevel(message string) string {
 	messageLower := strings.ToLower(message)
-	
+
 	// 检查常见的日志级别关键词
 	if strings.Contains(messageLower, "error") || strings.Contains(messageLower, "err") ||
 		strings.Contains(messageLower, "fatal") || strings.Contains(messageLower, "panic") ||
 		strings.Contains(messageLower, "exception") || strings.Contains(messageLower, "failed") {
 		return "error"
 	}
-	
+
 	if strings.Contains(messageLower, "warn") || strings.Contains(messageLower, "warning") {
 		return "warn"
 	}
-	
+
 	if strings.Contains(messageLower, "debug") || strings.Contains(messageLower, "trace") {
 		return "debug"
 	}
-	
+
 	// 检查日志级别标记 [ERROR], [WARN], [INFO], [DEBUG]
 	levelRegex := regexp.MustCompile(`\[(ERROR|WARN|WARNING|INFO|DEBUG|TRACE)\]`)
 	if matches := levelRegex.FindStringSubmatch(message); len(matches) > 1 {
@@ -1486,7 +1485,7 @@ func (m *Manager) detectLogLevel(message string) string {
 			return "info"
 		}
 	}
-	
+
 	// 默认为info级别
 	return "info"
 }
