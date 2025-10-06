@@ -1,16 +1,5 @@
-from setuptools import find_packages, setup
+from setuptools import setup, find_packages
 import os
-
-setup(
-    name="actorc",
-    version="1.0",
-    packages=find_packages(),
-    install_requires=["httpx", "pyzmq", "grpcio==1.71.0"],
-    author="Tianqi Ren",
-    description="Description of your package",
-    license="Apache 2.0",
-)
-
 def get_lib_files():
     lib_dir = os.path.join("lucas", "lib")
     return [os.path.join(lib_dir, f) for f in os.listdir(lib_dir)]
