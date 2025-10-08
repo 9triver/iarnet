@@ -32,7 +32,10 @@ func (cm *ConnectionManager) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	server := grpc.NewServer(grpc.MaxRecvMsgSize(512 * 1024 * 1024))
+	server := grpc.NewServer(
+		grpc.MaxRecvMsgSize(512 * 1024 * 1024),
+		grpc.MaxSendMsgSize(512 * 1024 * 1024),
+	)
 	defer server.Stop()
 
 	controller.RegisterServiceServer(server, cm.cs)

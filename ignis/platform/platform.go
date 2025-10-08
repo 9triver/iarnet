@@ -77,6 +77,9 @@ func (p *Platform) Run() error {
 				p.appInfos[appID] = appInfo
 				p.controllerActorRefs[appID] = actorRef
 				logrus.Infof("Application %s is registered", appID)
+
+				ack := controller.NewAck(nil)
+				ctrlr.SendChan() <- ack
 			} else {
 				logrus.Errorf("The first message %s is not register request", msg.Type)
 			}
@@ -92,10 +95,12 @@ func NewPlatform(ctx context.Context, cfg *configs.Config) *Platform {
 	ipcAddr := "ipc://" + path.Join(configs.StoragePath, "em-ipc")
 
 	return &Platform{
-		ctx: ctx,
-		sys: actor.NewActorSystem(opt),
-		cm:  rpc.NewManager(cfg.RPCAddr),
-		em:  ipc.NewManager(ipcAddr),
+		ctx:                 ctx,
+		sys:                 actor.NewActorSystem(opt),
+		cm:                  rpc.NewManager(cfg.RPCAddr),
+		em:                  ipc.NewManager(ipcAddr),
+		appInfos:            make(map[string]*ApplicationInfo),
+		controllerActorRefs: make(map[string]*proto.ActorRef),
 	}
 }
 

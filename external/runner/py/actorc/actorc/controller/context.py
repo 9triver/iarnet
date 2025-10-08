@@ -1,6 +1,5 @@
 import logging
-from lucas import Function
-from lucas.runtime import Function
+from lucas import Function, Runtime
 from lucas.serverless_function import Metadata
 from lucas.workflow.executor import Executor
 from lucas.workflow.dag import DAGNode, DataNode, ControlNode
@@ -24,7 +23,7 @@ actorContext: "ActorContext | None" = None
 
 class ActorContext:
     @staticmethod
-    def createContext(master_address: str = None, application_id: str = None):
+    def createContext(ignis_address: str = None, application_id: str = None):
         global actorContext
         if actorContext is None:
             if ignis_address is None:
@@ -36,10 +35,10 @@ class ActorContext:
 
     def __init__(self, ignis_address: str = None, application_id: str = None):
         if ignis_address is None:
-            logging.error("IGNIS_ADDR is not set")
+            log.error("IGNIS_ADDR is not set")
             raise ValueError("IGNIS_ADDR is not set")
         if application_id is None:
-            logging.error("APPLICATION_ID is not set")
+            log.error("APPLICATION_ID is not set")
             raise ValueError("APPLICATION_ID is not set")
         self._ignis_address = ignis_address
         self._application_id = application_id
@@ -52,7 +51,6 @@ class ActorContext:
         self._response_stream = self._stub.Session(self._generate())
         self._result_map: dict[str, platform_pb2.Flow] = {}
         self._thread = threading.Thread(target=self._run, daemon=True)
-        self._thread.start()
 
         # register application
         self.send(controller_pb2.Message(
@@ -68,10 +66,11 @@ class ActorContext:
             if response.Type == controller_pb2.CommandType.ACK:
                 ack: controller_pb2.Ack = response.Ack
                 if ack.Error != "":
-                    logging.error(f"Register application failed: {ack.Error}")
+                    log.error(f"Register application failed: {ack.Error}")
                     raise ValueError(f"Register application failed: {ack.Error}")
                 break
 
+        self._thread.start()
 
     def _generate(self):
         while True:

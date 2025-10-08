@@ -1,6 +1,7 @@
 package control
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -156,16 +157,20 @@ func (c *Controller) onAppendArg(ctx actor.Context, arg *controller.AppendArg) {
 }
 
 func (c *Controller) onControllerMessage(ctx actor.Context, msg *controller.Message) {
-	switch cmd := msg.Command.(type) {
-	case *controller.Message_AppendActor:
-		c.onAppendActor(ctx, cmd.AppendActor)
-	case *controller.Message_AppendPyFunc:
-		c.onAppendPyFunc(ctx, cmd.AppendPyFunc)
-	case *controller.Message_AppendData:
-		c.onAppendData(ctx, cmd.AppendData)
-	case *controller.Message_AppendArg:
-		c.onAppendArg(ctx, cmd.AppendArg)
-	}
+	jsonBytes, _ := json.Marshal(msg.Command)
+	logrus.Info("control: onControllerMessage ", string(jsonBytes))
+
+	// switch cmd := msg.Command.(type) {
+	// case *controller.Message_AppendActor:
+
+	// 	c.onAppendActor(ctx, cmd.AppendActor)
+	// case *controller.Message_AppendPyFunc:
+	// 	c.onAppendPyFunc(ctx, cmd.AppendPyFunc)
+	// case *controller.Message_AppendData:
+	// 	c.onAppendData(ctx, cmd.AppendData)
+	// case *controller.Message_AppendArg:
+	// 	c.onAppendArg(ctx, cmd.AppendArg)
+	// }
 }
 
 func (c *Controller) onReturn(ctx actor.Context, ir *proto.InvokeResponse) {
