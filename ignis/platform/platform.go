@@ -104,6 +104,22 @@ func NewPlatform(ctx context.Context, cfg *configs.Config) *Platform {
 	}
 }
 
+// GetControllerActorRef returns the actor ref of the controller of the application.
+func (p *Platform) GetApplicationDAG(appID string) *controller.DAG {
+	return p.appInfos[appID].GetDAG()
+}
+
 type ApplicationInfo struct {
-	ID string
+	ID  string
+	dag *controller.DAG
+}
+
+// SetDAG sets the DAG of the current application.
+func (a *ApplicationInfo) SetDAG(dag *controller.DAG) {
+	a.dag = dag
+}
+
+// GetDAG returns the DAG of the current application.
+func (a *ApplicationInfo) GetDAG() *controller.DAG {
+	return a.dag
 }

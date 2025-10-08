@@ -43,7 +43,7 @@ func main() {
 	var ignisPlatform *platform.Platform = nil
 	if cfg.Ignis.Port != 0 {
 		ignisPlatform = platform.NewPlatform(context.Background(), &configs.Config{
-			RPCAddr: "localhost:" + strconv.FormatInt(int64(cfg.Ignis.Port), 10),
+			RPCAddr: "0.0.0.0:" + strconv.FormatInt(int64(cfg.Ignis.Port), 10),
 		})
 		if err != nil {
 			log.Fatalf("Ignis platform init: %v", err)

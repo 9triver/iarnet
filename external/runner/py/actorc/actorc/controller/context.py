@@ -1,4 +1,3 @@
-import logging
 from lucas import Function, Runtime
 from lucas.serverless_function import Metadata
 from lucas.workflow.executor import Executor
@@ -78,25 +77,25 @@ def convert_dag_to_proto(dag):
 
 class ActorContext:
     @staticmethod
-    def createContext(ignis_address: str = None, application_id: str = None):
+    def createContext(ignis_address: str = None, app_id: str = None):
         global actorContext
         if actorContext is None:
             if ignis_address is None:
                 ignis_address = os.getenv("IGNIS_ADDR", "localhost:50051")
-            if application_id is None:
-                application_id = os.getenv("APPLICATION_ID", None)
-            actorContext = ActorContext(ignis_address, application_id)
+            if app_id is None:
+                app_id = os.getenv("APP_ID", None)
+            actorContext = ActorContext(ignis_address, app_id)
         return actorContext
 
-    def __init__(self, ignis_address: str = None, application_id: str = None):
+    def __init__(self, ignis_address: str = None, app_id: str = None):
         if ignis_address is None:
             log.error("IGNIS_ADDR is not set")
             raise ValueError("IGNIS_ADDR is not set")
-        if application_id is None:
-            log.error("APPLICATION_ID is not set")
-            raise ValueError("APPLICATION_ID is not set")
+        if app_id is None:
+            log.error("APP_ID is not set")
+            raise ValueError("APP_ID is not set")
         self._ignis_address = ignis_address
-        self._application_id = application_id
+        self._app_id = app_id
         self._channel = grpc.insecure_channel(
             ignis_address,
             options=[("grpc.max_receive_message_length", 512 * 1024 * 1024)],
@@ -112,7 +111,7 @@ class ActorContext:
             controller_pb2.Message(
                 Type=controller_pb2.CommandType.FR_REGISTER_REQUEST,
                 RegisterRequest=controller_pb2.RegisterRequest(
-                    ApplicationID=application_id,
+                    ApplicationID=app_id,
                 ),
             )
         )

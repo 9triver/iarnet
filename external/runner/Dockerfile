@@ -19,11 +19,11 @@ RUN apt-get update && apt-get install -y \
 
 # 安装 actorc 及其依赖
 COPY py/actorc /tmp/actorc
-RUN pip install -e /tmp/actorc
+RUN cd /tmp/actorc && pip install -e .
 
 # 安装 lucas 及其依赖
 COPY py/lucas /tmp/lucas
-RUN pip install -e /tmp/lucas
+RUN cd /tmp/lucas && pip install -e .
 
 COPY --from=builder /app/runner /usr/bin/runner
 

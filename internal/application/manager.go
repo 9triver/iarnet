@@ -198,6 +198,9 @@ func (m *Manager) RunApplication(appID string) error {
 		Binds: []string{
 			hostPath + ":/iarnet/app", // 将宿主机的 app.CodeDir 挂载到容器的 /iarnet/app
 		},
+		ExtraHosts: []string{
+			"host.internal:host-gateway",
+		},
 	}, nil, nil, "iarnet-app-runner-"+appID)
 
 	if err != nil {
@@ -738,7 +741,7 @@ func (m *Manager) GetFileTree(appID, path string) ([]FileInfo, error) {
 	}
 
 	// 检查路径是否存在
-	if _, err := os.Stat(requestPath); os.IsNotExist(err) {
+	if _, err = os.Stat(requestPath); os.IsNotExist(err) {
 		return nil, fmt.Errorf("path not found: %s", requestPath)
 	}
 

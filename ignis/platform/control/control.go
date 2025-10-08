@@ -156,11 +156,18 @@ func (c *Controller) onAppendArg(ctx actor.Context, arg *controller.AppendArg) {
 	}
 }
 
+func (c *Controller) onDAG(ctx actor.Context, dag *controller.DAG) {
+	ctx.Logger().Info("control: append DAG",
+		"node num", len(dag.Nodes),
+	)
+	c.appInfo.SetDAG(dag)
+}
+
 func (c *Controller) onControllerMessage(ctx actor.Context, msg *controller.Message) {
 	jsonBytes, _ := json.Marshal(msg.Command)
 	logrus.Info("control: onControllerMessage ", string(jsonBytes))
 
-	// switch cmd := msg.Command.(type) {
+	switch cmd := msg.Command.(type) {
 	// case *controller.Message_AppendActor:
 
 	// 	c.onAppendActor(ctx, cmd.AppendActor)
@@ -170,7 +177,9 @@ func (c *Controller) onControllerMessage(ctx actor.Context, msg *controller.Mess
 	// 	c.onAppendData(ctx, cmd.AppendData)
 	// case *controller.Message_AppendArg:
 	// 	c.onAppendArg(ctx, cmd.AppendArg)
-	// }
+	case *controller.Message_DAG:
+		c.onDAG(ctx, cmd.DAG)
+	}
 }
 
 func (c *Controller) onReturn(ctx actor.Context, ir *proto.InvokeResponse) {
@@ -245,7 +254,10 @@ func SpawnTaskController(
 	}
 }
 
-type ApplicationInfo interface{}
+type ApplicationInfo interface {
+	GetDAG() *controller.DAG
+	SetDAG(dag *controller.DAG)
+}
 
 // For iarnet
 func SpawnTaskControllerV2(ctx *actor.RootContext, appID string,

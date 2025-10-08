@@ -26,7 +26,7 @@ func main() {
 		logrus.Fatalf("EXECUTE_CMD environment variable is required")
 	}
 
-	os.Setenv("IGNIS_ADDR", "host.docker.internal"+ignisPort)
+	os.Setenv("IGNIS_ADDR", "host.internal:"+ignisPort)
 
 	logrus.Infof("Registering app %s to Ignis platform at port %s", appID, ignisPort)
 
