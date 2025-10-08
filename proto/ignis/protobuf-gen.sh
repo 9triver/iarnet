@@ -9,8 +9,8 @@ ACTOR_PROTO=$ACTOR_SRC/actor.proto
 PROTOC="$PROTOC -I $ACTOR_SRC -I ."
 PROTO_SRC="*.proto ./executor/*.proto ./controller/*.proto ./cluster/*.proto"
 
-GO_OUTPUTS="../go/proto"
-PY_OUTPUTS="../../external/runner/py/actorc/protos"
+GO_OUTPUTS="../../ignis/proto"
+PY_OUTPUTS="../../external/runner/py/actorc/actorc/protos"
 
 for GO_OUTPUT in $GO_OUTPUTS; do
   echo "Generating protobuf files for Go: $GO_OUTPUT"
