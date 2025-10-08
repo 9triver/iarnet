@@ -1,0 +1,13 @@
+Metadata-Version: 2.4
+Name: actorc
+Version: 1.0
+Summary: Description of your package
+Author: Tianqi Ren
+License: Apache 2.0
+Requires-Dist: httpx
+Requires-Dist: pyzmq
+Requires-Dist: grpcio==1.71.0
+Dynamic: author
+Dynamic: license
+Dynamic: requires-dist
+Dynamic: summary

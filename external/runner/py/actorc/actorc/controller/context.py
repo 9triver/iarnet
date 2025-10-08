@@ -1,5 +1,6 @@
 import logging
-from lucas import Runtime, Function
+from lucas import Function
+from lucas.runtime import Function
 from lucas.serverless_function import Metadata
 from lucas.workflow.executor import Executor
 from lucas.workflow.dag import DAGNode, DataNode, ControlNode
