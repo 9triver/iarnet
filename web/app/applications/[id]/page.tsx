@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { applicationsAPI } from "@/lib/api"
 import type { LogEntry, Application, DAG, DAGNode, DAGEdge, ControlNode, DataNode } from "@/lib/model"
@@ -40,6 +40,9 @@ import {
   Filter,
   X,
 } from "lucide-react"
+import { Graph } from '@antv/g6'
+import { ExtensionCategory, register } from '@antv/g6'
+import { ReactNode } from '@antv/g6-extension-react'
 
 interface CodeBrowserInfo {
   status: string
@@ -57,6 +60,54 @@ interface NodeDisplayInfo {
   status: "running" | "pending" | "ready" | "unknown"
   done?: boolean
   ready?: boolean
+}
+
+// 注册G6 React节点扩展
+register(ExtensionCategory.NODE, 'dag-react-node', ReactNode)
+
+// DAG节点React组件
+const DAGNodeComponent = ({ g6Node }: { g6Node: any }) => {
+  console.log("DAGNodeComponent data:", g6Node)
+  const { nodeType, nodeName, node } = g6Node.data
+  
+  const isControl = nodeType === "ControlNode"
+  const isData = nodeType === "DataNode"
+  
+  const getStatusColor = () => {
+    if (isControl) {
+      return (node as ControlNode)?.done ? "bg-green-500" : "bg-yellow-500"
+    } else {
+      return (node as DataNode)?.ready ? "bg-green-500" : "bg-gray-400"
+    }
+  }
+  
+  const getStatusText = () => {
+    if (isControl) {
+      return (node as ControlNode)?.done ? "已完成" : "进行中"
+    } else {
+      return (node as DataNode)?.ready ? "就绪" : "未就绪"
+    }
+  }
+
+  return (
+    <div className="bg-white border-2 border-gray-300 rounded-lg shadow-sm p-3 min-w-[160px] min-h-[64px] flex flex-col justify-between hover:border-blue-400 transition-colors">
+      <div className="flex items-center space-x-2">
+        {isControl ? <Cpu className="w-3 h-3 text-blue-600 flex-shrink-0" /> : <Database className="w-3 h-3 text-green-600 flex-shrink-0" />}
+        <span className="text-xs font-medium text-gray-800 truncate" title={nodeName}>
+          {nodeName}
+        </span>
+      </div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-1">
+          <div className={`w-2 h-2 rounded-full ${getStatusColor()}`} />
+          <span className="text-xs text-gray-600">{getStatusText()}</span>
+        </div>
+        <span className="text-xs text-gray-500">
+          {isControl ? "控制" : "数据"}
+        </span>
+      </div>
+    </div>
+  )
 }
 
 export default function ApplicationDetailPage() {
@@ -100,352 +151,184 @@ export default function ApplicationDetailPage() {
 
 
 
-  // DAG图可视化组件
-  // TODO: 使用 antv 库的 G6 图可视化库
+  // DAG图可视化组件 - 使用G6图可视化库
   const DAGVisualization = ({ dag }: { dag: DAG }) => {
-    const [selectedNode, setSelectedNode] = useState<string | null>(null)
-    const nodes = dag.nodes
-    const edges = dag.edges
+    const containerRef = useRef<HTMLDivElement>(null)
+    const graphRef = useRef<Graph | null>(null)
 
-    // 拓扑排序算法，计算节点的层级
-    const calculateNodeLevels = () => {
-      const nodeIds = nodes.map((node, index) => getNodeId(node, index))
-      const nodeIndexMap = new Map(nodeIds.map((id, index) => [id, index]))
-      
-      // 构建邻接表（入度图）
-      const inDegree = new Map<string, number>()
-      const adjacencyList = new Map<string, string[]>()
-      
-      // 初始化
-      nodeIds.forEach(id => {
-        inDegree.set(id, 0)
-        adjacencyList.set(id, [])
-      })
-      
-      // 构建图结构
-       edges.forEach(edge => {
-         const fromId = edge.fromNodeId
-         const toId = edge.toNodeId
-         
-         if (nodeIds.includes(fromId) && nodeIds.includes(toId)) {
-           // 数据流向：from -> to 表示数据从 from 流向 to
-           // 所以 from 应该在 to 的左侧（更早的层级）
-           adjacencyList.get(fromId)?.push(toId)
-           inDegree.set(toId, (inDegree.get(toId) || 0) + 1)
-         }
-       })
-      
-      // 拓扑排序计算层级
-      const levels = new Map<string, number>()
-      const queue: string[] = []
-      
-      // 找到所有入度为0的节点（数据源节点，没有输入数据的节点）
-      nodeIds.forEach(id => {
-        if (inDegree.get(id) === 0) {
-          queue.push(id)
-          levels.set(id, 0)
+    useEffect(() => {
+      if (!containerRef.current || !dag.nodes.length) return
+
+      // 获取节点ID辅助函数
+      const getNodeId = (node: DAGNode, index: number): string => {
+        if (!node || !node.node) {
+          return `node-${index}`
         }
-      })
-      
-      // BFS计算层级
-      while (queue.length > 0) {
-        const currentId = queue.shift()!
-        const currentLevel = levels.get(currentId) || 0
-        
-        adjacencyList.get(currentId)?.forEach(neighborId => {
-          const newInDegree = (inDegree.get(neighborId) || 0) - 1
-          inDegree.set(neighborId, newInDegree)
-          
-          if (newInDegree === 0) {
-            queue.push(neighborId)
-            levels.set(neighborId, currentLevel + 1)
+
+        try {
+          if (node.type === "ControlNode") {
+            const controlNode = node.node as ControlNode
+            return controlNode.id || `control-${index}`
+          } else if (node.type === "DataNode") {
+            const dataNode = node.node as DataNode
+            return dataNode.id || `data-${index}`
           }
-        })
-      }
-      
-      // 对于没有被处理的节点（可能存在循环依赖），给它们分配默认层级
-      nodeIds.forEach(id => {
-        if (!levels.has(id)) {
-          levels.set(id, 0)
+        } catch (error) {
+          console.error(`Error getting node ID for index ${index}:`, error)
         }
-      })
-      
-      return levels
-    }
-
-    // 布局参数
-    const nodeWidth = 160  // 节点宽度
-    const nodeHeight = 64  // 节点高度
-    const levelSpacing = 240  // 层级间距（增加以使边更长）
-    const nodeSpacing = 90   // 同层节点间距（稍微增加）
-    const startX = 50
-    const startY = 50
-
-    // 改进的DAG布局算法
-    const getNodePosition = (nodeIndex: number) => {
-      const node = nodes[nodeIndex]
-      if (!node) return { x: 0, y: 0 }
-
-      const nodeId = getNodeId(node, nodeIndex)
-      const levels = calculateNodeLevels()
-      const level = levels.get(nodeId) || 0
-      
-      // 计算每层的节点数量和当前节点在该层的位置
-      const nodesInLevel = nodes.filter((n, i) => {
-        const nId = getNodeId(n, i)
-        return levels.get(nId) === level
-      })
-      
-      const nodePositionInLevel = nodesInLevel.findIndex((n, i) => {
-        const nId = getNodeId(n, nodes.indexOf(n))
-        return nId === nodeId
-      })
-      
-      // 计算位置：被依赖的节点在左侧，依赖其他节点的在右侧
-      const x = startX + level * levelSpacing
-      const y = startY + nodePositionInLevel * (nodeHeight + nodeSpacing)
-
-      return { x, y }
-    }
-
-    // 获取节点ID - 修复逻辑
-    const getNodeId = (node: DAGNode, index: number): string => {
-      if (!node || !node.node) {
-        console.warn(`Node at index ${index} is missing or has no node data`)
+        
         return `node-${index}`
       }
 
-      try {
-        if (node.type === "ControlNode") {
-          const controlNode = node.node as ControlNode
-          return controlNode.id || `control-${index}`
-        } else if (node.type === "DataNode") {
-          const dataNode = node.node as DataNode
-          return dataNode.id || `data-${index}`
+      // 获取节点名称辅助函数
+      const getNodeName = (node: DAGNode, index: number): string => {
+        if (!node || !node.node) return `Node ${index}`
+
+        try {
+          if (node.type === "ControlNode") {
+            const controlNode = node.node as ControlNode
+            return controlNode.functionName || `Control ${index}`
+          } else if (node.type === "DataNode") {
+            const dataNode = node.node as DataNode
+            return `Data ${dataNode.lambda || index}`
+          }
+        } catch (error) {
+          console.error(`Error getting node name for index ${index}:`, error)
         }
-      } catch (error) {
-        console.error(`Error getting node ID for index ${index}:`, error)
+        
+        return `Node ${index}`
       }
-      
-      return `node-${index}`
-    }
 
-    // 获取节点名称
-    const getNodeName = (node: DAGNode, index: number): string => {
-      if (!node || !node.node) return `Node ${index}`
-
-      try {
-        if (node.type === "ControlNode") {
-          const controlNode = node.node as ControlNode
-          return controlNode.functionName || `Control ${index}`
-        } else if (node.type === "DataNode") {
-          const dataNode = node.node as DataNode
-          return `Data ${dataNode.lambda || index}`
-        }
-      } catch (error) {
-        console.error(`Error getting node name for index ${index}:`, error)
-      }
-      
-      return `Node ${index}`
-    }
-
-    // 计算图形的实际尺寸
-    const calculateGraphDimensions = () => {
-      if (nodes.length === 0) return { width: 800, height: 400 }
-      
-      const positions = nodes.map((node, index) => getNodePosition(index))
-      const maxX = Math.max(...positions.map(pos => pos.x)) + nodeWidth + 50
-      const maxY = Math.max(...positions.map(pos => pos.y)) + nodeHeight + 50
-      
-      return {
-        width: Math.max(maxX, 800),
-        height: Math.max(maxY, 400)
-      }
-    }
-
-    const graphDimensions = calculateGraphDimensions()
-
-    // 调试信息：打印节点和边的信息
-    console.log('DAG Visualization Debug Info:')
-    console.log('Nodes:', nodes.map((node, index) => ({
-      index,
-      type: node.type,
-      id: getNodeId(node, index),
-      name: getNodeName(node, index),
-      node: node.node
-    })))
-    console.log('Edges:', edges.map((edge, index) => ({
-      index,
-      fromNodeId: edge.fromNodeId,
-      toNodeId: edge.toNodeId,
-      info: edge.info,
-      infoType: typeof edge.info
-    })))
-    console.log('Graph dimensions:', graphDimensions)
-
-    return (
-      <div className="relative w-full h-[500px] border rounded-lg bg-gray-50 overflow-auto">
-        <svg 
-          width={graphDimensions.width} 
-          height={graphDimensions.height}
-          className="block"
-        >
-          {/* 箭头标记定义 */}
-          <defs>
-            <marker
-              id="arrowhead"
-              markerWidth="10"
-              markerHeight="7"
-              refX="9"
-              refY="3.5"
-              orient="auto"
-              markerUnits="strokeWidth"
-            >
-              <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8" />
-            </marker>
-          </defs>
-          
-          {/* 绘制连接线 */}
-          {edges.map((edge, index) => {
-            console.log(`Processing edge ${index}:`, edge)
-            
-            const fromIndex = nodes.findIndex((node, i) => {
-              const nodeId = getNodeId(node, i)
-              console.log(`Checking node ${i} with ID ${nodeId} against fromNodeId ${edge.fromNodeId}`)
-              return nodeId === edge.fromNodeId
-            })
-            
-            const toIndex = nodes.findIndex((node, i) => {
-              const nodeId = getNodeId(node, i)
-              console.log(`Checking node ${i} with ID ${nodeId} against toNodeId ${edge.toNodeId}`)
-              return nodeId === edge.toNodeId
-            })
-
-            console.log(`Edge ${index}: fromIndex=${fromIndex}, toIndex=${toIndex}`)
-
-            if (fromIndex === -1 || toIndex === -1) {
-              console.warn(`Edge ${index} skipped: fromIndex=${fromIndex}, toIndex=${toIndex}`)
-              return null
-            }
-
-            const fromPos = getNodePosition(fromIndex)
-            const toPos = getNodePosition(toIndex)
-
-            // 计算连接点：数据流从左到右，出边从右侧边缘出发，入边指向左侧边缘
-            const fromX = fromPos.x + nodeWidth  // 从节点右侧边缘出发
-            const fromY = fromPos.y + nodeHeight / 2  // 节点垂直中点
-            const toX = toPos.x  // 指向节点左侧边缘
-            const toY = toPos.y + nodeHeight / 2  // 节点垂直中点
-
-            // 计算连线中点位置（用于显示info文本）
-            const midX = (fromX + toX) / 2 - 4
-            const midY = (fromY + toY) / 2
-
-            // 修复info字段处理 - info是string类型，不是对象
-            let infoText = ''
-            if (edge.info) {
-              if (typeof edge.info === 'string') {
-                infoText = edge.info
-              } else if (typeof edge.info === 'object') {
-                // 如果实际上是对象，则转换为字符串
-                infoText = Object.entries(edge.info)
-                  .map(([key, value]) => `${key}: ${value}`)
-                  .join(', ')
-              } else {
-                infoText = String(edge.info)
-              }
-            }
-
-            console.log(`Edge ${index} info text:`, infoText)
-
-            return (
-              <g key={index}>
-                <line
-                  x1={fromX}
-                  y1={fromY}
-                  x2={toX}
-                  y2={toY}
-                  stroke="#94a3b8"
-                  strokeWidth="1.5"
-                  markerEnd="url(#arrowhead)"
-                  strokeDasharray="none"
-                  opacity="0.8"
-                />
-                {/* 在连线中间显示info文本 */}
-                {infoText && (
-                  <g>
-                    {/* 背景框 - 使用更精确的文本宽度计算 */}
-                    <rect
-                      x={midX - (infoText.length * 5.5 + 16) / 2}
-                      y={midY - 9}
-                      width={infoText.length * 5.5 + 16}
-                      height={18}
-                      fill="white"
-                      stroke="#94a3b8"
-                      strokeWidth="0.5"
-                      rx="4"
-                      opacity="0.95"
-                    />
-                    {/* 文本内容 */}
-                    <text
-                      x={midX}
-                      y={midY + 1}
-                      textAnchor="middle"
-                      dominantBaseline="middle"
-                      fontSize="10"
-                      fill="#475569"
-                      className="font-sans"
-                    >
-                      {infoText}
-                    </text>
-                  </g>
-                )}
-              </g>
-            )
-          })}
-        </svg>
-
-        {/* 绘制节点 */}
-        {nodes.map((node, index) => {
-          const position = getNodePosition(index)
+      // 转换DAG数据为G6格式
+      const g6Data = {
+        nodes: dag.nodes.map((node, index) => {
           const nodeId = getNodeId(node, index)
           const nodeName = getNodeName(node, index)
-          const isControl = node.type === "ControlNode"
+          
+          return {
+            id: nodeId,
+            data: {
+              id: nodeId,
+              nodeType: node.type,
+              nodeName: nodeName,
+              node: node.node,
+              status: node.type === "ControlNode" 
+                ? ((node.node as ControlNode)?.done ? "done" : "running")
+                : ((node.node as DataNode)?.ready ? "ready" : "pending")
+            },
+          }
+        }),
+        edges: dag.edges.map((edge, index) => {
+          let edgeLabel = ''
+          if (edge.info) {
+            if (typeof edge.info === 'string') {
+              edgeLabel = edge.info
+            } else if (typeof edge.info === 'object') {
+              edgeLabel = Object.entries(edge.info)
+                .map(([key, value]) => `${key}: ${value}`)
+                .join(', ')
+            } else {
+              edgeLabel = String(edge.info)
+            }
+          }
 
-          return (
-            <div
-              key={nodeId}
-              className={`absolute border-2 rounded-lg shadow-sm cursor-pointer transition-all bg-white 
-                ${selectedNode === nodeId ?
-                  "border-blue-500 shadow-md" : "border-gray-300"
-                }`}
-              style={{ 
-                left: position.x, 
-                top: position.y,
-                width: '160px',
-                height: '64px'
-              }}
-              onClick={() => setSelectedNode(nodeId)}
-            >
-              <div className="p-2 h-full flex flex-col justify-between">
-                <div className="flex items-center space-x-1">
-                  {isControl ? <Cpu className="w-3 h-3" /> : <Database className="w-3 h-3" />}
-                  <span className="text-xs font-medium truncate">{nodeName}</span>
-                </div>
-                <div className="flex items-center space-x-1">
-                  <div className={`w-2 h-2 rounded-full ${isControl
-                    ? ((node.node as any)?.Done ? "bg-green-500" : "bg-yellow-500")
-                    : ((node.node as any)?.ready ? "bg-green-500" : "bg-gray-400")
-                    }`} />
-                  <span className="text-xs text-muted-foreground">
-                    {isControl ? "控制节点" : "数据节点"}
-                  </span>
-                </div>
-              </div>
-            </div>
-          )
-        })}
-      </div>
+          return {
+            id: `edge-${index}`,
+            source: edge.fromNodeId,
+            target: edge.toNodeId,
+            data: {
+              label: edgeLabel
+            },
+            style: {
+              stroke: '#94a3b8',
+              lineWidth: 1.5,
+              endArrow: true
+            }
+          }
+        })
+      }
+
+      // 创建G6图实例
+      const graph = new Graph({
+        container: containerRef.current,
+        padding: 20,
+        data: g6Data,
+        node: {
+          type: 'dag-react-node',
+          style: {
+            size: [160, 64],
+            component: (node: any) => <DAGNodeComponent g6Node={node} />
+          }
+        },
+        edge: {
+          style: {
+            stroke: '#94a3b8',
+            lineWidth: 1.5,
+            endArrow: true,
+            labelText: (d: any) => d.data?.label || '',
+            labelFill: '#475569',
+            labelFontSize: 10,
+            labelTextAlign: 'center',
+            labelTextBaseline: 'middle',
+            labelOffsetX: -2,
+            labelOffsetY: 0,
+            labelPosition: 'center',
+            labelBackground: true,
+            labelBackgroundFill: '#ffffff',
+            labelBackgroundOpacity: 0.8,
+            labelBackgroundRadius: 4,
+            labelPadding: [2, 4]
+          }
+        },
+        layout: {
+          type: 'dagre',
+          rankdir: 'LR', // 从左到右
+          nodesep: 160,
+          ranksep: 60,
+          controlPoints: true
+        },
+        behaviors: [
+          // 'drag-element',
+          {
+            type: 'zoom-canvas',
+            key: 'zoom-canvas-1', // 为交互指定标识符，方便动态更新
+            sensitivity: 0.5, // 设置灵敏度
+            trigger: ['Control']
+          },
+          'drag-canvas'
+        ],
+        autoFit: {
+          type: 'view',
+          options: {
+            // 仅适用于 'view' 类型
+            when: 'always', // 何时适配：'overflow'(仅当内容溢出时) 或 'always'(总是适配)
+            direction: 'both', // 适配方向：'x'、'y' 或 'both'
+          },
+        },
+        autoResize: true
+      })
+
+      // 渲染图形
+      graph.render()
+
+      // 保存图实例引用
+      graphRef.current = graph
+
+      // 清理函数
+      return () => {
+        if (graphRef.current) {
+          graphRef.current.destroy()
+          graphRef.current = null
+        }
+      }
+    }, [dag])
+
+    return (
+      <div 
+        ref={containerRef} 
+        className="w-full h-[500px] border rounded-lg bg-gray-50"
+        style={{ minHeight: '500px' }}
+      />
     )
   }
 
