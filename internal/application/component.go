@@ -12,11 +12,11 @@ import (
 type ComponentType string
 
 const (
-	ComponentTypeWeb        ComponentType = "web"        // Web服务actor
-	ComponentTypeAPI        ComponentType = "api"        // API服务actor
-	ComponentTypeWorker     ComponentType = "worker"     // 工作处理actor
-	ComponentTypeCompute    ComponentType = "compute"    // 计算处理actor
-	ComponentTypeGateway    ComponentType = "gateway"    // 网关代理actor
+	ComponentTypeWeb     ComponentType = "web"     // Web服务actor
+	ComponentTypeAPI     ComponentType = "api"     // API服务actor
+	ComponentTypeWorker  ComponentType = "worker"  // 工作处理actor
+	ComponentTypeCompute ComponentType = "compute" // 计算处理actor
+	ComponentTypeGateway ComponentType = "gateway" // 网关代理actor
 )
 
 // ConnectionType 定义组件间连接类型
@@ -25,7 +25,7 @@ type ConnectionType string
 const (
 	ConnectionTypeHTTP         ConnectionType = "http"
 	ConnectionTypeGRPC         ConnectionType = "grpc"
-	ConnectionTypeStream       ConnectionType = "stream"       // 流式连接
+	ConnectionTypeStream       ConnectionType = "stream" // 流式连接
 	ConnectionTypeMessageQueue ConnectionType = "message_queue"
 )
 
@@ -35,13 +35,13 @@ type Component struct {
 	Name             string                 `json:"name"`
 	Type             ComponentType          `json:"type"`
 	Image            string                 `json:"image"`
-	Dependencies     []string               `json:"dependencies"`     // 依赖的组件ID列表
+	Dependencies     []string               `json:"dependencies"` // 依赖的组件ID列表
 	Ports            []int                  `json:"ports"`
 	Environment      map[string]string      `json:"environment"`
-	EnvVars          map[string]string      `json:"env_vars"`         // 环境变量（别名）
+	EnvVars          map[string]string      `json:"env_vars"` // 环境变量（别名）
 	Resources        ResourceRequirements   `json:"resources"`
-	ProviderType     string                 `json:"provider_type"`    // 首选的provider类型
-	ProviderID       string                 `json:"provider_id"`      // 指定的provider ID
+	ProviderType     string                 `json:"provider_type"`     // 首选的provider类型
+	ProviderID       string                 `json:"provider_id"`       // 指定的provider ID
 	DeploymentConfig map[string]interface{} `json:"deployment_config"` // 部署配置
 	Status           ComponentStatus        `json:"status"`
 	ContainerRef     *resource.ContainerRef `json:"container_ref,omitempty"`
@@ -69,20 +69,20 @@ type ResourceRequirements struct {
 	Storage float64 `json:"storage"` // 存储GB
 }
 
-// DAGEdge 表示DAG图中的边（组件间连接）
-type DAGEdge struct {
-	FromComponent    string                 `json:"from_component"`
-	ToComponent      string                 `json:"to_component"`
-	ConnectionType   ConnectionType         `json:"connection_type"`
-	ConnectionConfig map[string]string      `json:"connection_config"`
+// DAGEdgeOld 表示DAG图中的边（组件间连接）
+type DAGEdgeOld struct {
+	FromComponent    string            `json:"from_component"`
+	ToComponent      string            `json:"to_component"`
+	ConnectionType   ConnectionType    `json:"connection_type"`
+	ConnectionConfig map[string]string `json:"connection_config"`
 }
 
 // ApplicationDAG 表示应用的DAG图结构
 type ApplicationDAG struct {
 	ApplicationID    string                 `json:"application_id"`
-	Components       map[string]*Component  `json:"components"`       // 组件ID -> 组件
-	Edges            []DAGEdge              `json:"edges"`
-	GlobalConfig     map[string]string      `json:"global_config"`    // 全局配置
+	Components       map[string]*Component  `json:"components"` // 组件ID -> 组件
+	Edges            []DAGEdgeOld           `json:"edges"`
+	GlobalConfig     map[string]string      `json:"global_config"`     // 全局配置
 	AnalysisMetadata map[string]interface{} `json:"analysis_metadata"` // 分析元数据
 	CreatedAt        time.Time              `json:"created_at"`
 	UpdatedAt        time.Time              `json:"updated_at"`

@@ -938,53 +938,54 @@ func (s *Server) handleAnalyzeApplication(w http.ResponseWriter, req *http.Reque
 
 // handleDeployComponents 部署应用的所有Actor组件
 func (s *Server) handleDeployComponents(w http.ResponseWriter, req *http.Request) {
-	vars := mux.Vars(req)
-	appID := vars["id"]
-	logrus.Infof("Received request to deploy components for application: %s", appID)
+	panic("unimplemented")
+	// vars := mux.Vars(req)
+	// appID := vars["id"]
+	// logrus.Infof("Received request to deploy components for application: %s", appID)
 
-	// 验证应用是否存在
-	app, err := s.appMgr.GetApplication(appID)
-	if err != nil {
-		logrus.Warnf("Application not found: %s", appID)
-		response.WriteError(w, http.StatusNotFound, "application not found", err)
-		return
-	}
+	// // 验证应用是否存在
+	// app, err := s.appMgr.GetApplication(appID)
+	// if err != nil {
+	// 	logrus.Warnf("Application not found: %s", appID)
+	// 	response.WriteError(w, http.StatusNotFound, "application not found", err)
+	// 	return
+	// }
 
-	// 获取DAG信息
-	dag, err := s.appMgr.GetApplicationDAG(appID)
-	if err != nil {
-		logrus.Warnf("No DAG found for application: %s", appID)
-		response.WriteError(w, http.StatusNotFound, "application DAG not found, please analyze first", err)
-		return
-	}
+	// // 获取DAG信息
+	// dag, err := s.appMgr.GetApplicationDAG(appID)
+	// if err != nil {
+	// 	logrus.Warnf("No DAG found for application: %s", appID)
+	// 	response.WriteError(w, http.StatusNotFound, "application DAG not found, please analyze first", err)
+	// 	return
+	// }
 
-	// 部署所有组件
-	deployedComponents := []string{}
-	for _, component := range dag.Components {
-		err := s.deployComponent(component)
-		if err != nil {
-			logrus.Errorf("Failed to deploy component %s: %v", component.ID, err)
-			continue
-		}
-		deployedComponents = append(deployedComponents, component.ID)
-	}
+	// // 部署所有组件
+	// deployedComponents := []string{}
+	// for _, component := range dag.Components {
+	// 	err := s.deployComponent(component)
+	// 	if err != nil {
+	// 		logrus.Errorf("Failed to deploy component %s: %v", component.ID, err)
+	// 		continue
+	// 	}
+	// 	deployedComponents = append(deployedComponents, component.ID)
+	// }
 
-	// 更新应用状态
-	s.appMgr.UpdateApplicationStatus(appID, "deployed")
+	// // 更新应用状态
+	// s.appMgr.UpdateApplicationStatus(appID, "deployed")
 
-	deployResult := map[string]interface{}{
-		"message":             "Components deployed successfully",
-		"application":         app.Name,
-		"total_components":    len(dag.Components),
-		"deployed_components": deployedComponents,
-		"failed_components":   len(dag.Components) - len(deployedComponents),
-	}
+	// deployResult := map[string]interface{}{
+	// 	"message":             "Components deployed successfully",
+	// 	"application":         app.Name,
+	// 	"total_components":    len(dag.Components),
+	// 	"deployed_components": deployedComponents,
+	// 	"failed_components":   len(dag.Components) - len(deployedComponents),
+	// }
 
-	if err := response.WriteSuccess(w, deployResult); err != nil {
-		logrus.Errorf("Failed to write deploy response: %v", err)
-		return
-	}
-	logrus.Debugf("Successfully deployed components for application: %s", appID)
+	// if err := response.WriteSuccess(w, deployResult); err != nil {
+	// 	logrus.Errorf("Failed to write deploy response: %v", err)
+	// 	return
+	// }
+	// logrus.Debugf("Successfully deployed components for application: %s", appID)
 }
 
 // deployComponent 部署单个组件的辅助函数

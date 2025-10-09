@@ -106,6 +106,9 @@ func NewPlatform(ctx context.Context, cfg *configs.Config) *Platform {
 
 // GetControllerActorRef returns the actor ref of the controller of the application.
 func (p *Platform) GetApplicationDAG(appID string) *controller.DAG {
+	if _, ok := p.appInfos[appID]; !ok {
+		return nil
+	}
 	return p.appInfos[appID].GetDAG()
 }
 

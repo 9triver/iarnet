@@ -21,6 +21,7 @@ import (
 	"github.com/9triver/iarnet/internal/server/request"
 	"github.com/9triver/iarnet/proto"
 	"github.com/9triver/ignis/platform"
+	"github.com/9triver/ignis/proto/controller"
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/client"
 	"github.com/sirupsen/logrus"
@@ -1149,7 +1150,7 @@ func ConvertToApplicationDAG(appID string, response *proto.CodeAnalysisResponse)
 	dag := &ApplicationDAG{
 		ApplicationID:    appID,
 		Components:       make(map[string]*Component),
-		Edges:            make([]DAGEdge, 0),
+		Edges:            make([]DAGEdgeOld, 0),
 		GlobalConfig:     response.GlobalConfig,
 		AnalysisMetadata: make(map[string]interface{}),
 		CreatedAt:        time.Now(),
@@ -1190,7 +1191,7 @@ func ConvertToApplicationDAG(appID string, response *proto.CodeAnalysisResponse)
 
 	// 转换边
 	for _, protoEdge := range response.Edges {
-		edge := DAGEdge{
+		edge := DAGEdgeOld{
 			FromComponent:    protoEdge.FromComponent,
 			ToComponent:      protoEdge.ToComponent,
 			ConnectionType:   ConnectionType(protoEdge.ConnectionType),
@@ -1203,16 +1204,129 @@ func ConvertToApplicationDAG(appID string, response *proto.CodeAnalysisResponse)
 }
 
 // GetApplicationDAG 获取应用的DAG图
-func (m *Manager) GetApplicationDAG(appID string) (*ApplicationDAG, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+func (m *Manager) GetApplicationDAG(appID string) (*DAG, error) {
+	// m.mu.RLock()
+	// defer m.mu.RUnlock()
 
-	dag, exists := m.applicationDAGs[appID]
-	if !exists {
+	ignisDAG := m.ignisPlatform.GetApplicationDAG(appID)
+	if ignisDAG == nil {
 		return nil, errors.New("application DAG not found")
 	}
 
-	return dag, nil
+	return m.ConvertToApplicationDAG(ignisDAG), nil
+}
+
+func (m *Manager) ConvertToApplicationDAG(dag *controller.DAG) *DAG {
+	protoNodes := dag.GetNodes()
+
+	protoDataNodeMap := make(map[string]*controller.DataNode)
+
+	// 转换节点
+	var appNodes []*DAGNode
+
+	for _, protoNode := range protoNodes {
+		var appNode *DAGNode
+
+		if protoNode.GetType() == "ControlNode" {
+			controlNode := protoNode.GetControlNode()
+			appNode = &DAGNode{
+				Type: "ControlNode",
+				Node: &DAGNode_ControlNode{
+					ControlNode: &ControlNode{
+						Id:           controlNode.GetId(),
+						Done:         controlNode.GetDone(),
+						FunctionName: controlNode.GetFunctionName(),
+						Params:       controlNode.GetParams(),
+						Current:      controlNode.GetCurrent(),
+						DataNode:     controlNode.GetDataNode(),
+						PreDataNodes: controlNode.GetPreDataNodes(),
+						FunctionType: controlNode.GetFunctionType(),
+					},
+				},
+			}
+		} else if protoNode.GetType() == "DataNode" {
+			dataNode := protoNode.GetDataNode()
+			appDataNode := &DataNode{
+				Id:        dataNode.GetId(),
+				Done:      dataNode.GetDone(),
+				Lambda:    dataNode.GetLambda(),
+				Ready:     dataNode.GetReady(),
+				ChildNode: dataNode.GetChildNode(),
+			}
+
+			// 处理可选字段
+			if dataNode.GetParentNode() != "" {
+				parentNode := dataNode.GetParentNode()
+				appDataNode.ParentNode = &parentNode
+			}
+
+			appNode = &DAGNode{
+				Type: "DataNode",
+				Node: &DAGNode_DataNode{
+					DataNode: appDataNode,
+				},
+			}
+
+			protoDataNodeMap[dataNode.GetId()] = dataNode
+		}
+
+		if appNode != nil {
+			appNodes = append(appNodes, appNode)
+		}
+	}
+
+	// 构建边
+	var edges []*DAGEdge
+
+	for _, protoNode := range protoNodes {
+		if protoNode.GetType() == "DataNode" {
+			continue
+		}
+		controlNode := protoNode.GetControlNode()
+
+		// 从PreDataNodes到ControlNode的边
+		for _, preDataNodeId := range controlNode.GetPreDataNodes() {
+			// 查找对应的参数名
+			preDataNode := protoDataNodeMap[preDataNodeId]
+			if preDataNode == nil {
+				logrus.Errorf("PreDataNode %s not found for ControlNode %s", preDataNodeId, controlNode.GetId())
+				continue
+			}
+
+			var info string
+			lambdaId := preDataNode.GetLambda()
+			if controlNode.GetParams() != nil {
+				paramName, ok := controlNode.GetParams()[lambdaId]
+				if !ok {
+					logrus.Errorf("Param for lambda %s not found for ControlNode %s", lambdaId, controlNode.GetId())
+					continue
+				}
+				info = paramName
+			}
+
+			edge := &DAGEdge{
+				FromNodeID: preDataNodeId,
+				ToNodeID:   controlNode.GetId(),
+				Info:       info,
+			}
+			edges = append(edges, edge)
+		}
+
+		// 从ControlNode到DataNode的边
+		if controlNode.GetDataNode() != "" {
+			edge := &DAGEdge{
+				FromNodeID: controlNode.GetId(),
+				ToNodeID:   controlNode.GetDataNode(),
+				Info:       "", // 控制节点到数据节点的边通常没有信息
+			}
+			edges = append(edges, edge)
+		}
+	}
+
+	return &DAG{
+		Nodes: appNodes,
+		Edges: edges,
+	}
 }
 
 // GetApplicationLogs 获取应用的Docker容器日志
