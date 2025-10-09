@@ -164,8 +164,8 @@ func (c *Controller) onDAG(ctx actor.Context, dag *controller.DAG) {
 }
 
 func (c *Controller) onControllerMessage(ctx actor.Context, msg *controller.Message) {
-	jsonBytes, _ := json.Marshal(msg.Command)
-	logrus.Info("control: onControllerMessage ", string(jsonBytes))
+	// jsonBytes, _ := json.Marshal(msg.Command)
+	// logrus.Info("control: onControllerMessage ", string(jsonBytes))
 
 	switch cmd := msg.Command.(type) {
 	// case *controller.Message_AppendActor:
@@ -178,6 +178,10 @@ func (c *Controller) onControllerMessage(ctx actor.Context, msg *controller.Mess
 	// case *controller.Message_AppendArg:
 	// 	c.onAppendArg(ctx, cmd.AppendArg)
 	case *controller.Message_DAG:
+		jsonBytes, _ := json.Marshal(cmd.DAG)
+		logrus.Info("control: onDAG",
+			"dag", string(jsonBytes),
+		)
 		c.onDAG(ctx, cmd.DAG)
 	}
 }
