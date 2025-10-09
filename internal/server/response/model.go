@@ -65,11 +65,11 @@ type GetApplicationLogsResponse struct {
 }
 
 type GetApplicationLogsParsedResponse struct {
-	ApplicationId   string                    `json:"applicationId"`
-	ApplicationName string                    `json:"applicationName"`
-	Logs            []*application.LogEntry   `json:"logs"`
-	TotalLines      int                       `json:"totalLines"`
-	RequestedLines  int                       `json:"requestedLines"`
+	ApplicationId   string                  `json:"applicationId"`
+	ApplicationName string                  `json:"applicationName"`
+	Logs            []*application.LogEntry `json:"logs"`
+	TotalLines      int                     `json:"totalLines"`
+	RequestedLines  int                     `json:"requestedLines"`
 }
 
 // RegisterProviderResponse 注册资源提供者响应结构
@@ -163,4 +163,8 @@ type DeleteDirectoryResponse struct {
 
 type RunnerEnvironment struct {
 	Name string `json:"name"`
+}
+
+type GetDAGResponse struct {
+	DAG *application.DAG `json:"dag"`
 }

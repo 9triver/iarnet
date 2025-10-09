@@ -578,7 +578,11 @@ export default function ApplicationsPage() {
                           <FormItem>
                             <FormLabel>执行命令</FormLabel>
                             <FormControl>
-                              <Input placeholder="npm start, python app.py, ./start.sh" {...field} />
+                              <Textarea 
+                                placeholder="输入应用启动命令，支持多行：&#10;npm install&#10;npm start&#10;&#10;或者：&#10;pip install -r requirements.txt&#10;python app.py" 
+                                className="min-h-[100px]"
+                                {...field} 
+                              />
                             </FormControl>
                             <FormDescription>应用启动时执行的命令</FormDescription>
                             <FormMessage />

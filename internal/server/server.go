@@ -61,7 +61,7 @@ func NewServer(rm *resource.Manager, am *application.Manager, pm *discovery.Peer
 	s.router.HandleFunc("/application/apps/{id}/directories", s.handleDeleteDirectory).Methods("DELETE")
 
 	// 组件相关API
-	s.router.HandleFunc("/application/apps/{id}/components", s.handleGetApplicationComponents).Methods("GET")
+	s.router.HandleFunc("/application/apps/{id}/dag", s.handleGetApplicationDAG).Methods("GET")
 	s.router.HandleFunc("/application/apps/{id}/analyze", s.handleAnalyzeApplication).Methods("POST")
 	s.router.HandleFunc("/application/apps/{id}/deploy-components", s.handleDeployComponents).Methods("POST")
 	s.router.HandleFunc("/application/apps/{id}/components/{componentId}/start", s.handleStartComponent).Methods("POST")
@@ -869,11 +869,11 @@ func (s *Server) handleGetFileContent(w http.ResponseWriter, req *http.Request) 
 	}
 }
 
-// handleGetApplicationComponents 获取应用的Actor组件信息
-func (s *Server) handleGetApplicationComponents(w http.ResponseWriter, req *http.Request) {
+// handleGetApplicationDAG 获取应用的DAG图
+func (s *Server) handleGetApplicationDAG(w http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 	appID := vars["id"]
-	logrus.Infof("Received request to get components for application: %s", appID)
+	logrus.Infof("Received request to get DAG for application: %s", appID)
 
 	// 验证应用是否存在
 	_, err := s.appMgr.GetApplication(appID)
@@ -891,11 +891,13 @@ func (s *Server) handleGetApplicationComponents(w http.ResponseWriter, req *http
 		return
 	}
 
-	if err := response.WriteSuccess(w, dag); err != nil {
-		logrus.Errorf("Failed to write components response: %v", err)
+	if err := response.WriteSuccess(w, response.GetDAGResponse{
+		DAG: dag,
+	}); err != nil {
+		logrus.Errorf("Failed to write DAG response: %v", err)
 		return
 	}
-	logrus.Debugf("Successfully sent components for application: %s", appID)
+	logrus.Debugf("Successfully sent DAG for application: %s", appID)
 }
 
 // handleAnalyzeApplication 分析应用代码并生成Actor组件DAG

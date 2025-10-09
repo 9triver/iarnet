@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { applicationsAPI } from "@/lib/api"
-import type { LogEntry, Application } from "@/lib/model"
+import type { LogEntry, Application, DAG, DAGNode, DAGEdge, ControlNode, DataNode } from "@/lib/model"
 import { Sidebar } from "@/components/sidebar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -49,43 +49,14 @@ interface CodeBrowserInfo {
 }
 
 // 组件类型定义 - 表示分布式部署的actor类型
-interface Component {
+// DAG节点显示信息
+interface NodeDisplayInfo {
   id: string
   name: string
-  type: "web" | "api" | "worker" | "compute" | "gateway"
-  status: "running" | "stopped" | "deploying" | "error" | "pending" | "unknown"
-  image: string
-  ports: number[]
-  dependencies: string[]
-  resources: {
-    cpu: number
-    memory: number
-    gpu?: number
-  }
-  providerID: string
-  containerRef?: {
-    id: string
-    name: string
-  }
-  createdAt: string
-  updatedAt: string
-}
-
-// DAG图边定义
-interface DAGEdge {
-  from_component: string
-  to_component: string
-  connection_type: "http" | "grpc" | "stream" | "queue" | "file"
-}
-
-interface ApplicationDAG {
-  applicationID: string
-  components: { [key: string]: Component }
-  edges?: DAGEdge[]
-  globalConfig?: { [key: string]: string }
-  analysisMetadata?: { [key: string]: any }
-  createdAt?: string
-  updatedAt?: string
+  type: "control" | "data"
+  status: "running" | "pending" | "ready" | "unknown"
+  done?: boolean
+  ready?: boolean
 }
 
 export default function ApplicationDetailPage() {
@@ -93,8 +64,8 @@ export default function ApplicationDetailPage() {
   const router = useRouter()
   const [application, setApplication] = useState<Application | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [components, setComponents] = useState<Component[]>([])
-  const [isLoadingComponents, setIsLoadingComponents] = useState(false)
+
+  const [isLoadingComponents, setIsLoadingAppDAG] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [codeBrowserStatus, setCodeBrowserStatus] = useState<CodeBrowserInfo | null>(null)
   const [isStartingCodeBrowser, setIsStartingCodeBrowser] = useState(false)
@@ -109,7 +80,7 @@ export default function ApplicationDetailPage() {
 
   useEffect(() => {
     loadApplicationDetail()
-    loadComponents()
+    loadAppDAG()
   }, [applicationId])
 
   // 当日志行数改变时重新加载日志
@@ -127,132 +98,349 @@ export default function ApplicationDetailPage() {
     }
   }
 
-  // 组件类型图标
-  const getComponentTypeIcon = (type: Component["type"]) => {
-    const iconMap = {
-      web: Globe,
-      api: Box,
-      worker: Cpu,
-      compute: Activity,
-      gateway: GitBranch,
-    }
-    const Icon = iconMap[type] || Package
-    return <Icon className="w-4 h-4" />
-  }
 
-  // 组件类型标签
-  const getComponentTypeLabel = (type: Component["type"]) => {
-    const labelMap = {
-      web: "Web服务Actor",
-      api: "API服务Actor",
-      worker: "工作处理Actor",
-      compute: "计算处理Actor",
-      gateway: "网关代理Actor",
-    }
-    return labelMap[type] || type
-  }
-
-  // 组件状态指示器
-  const ComponentStatusIndicator = ({ status }: { status: Component["status"] }) => {
-    const statusConfig = {
-      running: { color: "bg-green-500", text: "运行中" },
-      stopped: { color: "bg-gray-500", text: "已停止" },
-      deploying: { color: "bg-blue-500", text: "部署中" },
-      error: { color: "bg-red-500", text: "错误" },
-      pending: { color: "bg-yellow-500", text: "待部署" },
-      unknown: { color: "bg-gray-400", text: "未知" },
-    }
-    const config = statusConfig[status] || { color: "bg-gray-400", text: "未知" }
-    return (
-      <div className="flex items-center space-x-2">
-        <div className={`w-2 h-2 rounded-full ${config.color}`} />
-        <span className="text-sm">{config.text}</span>
-      </div>
-    )
-  }
 
   // DAG图可视化组件
-  const DAGVisualization = ({ dag }: { dag: ApplicationDAG }) => {
-    const [selectedComponent, setSelectedComponent] = useState<string | null>(null)
-    const componentsArray = Object.values(dag.components)
+  // TODO: 使用 antv 库的 G6 图可视化库
+  const DAGVisualization = ({ dag }: { dag: DAG }) => {
+    const [selectedNode, setSelectedNode] = useState<string | null>(null)
+    const nodes = dag.nodes
+    const edges = dag.edges
 
-    // 简化的DAG布局算法
-    const getComponentPosition = (componentId: string, index: number) => {
-      const component = dag.components[componentId]
-      if (!component) return { x: 0, y: 0 }
+    // 拓扑排序算法，计算节点的层级
+    const calculateNodeLevels = () => {
+      const nodeIds = nodes.map((node, index) => getNodeId(node, index))
+      const nodeIndexMap = new Map(nodeIds.map((id, index) => [id, index]))
+      
+      // 构建邻接表（入度图）
+      const inDegree = new Map<string, number>()
+      const adjacencyList = new Map<string, string[]>()
+      
+      // 初始化
+      nodeIds.forEach(id => {
+        inDegree.set(id, 0)
+        adjacencyList.set(id, [])
+      })
+      
+      // 构建图结构
+       edges.forEach(edge => {
+         const fromId = edge.fromNodeId
+         const toId = edge.toNodeId
+         
+         if (nodeIds.includes(fromId) && nodeIds.includes(toId)) {
+           // 数据流向：from -> to 表示数据从 from 流向 to
+           // 所以 from 应该在 to 的左侧（更早的层级）
+           adjacencyList.get(fromId)?.push(toId)
+           inDegree.set(toId, (inDegree.get(toId) || 0) + 1)
+         }
+       })
+      
+      // 拓扑排序计算层级
+      const levels = new Map<string, number>()
+      const queue: string[] = []
+      
+      // 找到所有入度为0的节点（数据源节点，没有输入数据的节点）
+      nodeIds.forEach(id => {
+        if (inDegree.get(id) === 0) {
+          queue.push(id)
+          levels.set(id, 0)
+        }
+      })
+      
+      // BFS计算层级
+      while (queue.length > 0) {
+        const currentId = queue.shift()!
+        const currentLevel = levels.get(currentId) || 0
+        
+        adjacencyList.get(currentId)?.forEach(neighborId => {
+          const newInDegree = (inDegree.get(neighborId) || 0) - 1
+          inDegree.set(neighborId, newInDegree)
+          
+          if (newInDegree === 0) {
+            queue.push(neighborId)
+            levels.set(neighborId, currentLevel + 1)
+          }
+        })
+      }
+      
+      // 对于没有被处理的节点（可能存在循环依赖），给它们分配默认层级
+      nodeIds.forEach(id => {
+        if (!levels.has(id)) {
+          levels.set(id, 0)
+        }
+      })
+      
+      return levels
+    }
 
-      // 根据Actor组件类型和依赖关系计算位置
-      const typeOrder = { web: 0, gateway: 1, api: 2, worker: 3, compute: 4 }
-      const layer = typeOrder[component.type] || 0
-      const x = 50 + layer * 150
-      const y = 50 + (index % 3) * 100
+    // 布局参数
+    const nodeWidth = 160  // 节点宽度
+    const nodeHeight = 64  // 节点高度
+    const levelSpacing = 240  // 层级间距（增加以使边更长）
+    const nodeSpacing = 90   // 同层节点间距（稍微增加）
+    const startX = 50
+    const startY = 50
+
+    // 改进的DAG布局算法
+    const getNodePosition = (nodeIndex: number) => {
+      const node = nodes[nodeIndex]
+      if (!node) return { x: 0, y: 0 }
+
+      const nodeId = getNodeId(node, nodeIndex)
+      const levels = calculateNodeLevels()
+      const level = levels.get(nodeId) || 0
+      
+      // 计算每层的节点数量和当前节点在该层的位置
+      const nodesInLevel = nodes.filter((n, i) => {
+        const nId = getNodeId(n, i)
+        return levels.get(nId) === level
+      })
+      
+      const nodePositionInLevel = nodesInLevel.findIndex((n, i) => {
+        const nId = getNodeId(n, nodes.indexOf(n))
+        return nId === nodeId
+      })
+      
+      // 计算位置：被依赖的节点在左侧，依赖其他节点的在右侧
+      const x = startX + level * levelSpacing
+      const y = startY + nodePositionInLevel * (nodeHeight + nodeSpacing)
 
       return { x, y }
     }
 
+    // 获取节点ID - 修复逻辑
+    const getNodeId = (node: DAGNode, index: number): string => {
+      if (!node || !node.node) {
+        console.warn(`Node at index ${index} is missing or has no node data`)
+        return `node-${index}`
+      }
+
+      try {
+        if (node.type === "ControlNode") {
+          const controlNode = node.node as ControlNode
+          return controlNode.id || `control-${index}`
+        } else if (node.type === "DataNode") {
+          const dataNode = node.node as DataNode
+          return dataNode.id || `data-${index}`
+        }
+      } catch (error) {
+        console.error(`Error getting node ID for index ${index}:`, error)
+      }
+      
+      return `node-${index}`
+    }
+
+    // 获取节点名称
+    const getNodeName = (node: DAGNode, index: number): string => {
+      if (!node || !node.node) return `Node ${index}`
+
+      try {
+        if (node.type === "ControlNode") {
+          const controlNode = node.node as ControlNode
+          return controlNode.functionName || `Control ${index}`
+        } else if (node.type === "DataNode") {
+          const dataNode = node.node as DataNode
+          return `Data ${dataNode.lambda || index}`
+        }
+      } catch (error) {
+        console.error(`Error getting node name for index ${index}:`, error)
+      }
+      
+      return `Node ${index}`
+    }
+
+    // 计算图形的实际尺寸
+    const calculateGraphDimensions = () => {
+      if (nodes.length === 0) return { width: 800, height: 400 }
+      
+      const positions = nodes.map((node, index) => getNodePosition(index))
+      const maxX = Math.max(...positions.map(pos => pos.x)) + nodeWidth + 50
+      const maxY = Math.max(...positions.map(pos => pos.y)) + nodeHeight + 50
+      
+      return {
+        width: Math.max(maxX, 800),
+        height: Math.max(maxY, 400)
+      }
+    }
+
+    const graphDimensions = calculateGraphDimensions()
+
+    // 调试信息：打印节点和边的信息
+    console.log('DAG Visualization Debug Info:')
+    console.log('Nodes:', nodes.map((node, index) => ({
+      index,
+      type: node.type,
+      id: getNodeId(node, index),
+      name: getNodeName(node, index),
+      node: node.node
+    })))
+    console.log('Edges:', edges.map((edge, index) => ({
+      index,
+      fromNodeId: edge.fromNodeId,
+      toNodeId: edge.toNodeId,
+      info: edge.info,
+      infoType: typeof edge.info
+    })))
+    console.log('Graph dimensions:', graphDimensions)
+
     return (
-      <div className="relative w-full h-96 border rounded-lg bg-gray-50 overflow-auto">
-        <svg className="absolute inset-0 w-full h-full">
-          {/* 绘制连接线 */}
-          {dag.edges?.map((edge, index) => {
-            const fromComponent = dag.components[edge.from_component]
-            const toComponent = dag.components[edge.to_component]
-            if (!fromComponent || !toComponent) return null
-
-            const fromIndex = componentsArray.findIndex(c => c.id === edge.from_component)
-            const toIndex = componentsArray.findIndex(c => c.id === edge.to_component)
-            const fromPos = getComponentPosition(edge.from_component, fromIndex)
-            const toPos = getComponentPosition(edge.to_component, toIndex)
-
-            return (
-              <line
-                key={index}
-                x1={fromPos.x + 60}
-                y1={fromPos.y + 30}
-                x2={toPos.x}
-                y2={toPos.y + 30}
-                stroke="#94a3b8"
-                strokeWidth="1.5"
-                markerEnd="url(#arrowhead)"
-                strokeDasharray="none"
-                opacity="0.8"
-              />
-            )
-          })}
-
-          {/* 箭头标记 */}
+      <div className="relative w-full h-[500px] border rounded-lg bg-gray-50 overflow-auto">
+        <svg 
+          width={graphDimensions.width} 
+          height={graphDimensions.height}
+          className="block"
+        >
+          {/* 箭头标记定义 */}
           <defs>
             <marker
               id="arrowhead"
-              markerWidth="8"
-              markerHeight="6"
-              refX="7"
-              refY="3"
+              markerWidth="10"
+              markerHeight="7"
+              refX="9"
+              refY="3.5"
               orient="auto"
               markerUnits="strokeWidth"
             >
-              <polygon points="0 0, 8 3, 0 6" fill="#94a3b8" opacity="0.8" />
+              <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8" />
             </marker>
           </defs>
+          
+          {/* 绘制连接线 */}
+          {edges.map((edge, index) => {
+            console.log(`Processing edge ${index}:`, edge)
+            
+            const fromIndex = nodes.findIndex((node, i) => {
+              const nodeId = getNodeId(node, i)
+              console.log(`Checking node ${i} with ID ${nodeId} against fromNodeId ${edge.fromNodeId}`)
+              return nodeId === edge.fromNodeId
+            })
+            
+            const toIndex = nodes.findIndex((node, i) => {
+              const nodeId = getNodeId(node, i)
+              console.log(`Checking node ${i} with ID ${nodeId} against toNodeId ${edge.toNodeId}`)
+              return nodeId === edge.toNodeId
+            })
+
+            console.log(`Edge ${index}: fromIndex=${fromIndex}, toIndex=${toIndex}`)
+
+            if (fromIndex === -1 || toIndex === -1) {
+              console.warn(`Edge ${index} skipped: fromIndex=${fromIndex}, toIndex=${toIndex}`)
+              return null
+            }
+
+            const fromPos = getNodePosition(fromIndex)
+            const toPos = getNodePosition(toIndex)
+
+            // 计算连接点：数据流从左到右，出边从右侧边缘出发，入边指向左侧边缘
+            const fromX = fromPos.x + nodeWidth  // 从节点右侧边缘出发
+            const fromY = fromPos.y + nodeHeight / 2  // 节点垂直中点
+            const toX = toPos.x  // 指向节点左侧边缘
+            const toY = toPos.y + nodeHeight / 2  // 节点垂直中点
+
+            // 计算连线中点位置（用于显示info文本）
+            const midX = (fromX + toX) / 2 - 4
+            const midY = (fromY + toY) / 2
+
+            // 修复info字段处理 - info是string类型，不是对象
+            let infoText = ''
+            if (edge.info) {
+              if (typeof edge.info === 'string') {
+                infoText = edge.info
+              } else if (typeof edge.info === 'object') {
+                // 如果实际上是对象，则转换为字符串
+                infoText = Object.entries(edge.info)
+                  .map(([key, value]) => `${key}: ${value}`)
+                  .join(', ')
+              } else {
+                infoText = String(edge.info)
+              }
+            }
+
+            console.log(`Edge ${index} info text:`, infoText)
+
+            return (
+              <g key={index}>
+                <line
+                  x1={fromX}
+                  y1={fromY}
+                  x2={toX}
+                  y2={toY}
+                  stroke="#94a3b8"
+                  strokeWidth="1.5"
+                  markerEnd="url(#arrowhead)"
+                  strokeDasharray="none"
+                  opacity="0.8"
+                />
+                {/* 在连线中间显示info文本 */}
+                {infoText && (
+                  <g>
+                    {/* 背景框 - 使用更精确的文本宽度计算 */}
+                    <rect
+                      x={midX - (infoText.length * 5.5 + 16) / 2}
+                      y={midY - 9}
+                      width={infoText.length * 5.5 + 16}
+                      height={18}
+                      fill="white"
+                      stroke="#94a3b8"
+                      strokeWidth="0.5"
+                      rx="4"
+                      opacity="0.95"
+                    />
+                    {/* 文本内容 */}
+                    <text
+                      x={midX}
+                      y={midY + 1}
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      fontSize="10"
+                      fill="#475569"
+                      className="font-sans"
+                    >
+                      {infoText}
+                    </text>
+                  </g>
+                )}
+              </g>
+            )
+          })}
         </svg>
 
-        {/* 绘制组件节点 */}
-        {componentsArray.map((component, index) => {
-          const position = getComponentPosition(component.id, index)
+        {/* 绘制节点 */}
+        {nodes.map((node, index) => {
+          const position = getNodePosition(index)
+          const nodeId = getNodeId(node, index)
+          const nodeName = getNodeName(node, index)
+          const isControl = node.type === "ControlNode"
+
           return (
             <div
-              key={component.id}
-              className={`absolute w-32 h-16 border-2 rounded-lg bg-white shadow-sm cursor-pointer transition-all ${selectedComponent === component.id ? "border-blue-500 shadow-md" : "border-gray-300"
+              key={nodeId}
+              className={`absolute border-2 rounded-lg shadow-sm cursor-pointer transition-all bg-white 
+                ${selectedNode === nodeId ?
+                  "border-blue-500 shadow-md" : "border-gray-300"
                 }`}
-              style={{ left: position.x, top: position.y }}
-              onClick={() => setSelectedComponent(component.id)}
+              style={{ 
+                left: position.x, 
+                top: position.y,
+                width: '160px',
+                height: '64px'
+              }}
+              onClick={() => setSelectedNode(nodeId)}
             >
               <div className="p-2 h-full flex flex-col justify-between">
                 <div className="flex items-center space-x-1">
-                  {getComponentTypeIcon(component.type)}
-                  <span className="text-xs font-medium truncate">{component.name}</span>
+                  {isControl ? <Cpu className="w-3 h-3" /> : <Database className="w-3 h-3" />}
+                  <span className="text-xs font-medium truncate">{nodeName}</span>
                 </div>
-                <ComponentStatusIndicator status={component.status} />
+                <div className="flex items-center space-x-1">
+                  <div className={`w-2 h-2 rounded-full ${isControl
+                    ? ((node.node as any)?.Done ? "bg-green-500" : "bg-yellow-500")
+                    : ((node.node as any)?.ready ? "bg-green-500" : "bg-gray-400")
+                    }`} />
+                  <span className="text-xs text-muted-foreground">
+                    {isControl ? "控制节点" : "数据节点"}
+                  </span>
+                </div>
               </div>
             </div>
           )
@@ -341,25 +529,21 @@ export default function ApplicationDetailPage() {
     }
   }
 
-  const [applicationDAG, setApplicationDAG] = useState<ApplicationDAG | null>(null)
+  const [appDAG, setAppDAG] = useState<DAG | null>(null)
 
-  const loadComponents = async () => {
+  const loadAppDAG = async () => {
     if (!applicationId) return
 
-    setIsLoadingComponents(true)
+    setIsLoadingAppDAG(true)
     try {
-      const dag = await applicationsAPI.getComponents(applicationId) as ApplicationDAG
-      // 保存完整的DAG数据
-      setApplicationDAG(dag)
-      // 将DAG中的components对象转换为数组
-      const componentsArray = dag.components ? Object.values(dag.components) as Component[] : []
-      setComponents(componentsArray)
+      const dagResponse = await applicationsAPI.getAppDAG(applicationId)
+
+      setAppDAG(dagResponse.dag)
     } catch (error) {
-      console.error('Failed to load components:', error)
-      setComponents([])
-      setApplicationDAG(null)
+      console.error('Failed to load DAG:', error)
+      setAppDAG(null)
     } finally {
-      setIsLoadingComponents(false)
+      setIsLoadingAppDAG(false)
     }
   }
 
@@ -546,7 +730,7 @@ export default function ApplicationDetailPage() {
                   <h4 className="text-sm font-medium text-muted-foreground mb-1">组件数量</h4>
                   <div className="flex items-center space-x-2 text-sm">
                     <Package className="h-4 w-4" />
-                    <span>{components.length} 个组件</span>
+                    <span>{appDAG?.nodes.length || 0} 个节点</span>
                     {isLoadingComponents && (
                       <RefreshCw className="h-3 w-3 animate-spin" />
                     )}
@@ -636,7 +820,7 @@ export default function ApplicationDetailPage() {
                       <span>组件管理</span>
                     </CardTitle>
                     <div className="flex items-center space-x-2">
-                      <Button variant="outline" size="sm" onClick={loadComponents} disabled={isLoadingComponents}>
+                      <Button variant="outline" size="sm" onClick={loadAppDAG} disabled={isLoadingComponents}>
                         <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingComponents ? 'animate-spin' : ''}`} />
                         刷新
                       </Button>
@@ -655,19 +839,19 @@ export default function ApplicationDetailPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {components.length === 0 ? (
+                  {!appDAG || appDAG.nodes.length === 0 ? (
                     <div className="flex items-center justify-center h-64 text-gray-500">
                       {isLoadingComponents ? (
                         <div className="flex items-center space-x-2">
                           <RefreshCw className="h-4 w-4 animate-spin" />
-                          <span>加载组件中...</span>
+                          <span>加载DAG中...</span>
                         </div>
                       ) : (
                         <div className="text-center">
                           <Package className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                          <p>暂无组件数据</p>
-                          <Button variant="link" onClick={loadComponents} className="mt-2">
-                            点击加载组件
+                          <p>暂无DAG数据</p>
+                          <Button variant="link" onClick={loadAppDAG} className="mt-2">
+                            点击加载DAG
                           </Button>
                         </div>
                       )}
@@ -697,8 +881,8 @@ export default function ApplicationDetailPage() {
                             </CardDescription>
                           </CardHeader>
                           <CardContent>
-                            {applicationDAG ? (
-                              <DAGVisualization dag={applicationDAG} />
+                            {appDAG ? (
+                              <DAGVisualization dag={appDAG} />
                             ) : (
                               <div className="flex items-center justify-center h-64 text-muted-foreground">
                                 {isLoadingComponents ? "加载组件数据中..." : "暂无组件数据"}
@@ -710,72 +894,68 @@ export default function ApplicationDetailPage() {
 
                       <TabsContent value="list" className="space-y-4">
                         <div className="space-y-2">
-                          {components.map((component) => (
-                            <div key={component.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50">
-                              <div className="flex items-center space-x-4 flex-1">
+                          {appDAG?.nodes.map((node, index) => {
+                            const isControl = node.type === "ControlNode"
+                            const isData = node.type === "DataNode"
+                            const nodeData = node.node as ControlNode | DataNode
+                            const nodeId = nodeData?.id
+                            const controlNode = isControl ? nodeData as ControlNode : null
+                            const dataNode = isData ? nodeData as DataNode : null
+                            const nodeName = isControl
+                              ? (controlNode?.functionName || `Control Node ${index}`)
+                              : `Data Node ${index}`
+
+                            return (
+                              <div key={nodeId || `node-${index}`} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50">
+                                <div className="flex items-center space-x-4 flex-1">
+                                  <div className="flex items-center space-x-2">
+                                    {isControl ? <Activity className="w-4 h-4" /> : <Database className="w-4 h-4" />}
+                                    <div>
+                                      <h4 className="font-semibold">{nodeName}</h4>
+                                      <p className="text-sm text-muted-foreground">
+                                        {isControl ? "控制节点" : "数据节点"}
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center space-x-6 text-sm">
+                                    <div className="flex items-center space-x-1">
+                                      <span className="text-muted-foreground">类型:</span>
+                                      <span className="font-mono text-xs">{node.type}</span>
+                                    </div>
+
+                                    {isControl && controlNode?.functionType && (
+                                      <div className="flex items-center space-x-1">
+                                        <span className="text-muted-foreground">函数类型:</span>
+                                        <span className="font-mono text-xs">{controlNode?.functionType}</span>
+                                      </div>
+                                    )}
+
+                                    {isData && dataNode?.lambda && (
+                                      <div className="flex items-center space-x-1">
+                                        <span className="text-muted-foreground">Lambda:</span>
+                                        <span className="font-mono text-xs">{dataNode?.lambda}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+
                                 <div className="flex items-center space-x-2">
-                                  {getComponentTypeIcon(component.type)}
-                                  <div>
-                                    <h4 className="font-semibold">{component.name}</h4>
-                                    <p className="text-sm text-muted-foreground">
-                                      {getComponentTypeLabel(component.type)}
-                                    </p>
+                                  <div className="flex items-center space-x-1">
+                                    <div className={`w-2 h-2 rounded-full ${isControl
+                                      ? (controlNode?.done ? "bg-green-500" : "bg-yellow-500")
+                                      : (dataNode?.ready ? "bg-green-500" : "bg-gray-400")
+                                      }`} />
+                                    <span className="text-xs text-muted-foreground">
+                                      {isControl
+                                        ? (controlNode?.done ? "已完成" : "进行中")
+                                        : (dataNode?.ready ? "就绪" : "未就绪")
+                                      }</span>
                                   </div>
                                 </div>
-
-                                <div className="flex items-center space-x-6 text-sm">
-                                  <div className="flex items-center space-x-1">
-                                    <span className="text-muted-foreground">镜像:</span>
-                                    <span className="font-mono text-xs">{component.image}</span>
-                                  </div>
-
-                                  {component.ports.length > 0 && (
-                                    <div className="flex items-center space-x-1">
-                                      <span className="text-muted-foreground">端口:</span>
-                                      <span className="font-mono text-xs">{component.ports.join(', ')}</span>
-                                    </div>
-                                  )}
-
-                                  <div className="flex items-center space-x-1">
-                                    <span className="text-muted-foreground">CPU:</span>
-                                    <span>{component.resources.cpu} 核</span>
-                                  </div>
-
-                                  <div className="flex items-center space-x-1">
-                                    <span className="text-muted-foreground">内存:</span>
-                                    <span>{component.resources.memory} MB</span>
-                                  </div>
-
-                                  {(component.dependencies || []).length > 0 && (
-                                    <div className="flex items-center space-x-1">
-                                      <span className="text-muted-foreground">依赖:</span>
-                                      <span className="text-xs">{(component.dependencies || []).length} 个</span>
-                                    </div>
-                                  )}
-                                </div>
                               </div>
-
-                              <div className="flex items-center space-x-2">
-                                <ComponentStatusIndicator status={component.status} />
-
-                                {component.status === "running" ? (
-                                  <Button variant="outline" size="sm">
-                                    <Square className="h-3 w-3 mr-1" />
-                                    停止
-                                  </Button>
-                                ) : (
-                                  <Button size="sm">
-                                    <Play className="h-3 w-3 mr-1" />
-                                    启动
-                                  </Button>
-                                )}
-
-                                <Button variant="outline" size="sm">
-                                  <Terminal className="h-3 w-3" />
-                                </Button>
-                              </div>
-                            </div>
-                          ))}
+                            )
+                          })}
                         </div>
                       </TabsContent>
                     </Tabs>

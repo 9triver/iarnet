@@ -3,7 +3,6 @@ package main
 import (
 	"os"
 	"os/exec"
-	"strings"
 
 	logrus "github.com/sirupsen/logrus"
 )
@@ -33,8 +32,9 @@ func main() {
 	exec.Command("cd", APP_CODE_PATH)
 
 	if envInstallCmd != "" {
-		cmd := strings.Split(envInstallCmd, " ")
-		envCmd := exec.Command(cmd[0], cmd[1:]...)
+		// 支持多行环境安装命令
+		envCmd := exec.Command("bash", "-c", envInstallCmd)
+		envCmd.Dir = APP_CODE_PATH
 		envCmd.Stdout = os.Stdout
 		envCmd.Stderr = os.Stderr
 		if err := envCmd.Run(); err != nil {
@@ -42,8 +42,9 @@ func main() {
 		}
 	}
 
-	cmd := strings.Split(executeCmd, " ")
-	execCmd := exec.Command(cmd[0], cmd[1:]...)
+	// 支持多行执行命令，使用bash -c来执行
+	execCmd := exec.Command("bash", "-c", executeCmd)
+	execCmd.Dir = APP_CODE_PATH
 	execCmd.Stdout = os.Stdout
 	execCmd.Stderr = os.Stderr
 	if err := execCmd.Run(); err != nil {

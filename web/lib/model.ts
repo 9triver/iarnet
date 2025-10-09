@@ -140,3 +140,51 @@ export interface RunnerEnvironment {
 export interface GetRunnerEnvironmentsResponse {
   environments: RunnerEnvironment[]
 }
+
+export interface ControlNode {
+  id: string
+  done: boolean
+  functionName: string
+  params: Record<string, string>
+  current: number
+  dataNode: string
+  preDataNodes: string[]
+  functionType: string
+}
+
+export interface DataNode {
+  id: string
+  done: boolean
+  lambda: string
+  ready: boolean
+  parentNode?: string
+  childNode: string[]
+}
+
+export interface DAGNode_ControlNode {
+  controlNode: ControlNode
+}
+
+export interface DAGNode_DataNode {
+  dataNode: DataNode
+}
+
+export interface DAGNode {
+  type: "ControlNode" | "DataNode"
+  node: ControlNode | DataNode
+}
+
+export interface DAGEdge {
+  fromNodeId: string
+  toNodeId: string
+  info: string
+}
+
+export interface DAG {
+  nodes: DAGNode[]
+  edges: DAGEdge[]
+}
+
+export interface GetDAGResponse {
+  dag: DAG
+}

@@ -1231,17 +1231,12 @@ func (m *Manager) ConvertToApplicationDAG(dag *controller.DAG) *DAG {
 			controlNode := protoNode.GetControlNode()
 			appNode = &DAGNode{
 				Type: "ControlNode",
-				Node: &DAGNode_ControlNode{
-					ControlNode: &ControlNode{
-						Id:           controlNode.GetId(),
-						Done:         controlNode.GetDone(),
-						FunctionName: controlNode.GetFunctionName(),
-						Params:       controlNode.GetParams(),
-						Current:      controlNode.GetCurrent(),
-						DataNode:     controlNode.GetDataNode(),
-						PreDataNodes: controlNode.GetPreDataNodes(),
-						FunctionType: controlNode.GetFunctionType(),
-					},
+				Node: &ControlNode{
+					Id:           controlNode.GetId(),
+					Done:         controlNode.GetDone(),
+					FunctionName: controlNode.GetFunctionName(),
+					Params:       controlNode.GetParams(),
+					Current:      controlNode.GetCurrent(),
 				},
 			}
 		} else if protoNode.GetType() == "DataNode" {
@@ -1262,9 +1257,7 @@ func (m *Manager) ConvertToApplicationDAG(dag *controller.DAG) *DAG {
 
 			appNode = &DAGNode{
 				Type: "DataNode",
-				Node: &DAGNode_DataNode{
-					DataNode: appDataNode,
-				},
+				Node: appDataNode,
 			}
 
 			protoDataNodeMap[dataNode.GetId()] = dataNode
@@ -1479,8 +1472,9 @@ func (m *Manager) parseDockerLogLine(line, appName string) *LogEntry {
 		}
 	}
 
-	// 使用正则表达式匹配时间戳
-	timestampRegex := regexp.MustCompile(`^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?)\s+(.*)$`)
+	// 使用正则表达式匹配时间戳，支持带有前缀字符的格式
+	// 匹配格式: [可选前缀字符]YYYY-MM-DDTHH:MM:SS[.微秒][Z] 消息内容
+	timestampRegex := regexp.MustCompile(`^[^0-9]*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?)\s+(.*)$`)
 	matches := timestampRegex.FindStringSubmatch(cleanLine)
 
 	var timestamp, message string

@@ -1,4 +1,4 @@
-import { Application, CreateDirectoryResponse, CreateFileResponse, DeleteDirectoryResponse, DeleteFileResponse, GetApplicationLogsParsedResponse, GetApplicationLogsResponse, GetApplicationsResponse, GetCodeBrowserStatusResponse, GetFileContentResponse, GetFileTreeResponse, GetRunnerEnvironmentsResponse, SaveFileResponse, StartCodeBrowserResponse } from "./model"
+import { Application, CreateDirectoryResponse, CreateFileResponse, DeleteDirectoryResponse, DeleteFileResponse, GetApplicationLogsParsedResponse, GetApplicationLogsResponse, GetApplicationsResponse, GetCodeBrowserStatusResponse, GetDAGResponse, GetFileContentResponse, GetFileTreeResponse, GetRunnerEnvironmentsResponse, SaveFileResponse, StartCodeBrowserResponse } from "./model"
 
 // API 客户端工具函数
 const API_BASE = "/api"
@@ -25,6 +25,8 @@ async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promi
   })
 
   const data = await response.json()
+
+  console.log("API Response:", response.status, data)
 
   if (!response.ok) {
     throw new APIError(response.status, data.message || data.error || "API request failed")
@@ -136,8 +138,8 @@ export const applicationsAPI = {
       body: JSON.stringify({ dirPath }),
     }),
   // Actor组件相关API
-  getComponents: (id: string) =>
-    apiRequest(`/application/apps/${id}/components`),
+  getAppDAG: (id: string) =>
+    apiRequest<GetDAGResponse>(`/application/apps/${id}/dag`),
   analyzeApplication: (id: string) =>
     apiRequest(`/application/apps/${id}/analyze`, {
       method: "POST",

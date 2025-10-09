@@ -7,15 +7,14 @@ func (dag *ApplicationDAG) GetComponent(id string) *Component {
 
 // DAG Node Messages
 type ControlNode struct {
-	Id           string            `protobuf:"bytes,1,opt,name=Id,proto3" json:"Id,omitempty"`
-	Done         bool              `protobuf:"varint,2,opt,name=Done,proto3" json:"Done,omitempty"`
-	FunctionName string            `protobuf:"bytes,3,opt,name=FunctionName,proto3" json:"FunctionName,omitempty"`
-	Params       map[string]string `protobuf:"bytes,4,rep,name=Params,proto3" json:"Params,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // lambda_id -> parameter_name mapping
-	Current      int32             `protobuf:"varint,5,opt,name=Current,proto3" json:"Current,omitempty"`
-	DataNode     string            `protobuf:"bytes,6,opt,name=DataNode,proto3" json:"DataNode,omitempty"`         // id of the output data node
-	PreDataNodes []string          `protobuf:"bytes,7,rep,name=PreDataNodes,proto3" json:"PreDataNodes,omitempty"` // ids of input data nodes
-	FunctionType string            `protobuf:"bytes,8,opt,name=FunctionType,proto3" json:"FunctionType,omitempty"` // "remote" or "local"
+	Id           string            `json:"id,omitempty"`
+	Done         bool              `json:"done,omitempty"`
+	FunctionName string            `json:"functionName,omitempty"`
+	Params       map[string]string `json:"params,omitempty"` // lambda_id -> parameter_name mapping
+	Current      int32             `json:"current,omitempty"`
 }
+
+func (x *ControlNode) isDAGNode_Node() {}
 
 func (x *ControlNode) GetId() string {
 	if x != nil {
@@ -52,27 +51,6 @@ func (x *ControlNode) GetCurrent() int32 {
 	return 0
 }
 
-func (x *ControlNode) GetDataNode() string {
-	if x != nil {
-		return x.DataNode
-	}
-	return ""
-}
-
-func (x *ControlNode) GetPreDataNodes() []string {
-	if x != nil {
-		return x.PreDataNodes
-	}
-	return nil
-}
-
-func (x *ControlNode) GetFunctionType() string {
-	if x != nil {
-		return x.FunctionType
-	}
-	return ""
-}
-
 type DataNode struct {
 	Id         string   `json:"id,omitempty"`
 	Done       bool     `json:"done,omitempty"`
@@ -81,6 +59,8 @@ type DataNode struct {
 	ParentNode *string  `json:"parentNode,omitempty"` // id of parent data node (nullable)
 	ChildNode  []string `json:"childNode,omitempty"`  // ids of child data nodes
 }
+
+func (x *DataNode) isDAGNode_Node() {}
 
 func (x *DataNode) GetId() string {
 	if x != nil {
@@ -125,12 +105,12 @@ func (x *DataNode) GetChildNode() []string {
 }
 
 type DAGNode struct {
-	Type string `protobuf:"bytes,1,opt,name=Type,proto3" json:"Type,omitempty"` // "ControlNode" or "DataNode"
+	Type string `json:"type,omitempty"` // "ControlNode" or "DataNode"
 	// Types that are valid to be assigned to Node:
 	//
-	//	*DAGNode_ControlNode
-	//	*DAGNode_DataNode
-	Node isDAGNode_Node `protobuf_oneof:"Node"`
+	//	*ControlNode
+	//	*DataNode
+	Node isDAGNode_Node `json:"node,omitempty"`
 }
 
 func (x *DAGNode) GetType() string {
@@ -149,8 +129,8 @@ func (x *DAGNode) GetNode() isDAGNode_Node {
 
 func (x *DAGNode) GetControlNode() *ControlNode {
 	if x != nil {
-		if x, ok := x.Node.(*DAGNode_ControlNode); ok {
-			return x.ControlNode
+		if x, ok := x.Node.(*ControlNode); ok {
+			return x
 		}
 	}
 	return nil
@@ -158,8 +138,8 @@ func (x *DAGNode) GetControlNode() *ControlNode {
 
 func (x *DAGNode) GetDataNode() *DataNode {
 	if x != nil {
-		if x, ok := x.Node.(*DAGNode_DataNode); ok {
-			return x.DataNode
+		if x, ok := x.Node.(*DataNode); ok {
+			return x
 		}
 	}
 	return nil
@@ -169,21 +149,9 @@ type isDAGNode_Node interface {
 	isDAGNode_Node()
 }
 
-type DAGNode_ControlNode struct {
-	ControlNode *ControlNode `protobuf:"bytes,2,opt,name=ControlNode,proto3,oneof"`
-}
-
-type DAGNode_DataNode struct {
-	DataNode *DataNode `protobuf:"bytes,3,opt,name=DataNode,proto3,oneof"`
-}
-
-func (*DAGNode_ControlNode) isDAGNode_Node() {}
-
-func (*DAGNode_DataNode) isDAGNode_Node() {}
-
 type DAGEdge struct {
-	FromNodeID string `json:"from_node_id,omitempty"`
-	ToNodeID   string `json:"to_node_id,omitempty"`
+	FromNodeID string `json:"fromNodeId,omitempty"`
+	ToNodeID   string `json:"toNodeId,omitempty"`
 	Info       string `json:"info,omitempty"`
 }
 
