@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/9triver/iarnet/internal/config"
 	"github.com/sirupsen/logrus"
 )
 
@@ -31,14 +32,17 @@ type Manager struct {
 	remoteProviders  map[string]Provider // 通过gossip协议发现的provider
 	nextProviderID   int
 	monitor          *ProviderMonitor
+	cfg              *config.Config
 }
 
-func NewManager(limits map[string]string) *Manager {
+func NewManager(cfg *config.Config) *Manager {
+	limits := cfg.ResourceLimits
 	rm := &Manager{
 		internalProvider: nil,
 		localProviders:   make(map[string]Provider),
 		remoteProviders:  make(map[string]Provider),
 		nextProviderID:   1,
+		cfg:              cfg,
 	}
 	rm.monitor = NewProviderMonitor(rm)
 	for k, v := range limits {
@@ -53,17 +57,17 @@ func NewManager(limits map[string]string) *Manager {
 	}
 
 	// Check if Docker is available before creating internal provider
-	// if IsDockerAvailable() {
-	// 	localDockerProvider, err := GetLocalDockerProvider()
-	// 	if err != nil {
-	// 		logrus.Warnf("Docker is available but failed to create local Docker provider: %v", err)
-	// 	} else {
-	// 		rm.internalProvider = localDockerProvider
-	// 		logrus.Infof("Local Docker provider created successfully")
-	// 	}
-	// } else {
-	// 	logrus.Infof("Docker is not available, skipping internal provider creation")
-	// }
+	if cfg.EnableLocalDocker {
+		localDockerProvider, err := GetLocalDockerProvider()
+		if err != nil {
+			logrus.Warnf("Docker is available but failed to create local Docker provider: %v", err)
+		} else {
+			rm.localProviders[localDockerProvider.GetID()] = localDockerProvider
+			logrus.Infof("Local Docker provider created successfully")
+		}
+	} else {
+		logrus.Infof("Docker is not available, skipping internal provider creation")
+	}
 
 	// Initialize provider monitor
 	rm.monitor = NewProviderMonitor(rm)

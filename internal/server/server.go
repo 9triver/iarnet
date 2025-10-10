@@ -887,12 +887,12 @@ func (s *Server) handleAnalyzeApplication(w http.ResponseWriter, req *http.Reque
 	}
 
 	// 执行代码分析
-	err = s.appMgr.AnalyzeAndDeployApplication(appID)
-	if err != nil {
-		logrus.Errorf("Failed to analyze application %s: %v", appID, err)
-		response.WriteError(w, http.StatusInternalServerError, "failed to analyze application", err)
-		return
-	}
+	// err = s.appMgr.AnalyzeAndDeployApplication(appID)
+	// if err != nil {
+	// 	logrus.Errorf("Failed to analyze application %s: %v", appID, err)
+	// 	response.WriteError(w, http.StatusInternalServerError, "failed to analyze application", err)
+	// 	return
+	// }
 
 	// 更新应用状态
 	s.appMgr.UpdateApplicationStatus(appID, "analyzed")

@@ -50,7 +50,7 @@ func main() {
 		}
 	}
 
-	rm := resource.NewManager(cfg.ResourceLimits)
+	rm := resource.NewManager(cfg)
 	am := application.NewManager(cfg, rm, ignisPlatform)
 	if am == nil {
 		log.Fatal("Failed to create application manager - Docker connection failed")

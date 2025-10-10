@@ -19,7 +19,7 @@ type CommunicationType string
 const (
 	CommunicationHTTP   CommunicationType = "http"
 	CommunicationGRPC   CommunicationType = "grpc"
-	CommunicationStream CommunicationType = "stream"  // 流式通信
+	CommunicationStream CommunicationType = "stream" // 流式通信
 	CommunicationQueue  CommunicationType = "queue"
 	CommunicationFile   CommunicationType = "file"
 )
@@ -70,11 +70,11 @@ const (
 
 // Manager 通信管理器
 type Manager struct {
-	endpoints      map[string]*ServiceEndpoint // componentID -> endpoint
-	routes         map[string]*ServiceRoute    // routeID -> route
-	serviceMap     map[string]string           // serviceName -> componentID
+	endpoints       map[string]*ServiceEndpoint // componentID -> endpoint
+	routes          map[string]*ServiceRoute    // routeID -> route
+	serviceMap      map[string]string           // serviceName -> componentID
 	resourceManager *resource.Manager
-	mu             sync.RWMutex
+	mu              sync.RWMutex
 }
 
 // NewManager 创建通信管理器
@@ -97,72 +97,72 @@ func (m *Manager) RegisterServiceEndpoint(componentID string, component *applica
 		return fmt.Errorf("component %s has no container reference", componentID)
 	}
 
-	// 获取容器的网络信息
-	containerInfo, err := m.getContainerNetworkInfo(component.ContainerRef.ID, component.ProviderID)
-	if err != nil {
-		return fmt.Errorf("failed to get container network info: %v", err)
-	}
+	// // 获取容器的网络信息
+	// containerInfo, err := m.getContainerNetworkInfo(component.ContainerRef.ID, component.ProviderID)
+	// if err != nil {
+	// 	return fmt.Errorf("failed to get container network info: %v", err)
+	// }
 
-	// 创建服务端点
-	for _, port := range component.Ports {
-		endpoint := &ServiceEndpoint{
-			ComponentID: componentID,
-			ServiceName: component.Name,
-			Host:        containerInfo.Host,
-			Port:        port,
-			Protocol:    m.inferProtocolFromComponent(component),
-			HealthPath:  m.getHealthPath(component),
-			Metadata: map[string]string{
-				"actor_type": string(component.Type),
-				"provider_id":    component.ProviderID,
-				"image":          component.Image,
-			},
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-		}
+	// // 创建服务端点
+	// for _, port := range component.Ports {
+	// 	endpoint := &ServiceEndpoint{
+	// 		ComponentID: componentID,
+	// 		ServiceName: component.Name,
+	// 		Host:        containerInfo.Host,
+	// 		Port:        port,
+	// 		Protocol:    m.inferProtocolFromComponent(component),
+	// 		HealthPath:  m.getHealthPath(component),
+	// 		Metadata: map[string]string{
+	// 			"actor_type": string(component.Type),
+	// 			"provider_id":    component.ProviderID,
+	// 			"image":          component.Image,
+	// 		},
+	// 		CreatedAt: time.Now(),
+	// 		UpdatedAt: time.Now(),
+	// 	}
 
-		m.endpoints[componentID] = endpoint
-		m.serviceMap[component.Name] = componentID
+	// 	m.endpoints[componentID] = endpoint
+	// 	m.serviceMap[component.Name] = componentID
 
-		logrus.Infof("Registered service endpoint: %s -> %s:%d", component.Name, containerInfo.Host, port)
-	}
-
-	return nil
-}
-
-// CreateServiceRoutes 创建服务路由
-func (m *Manager) CreateServiceRoutes(dag *application.ApplicationDAG) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	for _, edge := range dag.Edges {
-		// 检查源和目标组件是否存在
-		fromComponent := dag.GetComponent(edge.FromComponent)
-		toComponent := dag.GetComponent(edge.ToComponent)
-		if fromComponent == nil || toComponent == nil {
-			logrus.Warnf("Skipping route creation: component not found (from: %s, to: %s)", edge.FromComponent, edge.ToComponent)
-			continue
-		}
-
-		// 创建路由
-		routeID := fmt.Sprintf("%s-%s-%s", edge.FromComponent, edge.ToComponent, edge.ConnectionType)
-		route := &ServiceRoute{
-			ID:          routeID,
-			FromService: fromComponent.Name,
-			ToService:   toComponent.Name,
-			Type:        CommunicationType(edge.ConnectionType),
-			Config:      m.createRouteConfig(string(edge.ConnectionType), fromComponent, toComponent),
-			Status:      RouteStatusActive,
-			CreatedAt:   time.Now(),
-			UpdatedAt:   time.Now(),
-		}
-
-		m.routes[routeID] = route
-		logrus.Infof("Created service route: %s -> %s (%s)", fromComponent.Name, toComponent.Name, edge.ConnectionType)
-	}
+	// 	logrus.Infof("Registered service endpoint: %s -> %s:%d", component.Name, containerInfo.Host, port)
+	// }
 
 	return nil
 }
+
+// // CreateServiceRoutes 创建服务路由
+// func (m *Manager) CreateServiceRoutes(dag *application.ApplicationDAG) error {
+// 	m.mu.Lock()
+// 	defer m.mu.Unlock()
+
+// 	for _, edge := range dag.Edges {
+// 		// 检查源和目标组件是否存在
+// 		fromComponent := dag.GetComponent(edge.FromComponent)
+// 		toComponent := dag.GetComponent(edge.ToComponent)
+// 		if fromComponent == nil || toComponent == nil {
+// 			logrus.Warnf("Skipping route creation: component not found (from: %s, to: %s)", edge.FromComponent, edge.ToComponent)
+// 			continue
+// 		}
+
+// 		// 创建路由
+// 		routeID := fmt.Sprintf("%s-%s-%s", edge.FromComponent, edge.ToComponent, edge.ConnectionType)
+// 		route := &ServiceRoute{
+// 			ID:          routeID,
+// 			FromService: fromComponent.Name,
+// 			ToService:   toComponent.Name,
+// 			Type:        CommunicationType(edge.ConnectionType),
+// 			Config:      m.createRouteConfig(string(edge.ConnectionType), fromComponent, toComponent),
+// 			Status:      RouteStatusActive,
+// 			CreatedAt:   time.Now(),
+// 			UpdatedAt:   time.Now(),
+// 		}
+
+// 		m.routes[routeID] = route
+// 		logrus.Infof("Created service route: %s -> %s (%s)", fromComponent.Name, toComponent.Name, edge.ConnectionType)
+// 	}
+
+// 	return nil
+// }
 
 // GetServiceEndpoint 获取服务端点
 func (m *Manager) GetServiceEndpoint(componentID string) (*ServiceEndpoint, error) {
@@ -278,7 +278,7 @@ func (m *Manager) getContainerNetworkInfo(containerID, providerID string) (*Cont
 	// 这里应该调用资源管理器获取容器的实际网络信息
 	// 目前返回模拟数据
 	return &ContainerNetworkInfo{
-		Host: "localhost", // 在实际实现中应该获取真实的容器IP
+		Host:  "localhost", // 在实际实现中应该获取真实的容器IP
 		Ports: []int{},
 	}, nil
 }
@@ -289,51 +289,51 @@ type ContainerNetworkInfo struct {
 	Ports []int  `json:"ports"`
 }
 
-// inferProtocolFromComponent 从Actor组件推断协议类型
-func (m *Manager) inferProtocolFromComponent(component *application.Component) CommunicationType {
-	switch component.Type {
-	case application.ComponentTypeGateway:
-		return CommunicationHTTP // 网关通常使用HTTP
-	case application.ComponentTypeWeb:
-		return CommunicationHTTP // Web服务使用HTTP
-	case application.ComponentTypeAPI:
-		return CommunicationHTTP // API服务使用HTTP
-	case application.ComponentTypeWorker:
-		return CommunicationQueue // Worker通常通过消息队列通信
-	case application.ComponentTypeCompute:
-		// 计算服务可能使用gRPC或流式通信
-		if len(component.Ports) > 0 {
-			port := component.Ports[0]
-			if port >= 5000 && port <= 5999 {
-				return CommunicationGRPC // 高性能计算服务使用gRPC
-			}
-		}
-		return CommunicationStream // 默认流式通信
-	default:
-		// 根据镜像或端口推断
-		if len(component.Ports) > 0 {
-			port := component.Ports[0]
-			if port == 80 || port == 443 || port == 8080 {
-				return CommunicationHTTP
-			} else if port >= 9000 && port <= 9999 {
-				return CommunicationGRPC
-			}
-		}
-		return CommunicationHTTP // 默认HTTP
-	}
-}
+// // inferProtocolFromComponent 从Actor组件推断协议类型
+// func (m *Manager) inferProtocolFromComponent(component *application.Component) CommunicationType {
+// 	switch component.Type {
+// 	case application.ComponentTypeGateway:
+// 		return CommunicationHTTP // 网关通常使用HTTP
+// 	case application.ComponentTypeWeb:
+// 		return CommunicationHTTP // Web服务使用HTTP
+// 	case application.ComponentTypeAPI:
+// 		return CommunicationHTTP // API服务使用HTTP
+// 	case application.ComponentTypeWorker:
+// 		return CommunicationQueue // Worker通常通过消息队列通信
+// 	case application.ComponentTypeCompute:
+// 		// 计算服务可能使用gRPC或流式通信
+// 		if len(component.Ports) > 0 {
+// 			port := component.Ports[0]
+// 			if port >= 5000 && port <= 5999 {
+// 				return CommunicationGRPC // 高性能计算服务使用gRPC
+// 			}
+// 		}
+// 		return CommunicationStream // 默认流式通信
+// 	default:
+// 		// 根据镜像或端口推断
+// 		if len(component.Ports) > 0 {
+// 			port := component.Ports[0]
+// 			if port == 80 || port == 443 || port == 8080 {
+// 				return CommunicationHTTP
+// 			} else if port >= 9000 && port <= 9999 {
+// 				return CommunicationGRPC
+// 			}
+// 		}
+// 		return CommunicationHTTP // 默认HTTP
+// 	}
+// }
 
-// getHealthPath 获取健康检查路径
-func (m *Manager) getHealthPath(component *application.Component) string {
-	switch component.Type {
-	case application.ComponentTypeWeb, application.ComponentTypeAPI:
-		return "/health"
-	case application.ComponentTypeWorker:
-		return "/ping"
-	default:
-		return ""
-	}
-}
+// // getHealthPath 获取健康检查路径
+// func (m *Manager) getHealthPath(component *application.Component) string {
+// 	switch component.Type {
+// 	case application.ComponentTypeWeb, application.ComponentTypeAPI:
+// 		return "/health"
+// 	case application.ComponentTypeWorker:
+// 		return "/ping"
+// 	default:
+// 		return ""
+// 	}
+// }
 
 // createRouteConfig 创建路由配置
 func (m *Manager) createRouteConfig(edgeType string, from, to *application.Component) RouteConfig {
@@ -380,7 +380,7 @@ func (m *Manager) grpcHealthCheck(ctx context.Context, endpoint *ServiceEndpoint
 // tcpHealthCheck TCP健康检查
 func (m *Manager) tcpHealthCheck(ctx context.Context, endpoint *ServiceEndpoint) error {
 	// 实现TCP连接检查
-	address := fmt.Sprintf("%s:%d", endpoint.Host, endpoint.Port)
+	address := net.JoinHostPort(endpoint.Host, fmt.Sprintf("%d", endpoint.Port))
 	conn, err := net.DialTimeout("tcp", address, 5*time.Second)
 	if err != nil {
 		return fmt.Errorf("TCP health check failed for %s: %v", address, err)

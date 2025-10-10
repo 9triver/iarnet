@@ -2,7 +2,6 @@ package application
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -45,7 +44,6 @@ type LogEntry struct {
 
 type Manager struct {
 	applications    map[string]*AppRef
-	applicationDAGs map[string]*ApplicationDAG // appID -> DAG
 	nextAppID       int
 	mu              sync.RWMutex
 	config          *config.Config
@@ -85,17 +83,38 @@ func NewManager(config *config.Config, resourceManager *resource.Manager, ignisP
 	logrus.Info("Successfully connected to docker daemon")
 
 	m := &Manager{
-		applications:    make(map[string]*AppRef),
-		applicationDAGs: make(map[string]*ApplicationDAG),
-		nextAppID:       1,
-		config:          config,
-		codeBrowsers:    make(map[string]*CodeBrowserInfo),
-		rm:              resourceManager,
-		ignisPlatform:   ignisPlatform,
-		dockerClient:    cli,
+		applications:  make(map[string]*AppRef),
+		nextAppID:     1,
+		config:        config,
+		codeBrowsers:  make(map[string]*CodeBrowserInfo),
+		rm:            resourceManager,
+		ignisPlatform: ignisPlatform,
+		dockerClient:  cli,
 	}
 
 	return m
+}
+
+func (m *Manager) RegisterComponent(appID string, name string, cf *resource.ContainerRef) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	app, ok := m.applications[appID]
+	if !ok {
+		return fmt.Errorf("application %s not found", appID)
+	}
+
+	app.Components[name] = &Component{
+		Name:         name,
+		Image:        cf.Spec.Image,
+		Status:       ComponentStatusRunning, // TODO: 健康检查
+		CreatedAt:    time.Now(),
+		DeployedAt:   time.Now(),
+		UpdatedAt:    time.Now(),
+		ContainerRef: cf,
+	}
+
+	return nil
 }
 
 func (m *Manager) Stop() {
@@ -490,10 +509,10 @@ func (m *Manager) DeleteApplication(appID string) error {
 	// 如果应用正在运行，先停止它
 	if app.Status == StatusRunning {
 		logrus.Infof("Stopping running application before deletion: %s", appID)
-		if err := m.StopApplicationComponents(appID); err != nil {
-			logrus.Warnf("Failed to stop application components during deletion: %v", err)
-			// 继续删除，即使停止失败
-		}
+		// if err := m.StopApplicationComponents(appID); err != nil {
+		// 	logrus.Warnf("Failed to stop application components during deletion: %v", err)
+		// 	// 继续删除，即使停止失败
+		// }
 	}
 
 	// 停止代码浏览器（如果正在运行）
@@ -503,12 +522,6 @@ func (m *Manager) DeleteApplication(appID string) error {
 			logrus.Warnf("Failed to stop code browser during deletion: %v", err)
 		}
 		delete(m.codeBrowsers, appID)
-	}
-
-	// 删除应用DAG
-	if _, exists := m.applicationDAGs[appID]; exists {
-		delete(m.applicationDAGs, appID)
-		logrus.Infof("Deleted application DAG for: %s", appID)
 	}
 
 	// 删除应用目录（如果存在）
@@ -886,141 +899,6 @@ func (m *Manager) detectLanguage(ext string) string {
 	return "plaintext"
 }
 
-// AnalyzeAndDeployApplication 分析代码并部署应用组件
-func (m *Manager) AnalyzeAndDeployApplication(appID string) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	app, exists := m.applications[appID]
-	if !exists {
-		return errors.New("application not found")
-	}
-
-	// 更新应用状态为部署中
-	app.Status = StatusDeploying
-	logrus.Infof("Starting component analysis and deployment for application: %s", appID)
-
-	// 读取应用代码
-	workspaceDir := m.config.WorkspaceDir
-	if workspaceDir == "" {
-		workspaceDir = "./workspaces"
-	}
-	appDir := filepath.Join(workspaceDir, appID)
-
-	codeContent, err := m.readApplicationCode(appDir)
-	if err != nil {
-		app.Status = StatusFailed
-		return fmt.Errorf("failed to read application code: %v", err)
-	}
-
-	// 获取可用的资源提供者
-	availableProviders := m.getAvailableProviders()
-
-	// 调用代码分析服务
-	analysisReq := &proto.CodeAnalysisRequest{
-		ApplicationId:      appID,
-		CodeContent:        base64.StdEncoding.EncodeToString([]byte(codeContent)),
-		AvailableProviders: availableProviders,
-		Metadata: map[string]string{
-			"language":  m.detectLanguageFromCode(codeContent),
-			"framework": m.detectFrameworkFromCode(codeContent),
-		},
-	}
-
-	analysisResp, err := m.analysisService.AnalyzeCode(context.Background(), analysisReq)
-	if err != nil {
-		app.Status = StatusFailed
-		return fmt.Errorf("code analysis failed: %v", err)
-	}
-
-	if !analysisResp.Success {
-		app.Status = StatusFailed
-		return fmt.Errorf("code analysis failed: %s", analysisResp.Error)
-	}
-
-	// 转换为应用DAG
-	dag := ConvertToApplicationDAG(appID, analysisResp)
-	m.applicationDAGs[appID] = dag
-
-	// 部署组件
-	err = m.deployComponents(dag)
-	if err != nil {
-		app.Status = StatusFailed
-		return fmt.Errorf("component deployment failed: %v", err)
-	}
-
-	app.Status = StatusRunning
-	app.LastDeployed = time.Now()
-	logrus.Infof("Successfully deployed application %s with %d components", appID, len(dag.Components))
-
-	return nil
-}
-
-// deployComponents 部署DAG中的所有组件
-func (m *Manager) deployComponents(dag *ApplicationDAG) error {
-	// 获取部署顺序
-	deploymentOrder, err := dag.GetDeploymentOrder()
-	if err != nil {
-		return fmt.Errorf("failed to get deployment order: %v", err)
-	}
-
-	logrus.Infof("Deploying %d components in order", len(deploymentOrder))
-
-	// 按顺序部署组件
-	for i, component := range deploymentOrder {
-		logrus.Infof("Deploying component %d/%d: %s (%s)", i+1, len(deploymentOrder), component.Name, component.ID)
-
-		err := m.deployComponent(component)
-		if err != nil {
-			return fmt.Errorf("failed to deploy component %s: %v", component.ID, err)
-		}
-
-		// 等待组件启动
-		time.Sleep(2 * time.Second)
-	}
-
-	return nil
-}
-
-// deployComponent 部署单个组件
-func (m *Manager) deployComponent(component *Component) error {
-	component.Status = ComponentStatusDeploying
-
-	// 获取指定的资源提供者
-	provider, err := m.rm.GetProvider(component.ProviderID)
-	if err != nil {
-		return fmt.Errorf("failed to get provider %s: %v", component.ProviderID, err)
-	}
-
-	// 创建容器规格
-	containerSpec := resource.ContainerSpec{
-		Image:   component.Image,
-		Ports:   component.Ports,
-		Command: []string{}, // 可以根据组件类型设置默认命令
-		// CPU:     component.Resources.CPU,
-		// Memory:  component.Resources.Memory,
-		// GPU:     component.Resources.GPU,
-	}
-
-	// 使用指定的资源提供者部署容器
-	containerID, err := provider.Deploy(context.Background(), containerSpec)
-	if err != nil {
-		return fmt.Errorf("failed to deploy container: %v", err)
-	}
-
-	// 创建容器引用
-	component.ContainerRef = &resource.ContainerRef{
-		ID:       containerID,
-		Provider: provider,
-		Spec:     containerSpec,
-	}
-	component.Status = ComponentStatusRunning
-	component.UpdatedAt = time.Now()
-
-	logrus.Infof("Successfully deployed component %s on provider %s", component.ID, component.ProviderID)
-	return nil
-}
-
 // readApplicationCode 读取应用代码内容
 func (m *Manager) readApplicationCode(appDir string) (string, error) {
 	// 简化实现：读取主要文件内容
@@ -1133,64 +1011,6 @@ func (m *Manager) getAvailableProviders() []*proto.ProviderInfo {
 	}
 
 	return protoProviders
-}
-
-// ConvertToApplicationDAG 将proto响应转换为应用DAG
-func ConvertToApplicationDAG(appID string, response *proto.CodeAnalysisResponse) *ApplicationDAG {
-	dag := &ApplicationDAG{
-		ApplicationID:    appID,
-		Components:       make(map[string]*Component),
-		Edges:            make([]DAGEdgeOld, 0),
-		GlobalConfig:     response.GlobalConfig,
-		AnalysisMetadata: make(map[string]interface{}),
-		CreatedAt:        time.Now(),
-		UpdatedAt:        time.Now(),
-	}
-
-	// 转换组件
-	for _, protoComp := range response.Components {
-		comp := &Component{
-			ID:           protoComp.Id,
-			Name:         protoComp.Name,
-			Type:         ComponentType(protoComp.Type),
-			Image:        protoComp.Image,
-			Dependencies: protoComp.Dependencies,
-			Ports:        make([]int, len(protoComp.Ports)),
-			Environment:  protoComp.Environment,
-			Resources: ResourceRequirements{
-				CPU:     protoComp.Resources.Cpu,
-				Memory:  protoComp.Resources.Memory,
-				GPU:     protoComp.Resources.Gpu,
-				Storage: protoComp.Resources.Storage,
-			},
-			ProviderType:     protoComp.ProviderType,
-			ProviderID:       protoComp.ProviderId,
-			DeploymentConfig: make(map[string]interface{}),
-			Status:           ComponentStatusPending,
-			CreatedAt:        time.Now(),
-			UpdatedAt:        time.Now(),
-		}
-
-		// 转换端口
-		for i, port := range protoComp.Ports {
-			comp.Ports[i] = int(port)
-		}
-
-		dag.Components[comp.ID] = comp
-	}
-
-	// 转换边
-	for _, protoEdge := range response.Edges {
-		edge := DAGEdgeOld{
-			FromComponent:    protoEdge.FromComponent,
-			ToComponent:      protoEdge.ToComponent,
-			ConnectionType:   ConnectionType(protoEdge.ConnectionType),
-			ConnectionConfig: protoEdge.ConnectionConfig,
-		}
-		dag.Edges = append(dag.Edges, edge)
-	}
-
-	return dag
 }
 
 // GetApplicationDAG 获取应用的DAG图
@@ -1589,39 +1409,4 @@ func (m *Manager) detectLogLevel(message string) string {
 
 	// 默认为info级别
 	return "info"
-}
-
-// StopApplicationComponents 停止应用的所有组件
-func (m *Manager) StopApplicationComponents(appID string) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	dag, exists := m.applicationDAGs[appID]
-	if !exists {
-		return errors.New("application DAG not found")
-	}
-
-	// 按逆序停止组件
-	deploymentOrder, err := dag.GetDeploymentOrder()
-	if err != nil {
-		return fmt.Errorf("failed to get deployment order: %v", err)
-	}
-
-	// 逆序停止
-	for i := len(deploymentOrder) - 1; i >= 0; i-- {
-		component := deploymentOrder[i]
-		if component.ContainerRef != nil {
-			// 这里应该调用provider的停止方法
-			// provider.Stop(component.ContainerRef.ID)
-			component.Status = ComponentStatusStopped
-			logrus.Infof("Stopped component: %s", component.ID)
-		}
-	}
-
-	// 更新应用状态
-	if app, exists := m.applications[appID]; exists {
-		app.Status = StatusStopped
-	}
-
-	return nil
 }

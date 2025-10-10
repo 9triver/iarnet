@@ -37,4 +37,5 @@ type ContainerSpec struct {
 	Ports        []int
 	Command      []string
 	Requirements Info
+	Env          map[string]string
 }
