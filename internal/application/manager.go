@@ -50,7 +50,7 @@ type Manager struct {
 	mu              sync.RWMutex
 	config          *config.Config
 	codeBrowsers    map[string]*CodeBrowserInfo // appID -> 代码浏览器信息
-	resourceManager *resource.Manager
+	rm              *resource.Manager
 	analysisService CodeAnalysisService
 	ignisPlatform   *platform.Platform
 	dockerClient    *client.Client
@@ -90,7 +90,7 @@ func NewManager(config *config.Config, resourceManager *resource.Manager, ignisP
 		nextAppID:       1,
 		config:          config,
 		codeBrowsers:    make(map[string]*CodeBrowserInfo),
-		resourceManager: resourceManager,
+		rm:              resourceManager,
 		ignisPlatform:   ignisPlatform,
 		dockerClient:    cli,
 	}
@@ -987,7 +987,7 @@ func (m *Manager) deployComponent(component *Component) error {
 	component.Status = ComponentStatusDeploying
 
 	// 获取指定的资源提供者
-	provider, err := m.resourceManager.GetProvider(component.ProviderID)
+	provider, err := m.rm.GetProvider(component.ProviderID)
 	if err != nil {
 		return fmt.Errorf("failed to get provider %s: %v", component.ProviderID, err)
 	}
@@ -1109,7 +1109,7 @@ func (m *Manager) detectFrameworkFromCode(codeContent string) string {
 
 // getAvailableProviders 获取可用的资源提供者
 func (m *Manager) getAvailableProviders() []*proto.ProviderInfo {
-	providers := m.resourceManager.GetProviders()
+	providers := m.rm.GetProviders()
 	var protoProviders []*proto.ProviderInfo
 
 	// 转换本地提供者（包含内部和外部托管）

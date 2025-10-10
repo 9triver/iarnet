@@ -28,6 +28,8 @@ type Controller struct {
 	nodes    map[string]*task.Node
 	groups   map[string]*task.ActorGroup
 	runtimes map[string]*task.Runtime
+
+	deployer task.Deployer
 }
 
 func (c *Controller) onAppendActor(ctx actor.Context, a *controller.AppendActor) {
@@ -56,6 +58,10 @@ func (c *Controller) onAppendPyFunc(ctx actor.Context, f *controller.AppendPyFun
 		"name", f.Name,
 		"params", f.Params,
 	)
+
+	f.Resources.CPU = 500
+	f.Resources.Memory = 128 * 1024 * 1024
+	f.Resources.GPU = 0
 
 	pyFunc, err := functions.NewPy(c.manager, f.Name, f.Params, f.Venv, f.Requirements, f.PickledObject, f.Language)
 	if err != nil {
@@ -171,8 +177,8 @@ func (c *Controller) onControllerMessage(ctx actor.Context, msg *controller.Mess
 	// case *controller.Message_AppendActor:
 
 	// 	c.onAppendActor(ctx, cmd.AppendActor)
-	// case *controller.Message_AppendPyFunc:
-	// 	c.onAppendPyFunc(ctx, cmd.AppendPyFunc)
+	case *controller.Message_AppendPyFunc:
+		c.onAppendPyFunc(ctx, cmd.AppendPyFunc)
 	// case *controller.Message_AppendData:
 	// 	c.onAppendData(ctx, cmd.AppendData)
 	// case *controller.Message_AppendArg:
