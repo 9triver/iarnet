@@ -15,9 +15,9 @@ type Usage struct {
 }
 
 type Capacity struct {
-	Total     Usage `json:"total"`
-	Used      Usage `json:"used"`
-	Available Usage `json:"available"`
+	Total     *Info `json:"total"`
+	Used      *Info `json:"used"`
+	Available *Info `json:"available"`
 }
 
 type ContainerRef struct {
@@ -26,11 +26,15 @@ type ContainerRef struct {
 	Spec     ContainerSpec `json:"spec"`
 }
 
+type Info struct {
+	CPU    int64 `json:"cpu"`
+	Memory int64 `json:"memory"`
+	GPU    int64 `json:"gpu"`
+}
+
 type ContainerSpec struct {
-	Image   string
-	Ports   []int
-	Command []string
-	CPU     float64
-	Memory  float64
-	GPU     float64
+	Image        string
+	Ports        []int
+	Command      []string
+	Requirements Info
 }

@@ -20,8 +20,8 @@ type ResourceProviderInfo struct {
 
 // UsageInfo 表示资源使用率信息
 type UsageInfo struct {
-	Used  float64 `json:"used"`  // 已使用量
-	Total float64 `json:"total"` // 总量
+	Used  int64 `json:"used"`  // 已使用量
+	Total int64 `json:"total"` // 总量
 }
 
 type GetResourceProvidersResponse struct {

@@ -100,16 +100,16 @@ func (dp *DockerProvider) GetCapacity(ctx context.Context) (*Capacity, error) {
 	}
 
 	// Convert memory from bytes to GB
-	totalMemoryGB := float64(info.MemTotal)
+	totalMemoryGB := info.MemTotal
 
 	// Get CPU count
-	totalCPU := float64(info.NCPU)
+	totalCPU := int64(info.NCPU)
 
 	// For GPU, we need to check if nvidia-docker is available
 	// This is a simplified approach - in production you might want to use nvidia-ml-go
 	// totalGPU := dp.getGPUCount(ctx)
 
-	total := Usage{
+	total := &Info{
 		CPU:    totalCPU,
 		Memory: totalMemoryGB,
 		GPU:    0,
@@ -121,7 +121,7 @@ func (dp *DockerProvider) GetCapacity(ctx context.Context) (*Capacity, error) {
 		return nil, fmt.Errorf("failed to get current usage: %w", err)
 	}
 
-	available := Usage{
+	available := &Info{
 		CPU:    total.CPU - allocated.CPU,
 		Memory: total.Memory - allocated.Memory,
 		GPU:    total.GPU - allocated.GPU,
@@ -129,20 +129,20 @@ func (dp *DockerProvider) GetCapacity(ctx context.Context) (*Capacity, error) {
 
 	return &Capacity{
 		Total:     total,
-		Used:      *allocated,
+		Used:      allocated,
 		Available: available,
 	}, nil
 }
 
 // GetRealTimeUsage returns current resource usage by all Docker containers
-func (dp *DockerProvider) GetAllocated(ctx context.Context) (*Usage, error) {
+func (dp *DockerProvider) GetAllocated(ctx context.Context) (*Info, error) {
 	containers, err := dp.client.ContainerList(ctx, container.ListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list containers: %w", err)
 	}
 	logrus.Infof("docker provider get allocated, container count: %d", len(containers))
 
-	var totalCPU, totalMemory float64
+	var totalCPU, totalMemory int64
 
 	for _, container := range containers {
 		// Get container inspect to get resource limits
@@ -158,28 +158,28 @@ func (dp *DockerProvider) GetAllocated(ctx context.Context) (*Usage, error) {
 		}
 
 		// Get CPU limit (convert from nano CPUs to CPU cores)
-		var cpuAlloc float64
+		var cpuAlloc int64
 		if inspect.HostConfig.Resources.NanoCPUs > 0 {
-			cpuAlloc = float64(inspect.HostConfig.Resources.NanoCPUs) / 1e9
+			cpuAlloc = int64(inspect.HostConfig.Resources.NanoCPUs) / 1e6
 			logrus.Infof("Container %s: CPU limit set to %.2f cores", containerName, cpuAlloc)
 		} else {
 			// If no CPU limit is set, assume the container can use all available CPUs
 			// For now, we'll count it as 1 CPU core per container without limits
-			cpuAlloc = 1.0
+			cpuAlloc = 1
 			logrus.Infof("Container %s: No CPU limit set, assuming %.2f cores", containerName, cpuAlloc)
 		}
 		totalCPU += cpuAlloc
 
 		// Get memory limit (convert from bytes to GB)
-		var memAlloc float64
+		var memAlloc int64
 		if inspect.HostConfig.Resources.Memory > 0 {
-			memAlloc = float64(inspect.HostConfig.Resources.Memory)
-			logrus.Infof("Container %s: Memory limit set to %.2f Bytes", containerName, memAlloc)
+			memAlloc = int64(inspect.HostConfig.Resources.Memory)
+			logrus.Infof("Container %s: Memory limit set to %d Bytes", containerName, memAlloc)
 		} else {
 			// If no memory limit is set, assume the container can use a default amount
 			// For now, we'll count it as 2GB per container without limits
-			memAlloc = 2.0
-			logrus.Infof("Container %s: No memory limit set, assuming %.2f Bytes", containerName, memAlloc)
+			memAlloc = 1024 * 1024 * 128 // 128MB
+			logrus.Infof("Container %s: No memory limit set, assuming %d Bytes", containerName, memAlloc)
 		}
 		totalMemory += memAlloc
 
@@ -200,7 +200,7 @@ func (dp *DockerProvider) GetAllocated(ctx context.Context) (*Usage, error) {
 
 	logrus.Infof("docker provider get allocated, allocatedCPU: %f, allocatedMemory: %f", totalCPU, totalMemory)
 
-	return &Usage{
+	return &Info{
 		CPU:    totalCPU,
 		Memory: totalMemory,
 	}, nil
@@ -265,7 +265,7 @@ func IsDockerAvailable() bool {
 	// Try to ping Docker daemon
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	
+
 	_, err = cli.Ping(ctx)
 	return err == nil
 }
@@ -334,8 +334,8 @@ func (dp *DockerProvider) Deploy(ctx context.Context, spec ContainerSpec) (strin
 		Cmd:   spec.Command,
 	}, &container.HostConfig{
 		Resources: container.Resources{
-			NanoCPUs: int64(spec.CPU * 1e9), // Rough conversion
-			Memory:   int64(spec.Memory),
+			NanoCPUs: int64(spec.Requirements.CPU * 1e6), // Rough conversion
+			Memory:   int64(spec.Requirements.Memory),
 			// GPU: Docker GPU support requires nvidia-docker, assume configured.
 		},
 	}, nil, nil, "")

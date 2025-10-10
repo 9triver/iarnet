@@ -997,9 +997,9 @@ func (m *Manager) deployComponent(component *Component) error {
 		Image:   component.Image,
 		Ports:   component.Ports,
 		Command: []string{}, // 可以根据组件类型设置默认命令
-		CPU:     component.Resources.CPU,
-		Memory:  component.Resources.Memory,
-		GPU:     component.Resources.GPU,
+		// CPU:     component.Resources.CPU,
+		// Memory:  component.Resources.Memory,
+		// GPU:     component.Resources.GPU,
 	}
 
 	// 使用指定的资源提供者部署容器

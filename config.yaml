@@ -13,3 +13,5 @@ ignis:
   port: 50001
 runner_images:
   "python:3.11-latest": "iarnet/runner:python_3.11-latest"
+actor_images:
+  "python": "iarnet/actor:python_3.11-latest"

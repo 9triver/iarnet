@@ -15,6 +15,7 @@ type Config struct {
 	WorkspaceDir   string            `yaml:"workspace_dir"`    // e.g., "./workspaces" - directory for git repositories
 	Ignis          IgnisConfig       `yaml:"ignis"`            // Ignis integration configuration
 	RunnerImages   RunnerImageConfig `yaml:"runner_images"`    // e.g., "python:3.11-alpine" - image to use for runner containers
+	ActorImages    ActorImageConfig  `yaml:"actor_images"`     // e.g., "python:3.11-alpine" - image to use for actor containers
 }
 
 type IgnisConfig struct {
@@ -22,6 +23,7 @@ type IgnisConfig struct {
 }
 
 type RunnerImageConfig map[string]string
+type ActorImageConfig map[string]string
 
 func LoadConfig(file string) (*Config, error) {
 	data, err := os.ReadFile(file)

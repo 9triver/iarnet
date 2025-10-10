@@ -6,6 +6,12 @@ import (
 	"github.com/9triver/ignis/actor/functions"
 )
 
+type Env string
+
+const (
+	EnvPython Env = "python"
+)
+
 type Resources struct {
 	CPU    int64 // CPU milli Cores
 	Memory int64 // memory in Bytes
@@ -13,7 +19,7 @@ type Resources struct {
 }
 
 type Deployer interface {
-	Deploy(ctx context.Context, res Resources, appId string, funcName string) error
+	Deploy(ctx context.Context, res Resources, appId string, funcName string, env Env) error
 }
 
 // VenvMgrDeployer 是一个部署器，用于部署 Python 函数到 Venv 环境（原始默认实现）

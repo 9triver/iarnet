@@ -23,22 +23,22 @@ func (pt ProviderType) String() string {
 }
 
 type Manager struct {
-	limits              Usage
-	current             Usage
-	mu                  sync.RWMutex
-	internalProvider    Provider            // 节点内部provider
-	externalProviders   map[string]Provider // 直接接入的外部provider
-	discoveredProviders map[string]Provider // 通过gossip协议发现的provider
-	nextProviderID      int
-	monitor             *ProviderMonitor
+	limits           Usage
+	current          Usage
+	mu               sync.RWMutex
+	internalProvider Provider            // 节点内部provider
+	localProviders   map[string]Provider // 直接接入的外部provider
+	remoteProviders  map[string]Provider // 通过gossip协议发现的provider
+	nextProviderID   int
+	monitor          *ProviderMonitor
 }
 
 func NewManager(limits map[string]string) *Manager {
 	rm := &Manager{
-		internalProvider:    nil,
-		externalProviders:   make(map[string]Provider),
-		discoveredProviders: make(map[string]Provider),
-		nextProviderID:      1,
+		internalProvider: nil,
+		localProviders:   make(map[string]Provider),
+		remoteProviders:  make(map[string]Provider),
+		nextProviderID:   1,
 	}
 	rm.monitor = NewProviderMonitor(rm)
 	for k, v := range limits {
@@ -100,14 +100,14 @@ func (rm *Manager) RegisterProvider(providerType ProviderType, name string, conf
 	}
 
 	// Store as external provider
-	rm.externalProviders[providerID] = provider
+	rm.localProviders[providerID] = provider
 	return providerID, nil
 }
 
 // RegisterDiscoveredProvider registers a provider discovered through gossip protocol
 func (rm *Manager) RegisterDiscoveredProvider(provider Provider) {
 	rm.mu.Lock()
-	rm.discoveredProviders[provider.GetID()] = provider
+	rm.remoteProviders[provider.GetID()] = provider
 	rm.mu.Unlock()
 
 	// Add to monitoring
@@ -122,16 +122,16 @@ func (rm *Manager) UnregisterProvider(providerID string) {
 	defer rm.mu.Unlock()
 
 	// Check and remove from external providers
-	if _, exists := rm.externalProviders[providerID]; exists {
-		delete(rm.externalProviders, providerID)
+	if _, exists := rm.localProviders[providerID]; exists {
+		delete(rm.localProviders, providerID)
 		rm.RemoveProviderFromMonitoring(providerID)
 		logrus.Infof("Unregistered external provider: %s", providerID)
 		return
 	}
 
 	// Check and remove from discovered providers
-	if _, exists := rm.discoveredProviders[providerID]; exists {
-		delete(rm.discoveredProviders, providerID)
+	if _, exists := rm.remoteProviders[providerID]; exists {
+		delete(rm.remoteProviders, providerID)
 		rm.RemoveProviderFromMonitoring(providerID)
 		logrus.Infof("Unregistered discovered provider: %s", providerID)
 		return
@@ -154,12 +154,12 @@ func (rm *Manager) GetProvider(providerID string) (Provider, error) {
 	}
 
 	// Check external providers
-	if provider, exists := rm.externalProviders[providerID]; exists {
+	if provider, exists := rm.localProviders[providerID]; exists {
 		return provider, nil
 	}
 
 	// Check discovered providers
-	if provider, exists := rm.discoveredProviders[providerID]; exists {
+	if provider, exists := rm.remoteProviders[providerID]; exists {
 		return provider, nil
 	}
 
@@ -177,18 +177,18 @@ func (rm *Manager) GetCapacity(ctx context.Context) (*Capacity, error) {
 	if rm.internalProvider != nil {
 		totalProviders++
 	}
-	totalProviders += len(rm.externalProviders) + len(rm.discoveredProviders)
+	totalProviders += len(rm.localProviders) + len(rm.remoteProviders)
 
 	if totalProviders == 0 {
 		// Return zero capacity if no providers are available
 		return &Capacity{
-			Total:     Usage{CPU: 0, Memory: 0, GPU: 0},
-			Used:      Usage{CPU: 0, Memory: 0, GPU: 0},
-			Available: Usage{CPU: 0, Memory: 0, GPU: 0},
+			Total:     &Info{CPU: 0, Memory: 0, GPU: 0},
+			Used:      &Info{CPU: 0, Memory: 0, GPU: 0},
+			Available: &Info{CPU: 0, Memory: 0, GPU: 0},
 		}, nil
 	}
 
-	var totalCapacity, totalAllocated Usage
+	totalCapacity, totalAllocated := &Info{CPU: 0, Memory: 0, GPU: 0}, &Info{CPU: 0, Memory: 0, GPU: 0}
 
 	// Process internal provider
 	if rm.internalProvider != nil {
@@ -206,7 +206,7 @@ func (rm *Manager) GetCapacity(ctx context.Context) (*Capacity, error) {
 	}
 
 	// Process external providers
-	for _, provider := range rm.externalProviders {
+	for _, provider := range rm.localProviders {
 		capacity, err := provider.GetCapacity(ctx)
 		if err != nil {
 			logrus.Warnf("Failed to get capacity from external provider %s: %v", provider.GetID(), err)
@@ -221,7 +221,7 @@ func (rm *Manager) GetCapacity(ctx context.Context) (*Capacity, error) {
 	}
 
 	// Process discovered providers
-	for _, provider := range rm.discoveredProviders {
+	for _, provider := range rm.remoteProviders {
 		capacity, err := provider.GetCapacity(ctx)
 		if err != nil {
 			logrus.Warnf("Failed to get capacity from provider %s: %v", provider.GetID(), err)
@@ -237,7 +237,7 @@ func (rm *Manager) GetCapacity(ctx context.Context) (*Capacity, error) {
 		totalAllocated.GPU += capacity.Used.GPU
 	}
 
-	available := Usage{
+	available := &Info{
 		CPU:    totalCapacity.CPU - totalAllocated.CPU,
 		Memory: totalCapacity.Memory - totalAllocated.Memory,
 		GPU:    totalCapacity.GPU - totalAllocated.GPU,
@@ -279,19 +279,17 @@ func (rm *Manager) Deploy(ctx context.Context, containerSpec ContainerSpec) (*Co
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
 
+	req := containerSpec.Requirements
+
 	logrus.Infof("Starting deployment process for container with image: %s", containerSpec.Image)
-	logrus.Debugf("Container spec: CPU=%.1f, Memory=%dMB, GPU=%d, Ports=%v",
-		containerSpec.CPU, containerSpec.Memory, containerSpec.GPU, containerSpec.Ports)
+	logrus.Infof("Container spec: CPU=%dmc, Memory=%dBytes, GPU=%d, Ports=%v",
+		req.CPU, req.Memory, req.GPU, containerSpec.Ports)
 
 	// 检查资源是否充足
-	usageReq := Usage{CPU: containerSpec.CPU, Memory: containerSpec.Memory, GPU: containerSpec.GPU}
-	logrus.Debugf("Checking resource availability: CPU=%.1f, Memory=%dMB, GPU=%d",
-		usageReq.CPU, usageReq.Memory, usageReq.GPU)
-
-	provider := rm.canAllocate(usageReq)
+	provider := rm.canAllocate(req)
 	if provider == nil {
-		logrus.Errorf("Resource allocation failed: insufficient resources for CPU=%.1f, Memory=%dMB, GPU=%d",
-			usageReq.CPU, usageReq.Memory, usageReq.GPU)
+		logrus.Errorf("Resource allocation failed: insufficient resources for CPU=%d, Memory=%d, GPU=%d",
+			req.CPU, req.Memory, req.GPU)
 		return nil, fmt.Errorf("resource limit exceeded")
 	}
 	logrus.Infof("Resource provider found for deployment: %T", provider)
@@ -317,63 +315,38 @@ func (rm *Manager) Deploy(ctx context.Context, containerSpec ContainerSpec) (*Co
 	return containerRef, nil
 }
 
-// CanAllocate 检查是否可以分配指定的资源
-func (rm *Manager) CanAllocate(req Usage) Provider {
-	return rm.canAllocate(req)
-}
-
-func (rm *Manager) canAllocate(req Usage) Provider {
-	logrus.Debugf("Checking resource allocation: Requested(CPU=%.1f, Memory=%.1f, GPU=%.1f)", req.CPU, req.Memory, req.GPU)
+func (rm *Manager) canAllocate(req Info) Provider {
+	logrus.Debugf("Checking resource allocation: Requested(CPU=%dmc, Memory=%dBytes, GPU=%d)", req.CPU, req.Memory, req.GPU)
 
 	totalProviders := 0
 	if rm.internalProvider != nil {
 		totalProviders++
 	}
-	totalProviders += len(rm.externalProviders) + len(rm.discoveredProviders)
+	totalProviders += len(rm.localProviders) + len(rm.remoteProviders)
 	logrus.Debugf("Searching for available provider among %d providers", totalProviders)
 
-	// Check internal provider first
-	if rm.internalProvider != nil {
-		logrus.Debugf("Checking internal provider %s with status %v", rm.internalProvider.GetID(), rm.internalProvider.GetStatus())
-		if rm.internalProvider.GetStatus() == StatusConnected {
-			capacity, err := rm.internalProvider.GetCapacity(context.Background())
-			if err != nil {
-				logrus.WithError(err).Warnf("Failed to get capacity for internal provider %s", rm.internalProvider.GetID())
-			} else {
-				logrus.Debugf("Internal provider %s capacity: Available(CPU=%.1f, Memory=%.1f, GPU=%.1f)",
-					rm.internalProvider.GetID(), capacity.Available.CPU, capacity.Available.Memory, capacity.Available.GPU)
-				if capacity.Available.CPU >= req.CPU &&
-					capacity.Available.Memory >= req.Memory &&
-					capacity.Available.GPU >= req.GPU {
-					logrus.Infof("Found suitable internal provider: %s for resource allocation", rm.internalProvider.GetID())
-					return rm.internalProvider
-				}
-			}
-		}
-	}
-
-	// Check external providers
-	for _, provider := range rm.externalProviders {
+	// Check local providers
+	for _, provider := range rm.localProviders {
 		logrus.Debugf("Checking remote provider %s with status %v", provider.GetID(), provider.GetStatus())
 		if provider.GetStatus() == StatusConnected {
 			capacity, err := provider.GetCapacity(context.Background())
 			if err != nil {
-				logrus.WithError(err).Warnf("Failed to get capacity for external provider %s", provider.GetID())
+				logrus.WithError(err).Warnf("Failed to get capacity for local provider %s", provider.GetID())
 				continue
 			}
-			logrus.Debugf("Remote provider %s capacity: Available(CPU=%.1f, Memory=%.1f, GPU=%.1f)",
+			logrus.Debugf("Local provider %s capacity: Available(CPU=%d, Memory=%d, GPU=%d)",
 				provider.GetID(), capacity.Available.CPU, capacity.Available.Memory, capacity.Available.GPU)
 			if capacity.Available.CPU >= req.CPU &&
 				capacity.Available.Memory >= req.Memory &&
 				capacity.Available.GPU >= req.GPU {
-				logrus.Infof("Found suitable external provider: %s for resource allocation", provider.GetID())
+				logrus.Infof("Found suitable local provider: %s for resource allocation", provider.GetID())
 				return provider
 			}
 		}
 	}
 
-	// Check discovered providers
-	for _, provider := range rm.discoveredProviders {
+	// Check remote providers
+	for _, provider := range rm.remoteProviders {
 		logrus.Debugf("Checking provider %s with status %v", provider.GetID(), provider.GetStatus())
 		if provider.GetStatus() == StatusConnected {
 			// 获取 provider 的容量信息
@@ -383,7 +356,7 @@ func (rm *Manager) canAllocate(req Usage) Provider {
 				continue
 			}
 
-			logrus.Debugf("Provider %s capacity: Available(CPU=%.1f, Memory=%.1f, GPU=%.1f)",
+			logrus.Debugf("Remote provider %s capacity: Available(CPU=%.1f, Memory=%.1f, GPU=%.1f)",
 				provider.GetID(), capacity.Available.CPU, capacity.Available.Memory, capacity.Available.GPU)
 
 			// 检查是否有足够的资源
@@ -431,10 +404,10 @@ func (rm *Manager) StartMonitoring() {
 	if rm.internalProvider != nil {
 		rm.monitor.AddProvider(rm.internalProvider)
 	}
-	for _, provider := range rm.externalProviders {
+	for _, provider := range rm.localProviders {
 		rm.monitor.AddProvider(provider)
 	}
-	for _, provider := range rm.discoveredProviders {
+	for _, provider := range rm.remoteProviders {
 		rm.monitor.AddProvider(provider)
 	}
 	rm.mu.RUnlock()
@@ -453,8 +426,8 @@ func (rm *Manager) GetProviders() *CategorizedProviders {
 	defer rm.mu.RUnlock()
 
 	result := &CategorizedProviders{
-		LocalProviders:  make([]Provider, 0, len(rm.externalProviders)+1),
-		RemoteProviders: make([]Provider, 0, len(rm.discoveredProviders)),
+		LocalProviders:  make([]Provider, 0, len(rm.localProviders)+1),
+		RemoteProviders: make([]Provider, 0, len(rm.remoteProviders)),
 	}
 
 	// Add internal provider to local providers if exists
@@ -463,12 +436,12 @@ func (rm *Manager) GetProviders() *CategorizedProviders {
 	}
 
 	// Add external providers to local providers
-	for _, provider := range rm.externalProviders {
+	for _, provider := range rm.localProviders {
 		result.LocalProviders = append(result.LocalProviders, provider)
 	}
 
 	// Add discovered providers to remote providers
-	for _, provider := range rm.discoveredProviders {
+	for _, provider := range rm.remoteProviders {
 		result.RemoteProviders = append(result.RemoteProviders, provider)
 	}
 
