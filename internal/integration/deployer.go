@@ -3,13 +3,13 @@ package integration
 import (
 	"context"
 	"fmt"
-	"strconv"
 
 	"github.com/9triver/iarnet/internal/application"
 	"github.com/9triver/iarnet/internal/config"
 	"github.com/9triver/iarnet/internal/resource"
 	"github.com/9triver/ignis/proto"
 	"github.com/9triver/ignis/proto/controller"
+	"github.com/asynkron/protoactor-go/actor"
 	"github.com/sirupsen/logrus"
 )
 
@@ -27,14 +27,14 @@ func NewDeployer(am *application.Manager, rm *resource.Manager, cfg *config.Conf
 	}
 }
 
-func (d *Deployer) DeployPyFunc(ctx context.Context, appId string, f *controller.AppendPyFunc) (*proto.ActorRef, error) {
+func (d *Deployer) DeployPyFunc(ctx actor.Context, appId string, f *controller.AppendPyFunc) ([]*proto.ActorInfo, error) {
 	image, ok := d.cfg.ComponentImages["python"]
 	if !ok {
 		return nil, fmt.Errorf("actor image not found for environment: %s", "python")
 	}
-	cf, err := d.rm.Deploy(ctx, resource.ContainerSpec{
+	cf, err := d.rm.Deploy(context.Background(), resource.ContainerSpec{
 		Image:   image,
-		Ports:   []int{},
+		Ports:   []int{5050},
 		Command: []string{},
 		Requirements: resource.Info{
 			CPU:    f.Resources.CPU,
@@ -42,11 +42,12 @@ func (d *Deployer) DeployPyFunc(ctx context.Context, appId string, f *controller
 			GPU:    f.Resources.GPU,
 		},
 		Env: map[string]string{
-			"APP_ID":      appId,
-			"IGNIS_PORT":  strconv.Itoa(int(d.cfg.Ignis.Port)),
-			"FUNC_NAME":   f.Name,
-			"VENV_NAME":   f.Venv,
-			"PYTHON_EXEC": "python",
+			"RPC_PORT": "5050",
+			// "APP_ID":      appId,
+			// "IGNIS_PORT":  strconv.Itoa(int(d.cfg.Ignis.Port)),
+			// "FUNC_NAME":   f.Name,
+			// "VENV_NAME":   f.Venv,
+			// "PYTHON_EXEC": "python",
 		},
 	})
 	if err != nil {

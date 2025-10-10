@@ -8,6 +8,7 @@ import (
 
 type Config struct {
 	Mode              string            `yaml:"mode"`                // "standalone" or "k8s"
+	ExternalAddr      string            `yaml:"external_addr"`       // External address for actor container connection. TODO: 通信问题待解决
 	ListenAddr        string            `yaml:"listen_addr"`         // e.g., ":8080"
 	PeerListenAddr    string            `yaml:"peer_listen_addr"`    // e.g., ":50051" for gRPC
 	InitialPeers      []string          `yaml:"initial_peers"`       // e.g., ["peer1:50051"]

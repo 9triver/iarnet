@@ -48,7 +48,10 @@ func main() {
 	// 初始化 Ignis 平台
 	var ignisPlatform *platform.Platform = nil
 	if cfg.Ignis.Port != 0 {
-		ignisPlatform = platform.NewPlatform(context.Background(), "0.0.0.0:"+strconv.FormatInt(int64(cfg.Ignis.Port), 10), integration.NewDeployer(am, rm, cfg))
+		ignisPlatform = platform.NewPlatform(
+			context.Background(), "0.0.0.0:"+strconv.FormatInt(int64(cfg.Ignis.Port), 10),
+			integration.NewDeployer(am, rm, cfg),
+		)
 		if err != nil {
 			log.Fatalf("Ignis platform init: %v", err)
 		}
