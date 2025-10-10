@@ -64,7 +64,7 @@ type CodeBrowserInfo struct {
 	Cmd       *exec.Cmd `json:"-"`
 }
 
-func NewManager(config *config.Config, resourceManager *resource.Manager, ignisPlatform *platform.Platform) *Manager {
+func NewManager(config *config.Config, resourceManager *resource.Manager) *Manager {
 
 	// 连接本地docker
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithVersion("1.51"))
@@ -88,11 +88,15 @@ func NewManager(config *config.Config, resourceManager *resource.Manager, ignisP
 		config:        config,
 		codeBrowsers:  make(map[string]*CodeBrowserInfo),
 		rm:            resourceManager,
-		ignisPlatform: ignisPlatform,
+		ignisPlatform: nil,
 		dockerClient:  cli,
 	}
 
 	return m
+}
+
+func (m *Manager) SetIgnisPlatform(ignisPlatform *platform.Platform) {
+	m.ignisPlatform = ignisPlatform
 }
 
 func (m *Manager) RegisterComponent(appID string, name string, cf *resource.ContainerRef) error {

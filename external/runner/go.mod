@@ -1,4 +1,4 @@
-module github.com/9triver/iarnet
+module github.com/9triver/iarnet/runner
 
 go 1.25.0
 

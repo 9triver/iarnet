@@ -13,9 +13,9 @@ import (
 	"github.com/9triver/iarnet/internal/application"
 	"github.com/9triver/iarnet/internal/config"
 	"github.com/9triver/iarnet/internal/discovery"
+	"github.com/9triver/iarnet/internal/integration"
 	"github.com/9triver/iarnet/internal/resource"
 	"github.com/9triver/iarnet/internal/server"
-	"github.com/9triver/ignis/configs"
 	"github.com/9triver/ignis/platform"
 	"github.com/sirupsen/logrus"
 )
@@ -39,38 +39,28 @@ func main() {
 		log.Fatalf("Runner init: %v", err)
 	}
 
+	rm := resource.NewManager(cfg)
+	am := application.NewManager(cfg, rm)
+	if am == nil {
+		log.Fatal("Failed to create application manager - Docker connection failed")
+	}
+
 	// 初始化 Ignis 平台
 	var ignisPlatform *platform.Platform = nil
 	if cfg.Ignis.Port != 0 {
-		ignisPlatform = platform.NewPlatform(context.Background(), &configs.Config{
-			RPCAddr: "0.0.0.0:" + strconv.FormatInt(int64(cfg.Ignis.Port), 10),
-		})
+		ignisPlatform = platform.NewPlatform(context.Background(), "0.0.0.0:"+strconv.FormatInt(int64(cfg.Ignis.Port), 10), integration.NewDeployer(am, rm, cfg))
 		if err != nil {
 			log.Fatalf("Ignis platform init: %v", err)
 		}
 	}
 
-	rm := resource.NewManager(cfg)
-	am := application.NewManager(cfg, rm, ignisPlatform)
-	if am == nil {
-		log.Fatal("Failed to create application manager - Docker connection failed")
-	}
+	am.SetIgnisPlatform(ignisPlatform)
 
 	go ignisPlatform.Run()
 
 	// 创建并设置代码分析服务
 	analysisService := analysis.NewMockCodeAnalysisService(rm)
 	am.SetAnalysisService(analysisService)
-
-	// // 添加一些示例应用数据用于测试
-	// app1 := am.CreateApplication("用户管理系统")
-	// app2 := am.CreateApplication("数据处理服务")
-	// am.CreateApplication("API网关")
-
-	// // 模拟一些应用状态变化
-	// am.UpdateApplicationStatus(app1.ID, application.StatusRunning)
-	// am.UpdateApplicationStatus(app2.ID, application.StatusRunning)
-	// // 第三个应用保持未部署状态
 
 	pm := discovery.NewPeerManager(cfg.InitialPeers, rm)
 
