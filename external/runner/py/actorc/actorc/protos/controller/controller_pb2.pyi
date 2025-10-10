@@ -78,14 +78,25 @@ class AppendActor(_message.Message):
     Ref: _platform_pb2.ActorRef
     def __init__(self, Name: _Optional[str] = ..., Params: _Optional[_Iterable[str]] = ..., Ref: _Optional[_Union[_platform_pb2.ActorRef, _Mapping]] = ...) -> None: ...
 
+class Resources(_message.Message):
+    __slots__ = ("CPU", "Memory", "GPU")
+    CPU_FIELD_NUMBER: _ClassVar[int]
+    MEMORY_FIELD_NUMBER: _ClassVar[int]
+    GPU_FIELD_NUMBER: _ClassVar[int]
+    CPU: int
+    Memory: int
+    GPU: int
+    def __init__(self, CPU: _Optional[int] = ..., Memory: _Optional[int] = ..., GPU: _Optional[int] = ...) -> None: ...
+
 class AppendPyFunc(_message.Message):
-    __slots__ = ("Name", "Params", "Venv", "Requirements", "PickledObject", "Language", "Replicas")
+    __slots__ = ("Name", "Params", "Venv", "Requirements", "PickledObject", "Language", "Resources", "Replicas")
     NAME_FIELD_NUMBER: _ClassVar[int]
     PARAMS_FIELD_NUMBER: _ClassVar[int]
     VENV_FIELD_NUMBER: _ClassVar[int]
     REQUIREMENTS_FIELD_NUMBER: _ClassVar[int]
     PICKLEDOBJECT_FIELD_NUMBER: _ClassVar[int]
     LANGUAGE_FIELD_NUMBER: _ClassVar[int]
+    RESOURCES_FIELD_NUMBER: _ClassVar[int]
     REPLICAS_FIELD_NUMBER: _ClassVar[int]
     Name: str
     Params: _containers.RepeatedScalarFieldContainer[str]
@@ -93,8 +104,9 @@ class AppendPyFunc(_message.Message):
     Requirements: _containers.RepeatedScalarFieldContainer[str]
     PickledObject: bytes
     Language: _platform_pb2.Language
+    Resources: Resources
     Replicas: int
-    def __init__(self, Name: _Optional[str] = ..., Params: _Optional[_Iterable[str]] = ..., Venv: _Optional[str] = ..., Requirements: _Optional[_Iterable[str]] = ..., PickledObject: _Optional[bytes] = ..., Language: _Optional[_Union[_platform_pb2.Language, str]] = ..., Replicas: _Optional[int] = ...) -> None: ...
+    def __init__(self, Name: _Optional[str] = ..., Params: _Optional[_Iterable[str]] = ..., Venv: _Optional[str] = ..., Requirements: _Optional[_Iterable[str]] = ..., PickledObject: _Optional[bytes] = ..., Language: _Optional[_Union[_platform_pb2.Language, str]] = ..., Resources: _Optional[_Union[Resources, _Mapping]] = ..., Replicas: _Optional[int] = ...) -> None: ...
 
 class AppendArg(_message.Message):
     __slots__ = ("SessionID", "InstanceID", "Name", "Param", "Value")

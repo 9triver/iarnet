@@ -81,19 +81,9 @@ func (gs *GRPCServer) ExchangeProviders(ctx context.Context, req *pb.ProviderExc
 	// Get categorized providers
 	providers := gs.resMgr.GetProviders()
 	var allProviders []*pb.ProviderInfo
-	if providers.LocalProvider != nil {
-		allProviders = append(allProviders, &pb.ProviderInfo{
-			Id:          providers.LocalProvider.GetID(),
-			Name:        providers.LocalProvider.GetName(),
-			Type:        providers.LocalProvider.GetType(),
-			Host:        providers.LocalProvider.GetHost(),
-			Port:        int32(providers.LocalProvider.GetPort()),
-			Status:      int32(providers.LocalProvider.GetStatus()),
-			PeerAddress: "", // Local provider, no peer address
-		})
-	}
 
-	for _, provider := range providers.ManagedProviders {
+	// Add local providers (includes internal and external managed)
+	for _, provider := range providers.LocalProviders {
 		allProviders = append(allProviders, &pb.ProviderInfo{
 			Id:          provider.GetID(),
 			Name:        provider.GetName(),
@@ -101,7 +91,7 @@ func (gs *GRPCServer) ExchangeProviders(ctx context.Context, req *pb.ProviderExc
 			Host:        provider.GetHost(),
 			Port:        int32(provider.GetPort()),
 			Status:      int32(provider.GetStatus()),
-			PeerAddress: "", // Remote provider managed locally
+			PeerAddress: "", // Local provider, no peer address
 		})
 	}
 
@@ -118,18 +108,11 @@ func (gs *GRPCServer) CallProvider(ctx context.Context, req *pb.ProviderCallRequ
 	providers := gs.resMgr.GetProviders()
 	var targetProvider resource.Provider
 
-	// Check local provider
-	if providers.LocalProvider != nil && providers.LocalProvider.GetID() == req.ProviderId {
-		targetProvider = providers.LocalProvider
-	}
-
-	// Check managed providers
-	if targetProvider == nil {
-		for _, provider := range providers.ManagedProviders {
-			if provider.GetID() == req.ProviderId {
-				targetProvider = provider
-				break
-			}
+	// Check local providers (includes internal and external managed)
+	for _, provider := range providers.LocalProviders {
+		if provider.GetID() == req.ProviderId {
+			targetProvider = provider
+			break
 		}
 	}
 

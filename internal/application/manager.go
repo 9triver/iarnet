@@ -1112,28 +1112,18 @@ func (m *Manager) getAvailableProviders() []*proto.ProviderInfo {
 	providers := m.resourceManager.GetProviders()
 	var protoProviders []*proto.ProviderInfo
 
-	// 转换本地提供者
-	if providers.LocalProvider != nil {
-		protoProviders = append(protoProviders, &proto.ProviderInfo{
-			Id:     providers.LocalProvider.GetID(),
-			Name:   providers.LocalProvider.GetName(),
-			Type:   string(providers.LocalProvider.GetType()),
-			Status: 1, // 假设状态为活跃
-		})
-	}
-
-	// 转换管理的提供者
-	for _, provider := range providers.ManagedProviders {
+	// 转换本地提供者（包含内部和外部托管）
+	for _, provider := range providers.LocalProviders {
 		protoProviders = append(protoProviders, &proto.ProviderInfo{
 			Id:     provider.GetID(),
 			Name:   provider.GetName(),
 			Type:   string(provider.GetType()),
-			Status: 1,
+			Status: 1, // 假设状态为活跃
 		})
 	}
 
-	// 转换协作提供者
-	for _, provider := range providers.CollaborativeProviders {
+	// 转换远程提供者（通过协作发现）
+	for _, provider := range providers.RemoteProviders {
 		protoProviders = append(protoProviders, &proto.ProviderInfo{
 			Id:     provider.GetID(),
 			Name:   provider.GetName(),

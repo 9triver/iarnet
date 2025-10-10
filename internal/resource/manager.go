@@ -53,17 +53,17 @@ func NewManager(limits map[string]string) *Manager {
 	}
 
 	// Check if Docker is available before creating internal provider
-	if IsDockerAvailable() {
-		localDockerProvider, err := GetLocalDockerProvider()
-		if err != nil {
-			logrus.Warnf("Docker is available but failed to create local Docker provider: %v", err)
-		} else {
-			rm.internalProvider = localDockerProvider
-			logrus.Infof("Local Docker provider created successfully")
-		}
-	} else {
-		logrus.Infof("Docker is not available, skipping internal provider creation")
-	}
+	// if IsDockerAvailable() {
+	// 	localDockerProvider, err := GetLocalDockerProvider()
+	// 	if err != nil {
+	// 		logrus.Warnf("Docker is available but failed to create local Docker provider: %v", err)
+	// 	} else {
+	// 		rm.internalProvider = localDockerProvider
+	// 		logrus.Infof("Local Docker provider created successfully")
+	// 	}
+	// } else {
+	// 	logrus.Infof("Docker is not available, skipping internal provider creation")
+	// }
 
 	// Initialize provider monitor
 	rm.monitor = NewProviderMonitor(rm)
@@ -182,8 +182,8 @@ func (rm *Manager) GetCapacity(ctx context.Context) (*Capacity, error) {
 	if totalProviders == 0 {
 		// Return zero capacity if no providers are available
 		return &Capacity{
-			Total: Usage{CPU: 0, Memory: 0, GPU: 0},
-			Used:  Usage{CPU: 0, Memory: 0, GPU: 0},
+			Total:     Usage{CPU: 0, Memory: 0, GPU: 0},
+			Used:      Usage{CPU: 0, Memory: 0, GPU: 0},
 			Available: Usage{CPU: 0, Memory: 0, GPU: 0},
 		}, nil
 	}
@@ -443,9 +443,8 @@ func (rm *Manager) StartMonitoring() {
 // GetProviders 返回所有注册的资源提供者
 // CategorizedProviders represents providers categorized by their source
 type CategorizedProviders struct {
-	LocalProvider         Provider   `json:"local_provider"`
-	ManagedProviders      []Provider `json:"managed_providers"`
-	CollaborativeProviders []Provider `json:"collaborative_providers"`
+	LocalProviders  []Provider `json:"local_providers"`  // 本地资源（包含内部和外部托管）
+	RemoteProviders []Provider `json:"remote_providers"` // 远程资源（通过协作发现）
 }
 
 // GetProviders returns providers categorized by their source
@@ -454,19 +453,23 @@ func (rm *Manager) GetProviders() *CategorizedProviders {
 	defer rm.mu.RUnlock()
 
 	result := &CategorizedProviders{
-		LocalProvider:         rm.internalProvider,
-		ManagedProviders:      make([]Provider, 0, len(rm.externalProviders)),
-		CollaborativeProviders: make([]Provider, 0, len(rm.discoveredProviders)),
+		LocalProviders:  make([]Provider, 0, len(rm.externalProviders)+1),
+		RemoteProviders: make([]Provider, 0, len(rm.discoveredProviders)),
 	}
 
-	// Convert external providers map to slice
+	// Add internal provider to local providers if exists
+	if rm.internalProvider != nil {
+		result.LocalProviders = append(result.LocalProviders, rm.internalProvider)
+	}
+
+	// Add external providers to local providers
 	for _, provider := range rm.externalProviders {
-		result.ManagedProviders = append(result.ManagedProviders, provider)
+		result.LocalProviders = append(result.LocalProviders, provider)
 	}
 
-	// Convert discovered providers map to slice
+	// Add discovered providers to remote providers
 	for _, provider := range rm.discoveredProviders {
-		result.CollaborativeProviders = append(result.CollaborativeProviders, provider)
+		result.RemoteProviders = append(result.RemoteProviders, provider)
 	}
 
 	return result

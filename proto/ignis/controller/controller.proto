@@ -49,6 +49,12 @@ message AppendActor {
   proto.ActorRef Ref = 3; // Ref to actor
 }
 
+message Resources {
+  int64 CPU = 1; // CPU cores
+  int64 Memory = 2; // memory in Bytes
+  int64 GPU = 3; // GPU cores
+}
+
 message AppendPyFunc {
   string Name = 1; // function name
   repeated string Params = 2; //function params
@@ -56,8 +62,8 @@ message AppendPyFunc {
   repeated string Requirements = 4; // function dependencies
   bytes PickledObject = 5; // encoded function impl
   proto.Language Language = 6; // return type of function
-  // TODO: Resources
-  int32 Replicas = 7;
+  Resources Resources = 7; // resources required by function
+  int32 Replicas = 8; // number of replicas
 }
 
 message AppendArg {

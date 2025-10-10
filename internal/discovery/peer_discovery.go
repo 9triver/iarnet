@@ -14,10 +14,10 @@ import (
 )
 
 type PeerManager struct {
-	peers             map[string]struct{}
+	peers               map[string]struct{}
 	discoveredProviders map[string]*DiscoveredProvider // provider_id -> DiscoveredProvider
-	resMgr            *resource.Manager
-	mu                sync.Mutex
+	resMgr              *resource.Manager
+	mu                  sync.Mutex
 }
 
 // DiscoveredProvider represents a provider discovered through gossip
@@ -77,7 +77,7 @@ func (pm *PeerManager) RemovePeer(peerAddr string) bool {
 func (pm *PeerManager) GetDiscoveredProviders() []*DiscoveredProvider {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
-	
+
 	var providers []*DiscoveredProvider
 	for _, provider := range pm.discoveredProviders {
 		providers = append(providers, provider)
@@ -89,14 +89,14 @@ func (pm *PeerManager) GetDiscoveredProviders() []*DiscoveredProvider {
 func (pm *PeerManager) UpdateDiscoveredProviders(providers []*proto.ProviderInfo, peerAddr string) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
-	
+
 	now := time.Now()
 	for _, p := range providers {
 		// Skip providers that are managed by the current peer (avoid self-discovery)
 		if p.PeerAddress == "" || p.PeerAddress == peerAddr {
 			continue
 		}
-		
+
 		discovered := &DiscoveredProvider{
 			ID:          p.Id,
 			Name:        p.Name,
@@ -107,10 +107,10 @@ func (pm *PeerManager) UpdateDiscoveredProviders(providers []*proto.ProviderInfo
 			PeerAddress: peerAddr,
 			LastSeen:    now,
 		}
-		
+
 		pm.discoveredProviders[p.Id] = discovered
 	}
-	
+
 	// Register discovered providers with resource manager
 	pm.registerDiscoveredProviders()
 }
@@ -121,14 +121,14 @@ func (pm *PeerManager) registerDiscoveredProviders() {
 		// Check if this provider is already registered
 		providers := pm.resMgr.GetProviders()
 		alreadyRegistered := false
-		
-		for _, existing := range providers.CollaborativeProviders {
+
+		for _, existing := range providers.LocalProviders {
 			if existing.GetID() == discovered.ID {
 				alreadyRegistered = true
 				break
 			}
 		}
-		
+
 		if !alreadyRegistered {
 			// Create remote provider proxy
 			remoteProvider, err := resource.NewRemoteProvider(
@@ -143,7 +143,7 @@ func (pm *PeerManager) registerDiscoveredProviders() {
 				log.Printf("Failed to create remote provider %s: %v", discovered.ID, err)
 				continue
 			}
-			
+
 			// Register as discovered provider
 			pm.resMgr.RegisterDiscoveredProvider(remoteProvider)
 			log.Printf("Registered discovered provider: %s (%s) from peer %s", discovered.Name, discovered.Type, discovered.PeerAddress)
@@ -155,7 +155,7 @@ func (pm *PeerManager) registerDiscoveredProviders() {
 func (pm *PeerManager) CleanupStaleProviders(maxAge time.Duration) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
-	
+
 	now := time.Now()
 	for id, provider := range pm.discoveredProviders {
 		if now.Sub(provider.LastSeen) > maxAge {
@@ -169,7 +169,7 @@ func (pm *PeerManager) CleanupStaleProviders(maxAge time.Duration) {
 func (pm *PeerManager) StartGossip(ctx context.Context) {
 	gossipTicker := time.NewTicker(30 * time.Second)
 	cleanupTicker := time.NewTicker(5 * time.Minute)
-	
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -191,9 +191,9 @@ func (pm *PeerManager) gossipOnce() {
 			log.Printf("Failed to dial peer %s: %v", peerAddr, err)
 			continue
 		}
-		
+
 		client := proto.NewPeerServiceClient(conn)
-		
+
 		// Exchange peer information
 		peerResp, err := client.ExchangePeers(context.Background(), &proto.ExchangeRequest{KnownPeers: known})
 		if err != nil {
@@ -202,7 +202,7 @@ func (pm *PeerManager) gossipOnce() {
 			continue
 		}
 		pm.AddPeers(peerResp.KnownPeers)
-		
+
 		// Exchange provider information
 		internalProviders := pm.getInternalProvidersForExchange()
 		providerResp, err := client.ExchangeProviders(context.Background(), &proto.ProviderExchangeRequest{
@@ -214,7 +214,7 @@ func (pm *PeerManager) gossipOnce() {
 			// Update discovered providers
 			pm.UpdateDiscoveredProviders(providerResp.Providers, peerAddr)
 		}
-		
+
 		conn.Close()
 	}
 	log.Printf("Known peers after gossip: %v", pm.GetPeers())
@@ -225,22 +225,9 @@ func (pm *PeerManager) gossipOnce() {
 func (pm *PeerManager) getInternalProvidersForExchange() []*proto.ProviderInfo {
 	providers := pm.resMgr.GetProviders()
 	var internalProviders []*proto.ProviderInfo
-	
-	// Add local provider
-	if providers.LocalProvider != nil {
-		internalProviders = append(internalProviders, &proto.ProviderInfo{
-			Id:          providers.LocalProvider.GetID(),
-			Name:        providers.LocalProvider.GetName(),
-			Type:        providers.LocalProvider.GetType(),
-			Host:        providers.LocalProvider.GetHost(),
-			Port:        int32(providers.LocalProvider.GetPort()),
-			Status:      int32(providers.LocalProvider.GetStatus()),
-			PeerAddress: "", // Local provider
-		})
-	}
-	
-	// Add managed providers (manually added)
-	for _, provider := range providers.ManagedProviders {
+
+	// Add local providers (includes internal and external managed)
+	for _, provider := range providers.LocalProviders {
 		internalProviders = append(internalProviders, &proto.ProviderInfo{
 			Id:          provider.GetID(),
 			Name:        provider.GetName(),
@@ -248,9 +235,9 @@ func (pm *PeerManager) getInternalProvidersForExchange() []*proto.ProviderInfo {
 			Host:        provider.GetHost(),
 			Port:        int32(provider.GetPort()),
 			Status:      int32(provider.GetStatus()),
-			PeerAddress: "", // Managed locally
+			PeerAddress: "", // Local provider
 		})
 	}
-	
+
 	return internalProviders
 }

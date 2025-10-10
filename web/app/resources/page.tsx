@@ -45,9 +45,8 @@ interface ResourceProvider {
 }
 
 interface GetResourceProvidersResponse {
-  local_provider?: ResourceProvider
-  managed_providers: ResourceProvider[]
-  collaborative_providers: ResourceProvider[]
+  local_providers: ResourceProvider[]
+  remote_providers: ResourceProvider[]
 }
 
 interface Resource {
@@ -56,7 +55,7 @@ interface Resource {
   type: "kubernetes" | "docker" | "vm"
   host: string
   port: number
-  category?: "local_provider" | "managed_providers" | "collaborative_providers" // 资源分类：本机、托管、协作发现
+  category?: "local_providers" | "remote_providers" // 资源分类：本地、远程
   status: "connected" | "disconnected" | "error"
   cpu: {
     total: number
@@ -82,6 +81,13 @@ interface ResourceFormData {
   description?: string
 }
 
+interface NodeFormData {
+  name: string
+  host: string
+  port: number
+  description?: string
+}
+
 interface Usage {
   cpu: number
   memory: number
@@ -96,33 +102,9 @@ interface Capacity {
 
 export default function ResourcesPage() {
   const [resources, setResources] = useState<Resource[]>([])
-  // ([
-  // {
-  //   id: "1",
-  //   name: "生产环境集群",
-  //   type: "kubernetes",
-  //   url: "https://k8s-prod.example.com",
-  //   status: "connected",
-  //   cpu: { total: 32, used: 18 },
-  //   memory: { total: 128, used: 76 },
-  //   // storage: { total: 2048, used: 1024 },
-  //   lastUpdated: "2024-01-15 14:30:00",
-  // },
-  // {
-  //   id: "2",
-  //   name: "开发环境",
-  //   type: "docker",
-  //   url: "https://docker-dev.example.com",
-  //   status: "connected",
-  //   cpu: { total: 16, used: 8 },
-  //   memory: { total: 64, used: 32 },
-  //   // storage: { total: 1024, used: 256 },
-  //   lastUpdated: "2024-01-15 14:25:00",
-  // },
-  // ])
-
   const [capacity, setCapacity] = useState<Capacity | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [isNodeDialogOpen, setIsNodeDialogOpen] = useState(false)
   const [editingResource, setEditingResource] = useState<Resource | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -185,7 +167,7 @@ export default function ResourcesPage() {
       const response = (await resourcesAPI.getProviders()) as GetResourceProvidersResponse
       
       // 转换API数据格式为前端需要的格式
-      const convertProvider = (provider: ResourceProvider, category: "local_provider" | "managed_providers" | "collaborative_providers"): Resource => ({
+      const convertProvider = (provider: ResourceProvider, category: "local_providers" | "remote_providers"): Resource => ({
         id: provider.id,
         name: provider.name,
         type: provider.type.toLowerCase() as "kubernetes" | "docker" | "vm",
@@ -204,12 +186,10 @@ export default function ResourcesPage() {
         lastUpdated: provider.last_update_time
       })
       
-      // 合并三类 provider
-      const localResources = response.local_provider ? [convertProvider(response.local_provider, 'local_provider')] : [];
-        const allResources = [
-          ...localResources,
-          ...response.managed_providers.map(p => convertProvider(p, 'managed_providers')),
-          ...response.collaborative_providers.map(p => convertProvider(p, 'collaborative_providers'))
+      // 合并两类 provider
+      const allResources = [
+        ...response.local_providers.map(p => convertProvider(p, 'local_providers')),
+        ...response.remote_providers.map(p => convertProvider(p, 'remote_providers'))
       ]
       
       setResources(allResources)
@@ -374,10 +354,155 @@ export default function ResourcesPage() {
                 <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                 刷新数据
               </Button>
-
-
-
-
+              
+              <Dialog open={isNodeDialogOpen} onOpenChange={setIsNodeDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline">
+                    <Plus className="mr-2 h-4 w-4" />
+                    接入节点
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[425px]">
+                  <DialogHeader>
+                    <DialogTitle>接入远程节点</DialogTitle>
+                    <DialogDescription>连接到远程算力节点，发现并使用其资源</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">节点名称</label>
+                      <Input placeholder="输入节点名称" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">主机地址</label>
+                      <Input placeholder="例如: 192.168.1.200" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">端口</label>
+                      <Input type="number" placeholder="例如: 8080" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">描述</label>
+                      <Textarea placeholder="节点描述信息（可选）" className="min-h-[80px]" />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setIsNodeDialogOpen(false)}>
+                      取消
+                    </Button>
+                    <Button type="button" onClick={() => setIsNodeDialogOpen(false)}>
+                      接入节点
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+              
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="mr-2 h-4 w-4" />
+                    接入资源
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[425px]">
+                  <DialogHeader>
+                    <DialogTitle>添加新资源</DialogTitle>
+                    <DialogDescription>配置新的算力资源节点连接信息</DialogDescription>
+                  </DialogHeader>
+                  <Form {...form}>
+                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                      <FormField
+                        control={form.control}
+                        name="name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>资源名称</FormLabel>
+                            <FormControl>
+                              <Input placeholder="输入资源名称" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="type"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>资源类型</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="选择资源类型" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="kubernetes">Kubernetes</SelectItem>
+                                <SelectItem value="docker">Docker</SelectItem>
+                                <SelectItem value="vm">虚拟机</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="host"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>主机地址</FormLabel>
+                            <FormControl>
+                              <Input placeholder="例如: 192.168.1.100" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="port"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>端口</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                placeholder="例如: 6443"
+                                {...field}
+                                onChange={(e) => field.onChange(parseInt(e.target.value))}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="token"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>认证信息</FormLabel>
+                            <FormControl>
+                              <Textarea
+                                placeholder="输入认证Token或配置文件内容"
+                                className="min-h-[100px]"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              Kubernetes: kubeconfig文件内容；Docker: TLS证书路径或留空
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <DialogFooter>
+                        <Button type="submit">接入资源</Button>
+                      </DialogFooter>
+                    </form>
+                  </Form>
+                </DialogContent>
+              </Dialog>
             </div>
           </div>
 
@@ -445,12 +570,14 @@ export default function ResourcesPage() {
                 <div>
                   <CardTitle className="flex items-center space-x-2">
                     <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                    <span>本机资源</span>
+                    <span>本地资源</span>
                   </CardTitle>
-                  <CardDescription>当前主机上的本地算力资源</CardDescription>
+                  <CardDescription>手动配置并托管的本地算力资源</CardDescription>
                 </div>
-                <div className="text-sm text-muted-foreground">
-                  {resources.filter(r => r.category === 'local_provider').length} 个资源
+                <div className="flex items-center space-x-4">
+                  <div className="text-sm text-muted-foreground">
+                    {resources.filter(r => r.category === 'local_providers').length} 个资源
+                  </div>
                 </div>
               </div>
             </CardHeader>
@@ -472,14 +599,14 @@ export default function ResourcesPage() {
                     Array.from({ length: 1 }).map((_, index) => (
                       <ResourceTableSkeleton key={`local-skeleton-${index}`} />
                     ))
-                  ) : resources.filter(r => r.category === 'local_provider').length === 0 ? (
+                  ) : resources.filter(r => r.category === 'local_providers').length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                        暂无本地资源，系统将自动检测本机可用的算力资源
+                        暂无本地资源，点击上方"接入资源"按钮开始配置
                       </TableCell>
                     </TableRow>
                   ) : (
-                    resources.filter(r => r.category === 'local_provider').map((resource) => (
+                    resources.filter(r => r.category === 'local_providers').map((resource) => (
                       <TableRow key={resource.id}>
                         <TableCell className="w-64">
                           <div className="flex items-center space-x-2">
@@ -504,7 +631,7 @@ export default function ResourcesPage() {
                                 : "0%"}
                             </div>
                             <div className="text-xs text-muted-foreground">
-                              {resource.cpu.used}/{resource.cpu.total} 核心
+                              {formatNumber(resource.cpu.used)}/{formatNumber(resource.cpu.total)} 核
                             </div>
                           </div>
                         </TableCell>
@@ -542,137 +669,21 @@ export default function ResourcesPage() {
             </CardContent>
           </Card>
 
-          {/* 远程添加的资源面板 */}
-          <Card className="mb-8">
+          {/* 远程资源面板 */}
+          <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle className="flex items-center space-x-2">
-                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                    <span>托管资源</span>
+                    <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+                    <span>远程资源</span>
                   </CardTitle>
-                  <CardDescription>手动配置并托管的外部算力资源</CardDescription>
+                  <CardDescription>网络中自动发现的可协作算力资源</CardDescription>
                 </div>
                 <div className="flex items-center space-x-4">
                   <div className="text-sm text-muted-foreground">
-                    {resources.filter(r => r.category === 'managed_providers').length} 个资源
+                    {resources.filter(r => r.category === 'remote_providers').length} 个资源
                   </div>
-                  <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                    <DialogTrigger asChild>
-                      <Button size="sm">
-                        <Plus className="mr-2 h-4 w-4" />
-                        接入资源
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-[425px]">
-                      <DialogHeader>
-                        <DialogTitle>添加新资源</DialogTitle>
-                        <DialogDescription>配置新的算力资源节点连接信息</DialogDescription>
-                      </DialogHeader>
-                      <Form {...form}>
-                        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                          <FormField
-                            control={form.control}
-                            name="name"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>资源名称</FormLabel>
-                                <FormControl>
-                                  <Input placeholder="输入资源名称" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
-                            name="type"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>资源类型</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                  <FormControl>
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="选择资源类型" />
-                                    </SelectTrigger>
-                                  </FormControl>
-                                  <SelectContent>
-                                    <SelectItem value="kubernetes">Kubernetes</SelectItem>
-                                    <SelectItem value="docker">Docker</SelectItem>
-                                    <SelectItem value="vm">虚拟机</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <div className="grid grid-cols-2 gap-4">
-                            <FormField
-                              control={form.control}
-                              name="host"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>主机地址</FormLabel>
-                                  <FormControl>
-                                    <Input placeholder="192.168.1.100" {...field} />
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                            <FormField
-                              control={form.control}
-                              name="port"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>端口</FormLabel>
-                                  <FormControl>
-                                    <Input
-                                      type="number"
-                                      placeholder="8080"
-                                      {...field}
-                                      onChange={(e) => field.onChange(parseInt(e.target.value))}
-                                    />
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                          </div>
-                          <FormField
-                            control={form.control}
-                            name="token"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>访问令牌</FormLabel>
-                                <FormControl>
-                                  <Input type="password" placeholder="输入访问令牌" {...field} />
-                                </FormControl>
-                                <FormDescription>用于认证的访问令牌或密钥</FormDescription>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
-                            name="description"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>描述（可选）</FormLabel>
-                                <FormControl>
-                                  <Textarea placeholder="资源描述信息" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <DialogFooter>
-                            <Button type="submit">接入资源</Button>
-                          </DialogFooter>
-                        </form>
-                      </Form>
-                    </DialogContent>
-                  </Dialog>
                 </div>
               </div>
             </CardHeader>
@@ -694,14 +705,14 @@ export default function ResourcesPage() {
                     Array.from({ length: 1 }).map((_, index) => (
                       <ResourceTableSkeleton key={`remote-skeleton-${index}`} />
                     ))
-                  ) : resources.filter(r => r.category === 'managed_providers').length === 0 ? (
+                  ) : resources.filter(r => r.category === 'remote_providers').length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                        暂无托管资源，点击上方"接入资源"按钮开始配置
+                        暂无远程资源，系统将自动发现网络中节点提供的资源，点击上方"接入节点"按钮可以接入新节点到网络中
                       </TableCell>
                     </TableRow>
                   ) : (
-                    resources.filter(r => r.category === 'managed_providers').map((resource) => (
+                    resources.filter(r => r.category === 'remote_providers').map((resource) => (
                       <TableRow key={resource.id}>
                         <TableCell className="w-64">
                           <div className="flex items-center space-x-2">
@@ -726,7 +737,7 @@ export default function ResourcesPage() {
                                 : "0%"}
                             </div>
                             <div className="text-xs text-muted-foreground">
-                              {resource.cpu.used}/{resource.cpu.total} 核心
+                              {formatNumber(resource.cpu.used)}/{formatNumber(resource.cpu.total)} 核
                             </div>
                           </div>
                         </TableCell>
@@ -764,121 +775,7 @@ export default function ResourcesPage() {
             </CardContent>
           </Card>
 
-          {/* 网络发现的资源面板 */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center space-x-2">
-                    <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
-                    <span>协作资源</span>
-                  </CardTitle>
-                  <CardDescription>网络中自动发现的可协作算力资源</CardDescription>
-                </div>
-                <div className="flex items-center space-x-4">
-                  <div className="text-sm text-muted-foreground">
-                    {resources.filter(r => r.category === 'collaborative_providers').length} 个资源
-                  </div>
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      // TODO: 实现接入节点功能
-                      console.log('接入节点')
-                    }}
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    接入节点
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-64">资源名称</TableHead>
-                    <TableHead className="w-20">类型</TableHead>
-                    <TableHead className="w-20">状态</TableHead>
-                    <TableHead className="w-32">CPU使用率</TableHead>
-                    <TableHead className="w-32">内存使用率</TableHead>
-                    <TableHead className="w-40">最后更新</TableHead>
-                    <TableHead className="w-32">操作</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {loading ? (
-                    Array.from({ length: 1 }).map((_, index) => (
-                      <ResourceTableSkeleton key={`discovered-skeleton-${index}`} />
-                    ))
-                  ) : resources.filter(r => r.category === 'collaborative_providers').length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                        暂无协作资源，系统将自动发现网络中节点提供的资源，点击上方"接入节点"按钮可以接入新节点到网络中
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    resources.filter(r => r.category === 'collaborative_providers').map((resource) => (
-                      <TableRow key={resource.id}>
-                        <TableCell className="w-64">
-                          <div className="flex items-center space-x-2">
-                            {getTypeIcon(resource.type)}
-                            <div>
-                              <div className="font-medium">{resource.name}</div>
-                              <div className="text-sm text-muted-foreground">{resource.host}:{resource.port}</div>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="w-20">
-                          <Badge variant="outline">
-                            {resource.type === "kubernetes" ? "K8s" : resource.type === "docker" ? "Docker" : "VM"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="w-20">{getStatusBadge(resource.status)}</TableCell>
-                        <TableCell className="w-32">
-                          <div className="flex items-center space-x-2">
-                            <div className="text-sm">
-                              {resource.cpu.total > 0
-                                ? `${Math.round((resource.cpu.used / resource.cpu.total) * 100)}%`
-                                : "0%"}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {resource.cpu.used}/{resource.cpu.total} 核心
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="w-32">
-                          <div className="flex items-center space-x-2">
-                            <div className="text-sm">
-                              {resource.memory.total > 0
-                                ? `${Math.round((resource.memory.used / resource.memory.total) * 100)}%`
-                                : "0%"}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {formatMemory(resource.memory.used)}/{formatMemory(resource.memory.total)}
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="w-40 text-xs text-muted-foreground">{resource.lastUpdated}</TableCell>
-                        <TableCell className="w-32">
-                          <div className="flex items-center space-x-2">
-                            <Button variant="ghost" size="sm" onClick={() => handleEdit(resource)}>
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleDelete(resource.id)}>
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm">
-                              <RefreshCw className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+
         </div>
       </main>
     </div>

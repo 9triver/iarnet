@@ -16,9 +16,70 @@ import time
 import inspect
 import threading
 import os
-import json
+import re
 
 actorContext: "ActorContext | None" = None
+
+
+def parse_memory_string(memory_str):
+    """
+    将Kubernetes风格的内存字符串转换为字节数
+    支持的单位: K, M, G, T, P, E (1000进制) 和 Ki, Mi, Gi, Ti, Pi, Ei (1024进制)
+    
+    Args:
+        memory_str: 内存字符串，如 "1024Mi", "2Gi", "512M" 等
+        
+    Returns:
+        int: 以字节为单位的内存大小
+    """
+    if isinstance(memory_str, (int, float)):
+        return int(memory_str)
+    
+    if not isinstance(memory_str, str):
+        raise ValueError(f"Invalid memory format: {memory_str}")
+    
+    # 移除空格并转换为大写
+    memory_str = memory_str.strip()
+    
+    # 正则表达式匹配数字和单位
+    match = re.match(r'^(\d+(?:\.\d+)?)\s*([KMGTPE]i?)?$', memory_str, re.IGNORECASE)
+    if not match:
+        raise ValueError(f"Invalid memory format: {memory_str}")
+    
+    value = float(match.group(1))
+    unit = match.group(2)
+    
+    if not unit:
+        # 没有单位，默认为字节
+        return int(value)
+    
+    unit = unit.upper()
+    
+    # 1024进制单位 (Ki, Mi, Gi, Ti, Pi, Ei)
+    if unit.endswith('I'):
+        multipliers = {
+            'KI': 1024,
+            'MI': 1024 ** 2,
+            'GI': 1024 ** 3,
+            'TI': 1024 ** 4,
+            'PI': 1024 ** 5,
+            'EI': 1024 ** 6,
+        }
+    else:
+        # 1000进制单位 (K, M, G, T, P, E)
+        multipliers = {
+            'K': 1000,
+            'M': 1000 ** 2,
+            'G': 1000 ** 3,
+            'T': 1000 ** 4,
+            'P': 1000 ** 5,
+            'E': 1000 ** 6,
+        }
+    
+    if unit not in multipliers:
+        raise ValueError(f"Unknown memory unit: {unit}")
+    
+    return int(value * multipliers[unit])
 
 
 def convert_dag_to_proto(dag):
@@ -198,6 +259,17 @@ class ActorFunction(Function):
             replicas = self._config.replicas
         except AttributeError:
             replicas = 1
+        try:
+            resources = dict(self._config.resources)
+            resources["cpu"] = resources.get("cpu", 500)
+            resources["memory"] = resources.get("memory", "128Mi")
+            resources["gpu"] = resources.get("gpu", 0)
+        except AttributeError:
+            resources = {
+                "cpu": 500,
+                "memory": "128Mi",
+                "gpu": 0,
+            }
         sig = inspect.signature(fn)
         params = []
         for name, param in sig.parameters.items():
@@ -213,6 +285,11 @@ class ActorFunction(Function):
                 PickledObject=cloudpickle.dumps(self._fn),
                 Language=platform_pb2.LANG_PYTHON,
                 Replicas=replicas,
+                Resources=controller_pb2.Resources(
+                    CPU=resources["cpu"],
+                    Memory=parse_memory_string(resources["memory"]),
+                    GPU=resources["gpu"],
+                ),
             ),
         )
         actorContext.send(message)

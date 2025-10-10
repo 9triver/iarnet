@@ -17,9 +17,8 @@ export interface ResourceProvider {
 }
 
 export interface GetResourceProvidersResponse {
-  local_provider: ResourceProvider | null         // 本机 provider（无或一个）
-  managed_providers: ResourceProvider[]      // 托管的 provider（无或多个）
-  collaborative_providers: ResourceProvider[] // 通过协作发现的 provider（无或多个）
+  local_providers: ResourceProvider[]
+  remote_providers: ResourceProvider[]
 }
 
 export interface Application {

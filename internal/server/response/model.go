@@ -25,9 +25,8 @@ type UsageInfo struct {
 }
 
 type GetResourceProvidersResponse struct {
-	LocalProvider          *ResourceProviderInfo  `json:"local_provider"`          // 本机 provider（无或一个）
-	ManagedProviders       []ResourceProviderInfo `json:"managed_providers"`       // 托管的外部 provider（无或多个）
-	CollaborativeProviders []ResourceProviderInfo `json:"collaborative_providers"` // 通过协作发现的 provider（无或多个）
+	LocalProviders  []ResourceProviderInfo `json:"local_providers"`  // 本地 provider（包含本机和托管的外部 provider）
+	RemoteProviders []ResourceProviderInfo `json:"remote_providers"` // 远程 provider（通过协作发现的 provider）
 }
 
 type GetApplicationsOverViewResponse struct {
