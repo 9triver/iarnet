@@ -293,7 +293,7 @@ export default function ApplicationDetailPage() {
             type: 'zoom-canvas',
             key: 'zoom-canvas-1', // 为交互指定标识符，方便动态更新
             sensitivity: 0.5, // 设置灵敏度
-            trigger: ['Control']
+            // trigger: ['Control']
           },
           'drag-canvas'
         ],
