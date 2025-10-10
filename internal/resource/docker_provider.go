@@ -161,12 +161,12 @@ func (dp *DockerProvider) GetAllocated(ctx context.Context) (*Info, error) {
 		var cpuAlloc int64
 		if inspect.HostConfig.Resources.NanoCPUs > 0 {
 			cpuAlloc = int64(inspect.HostConfig.Resources.NanoCPUs) / 1e6
-			logrus.Infof("Container %s: CPU limit set to %.2f cores", containerName, cpuAlloc)
+			logrus.Infof("Container %s: CPU limit set to %d cores", containerName, cpuAlloc)
 		} else {
 			// If no CPU limit is set, assume the container can use all available CPUs
 			// For now, we'll count it as 1 CPU core per container without limits
 			cpuAlloc = 1
-			logrus.Infof("Container %s: No CPU limit set, assuming %.2f cores", containerName, cpuAlloc)
+			logrus.Infof("Container %s: No CPU limit set, assuming %d cores", containerName, cpuAlloc)
 		}
 		totalCPU += cpuAlloc
 
@@ -198,7 +198,7 @@ func (dp *DockerProvider) GetAllocated(ctx context.Context) (*Info, error) {
 		// }
 	}
 
-	logrus.Infof("docker provider get allocated, allocatedCPU: %f, allocatedMemory: %f", totalCPU, totalMemory)
+	logrus.Infof("docker provider get allocated, allocatedCPU: %d, allocatedMemory: %d", totalCPU, totalMemory)
 
 	return &Info{
 		CPU:    totalCPU,
@@ -225,9 +225,7 @@ func (dp *DockerProvider) GetHost() string {
 	if dp.config.Host != "" {
 		// Parse host from config (e.g., "tcp://192.168.1.100:2376")
 		host := dp.config.Host
-		if strings.HasPrefix(host, "tcp://") {
-			host = strings.TrimPrefix(host, "tcp://")
-		}
+		host = strings.TrimPrefix(host, "tcp://")
 		if strings.Contains(host, ":") {
 			return strings.Split(host, ":")[0]
 		}
@@ -241,9 +239,7 @@ func (dp *DockerProvider) GetPort() int {
 	if dp.config.Host != "" {
 		// Parse port from config (e.g., "tcp://192.168.1.100:2376")
 		host := dp.config.Host
-		if strings.HasPrefix(host, "tcp://") {
-			host = strings.TrimPrefix(host, "tcp://")
-		}
+		host = strings.TrimPrefix(host, "tcp://")
 		if strings.Contains(host, ":") {
 			portStr := strings.Split(host, ":")[1]
 			if port, err := strconv.Atoi(portStr); err == nil {

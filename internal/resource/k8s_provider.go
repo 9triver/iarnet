@@ -213,48 +213,48 @@ func (kp *K8sProvider) GetAllocated(ctx context.Context) (*Info, error) {
 			if cpuRequest, exists := container.Resources.Requests[v1.ResourceCPU]; exists {
 				cpuCores := int64(cpuRequest.MilliValue()) / 1000
 				totalCPU += cpuCores
-				logrus.Infof("Pod %s, Container %s: CPU request %.2f cores", pod.Name, container.Name, cpuCores)
+				logrus.Infof("Pod %s, Container %s: CPU request %d cores", pod.Name, container.Name, cpuCores)
 			} else if cpuLimit, exists := container.Resources.Limits[v1.ResourceCPU]; exists {
 				cpuCores := int64(cpuLimit.MilliValue()) / 1000
 				totalCPU += cpuCores
-				logrus.Infof("Pod %s, Container %s: CPU limit %.2f cores", pod.Name, container.Name, cpuCores)
+				logrus.Infof("Pod %s, Container %s: CPU limit %d cores", pod.Name, container.Name, cpuCores)
 			} else {
 				// If no CPU request/limit is set, assume 0.1 cores per container
 				cpuCores := int64(1000)
 				totalCPU += cpuCores
-				logrus.Infof("Pod %s, Container %s: No CPU request/limit set, assuming %.2f cores", pod.Name, container.Name, cpuCores)
+				logrus.Infof("Pod %s, Container %s: No CPU request/limit set, assuming %d cores", pod.Name, container.Name, cpuCores)
 			}
 
 			// Get memory requests/limits
 			if memRequest, exists := container.Resources.Requests[v1.ResourceMemory]; exists {
 				memoryBytes := int64(memRequest.Value())
 				totalMemory += memoryBytes
-				logrus.Infof("Pod %s, Container %s: Memory request %.2f bytes", pod.Name, container.Name, memoryBytes)
+				logrus.Infof("Pod %s, Container %s: Memory request %d bytes", pod.Name, container.Name, memoryBytes)
 			} else if memLimit, exists := container.Resources.Limits[v1.ResourceMemory]; exists {
 				memoryBytes := int64(memLimit.Value())
 				totalMemory += memoryBytes
-				logrus.Infof("Pod %s, Container %s: Memory limit %.2f bytes", pod.Name, container.Name, memoryBytes)
+				logrus.Infof("Pod %s, Container %s: Memory limit %d bytes", pod.Name, container.Name, memoryBytes)
 			} else {
 				// If no memory request/limit is set, assume 128MB per container
 				memoryBytes := int64(128 * 1024 * 1024) // 128MB in bytes
 				totalMemory += memoryBytes
-				logrus.Infof("Pod %s, Container %s: No memory request/limit set, assuming %.2f bytes", pod.Name, container.Name, memoryBytes)
+				logrus.Infof("Pod %s, Container %s: No memory request/limit set, assuming %d bytes", pod.Name, container.Name, memoryBytes)
 			}
 
 			// Get GPU requests/limits
 			if gpuRequest, exists := container.Resources.Requests["nvidia.com/gpu"]; exists {
 				gpuCount := int64(gpuRequest.Value())
 				totalGPU += gpuCount
-				logrus.Infof("Pod %s, Container %s: GPU request %.2f", pod.Name, container.Name, gpuCount)
+				logrus.Infof("Pod %s, Container %s: GPU request %d", pod.Name, container.Name, gpuCount)
 			} else if gpuLimit, exists := container.Resources.Limits["nvidia.com/gpu"]; exists {
 				gpuCount := int64(gpuLimit.Value())
 				totalGPU += gpuCount
-				logrus.Infof("Pod %s, Container %s: GPU limit %.2f", pod.Name, container.Name, gpuCount)
+				logrus.Infof("Pod %s, Container %s: GPU limit %d", pod.Name, container.Name, gpuCount)
 			}
 		}
 	}
 
-	logrus.Infof("k8s provider get allocated, allocatedCPU: %f, allocatedMemory: %f, allocatedGPU: %f", totalCPU, totalMemory, totalGPU)
+	logrus.Infof("k8s provider get allocated, allocatedCPU: %d, allocatedMemory: %d, allocatedGPU: %d", totalCPU, totalMemory, totalGPU)
 
 	return &Info{
 		CPU:    totalCPU,

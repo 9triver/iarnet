@@ -356,7 +356,7 @@ func (rm *Manager) canAllocate(req Info) Provider {
 				continue
 			}
 
-			logrus.Debugf("Remote provider %s capacity: Available(CPU=%.1f, Memory=%.1f, GPU=%.1f)",
+			logrus.Debugf("Remote provider %s capacity: Available(CPU=%d, Memory=%d, GPU=%d)",
 				provider.GetID(), capacity.Available.CPU, capacity.Available.Memory, capacity.Available.GPU)
 
 			// 检查是否有足够的资源
@@ -372,7 +372,7 @@ func (rm *Manager) canAllocate(req Info) Provider {
 	}
 
 	// 如果没有找到满足条件的 provider，返回 nil
-	logrus.Warnf("No suitable provider found for resource allocation: CPU=%.1f, Memory=%.1f, GPU=%.1f", req.CPU, req.Memory, req.GPU)
+	logrus.Warnf("No suitable provider found for resource allocation: CPU=%d, Memory=%d, GPU=%d", req.CPU, req.Memory, req.GPU)
 	return nil
 }
 
