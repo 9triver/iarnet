@@ -8,7 +8,8 @@ import (
 	"github.com/9triver/iarnet/internal/application"
 	"github.com/9triver/iarnet/internal/config"
 	"github.com/9triver/iarnet/internal/resource"
-	"github.com/9triver/ignis/platform/task"
+	"github.com/9triver/ignis/proto"
+	"github.com/9triver/ignis/proto/controller"
 	"github.com/sirupsen/logrus"
 )
 
@@ -26,30 +27,32 @@ func NewDeployer(am *application.Manager, rm *resource.Manager, cfg *config.Conf
 	}
 }
 
-func (d *Deployer) Deploy(ctx context.Context, res task.Resources, appId string, funcName string, env task.Env) error {
-	image, ok := d.cfg.ComponentImages[string(env)]
+func (d *Deployer) DeployPyFunc(ctx context.Context, appId string, f *controller.AppendPyFunc) (*proto.ActorRef, error) {
+	image, ok := d.cfg.ComponentImages["python"]
 	if !ok {
-		return fmt.Errorf("actor image not found for environment: %s", env)
+		return nil, fmt.Errorf("actor image not found for environment: %s", "python")
 	}
 	cf, err := d.rm.Deploy(ctx, resource.ContainerSpec{
 		Image:   image,
 		Ports:   []int{},
 		Command: []string{},
 		Requirements: resource.Info{
-			CPU:    res.CPU,
-			Memory: res.Memory,
-			GPU:    res.GPU,
+			CPU:    f.Resources.CPU,
+			Memory: f.Resources.Memory,
+			GPU:    f.Resources.GPU,
 		},
 		Env: map[string]string{
-			"APP_ID":     appId,
-			"IGNIS_PORT": strconv.Itoa(int(d.cfg.Ignis.Port)),
-			"FUNC_NAME":  funcName,
+			"APP_ID":      appId,
+			"IGNIS_PORT":  strconv.Itoa(int(d.cfg.Ignis.Port)),
+			"FUNC_NAME":   f.Name,
+			"VENV_NAME":   f.Venv,
+			"PYTHON_EXEC": "python",
 		},
 	})
 	if err != nil {
-		return fmt.Errorf("failed to deploy: %w", err)
+		return nil, fmt.Errorf("failed to deploy: %w", err)
 	}
 	logrus.Infof("deployed to provider: %s, container ID: %s", cf.Provider.GetID(), cf.ID)
-	d.am.RegisterComponent(appId, funcName, cf)
-	return nil
+	d.am.RegisterComponent(appId, f.Name, cf)
+	return nil, nil
 }

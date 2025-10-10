@@ -1,7 +1,6 @@
 package control
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -9,7 +8,6 @@ import (
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/sirupsen/logrus"
 
-	"github.com/9triver/ignis/actor/compute"
 	"github.com/9triver/ignis/actor/functions"
 	"github.com/9triver/ignis/actor/remote"
 	"github.com/9triver/ignis/actor/store"
@@ -60,12 +58,21 @@ func (c *Controller) onAppendPyFunc(ctx actor.Context, f *controller.AppendPyFun
 		"params", f.Params,
 	)
 
-	err := c.deployer.Deploy(context.TODO(), task.Resources{
-		CPU:    f.Resources.CPU,
-		Memory: f.Resources.Memory,
-		GPU:    f.Resources.GPU,
-	}, c.appID, f.Name, task.EnvPython)
+	// af, err := c.deployer.DeployPyFunc(context.TODO(), c.appID, f)
 
+	// if err != nil {
+	// 	ctx.Logger().Error("control: deploy python function error",
+	// 		"name", f.Name,
+	// 		"err", err,
+	// 	)
+	// 	return
+	// }
+
+	if f.Replicas == 0 {
+		f.Replicas = 1
+	}
+
+	infos, err := c.deployer.DeployPyFunc(ctx, c.appID, f)
 	if err != nil {
 		ctx.Logger().Error("control: deploy python function error",
 			"name", f.Name,
@@ -73,29 +80,10 @@ func (c *Controller) onAppendPyFunc(ctx actor.Context, f *controller.AppendPyFun
 		)
 		return
 	}
-
-	pyFunc, err := functions.NewPy(c.manager, f.Name, f.Params, f.Venv, f.Requirements, f.PickledObject, f.Language)
-	if err != nil {
-		panic(err)
-	}
-
-	if f.Replicas == 0 {
-		f.Replicas = 1
-	}
 	group := task.NewGroup(f.Name)
 	c.groups[f.Name] = group
 
-	for i := range f.Replicas {
-		name := fmt.Sprintf("%s-%d", f.Name, i)
-		props := compute.NewActor(name, pyFunc, c.store.PID)
-		pid := ctx.Spawn(props)
-		info := &proto.ActorInfo{
-			Ref: &proto.ActorRef{
-				ID:    name,
-				PID:   pid,
-				Store: c.store,
-			},
-		}
+	for _, info := range infos {
 		group.Push(info)
 	}
 

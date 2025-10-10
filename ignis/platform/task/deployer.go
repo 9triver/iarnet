@@ -1,9 +1,13 @@
 package task
 
 import (
-	"context"
+	"fmt"
 
+	"github.com/9triver/ignis/actor/compute"
 	"github.com/9triver/ignis/actor/functions"
+	"github.com/9triver/ignis/proto"
+	"github.com/9triver/ignis/proto/controller"
+	"github.com/asynkron/protoactor-go/actor"
 )
 
 type Env string
@@ -19,7 +23,7 @@ type Resources struct {
 }
 
 type Deployer interface {
-	Deploy(ctx context.Context, res Resources, appId string, funcName string, env Env) error
+	DeployPyFunc(ctx actor.Context, appId string, f *controller.AppendPyFunc) ([]*proto.ActorInfo, error)
 }
 
 type Config struct {
@@ -29,16 +33,41 @@ type Config struct {
 
 // VenvMgrDeployer 是一个部署器，用于部署 Python 函数到 Venv 环境（原始默认实现）
 type VenvMgrDeployer struct {
-	vm *functions.VenvManager
+	vm    *functions.VenvManager
+	store *proto.StoreRef
 }
 
-func NewVenvMgrDeployer(vm *functions.VenvManager) *VenvMgrDeployer {
+func NewVenvMgrDeployer(vm *functions.VenvManager, store *proto.StoreRef) *VenvMgrDeployer {
 	return &VenvMgrDeployer{
-		vm: vm,
+		vm:    vm,
+		store: store,
 	}
 }
 
-func (d *VenvMgrDeployer) Deploy(ctx context.Context, res Resources, appId string, funcName string, env Env) error {
+func (d *VenvMgrDeployer) DeployPyFunc(ctx actor.Context, appId string, f *controller.AppendPyFunc) ([]*proto.ActorInfo, error) {
 
-	return nil
+	pyFunc, err := functions.NewPy(d.vm, f.Name, f.Params, f.Venv, f.Requirements, f.PickledObject, f.Language)
+	if err != nil {
+		return nil, err
+	}
+
+	infos := make([]*proto.ActorInfo, f.Replicas)
+
+	for i := range f.Replicas {
+		name := fmt.Sprintf("%s-%d", f.Name, i)
+		props := compute.NewActor(name, pyFunc, d.store.PID)
+		pid := ctx.Spawn(props)
+		info := &proto.ActorInfo{
+			Ref: &proto.ActorRef{
+				ID:    name,
+				PID:   pid,
+				Store: d.store,
+			},
+			CalcLatency: 0,
+			LinkLatency: 0,
+		}
+		infos[i] = info
+		// group.Push(info)
+	}
+	return infos, nil
 }
