@@ -25,7 +25,7 @@ _sym_db = _symbol_database.Default()
 import platform_pb2 as platform__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x15\x63luster/cluster.proto\x12\x05proto\x1a\x0eplatform.proto\"=\n\rObjectRequest\x12\n\n\x02ID\x18\x01 \x01(\t\x12 \n\x07ReplyTo\x18\x02 \x01(\x0b\x32\x0f.proto.StoreRef\"P\n\x0eObjectResponse\x12\n\n\x02ID\x18\x01 \x01(\t\x12#\n\x05Value\x18\x02 \x01(\x0b\x32\x14.proto.EncodedObject\x12\r\n\x05\x45rror\x18\x03 \x01(\t\"\xe2\x01\n\x08\x45nvelope\x12\x1e\n\x05Store\x18\x01 \x01(\x0b\x32\x0f.proto.StoreRef\x12 \n\x04Type\x18\x02 \x01(\x0e\x32\x12.proto.MessageType\x12-\n\rObjectRequest\x18\x03 \x01(\x0b\x32\x14.proto.ObjectRequestH\x00\x12/\n\x0eObjectResponse\x18\x04 \x01(\x0b\x32\x15.proto.ObjectResponseH\x00\x12)\n\x0bStreamChunk\x18\x05 \x01(\x0b\x32\x12.proto.StreamChunkH\x00\x42\t\n\x07Message*Y\n\x0bMessageType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\x12\n\x0eOBJECT_REQUEST\x10\x01\x12\x13\n\x0fOBJECT_RESPONSE\x10\x02\x12\x10\n\x0cSTREAM_CHUNK\x10\x03\x42(Z&github.com/9triver/ignis/proto/clusterb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x15\x63luster/cluster.proto\x12\x05proto\x1a\x0eplatform.proto\"=\n\rObjectRequest\x12\n\n\x02ID\x18\x01 \x01(\t\x12 \n\x07ReplyTo\x18\x02 \x01(\x0b\x32\x0f.proto.StoreRef\"P\n\x0eObjectResponse\x12\n\n\x02ID\x18\x01 \x01(\t\x12#\n\x05Value\x18\x02 \x01(\x0b\x32\x14.proto.EncodedObject\x12\r\n\x05\x45rror\x18\x03 \x01(\t\"\xe2\x01\n\x08\x45nvelope\x12\x1e\n\x05Store\x18\x01 \x01(\x0b\x32\x0f.proto.StoreRef\x12 \n\x04Type\x18\x02 \x01(\x0e\x32\x12.proto.MessageType\x12-\n\rObjectRequest\x18\x03 \x01(\x0b\x32\x14.proto.ObjectRequestH\x00\x12/\n\x0eObjectResponse\x18\x04 \x01(\x0b\x32\x15.proto.ObjectResponseH\x00\x12)\n\x0bStreamChunk\x18\x05 \x01(\x0b\x32\x12.proto.StreamChunkH\x00\x42\t\n\x07Message\"\x14\n\x03\x41\x63k\x12\r\n\x05\x45rror\x18\x01 \x01(\t\"\x07\n\x05Ready\"x\n\x08\x46unction\x12\x0c\n\x04Name\x18\x01 \x01(\t\x12\x0e\n\x06Params\x18\x02 \x03(\t\x12\x14\n\x0cRequirements\x18\x03 \x03(\t\x12\x15\n\rPickledObject\x18\x04 \x01(\x0c\x12!\n\x08Language\x18\x05 \x01(\x0e\x32\x0f.proto.Language\"\xfc\x02\n\x07Message\x12 \n\x04Type\x18\x01 \x01(\x0e\x32\x12.proto.MessageType\x12\x0e\n\x06\x43onnID\x18\x02 \x01(\t\x12\x19\n\x03\x41\x63k\x18\x03 \x01(\x0b\x32\n.proto.AckH\x00\x12\x1d\n\x05Ready\x18\x04 \x01(\x0b\x32\x0c.proto.ReadyH\x00\x12\x1f\n\x06Invoke\x18\x05 \x01(\x0b\x32\r.proto.InvokeH\x00\x12)\n\x0bInvokeStart\x18\x06 \x01(\x0b\x32\x12.proto.InvokeStartH\x00\x12-\n\rObjectRequest\x18\x07 \x01(\x0b\x32\x14.proto.ObjectRequestH\x00\x12/\n\x0eObjectResponse\x18\x08 \x01(\x0b\x32\x15.proto.ObjectResponseH\x00\x12)\n\x0bStreamChunk\x18\t \x01(\x0b\x32\x12.proto.StreamChunkH\x00\x12#\n\x08\x46unction\x18\n \x01(\x0b\x32\x0f.proto.FunctionH\x00\x42\t\n\x07Message*\x99\x01\n\x0bMessageType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\x07\n\x03\x41\x43K\x10\x01\x12\t\n\x05READY\x10\x02\x12\n\n\x06INVOKE\x10\x03\x12\x10\n\x0cINVOKE_START\x10\x04\x12\x12\n\x0eOBJECT_REQUEST\x10\x05\x12\x13\n\x0fOBJECT_RESPONSE\x10\x06\x12\x10\n\x0cSTREAM_CHUNK\x10\x07\x12\x0c\n\x08\x46UNCTION\x10\x08\x32:\n\x07Service\x12/\n\x07Session\x12\x0e.proto.Message\x1a\x0e.proto.Message\"\x00(\x01\x30\x01\x42(Z&github.com/9triver/ignis/proto/clusterb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -33,12 +33,22 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'cluster.cluster_pb2', _glob
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'Z&github.com/9triver/ignis/proto/cluster'
-  _globals['_MESSAGETYPE']._serialized_start=422
-  _globals['_MESSAGETYPE']._serialized_end=511
+  _globals['_MESSAGETYPE']._serialized_start=959
+  _globals['_MESSAGETYPE']._serialized_end=1112
   _globals['_OBJECTREQUEST']._serialized_start=48
   _globals['_OBJECTREQUEST']._serialized_end=109
   _globals['_OBJECTRESPONSE']._serialized_start=111
   _globals['_OBJECTRESPONSE']._serialized_end=191
   _globals['_ENVELOPE']._serialized_start=194
   _globals['_ENVELOPE']._serialized_end=420
+  _globals['_ACK']._serialized_start=422
+  _globals['_ACK']._serialized_end=442
+  _globals['_READY']._serialized_start=444
+  _globals['_READY']._serialized_end=451
+  _globals['_FUNCTION']._serialized_start=453
+  _globals['_FUNCTION']._serialized_end=573
+  _globals['_MESSAGE']._serialized_start=576
+  _globals['_MESSAGE']._serialized_end=956
+  _globals['_SERVICE']._serialized_start=1114
+  _globals['_SERVICE']._serialized_end=1172
 # @@protoc_insertion_point(module_scope)

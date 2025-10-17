@@ -29,7 +29,7 @@ func main() {
 
 	logrus.Infof("Registering app %s to Ignis platform at port %s", appID, ignisPort)
 
-	exec.Command("cd", APP_CODE_PATH)
+	// exec.Command("cd", APP_CODE_PATH)
 
 	if envInstallCmd != "" {
 		// 支持多行环境安装命令

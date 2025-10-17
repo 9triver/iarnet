@@ -7,6 +7,7 @@ import (
 	pb "google.golang.org/protobuf/proto"
 
 	"github.com/9triver/ignis/configs"
+	"github.com/9triver/ignis/proto/cluster"
 	"github.com/9triver/ignis/proto/controller"
 	"github.com/9triver/ignis/proto/executor"
 	"github.com/9triver/ignis/utils/errors"
@@ -96,10 +97,16 @@ type ExecutorImpl = StreamImpl[*executor.Message, *executor.Message]
 
 type ControllerImpl = StreamImpl[*controller.Message, *controller.Message]
 
+type ComputeStreamImpl = StreamImpl[*cluster.Message, *cluster.Message]
+
 func NewExecutorImpl(conn string, protocol Protocol) *ExecutorImpl {
 	return newStreamImpl[*executor.Message, *executor.Message](conn, protocol)
 }
 
 func NewControllerImpl(conn string, protocol Protocol) *ControllerImpl {
 	return newStreamImpl[*controller.Message, *controller.Message](conn, protocol)
+}
+
+func NewComputeStreamImpl(conn string, protocol Protocol) *ComputeStreamImpl {
+	return newStreamImpl[*cluster.Message, *cluster.Message](conn, protocol)
 }

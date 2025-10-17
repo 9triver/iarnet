@@ -5,10 +5,15 @@ option go_package = "github.com/9triver/ignis/proto/cluster";
 import "platform.proto";
 
 enum MessageType {
-  UNSPECIFIED = 0;
-  OBJECT_REQUEST = 1;
-  OBJECT_RESPONSE = 2;
-  STREAM_CHUNK = 3;
+  UNSPECIFIED = 0; // unknown command type
+  ACK = 1; // acknowledged
+  READY = 2; // ready to receive messages
+  INVOKE = 3; // invoke function
+  INVOKE_START = 4; // invoke function start
+  OBJECT_REQUEST = 5;
+  OBJECT_RESPONSE = 6;
+  STREAM_CHUNK = 7;
+  FUNCTION = 8; // python function
 }
 
 // ObjectRequest requests object with ID, and the object is sent to ReplyTo, asynchronously.
@@ -33,4 +38,37 @@ message Envelope {
     ObjectResponse ObjectResponse = 4;
     proto.StreamChunk StreamChunk = 5;
   }
+}
+
+message Ack {
+  string Error = 1;
+}
+
+message Ready {}
+
+message Function {
+  string Name = 1; // function name
+  repeated string Params = 2; //function params
+  repeated string Requirements = 3; // function dependencies
+  bytes PickledObject = 4; // encoded function impl
+  proto.Language Language = 5; // return type of function
+}
+
+message Message {
+  MessageType Type = 1;
+  string ConnID = 2;    // connection id: `${AppId}:${FuncName}`
+  oneof Message {
+    Ack Ack = 3;
+    Ready Ready = 4;
+    proto.Invoke Invoke = 5;
+    proto.InvokeStart InvokeStart = 6;
+    ObjectRequest ObjectRequest = 7;
+    ObjectResponse ObjectResponse = 8;
+    proto.StreamChunk StreamChunk = 9;
+    Function Function = 10;
+  }
+}
+
+service Service {
+  rpc Session(stream Message) returns (stream Message) {}
 }

@@ -49,6 +49,48 @@ func NewEnvelope(store *proto.StoreRef, msg pb.Message) *Envelope {
 	return e
 }
 
+func NewMessage(msg pb.Message) *Message {
+	switch msg := msg.(type) {
+	case *ObjectRequest:
+		return &Message{
+			Type:    MessageType_OBJECT_REQUEST,
+			Message: &Message_ObjectRequest{ObjectRequest: msg},
+		}
+	case *ObjectResponse:
+		return &Message{
+			Type:    MessageType_OBJECT_RESPONSE,
+			Message: &Message_ObjectResponse{ObjectResponse: msg},
+		}
+	case *StreamChunk:
+		return &Message{
+			Type:    MessageType_STREAM_CHUNK,
+			Message: &Message_StreamChunk{StreamChunk: msg},
+		}
+	case *Ack:
+		return &Message{
+			Type:    MessageType_ACK,
+			Message: &Message_Ack{Ack: msg},
+		}
+	case *Ready:
+		return &Message{
+			Type:    MessageType_READY,
+			Message: &Message_Ready{Ready: msg},
+		}
+	case *proto.Invoke:
+		return &Message{
+			Type:    MessageType_INVOKE,
+			Message: &Message_Invoke{Invoke: msg},
+		}
+	case *proto.InvokeStart:
+		return &Message{
+			Type:    MessageType_INVOKE_START,
+			Message: &Message_InvokeStart{InvokeStart: msg},
+		}
+	default:
+		return nil
+	}
+}
+
 func (e *Envelope) Unwrap() pb.Message {
 	switch msg := e.Message.(type) {
 	case *Envelope_ObjectRequest:

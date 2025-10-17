@@ -3,6 +3,7 @@ package integration
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/9triver/iarnet/internal/application"
 	"github.com/9triver/iarnet/internal/config"
@@ -33,20 +34,17 @@ func (d *Deployer) DeployPyFunc(ctx actor.Context, appId string, f *controller.A
 		return nil, fmt.Errorf("actor image not found for environment: %s", "python")
 	}
 	cf, err := d.rm.Deploy(context.Background(), resource.ContainerSpec{
-		Image:   image,
-		Ports:   []int{5050},
-		Command: []string{},
+		Image: image,
 		Requirements: resource.Info{
 			CPU:    f.Resources.CPU,
 			Memory: f.Resources.Memory,
 			GPU:    f.Resources.GPU,
 		},
 		Env: map[string]string{
-			"RPC_PORT": "5050",
-			// "APP_ID":      appId,
-			// "IGNIS_PORT":  strconv.Itoa(int(d.cfg.Ignis.Port)),
-			// "FUNC_NAME":   f.Name,
-			// "VENV_NAME":   f.Venv,
+			"IGNIG_ADDR": d.cfg.ExternalAddr + ":" + strconv.Itoa(int(d.cfg.Ignis.Port)),
+			// "CONN_ID":    fmt.Sprintf("%s_%s", appId, f.Name),
+			"APP_ID":    appId,
+			"FUNC_NAME": f.Name,
 			// "PYTHON_EXEC": "python",
 		},
 	})
