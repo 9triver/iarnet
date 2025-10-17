@@ -1,0 +1,82 @@
+# 多阶段构建 Dockerfile for component
+# 构建阶段
+FROM golang:1.24-alpine AS builder
+
+ENV GOPROXY=https://goproxy.cn,direct
+ENV GOSUMDB=sum.golang.org
+
+# 安装必要的工具和 ZeroMQ 依赖
+RUN apk add --no-cache git ca-certificates tzdata \
+    gcc musl-dev \
+    zeromq-dev czmq-dev pkgconfig
+
+# 设置工作目录
+WORKDIR /build
+
+# 复制整个项目到构建容器中（因为有跨目录依赖）
+# 注意：这需要从项目根目录运行 docker build
+COPY iarnet /build/iarnet
+
+# 切换到 component 目录
+WORKDIR /build/iarnet/external/component
+
+# 下载依赖
+RUN go mod download
+
+# 构建应用
+RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build \
+    -ldflags='-w -s' \
+    -a \
+    -o component ./main.go
+
+# 运行阶段
+FROM python:3.11-slim
+
+# 安装系统依赖
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    tzdata \
+    libzmq5 \
+    libczmq4 \
+    libzmq3-dev \
+    libczmq-dev \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+# 创建非 root 用户
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+# 安装 actorc 及其依赖
+COPY --from=builder /build/iarnet/external/runner/py/actorc /tmp/actorc
+RUN cd /tmp/actorc && pip install -e .
+
+# 设置工作目录
+WORKDIR /app
+
+# 从构建阶段复制二进制文件
+COPY --from=builder /build/iarnet/external/component/component /app/component
+
+# 复制 Python 执行器文件
+COPY --from=builder /build/iarnet/external/component/py/executor.py /app/py/executor.py
+
+# 设置权限
+RUN chown -R appuser:appuser /app
+USER appuser
+
+# 设置环境变量
+ENV APP_ID=""
+ENV IGNIG_ADDR=""
+ENV FUNC_NAME=""
+ENV VENV_PATH="/tmp/venv"
+ENV EXECUTOR_PATH="/app/py/executor.py"
+ENV IPC_ADDR="ipc:///tmp/executor.sock"
+
+# 暴露端口（如果需要）
+# EXPOSE 8080
+
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD pgrep -f component || exit 1
+
+# 启动命令
+CMD ["/app/component"]

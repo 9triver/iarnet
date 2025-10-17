@@ -156,6 +156,11 @@ func (um *UnimplementedManager) Run(fn *cluster.Function) error {
 	if err := um.Setup(fn); err != nil {
 		return err
 	}
+	addHandler := executor.NewAddHandler(
+		um.conn.Id(), fn.Name,
+		fn.PickledObject, fn.Language, nil,
+	)
+	um.conn.SendChan() <- addHandler
 	<-um.conn.Ready()
 	return nil
 }

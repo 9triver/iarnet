@@ -108,7 +108,7 @@ func (m *RuntimeManager) InstallDependencies(requirements []string) error {
 
 func (m *RuntimeManager) Language() proto.Language { return proto.Language_LANG_PYTHON }
 
-// Setup 在容器内安装依赖，并按需启动 Python 执行器
+// Setup 在容器内安装依赖，并启动 Python 执行器
 func (m *RuntimeManager) Setup(fn *icluster.Function) error {
 	if err := m.InstallDependencies(fn.Requirements); err != nil {
 		return err
