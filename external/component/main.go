@@ -87,11 +87,12 @@ func main() {
 	logrus.Infof("Successfully connected to ignis server and sent ready message for connection: %s", connId)
 
 	// 依据语言选择对应运行时，并进行环境准备（根目录接口）
-	rt, err := runtime.GetManager(funcMsg.Language)
+	rt, err := GetManager(funcMsg.Language)
 	if err != nil {
 		logrus.Fatalf("runtime error: %v", err)
 	}
-	if err := rt.Setup(funcMsg); err != nil {
+
+	if err := rt.Run(funcMsg); err != nil {
 		logrus.Fatalf("runtime setup failed: %v", err)
 	}
 
@@ -175,76 +176,99 @@ func runPyExecutor() {
 	}
 }
 
+// GetManager 返回指定语言的运行时管理器
+func GetManager(language proto.Language) (runtime.Manager, error) {
+	switch language {
+	case proto.Language_LANG_PYTHON:
+		// 假设Python运行时需要的参数
+		venvPath := os.Getenv("VENV_PATH")
+		if venvPath == "" {
+			venvPath = "/path/to/venv"
+		}
+		executorPath := os.Getenv("EXECUTOR_PATH")
+		if executorPath == "" {
+			executorPath = "/path/to/executor"
+		}
+		ipcAddr := os.Getenv("IPC_ADDR")
+		if ipcAddr == "" {
+			ipcAddr = "unix:///tmp/executor.sock"
+		}
+		return py.NewRuntimeManager(venvPath, executorPath, ipcAddr)
+	default:
+		return nil, fmt.Errorf("unsupported language: %v", language)
+	}
+}
+
 // handleFunctionMessage 处理函数注册消息
 func handleFunctionMessage(funcMsg *cluster.Function) {
 	logrus.Infof("Handling function registration: %s", funcMsg.Name)
-	
+
 	// 依据语言选择对应运行时，并进行环境准备
-	rt, err := runtime.GetManager(funcMsg.Language)
-	if err != nil {
-		logrus.Errorf("runtime error: %v", err)
-		return
-	}
-	
-	if err := rt.Setup(funcMsg); err != nil {
-		logrus.Errorf("runtime setup failed: %v", err)
-		return
-	}
+	// rt, err := runtime.GetManager(funcMsg.Language)
+	// if err != nil {
+	// 	logrus.Errorf("runtime error: %v", err)
+	// 	return
+	// }
 
-	// 如果是Python函数，启动容器执行器
-	if funcMsg.Language == proto.Language_LANG_PYTHON {
-		// 类型断言获取Python运行时管理器
-		pyRT, ok := rt.(*py.RuntimeManager)
-		if !ok {
-			logrus.Errorf("failed to cast to Python runtime manager")
-			return
-		}
-		
-		ctx := context.Background()
-		containerExec := pyRT.GetContainerExecutor()
-		
-		if err := containerExec.Start(ctx); err != nil {
-			logrus.Errorf("failed to start container executor: %v", err)
-			return
-		}
+	// if err := rt.Setup(funcMsg); err != nil {
+	// 	logrus.Errorf("runtime setup failed: %v", err)
+	// 	return
+	// }
 
-		// 启动Python执行器进程
-		connName := fmt.Sprintf("executor-%s", funcMsg.Name)
-		if err := containerExec.StartPythonExecutor(ctx, connName); err != nil {
-			logrus.Errorf("failed to start python executor: %v", err)
-			return
-		}
+	// // 如果是Python函数，启动容器执行器
+	// if funcMsg.Language == proto.Language_LANG_PYTHON {
+	// 	// 类型断言获取Python运行时管理器
+	// 	pyRT, ok := rt.(*py.RuntimeManager)
+	// 	if !ok {
+	// 		logrus.Errorf("failed to cast to Python runtime manager")
+	// 		return
+	// 	}
 
-		// 等待连接建立
-		time.Sleep(2 * time.Second)
+	// 	ctx := context.Background()
+	// 	containerExec := pyRT.GetContainerExecutor()
 
-		// 注册函数到容器执行器
-		if len(funcMsg.PickledObject) > 0 {
-			// 如果有序列化的函数对象，创建临时文件
-			tmpFile, err := os.CreateTemp("/tmp", "func_*.py")
-			if err != nil {
-				logrus.Errorf("failed to create temp file: %v", err)
-				return
-			}
-			defer os.Remove(tmpFile.Name())
+	// 	if err := containerExec.Start(ctx); err != nil {
+	// 		logrus.Errorf("failed to start container executor: %v", err)
+	// 		return
+	// 	}
 
-			// 将序列化的函数对象写入文件
-			if _, err := tmpFile.Write(funcMsg.PickledObject); err != nil {
-				logrus.Errorf("failed to write function object: %v", err)
-				return
-			}
-			tmpFile.Close()
+	// 	// 启动Python执行器进程
+	// 	connName := fmt.Sprintf("executor-%s", funcMsg.Name)
+	// 	if err := containerExec.StartPythonExecutor(ctx, connName); err != nil {
+	// 		logrus.Errorf("failed to start python executor: %v", err)
+	// 		return
+	// 	}
 
-			// 加载函数到执行器
-			if _, err := containerExec.Execute(ctx, connName, "load", map[string]interface{}{
-				"file_path": tmpFile.Name(),
-				"func_name": funcMsg.Name,
-			}); err != nil {
-				logrus.Errorf("failed to load function: %v", err)
-				return
-			}
-		}
-		
-		logrus.Infof("Function %s loaded and ready for execution", funcMsg.Name)
-	}
+	// 	// 等待连接建立
+	// 	time.Sleep(2 * time.Second)
+
+	// 	// 注册函数到容器执行器
+	// 	if len(funcMsg.PickledObject) > 0 {
+	// 		// 如果有序列化的函数对象，创建临时文件
+	// 		tmpFile, err := os.CreateTemp("/tmp", "func_*.py")
+	// 		if err != nil {
+	// 			logrus.Errorf("failed to create temp file: %v", err)
+	// 			return
+	// 		}
+	// 		defer os.Remove(tmpFile.Name())
+
+	// 		// 将序列化的函数对象写入文件
+	// 		if _, err := tmpFile.Write(funcMsg.PickledObject); err != nil {
+	// 			logrus.Errorf("failed to write function object: %v", err)
+	// 			return
+	// 		}
+	// 		tmpFile.Close()
+
+	// 		// 加载函数到执行器
+	// 		if _, err := containerExec.Execute(ctx, connName, "load", map[string]interface{}{
+	// 			"file_path": tmpFile.Name(),
+	// 			"func_name": funcMsg.Name,
+	// 		}); err != nil {
+	// 			logrus.Errorf("failed to load function: %v", err)
+	// 			return
+	// 		}
+	// 	}
+
+	// 	logrus.Infof("Function %s loaded and ready for execution", funcMsg.Name)
+	// }
 }
