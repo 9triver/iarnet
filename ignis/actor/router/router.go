@@ -1,0 +1,60 @@
+package router
+
+import (
+	"sync"
+
+	"github.com/asynkron/protoactor-go/actor"
+)
+
+var DefaultRouter = NewRouter()
+
+func Send(ctx actor.Context, targetId string, msg any) {
+	DefaultRouter.Send(ctx, targetId, msg)
+}
+
+func Register(targetId string, pid *actor.PID) {
+	DefaultRouter.Register(targetId, pid)
+}
+
+func Unregister(targetId string) {
+	DefaultRouter.Unregister(targetId)
+}
+
+type Router struct {
+	mu         sync.Mutex
+	routeTable map[string]*actor.PID
+}
+
+func NewRouter() *Router {
+	return &Router{
+		routeTable: make(map[string]*actor.PID),
+	}
+}
+
+func (r *Router) Send(ctx actor.Context, targetId string, msg any) {
+	r.mu.Lock() // TODO: use read lock
+	defer r.mu.Unlock()
+
+	pid, ok := r.routeTable[targetId]
+	if !ok {
+		ctx.Logger().Error("target not found", "targetId", targetId)
+		return
+	}
+
+	ctx.Logger().Debug("route message to target", "targetId", targetId, "pid", pid, "msg", msg)
+	ctx.Send(pid, msg)
+}
+
+func (r *Router) Register(targetId string, pid *actor.PID) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.routeTable[targetId] = pid
+}
+
+func (r *Router) Unregister(targetId string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	delete(r.routeTable, targetId)
+}

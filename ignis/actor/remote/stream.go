@@ -82,7 +82,7 @@ func (s *StreamImpl[I, O]) Close() error {
 	return nil
 }
 
-func newStreamImpl[I, O pb.Message](conn string, protocol Protocol) *StreamImpl[I, O] {
+func NewStreamImpl[I, O pb.Message](conn string, protocol Protocol) *StreamImpl[I, O] {
 	return &StreamImpl[I, O]{
 		conn:     conn,
 		protocol: protocol,
@@ -100,13 +100,13 @@ type ControllerImpl = StreamImpl[*controller.Message, *controller.Message]
 type ComputeStreamImpl = StreamImpl[*cluster.Message, *cluster.Message]
 
 func NewExecutorImpl(conn string, protocol Protocol) *ExecutorImpl {
-	return newStreamImpl[*executor.Message, *executor.Message](conn, protocol)
+	return NewStreamImpl[*executor.Message, *executor.Message](conn, protocol)
 }
 
 func NewControllerImpl(conn string, protocol Protocol) *ControllerImpl {
-	return newStreamImpl[*controller.Message, *controller.Message](conn, protocol)
+	return NewStreamImpl[*controller.Message, *controller.Message](conn, protocol)
 }
 
 func NewComputeStreamImpl(conn string, protocol Protocol) *ComputeStreamImpl {
-	return newStreamImpl[*cluster.Message, *cluster.Message](conn, protocol)
+	return NewStreamImpl[*cluster.Message, *cluster.Message](conn, protocol)
 }

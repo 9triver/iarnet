@@ -10,10 +10,11 @@ enum MessageType {
   READY = 2; // ready to receive messages
   INVOKE = 3; // invoke function
   INVOKE_START = 4; // invoke function start
-  OBJECT_REQUEST = 5;
-  OBJECT_RESPONSE = 6;
-  STREAM_CHUNK = 7;
-  FUNCTION = 8; // python function
+  INVOKE_RESPONSE = 5; // invoke function response
+  OBJECT_REQUEST = 6;
+  OBJECT_RESPONSE = 7;
+  STREAM_CHUNK = 8;
+  FUNCTION = 9; // python function
 }
 
 // ObjectRequest requests object with ID, and the object is sent to ReplyTo, asynchronously.
@@ -21,7 +22,7 @@ enum MessageType {
 // but no real stream chunk is transmitted.
 message ObjectRequest {
   string ID = 1;
-  proto.StoreRef ReplyTo = 2;
+  string ReplyTo = 2;
 }
 
 message ObjectResponse {
@@ -62,10 +63,11 @@ message Message {
     Ready Ready = 4;
     proto.Invoke Invoke = 5;
     proto.InvokeStart InvokeStart = 6;
-    ObjectRequest ObjectRequest = 7;
-    ObjectResponse ObjectResponse = 8;
-    proto.StreamChunk StreamChunk = 9;
-    Function Function = 10;
+    proto.InvokeResponse InvokeResponse = 7;
+    ObjectRequest ObjectRequest = 8;
+    ObjectResponse ObjectResponse = 9;
+    proto.StreamChunk StreamChunk = 10;
+    Function Function = 11;
   }
 }
 

@@ -57,7 +57,7 @@ type GroupedTaskHandler struct {
 	selected *ActorInfo
 }
 
-func (h *GroupedTaskHandler) Start(ctx actor.Context, replyTo *proto.ActorRef) error {
+func (h *GroupedTaskHandler) Start(ctx actor.Context, replyTo string) error {
 	if h.selected == nil {
 		return errors.New("no candidate actor selected")
 	}
@@ -77,7 +77,7 @@ func (h *GroupedTaskHandler) Invoke(ctx actor.Context, param string, value *prot
 
 	h.deps.Remove(param)
 	ctx.Send(h.store, &proto.Invoke{
-		Target:    h.selected.Ref,
+		Target:    h.selected.Ref.ID,
 		SessionID: h.sessionId,
 		Param:     param,
 		Value:     value,

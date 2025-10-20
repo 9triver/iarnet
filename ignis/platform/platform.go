@@ -11,8 +11,6 @@ import (
 	"github.com/9triver/ignis/actor/remote"
 	"github.com/9triver/ignis/actor/remote/ipc"
 	"github.com/9triver/ignis/actor/remote/rpc"
-	"github.com/9triver/ignis/actor/remote/stub"
-	"github.com/9triver/ignis/actor/store"
 	"github.com/9triver/ignis/configs"
 	"github.com/9triver/ignis/platform/control"
 	"github.com/9triver/ignis/platform/task"
@@ -102,7 +100,6 @@ func NewPlatform(ctx context.Context, rpcAddr string, dp task.Deployer) *Platfor
 
 	sys := actor.NewActorSystem(opt)
 	em := ipc.NewManager(ipcAddr)
-	storeRef := store.Spawn(sys.Root, stub.NewActorStub(sys), "store")
 
 	if dp == nil {
 		vm, err := functions.NewVenvManager(ctx, em)
@@ -110,7 +107,7 @@ func NewPlatform(ctx context.Context, rpcAddr string, dp task.Deployer) *Platfor
 			panic(err)
 		}
 
-		dp = task.NewVenvMgrDeployer(vm, storeRef)
+		dp = task.NewVenvMgrDeployer(vm)
 	}
 
 	return &Platform{

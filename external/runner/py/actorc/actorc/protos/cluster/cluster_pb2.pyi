@@ -14,6 +14,7 @@ class MessageType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     READY: _ClassVar[MessageType]
     INVOKE: _ClassVar[MessageType]
     INVOKE_START: _ClassVar[MessageType]
+    INVOKE_RESPONSE: _ClassVar[MessageType]
     OBJECT_REQUEST: _ClassVar[MessageType]
     OBJECT_RESPONSE: _ClassVar[MessageType]
     STREAM_CHUNK: _ClassVar[MessageType]
@@ -23,6 +24,7 @@ ACK: MessageType
 READY: MessageType
 INVOKE: MessageType
 INVOKE_START: MessageType
+INVOKE_RESPONSE: MessageType
 OBJECT_REQUEST: MessageType
 OBJECT_RESPONSE: MessageType
 STREAM_CHUNK: MessageType
@@ -33,8 +35,8 @@ class ObjectRequest(_message.Message):
     ID_FIELD_NUMBER: _ClassVar[int]
     REPLYTO_FIELD_NUMBER: _ClassVar[int]
     ID: str
-    ReplyTo: _platform_pb2.StoreRef
-    def __init__(self, ID: _Optional[str] = ..., ReplyTo: _Optional[_Union[_platform_pb2.StoreRef, _Mapping]] = ...) -> None: ...
+    ReplyTo: str
+    def __init__(self, ID: _Optional[str] = ..., ReplyTo: _Optional[str] = ...) -> None: ...
 
 class ObjectResponse(_message.Message):
     __slots__ = ("ID", "Value", "Error")
@@ -85,13 +87,14 @@ class Function(_message.Message):
     def __init__(self, Name: _Optional[str] = ..., Params: _Optional[_Iterable[str]] = ..., Requirements: _Optional[_Iterable[str]] = ..., PickledObject: _Optional[bytes] = ..., Language: _Optional[_Union[_platform_pb2.Language, str]] = ...) -> None: ...
 
 class Message(_message.Message):
-    __slots__ = ("Type", "ConnID", "Ack", "Ready", "Invoke", "InvokeStart", "ObjectRequest", "ObjectResponse", "StreamChunk", "Function")
+    __slots__ = ("Type", "ConnID", "Ack", "Ready", "Invoke", "InvokeStart", "InvokeResponse", "ObjectRequest", "ObjectResponse", "StreamChunk", "Function")
     TYPE_FIELD_NUMBER: _ClassVar[int]
     CONNID_FIELD_NUMBER: _ClassVar[int]
     ACK_FIELD_NUMBER: _ClassVar[int]
     READY_FIELD_NUMBER: _ClassVar[int]
     INVOKE_FIELD_NUMBER: _ClassVar[int]
     INVOKESTART_FIELD_NUMBER: _ClassVar[int]
+    INVOKERESPONSE_FIELD_NUMBER: _ClassVar[int]
     OBJECTREQUEST_FIELD_NUMBER: _ClassVar[int]
     OBJECTRESPONSE_FIELD_NUMBER: _ClassVar[int]
     STREAMCHUNK_FIELD_NUMBER: _ClassVar[int]
@@ -102,8 +105,9 @@ class Message(_message.Message):
     Ready: Ready
     Invoke: _platform_pb2.Invoke
     InvokeStart: _platform_pb2.InvokeStart
+    InvokeResponse: _platform_pb2.InvokeResponse
     ObjectRequest: ObjectRequest
     ObjectResponse: ObjectResponse
     StreamChunk: _platform_pb2.StreamChunk
     Function: Function
-    def __init__(self, Type: _Optional[_Union[MessageType, str]] = ..., ConnID: _Optional[str] = ..., Ack: _Optional[_Union[Ack, _Mapping]] = ..., Ready: _Optional[_Union[Ready, _Mapping]] = ..., Invoke: _Optional[_Union[_platform_pb2.Invoke, _Mapping]] = ..., InvokeStart: _Optional[_Union[_platform_pb2.InvokeStart, _Mapping]] = ..., ObjectRequest: _Optional[_Union[ObjectRequest, _Mapping]] = ..., ObjectResponse: _Optional[_Union[ObjectResponse, _Mapping]] = ..., StreamChunk: _Optional[_Union[_platform_pb2.StreamChunk, _Mapping]] = ..., Function: _Optional[_Union[Function, _Mapping]] = ...) -> None: ...
+    def __init__(self, Type: _Optional[_Union[MessageType, str]] = ..., ConnID: _Optional[str] = ..., Ack: _Optional[_Union[Ack, _Mapping]] = ..., Ready: _Optional[_Union[Ready, _Mapping]] = ..., Invoke: _Optional[_Union[_platform_pb2.Invoke, _Mapping]] = ..., InvokeStart: _Optional[_Union[_platform_pb2.InvokeStart, _Mapping]] = ..., InvokeResponse: _Optional[_Union[_platform_pb2.InvokeResponse, _Mapping]] = ..., ObjectRequest: _Optional[_Union[ObjectRequest, _Mapping]] = ..., ObjectResponse: _Optional[_Union[ObjectResponse, _Mapping]] = ..., StreamChunk: _Optional[_Union[_platform_pb2.StreamChunk, _Mapping]] = ..., Function: _Optional[_Union[Function, _Mapping]] = ...) -> None: ...

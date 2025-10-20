@@ -448,7 +448,7 @@ func (x *StreamChunk) GetError() string {
 // Invoke is sent to compute actor, providing a value to its dependency.
 type Invoke struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Target        *ActorRef              `protobuf:"bytes,1,opt,name=Target,proto3" json:"Target,omitempty"`       // target actor reference
+	Target        string                 `protobuf:"bytes,1,opt,name=Target,proto3" json:"Target,omitempty"`       // target actor reference
 	SessionID     string                 `protobuf:"bytes,2,opt,name=SessionID,proto3" json:"SessionID,omitempty"` // id of current execution session
 	Param         string                 `protobuf:"bytes,3,opt,name=Param,proto3" json:"Param,omitempty"`         // name of parameter
 	Value         *Flow                  `protobuf:"bytes,4,opt,name=Value,proto3" json:"Value,omitempty"`         // value of parameter
@@ -486,11 +486,11 @@ func (*Invoke) Descriptor() ([]byte, []int) {
 	return file_platform_proto_rawDescGZIP(), []int{6}
 }
 
-func (x *Invoke) GetTarget() *ActorRef {
+func (x *Invoke) GetTarget() string {
 	if x != nil {
 		return x.Target
 	}
-	return nil
+	return ""
 }
 
 func (x *Invoke) GetSessionID() string {
@@ -521,7 +521,7 @@ type InvokeStart struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Info          *ActorInfo             `protobuf:"bytes,1,opt,name=Info,proto3" json:"Info,omitempty"`           // (optional) actor info for latency measurement, required when using actor group
 	SessionID     string                 `protobuf:"bytes,2,opt,name=SessionID,proto3" json:"SessionID,omitempty"` // id of current execution session
-	ReplyTo       *ActorRef              `protobuf:"bytes,3,opt,name=ReplyTo,proto3" json:"ReplyTo,omitempty"`     // actor to reply to, usually points to calling controller actor
+	ReplyTo       string                 `protobuf:"bytes,3,opt,name=ReplyTo,proto3" json:"ReplyTo,omitempty"`     // actor to reply to, usually points to calling controller actor
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -570,17 +570,17 @@ func (x *InvokeStart) GetSessionID() string {
 	return ""
 }
 
-func (x *InvokeStart) GetReplyTo() *ActorRef {
+func (x *InvokeStart) GetReplyTo() string {
 	if x != nil {
 		return x.ReplyTo
 	}
-	return nil
+	return ""
 }
 
 // InvokeResponse is sent to controller actor after invoking.
 type InvokeResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Target        *ActorRef              `protobuf:"bytes,1,opt,name=Target,proto3" json:"Target,omitempty"`       // target actor reference
+	Target        string                 `protobuf:"bytes,1,opt,name=Target,proto3" json:"Target,omitempty"`       // target actor reference
 	SessionID     string                 `protobuf:"bytes,2,opt,name=SessionID,proto3" json:"SessionID,omitempty"` // id of current execution session
 	Result        *Flow                  `protobuf:"bytes,3,opt,name=Result,proto3" json:"Result,omitempty"`       // result object reference of the invocation
 	Error         string                 `protobuf:"bytes,4,opt,name=Error,proto3" json:"Error,omitempty"`         // (optional) error message
@@ -619,11 +619,11 @@ func (*InvokeResponse) Descriptor() ([]byte, []int) {
 	return file_platform_proto_rawDescGZIP(), []int{8}
 }
 
-func (x *InvokeResponse) GetTarget() *ActorRef {
+func (x *InvokeResponse) GetTarget() string {
 	if x != nil {
 		return x.Target
 	}
-	return nil
+	return ""
 }
 
 func (x *InvokeResponse) GetSessionID() string {
@@ -685,18 +685,18 @@ const file_platform_proto_rawDesc = "" +
 	"\bStreamID\x18\x01 \x01(\tR\bStreamID\x12\x10\n" +
 	"\x03EoS\x18\x02 \x01(\bR\x03EoS\x12*\n" +
 	"\x05Value\x18\x03 \x01(\v2\x14.proto.EncodedObjectR\x05Value\x12\x14\n" +
-	"\x05Error\x18\x04 \x01(\tR\x05Error\"\x88\x01\n" +
-	"\x06Invoke\x12'\n" +
-	"\x06Target\x18\x01 \x01(\v2\x0f.proto.ActorRefR\x06Target\x12\x1c\n" +
+	"\x05Error\x18\x04 \x01(\tR\x05Error\"w\n" +
+	"\x06Invoke\x12\x16\n" +
+	"\x06Target\x18\x01 \x01(\tR\x06Target\x12\x1c\n" +
 	"\tSessionID\x18\x02 \x01(\tR\tSessionID\x12\x14\n" +
 	"\x05Param\x18\x03 \x01(\tR\x05Param\x12!\n" +
-	"\x05Value\x18\x04 \x01(\v2\v.proto.FlowR\x05Value\"|\n" +
+	"\x05Value\x18\x04 \x01(\v2\v.proto.FlowR\x05Value\"k\n" +
 	"\vInvokeStart\x12$\n" +
 	"\x04Info\x18\x01 \x01(\v2\x10.proto.ActorInfoR\x04Info\x12\x1c\n" +
-	"\tSessionID\x18\x02 \x01(\tR\tSessionID\x12)\n" +
-	"\aReplyTo\x18\x03 \x01(\v2\x0f.proto.ActorRefR\aReplyTo\"\xb8\x01\n" +
-	"\x0eInvokeResponse\x12'\n" +
-	"\x06Target\x18\x01 \x01(\v2\x0f.proto.ActorRefR\x06Target\x12\x1c\n" +
+	"\tSessionID\x18\x02 \x01(\tR\tSessionID\x12\x18\n" +
+	"\aReplyTo\x18\x03 \x01(\tR\aReplyTo\"\xa7\x01\n" +
+	"\x0eInvokeResponse\x12\x16\n" +
+	"\x06Target\x18\x01 \x01(\tR\x06Target\x12\x1c\n" +
 	"\tSessionID\x18\x02 \x01(\tR\tSessionID\x12#\n" +
 	"\x06Result\x18\x03 \x01(\v2\v.proto.FlowR\x06Result\x12\x14\n" +
 	"\x05Error\x18\x04 \x01(\tR\x05Error\x12$\n" +
@@ -743,18 +743,15 @@ var file_platform_proto_depIdxs = []int32{
 	1,  // 5: proto.EncodedObject.Source:type_name -> proto.StoreRef
 	0,  // 6: proto.EncodedObject.Language:type_name -> proto.Language
 	5,  // 7: proto.StreamChunk.Value:type_name -> proto.EncodedObject
-	2,  // 8: proto.Invoke.Target:type_name -> proto.ActorRef
-	4,  // 9: proto.Invoke.Value:type_name -> proto.Flow
-	3,  // 10: proto.InvokeStart.Info:type_name -> proto.ActorInfo
-	2,  // 11: proto.InvokeStart.ReplyTo:type_name -> proto.ActorRef
-	2,  // 12: proto.InvokeResponse.Target:type_name -> proto.ActorRef
-	4,  // 13: proto.InvokeResponse.Result:type_name -> proto.Flow
-	3,  // 14: proto.InvokeResponse.Info:type_name -> proto.ActorInfo
-	15, // [15:15] is the sub-list for method output_type
-	15, // [15:15] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	4,  // 8: proto.Invoke.Value:type_name -> proto.Flow
+	3,  // 9: proto.InvokeStart.Info:type_name -> proto.ActorInfo
+	4,  // 10: proto.InvokeResponse.Result:type_name -> proto.Flow
+	3,  // 11: proto.InvokeResponse.Info:type_name -> proto.ActorInfo
+	12, // [12:12] is the sub-list for method output_type
+	12, // [12:12] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_platform_proto_init() }

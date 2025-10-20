@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"log"
+	"net"
 	"os"
 	"os/signal"
 	"strconv"
@@ -17,7 +18,9 @@ import (
 	"github.com/9triver/iarnet/internal/resource"
 	"github.com/9triver/iarnet/internal/server"
 	"github.com/9triver/ignis/platform"
+	"github.com/9triver/ignis/proto/cluster"
 	"github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
 )
 
 // Remove the old peerServer implementation as it's now in server/grpc_server.go
@@ -45,12 +48,27 @@ func main() {
 		log.Fatal("Failed to create application manager - Docker connection failed")
 	}
 
+	lis, err1 := net.Listen("tcp", "0.0.0.0:25565")
+	logrus.Infof("RPC server listening on %s", lis.Addr().String())
+
+	if err1 != nil {
+		log.Fatalf("RPC server: %v", err1)
+	}
+	svr := grpc.NewServer(
+		grpc.MaxRecvMsgSize(512*1024*1024),
+		grpc.MaxSendMsgSize(512*1024*1024),
+	)
+	defer svr.Stop()
+
+	cm := integration.NewConnectionManager()
+	cluster.RegisterServiceServer(svr, cm)
+
 	// 初始化 Ignis 平台
 	var ignisPlatform *platform.Platform = nil
 	if cfg.Ignis.Port != 0 {
 		ignisPlatform = platform.NewPlatform(
 			context.Background(), "0.0.0.0:"+strconv.FormatInt(int64(cfg.Ignis.Port), 10),
-			integration.NewDeployer(am, rm, cfg),
+			integration.NewDeployer(am, rm, cm, cfg),
 		)
 		if err != nil {
 			log.Fatalf("Ignis platform init: %v", err)

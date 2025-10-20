@@ -8,9 +8,17 @@ import (
 	"github.com/9triver/ignis/proto"
 )
 
-type forwardMessage interface {
+type ForwardMessage interface {
 	pb.Message
 	GetTarget() *proto.ActorRef
+}
+
+type AddStore struct {
+	Ref *proto.StoreRef
+}
+
+type RemoveStore struct {
+	ID string
 }
 
 // SaveObject is sent to store when actor generates new return objects from functions

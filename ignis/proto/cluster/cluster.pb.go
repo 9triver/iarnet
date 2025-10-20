@@ -30,10 +30,11 @@ const (
 	MessageType_READY           MessageType = 2 // ready to receive messages
 	MessageType_INVOKE          MessageType = 3 // invoke function
 	MessageType_INVOKE_START    MessageType = 4 // invoke function start
-	MessageType_OBJECT_REQUEST  MessageType = 5
-	MessageType_OBJECT_RESPONSE MessageType = 6
-	MessageType_STREAM_CHUNK    MessageType = 7
-	MessageType_FUNCTION        MessageType = 8 // python function
+	MessageType_INVOKE_RESPONSE MessageType = 5 // invoke function response
+	MessageType_OBJECT_REQUEST  MessageType = 6
+	MessageType_OBJECT_RESPONSE MessageType = 7
+	MessageType_STREAM_CHUNK    MessageType = 8
+	MessageType_FUNCTION        MessageType = 9 // python function
 )
 
 // Enum value maps for MessageType.
@@ -44,10 +45,11 @@ var (
 		2: "READY",
 		3: "INVOKE",
 		4: "INVOKE_START",
-		5: "OBJECT_REQUEST",
-		6: "OBJECT_RESPONSE",
-		7: "STREAM_CHUNK",
-		8: "FUNCTION",
+		5: "INVOKE_RESPONSE",
+		6: "OBJECT_REQUEST",
+		7: "OBJECT_RESPONSE",
+		8: "STREAM_CHUNK",
+		9: "FUNCTION",
 	}
 	MessageType_value = map[string]int32{
 		"UNSPECIFIED":     0,
@@ -55,10 +57,11 @@ var (
 		"READY":           2,
 		"INVOKE":          3,
 		"INVOKE_START":    4,
-		"OBJECT_REQUEST":  5,
-		"OBJECT_RESPONSE": 6,
-		"STREAM_CHUNK":    7,
-		"FUNCTION":        8,
+		"INVOKE_RESPONSE": 5,
+		"OBJECT_REQUEST":  6,
+		"OBJECT_RESPONSE": 7,
+		"STREAM_CHUNK":    8,
+		"FUNCTION":        9,
 	}
 )
 
@@ -95,7 +98,7 @@ func (MessageType) EnumDescriptor() ([]byte, []int) {
 type ObjectRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ID            string                 `protobuf:"bytes,1,opt,name=ID,proto3" json:"ID,omitempty"`
-	ReplyTo       *proto.StoreRef        `protobuf:"bytes,2,opt,name=ReplyTo,proto3" json:"ReplyTo,omitempty"`
+	ReplyTo       string                 `protobuf:"bytes,2,opt,name=ReplyTo,proto3" json:"ReplyTo,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -137,11 +140,11 @@ func (x *ObjectRequest) GetID() string {
 	return ""
 }
 
-func (x *ObjectRequest) GetReplyTo() *proto.StoreRef {
+func (x *ObjectRequest) GetReplyTo() string {
 	if x != nil {
 		return x.ReplyTo
 	}
-	return nil
+	return ""
 }
 
 type ObjectResponse struct {
@@ -484,6 +487,7 @@ type Message struct {
 	//	*Message_Ready
 	//	*Message_Invoke
 	//	*Message_InvokeStart
+	//	*Message_InvokeResponse
 	//	*Message_ObjectRequest
 	//	*Message_ObjectResponse
 	//	*Message_StreamChunk
@@ -580,6 +584,15 @@ func (x *Message) GetInvokeStart() *proto.InvokeStart {
 	return nil
 }
 
+func (x *Message) GetInvokeResponse() *proto.InvokeResponse {
+	if x != nil {
+		if x, ok := x.Message.(*Message_InvokeResponse); ok {
+			return x.InvokeResponse
+		}
+	}
+	return nil
+}
+
 func (x *Message) GetObjectRequest() *ObjectRequest {
 	if x != nil {
 		if x, ok := x.Message.(*Message_ObjectRequest); ok {
@@ -636,20 +649,24 @@ type Message_InvokeStart struct {
 	InvokeStart *proto.InvokeStart `protobuf:"bytes,6,opt,name=InvokeStart,proto3,oneof"`
 }
 
+type Message_InvokeResponse struct {
+	InvokeResponse *proto.InvokeResponse `protobuf:"bytes,7,opt,name=InvokeResponse,proto3,oneof"`
+}
+
 type Message_ObjectRequest struct {
-	ObjectRequest *ObjectRequest `protobuf:"bytes,7,opt,name=ObjectRequest,proto3,oneof"`
+	ObjectRequest *ObjectRequest `protobuf:"bytes,8,opt,name=ObjectRequest,proto3,oneof"`
 }
 
 type Message_ObjectResponse struct {
-	ObjectResponse *ObjectResponse `protobuf:"bytes,8,opt,name=ObjectResponse,proto3,oneof"`
+	ObjectResponse *ObjectResponse `protobuf:"bytes,9,opt,name=ObjectResponse,proto3,oneof"`
 }
 
 type Message_StreamChunk struct {
-	StreamChunk *proto.StreamChunk `protobuf:"bytes,9,opt,name=StreamChunk,proto3,oneof"`
+	StreamChunk *proto.StreamChunk `protobuf:"bytes,10,opt,name=StreamChunk,proto3,oneof"`
 }
 
 type Message_Function struct {
-	Function *Function `protobuf:"bytes,10,opt,name=Function,proto3,oneof"`
+	Function *Function `protobuf:"bytes,11,opt,name=Function,proto3,oneof"`
 }
 
 func (*Message_Ack) isMessage_Message() {}
@@ -659,6 +676,8 @@ func (*Message_Ready) isMessage_Message() {}
 func (*Message_Invoke) isMessage_Message() {}
 
 func (*Message_InvokeStart) isMessage_Message() {}
+
+func (*Message_InvokeResponse) isMessage_Message() {}
 
 func (*Message_ObjectRequest) isMessage_Message() {}
 
@@ -672,10 +691,10 @@ var File_cluster_cluster_proto protoreflect.FileDescriptor
 
 const file_cluster_cluster_proto_rawDesc = "" +
 	"\n" +
-	"\x15cluster/cluster.proto\x12\x05proto\x1a\x0eplatform.proto\"J\n" +
+	"\x15cluster/cluster.proto\x12\x05proto\x1a\x0eplatform.proto\"9\n" +
 	"\rObjectRequest\x12\x0e\n" +
-	"\x02ID\x18\x01 \x01(\tR\x02ID\x12)\n" +
-	"\aReplyTo\x18\x02 \x01(\v2\x0f.proto.StoreRefR\aReplyTo\"b\n" +
+	"\x02ID\x18\x01 \x01(\tR\x02ID\x12\x18\n" +
+	"\aReplyTo\x18\x02 \x01(\tR\aReplyTo\"b\n" +
 	"\x0eObjectResponse\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12*\n" +
 	"\x05Value\x18\x02 \x01(\v2\x14.proto.EncodedObjectR\x05Value\x12\x14\n" +
@@ -695,7 +714,7 @@ const file_cluster_cluster_proto_rawDesc = "" +
 	"\x06Params\x18\x02 \x03(\tR\x06Params\x12\"\n" +
 	"\fRequirements\x18\x03 \x03(\tR\fRequirements\x12$\n" +
 	"\rPickledObject\x18\x04 \x01(\fR\rPickledObject\x12+\n" +
-	"\bLanguage\x18\x05 \x01(\x0e2\x0f.proto.LanguageR\bLanguage\"\xe1\x03\n" +
+	"\bLanguage\x18\x05 \x01(\x0e2\x0f.proto.LanguageR\bLanguage\"\xa2\x04\n" +
 	"\aMessage\x12&\n" +
 	"\x04Type\x18\x01 \x01(\x0e2\x12.proto.MessageTypeR\x04Type\x12\x16\n" +
 	"\x06ConnID\x18\x02 \x01(\tR\x06ConnID\x12\x1e\n" +
@@ -703,24 +722,26 @@ const file_cluster_cluster_proto_rawDesc = "" +
 	".proto.AckH\x00R\x03Ack\x12$\n" +
 	"\x05Ready\x18\x04 \x01(\v2\f.proto.ReadyH\x00R\x05Ready\x12'\n" +
 	"\x06Invoke\x18\x05 \x01(\v2\r.proto.InvokeH\x00R\x06Invoke\x126\n" +
-	"\vInvokeStart\x18\x06 \x01(\v2\x12.proto.InvokeStartH\x00R\vInvokeStart\x12<\n" +
-	"\rObjectRequest\x18\a \x01(\v2\x14.proto.ObjectRequestH\x00R\rObjectRequest\x12?\n" +
-	"\x0eObjectResponse\x18\b \x01(\v2\x15.proto.ObjectResponseH\x00R\x0eObjectResponse\x126\n" +
-	"\vStreamChunk\x18\t \x01(\v2\x12.proto.StreamChunkH\x00R\vStreamChunk\x12-\n" +
-	"\bFunction\x18\n" +
-	" \x01(\v2\x0f.proto.FunctionH\x00R\bFunctionB\t\n" +
-	"\aMessage*\x99\x01\n" +
+	"\vInvokeStart\x18\x06 \x01(\v2\x12.proto.InvokeStartH\x00R\vInvokeStart\x12?\n" +
+	"\x0eInvokeResponse\x18\a \x01(\v2\x15.proto.InvokeResponseH\x00R\x0eInvokeResponse\x12<\n" +
+	"\rObjectRequest\x18\b \x01(\v2\x14.proto.ObjectRequestH\x00R\rObjectRequest\x12?\n" +
+	"\x0eObjectResponse\x18\t \x01(\v2\x15.proto.ObjectResponseH\x00R\x0eObjectResponse\x126\n" +
+	"\vStreamChunk\x18\n" +
+	" \x01(\v2\x12.proto.StreamChunkH\x00R\vStreamChunk\x12-\n" +
+	"\bFunction\x18\v \x01(\v2\x0f.proto.FunctionH\x00R\bFunctionB\t\n" +
+	"\aMessage*\xae\x01\n" +
 	"\vMessageType\x12\x0f\n" +
 	"\vUNSPECIFIED\x10\x00\x12\a\n" +
 	"\x03ACK\x10\x01\x12\t\n" +
 	"\x05READY\x10\x02\x12\n" +
 	"\n" +
 	"\x06INVOKE\x10\x03\x12\x10\n" +
-	"\fINVOKE_START\x10\x04\x12\x12\n" +
-	"\x0eOBJECT_REQUEST\x10\x05\x12\x13\n" +
-	"\x0fOBJECT_RESPONSE\x10\x06\x12\x10\n" +
-	"\fSTREAM_CHUNK\x10\a\x12\f\n" +
-	"\bFUNCTION\x10\b2:\n" +
+	"\fINVOKE_START\x10\x04\x12\x13\n" +
+	"\x0fINVOKE_RESPONSE\x10\x05\x12\x12\n" +
+	"\x0eOBJECT_REQUEST\x10\x06\x12\x13\n" +
+	"\x0fOBJECT_RESPONSE\x10\a\x12\x10\n" +
+	"\fSTREAM_CHUNK\x10\b\x12\f\n" +
+	"\bFUNCTION\x10\t2:\n" +
 	"\aService\x12/\n" +
 	"\aSession\x12\x0e.proto.Message\x1a\x0e.proto.Message\"\x00(\x010\x01B(Z&github.com/9triver/ignis/proto/clusterb\x06proto3"
 
@@ -739,35 +760,36 @@ func file_cluster_cluster_proto_rawDescGZIP() []byte {
 var file_cluster_cluster_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_cluster_cluster_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_cluster_cluster_proto_goTypes = []any{
-	(MessageType)(0),            // 0: proto.MessageType
-	(*ObjectRequest)(nil),       // 1: proto.ObjectRequest
-	(*ObjectResponse)(nil),      // 2: proto.ObjectResponse
-	(*Envelope)(nil),            // 3: proto.Envelope
-	(*Ack)(nil),                 // 4: proto.Ack
-	(*Ready)(nil),               // 5: proto.Ready
-	(*Function)(nil),            // 6: proto.Function
-	(*Message)(nil),             // 7: proto.Message
-	(*proto.StoreRef)(nil),      // 8: proto.StoreRef
-	(*proto.EncodedObject)(nil), // 9: proto.EncodedObject
-	(*proto.StreamChunk)(nil),   // 10: proto.StreamChunk
-	(proto.Language)(0),         // 11: proto.Language
-	(*proto.Invoke)(nil),        // 12: proto.Invoke
-	(*proto.InvokeStart)(nil),   // 13: proto.InvokeStart
+	(MessageType)(0),             // 0: proto.MessageType
+	(*ObjectRequest)(nil),        // 1: proto.ObjectRequest
+	(*ObjectResponse)(nil),       // 2: proto.ObjectResponse
+	(*Envelope)(nil),             // 3: proto.Envelope
+	(*Ack)(nil),                  // 4: proto.Ack
+	(*Ready)(nil),                // 5: proto.Ready
+	(*Function)(nil),             // 6: proto.Function
+	(*Message)(nil),              // 7: proto.Message
+	(*proto.EncodedObject)(nil),  // 8: proto.EncodedObject
+	(*proto.StoreRef)(nil),       // 9: proto.StoreRef
+	(*proto.StreamChunk)(nil),    // 10: proto.StreamChunk
+	(proto.Language)(0),          // 11: proto.Language
+	(*proto.Invoke)(nil),         // 12: proto.Invoke
+	(*proto.InvokeStart)(nil),    // 13: proto.InvokeStart
+	(*proto.InvokeResponse)(nil), // 14: proto.InvokeResponse
 }
 var file_cluster_cluster_proto_depIdxs = []int32{
-	8,  // 0: proto.ObjectRequest.ReplyTo:type_name -> proto.StoreRef
-	9,  // 1: proto.ObjectResponse.Value:type_name -> proto.EncodedObject
-	8,  // 2: proto.Envelope.Store:type_name -> proto.StoreRef
-	0,  // 3: proto.Envelope.Type:type_name -> proto.MessageType
-	1,  // 4: proto.Envelope.ObjectRequest:type_name -> proto.ObjectRequest
-	2,  // 5: proto.Envelope.ObjectResponse:type_name -> proto.ObjectResponse
-	10, // 6: proto.Envelope.StreamChunk:type_name -> proto.StreamChunk
-	11, // 7: proto.Function.Language:type_name -> proto.Language
-	0,  // 8: proto.Message.Type:type_name -> proto.MessageType
-	4,  // 9: proto.Message.Ack:type_name -> proto.Ack
-	5,  // 10: proto.Message.Ready:type_name -> proto.Ready
-	12, // 11: proto.Message.Invoke:type_name -> proto.Invoke
-	13, // 12: proto.Message.InvokeStart:type_name -> proto.InvokeStart
+	8,  // 0: proto.ObjectResponse.Value:type_name -> proto.EncodedObject
+	9,  // 1: proto.Envelope.Store:type_name -> proto.StoreRef
+	0,  // 2: proto.Envelope.Type:type_name -> proto.MessageType
+	1,  // 3: proto.Envelope.ObjectRequest:type_name -> proto.ObjectRequest
+	2,  // 4: proto.Envelope.ObjectResponse:type_name -> proto.ObjectResponse
+	10, // 5: proto.Envelope.StreamChunk:type_name -> proto.StreamChunk
+	11, // 6: proto.Function.Language:type_name -> proto.Language
+	0,  // 7: proto.Message.Type:type_name -> proto.MessageType
+	4,  // 8: proto.Message.Ack:type_name -> proto.Ack
+	5,  // 9: proto.Message.Ready:type_name -> proto.Ready
+	12, // 10: proto.Message.Invoke:type_name -> proto.Invoke
+	13, // 11: proto.Message.InvokeStart:type_name -> proto.InvokeStart
+	14, // 12: proto.Message.InvokeResponse:type_name -> proto.InvokeResponse
 	1,  // 13: proto.Message.ObjectRequest:type_name -> proto.ObjectRequest
 	2,  // 14: proto.Message.ObjectResponse:type_name -> proto.ObjectResponse
 	10, // 15: proto.Message.StreamChunk:type_name -> proto.StreamChunk
@@ -796,6 +818,7 @@ func file_cluster_cluster_proto_init() {
 		(*Message_Ready)(nil),
 		(*Message_Invoke)(nil),
 		(*Message_InvokeStart)(nil),
+		(*Message_InvokeResponse)(nil),
 		(*Message_ObjectRequest)(nil),
 		(*Message_ObjectResponse)(nil),
 		(*Message_StreamChunk)(nil),

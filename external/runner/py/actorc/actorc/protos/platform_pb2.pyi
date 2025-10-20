@@ -85,11 +85,11 @@ class Invoke(_message.Message):
     SESSIONID_FIELD_NUMBER: _ClassVar[int]
     PARAM_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
-    Target: ActorRef
+    Target: str
     SessionID: str
     Param: str
     Value: Flow
-    def __init__(self, Target: _Optional[_Union[ActorRef, _Mapping]] = ..., SessionID: _Optional[str] = ..., Param: _Optional[str] = ..., Value: _Optional[_Union[Flow, _Mapping]] = ...) -> None: ...
+    def __init__(self, Target: _Optional[str] = ..., SessionID: _Optional[str] = ..., Param: _Optional[str] = ..., Value: _Optional[_Union[Flow, _Mapping]] = ...) -> None: ...
 
 class InvokeStart(_message.Message):
     __slots__ = ("Info", "SessionID", "ReplyTo")
@@ -98,8 +98,8 @@ class InvokeStart(_message.Message):
     REPLYTO_FIELD_NUMBER: _ClassVar[int]
     Info: ActorInfo
     SessionID: str
-    ReplyTo: ActorRef
-    def __init__(self, Info: _Optional[_Union[ActorInfo, _Mapping]] = ..., SessionID: _Optional[str] = ..., ReplyTo: _Optional[_Union[ActorRef, _Mapping]] = ...) -> None: ...
+    ReplyTo: str
+    def __init__(self, Info: _Optional[_Union[ActorInfo, _Mapping]] = ..., SessionID: _Optional[str] = ..., ReplyTo: _Optional[str] = ...) -> None: ...
 
 class InvokeResponse(_message.Message):
     __slots__ = ("Target", "SessionID", "Result", "Error", "Info")
@@ -108,9 +108,9 @@ class InvokeResponse(_message.Message):
     RESULT_FIELD_NUMBER: _ClassVar[int]
     ERROR_FIELD_NUMBER: _ClassVar[int]
     INFO_FIELD_NUMBER: _ClassVar[int]
-    Target: ActorRef
+    Target: str
     SessionID: str
     Result: Flow
     Error: str
     Info: ActorInfo
-    def __init__(self, Target: _Optional[_Union[ActorRef, _Mapping]] = ..., SessionID: _Optional[str] = ..., Result: _Optional[_Union[Flow, _Mapping]] = ..., Error: _Optional[str] = ..., Info: _Optional[_Union[ActorInfo, _Mapping]] = ...) -> None: ...
+    def __init__(self, Target: _Optional[str] = ..., SessionID: _Optional[str] = ..., Result: _Optional[_Union[Flow, _Mapping]] = ..., Error: _Optional[str] = ..., Info: _Optional[_Union[ActorInfo, _Mapping]] = ...) -> None: ...

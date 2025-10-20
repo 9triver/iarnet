@@ -10,14 +10,17 @@ import (
 
 	"github.com/9triver/ignis/actor/functions"
 	"github.com/9triver/ignis/actor/remote"
+	"github.com/9triver/ignis/actor/router"
 	"github.com/9triver/ignis/actor/store"
 	"github.com/9triver/ignis/platform/task"
 	"github.com/9triver/ignis/proto"
 	"github.com/9triver/ignis/proto/controller"
+	"github.com/9triver/ignis/utils"
 	"github.com/9triver/ignis/utils/errors"
 )
 
 type Controller struct {
+	id         string
 	manager    *functions.VenvManager
 	controller remote.Controller
 	store      *proto.StoreRef
@@ -72,7 +75,7 @@ func (c *Controller) onAppendPyFunc(ctx actor.Context, f *controller.AppendPyFun
 		f.Replicas = 1
 	}
 
-	infos, err := c.deployer.DeployPyFunc(ctx, c.appID, f)
+	infos, err := c.deployer.DeployPyFunc(ctx, c.appID, f, c.store)
 	if err != nil {
 		ctx.Logger().Error("control: deploy python function error",
 			"name", f.Name,
@@ -121,11 +124,7 @@ func (c *Controller) onAppendArg(ctx actor.Context, arg *controller.AppendArg) {
 			return
 		}
 
-		rt = node.Runtime(sessionId, c.store.PID, &proto.ActorRef{
-			Store: c.store,
-			ID:    "controller",
-			PID:   ctx.Self(),
-		})
+		rt = node.Runtime(sessionId, c.store.PID, c.id)
 		c.runtimes[sessionId] = rt
 	}
 
@@ -271,23 +270,26 @@ type ApplicationInfo interface {
 // For iarnet
 func SpawnTaskControllerV2(ctx *actor.RootContext, appID string, deployer task.Deployer,
 	appInfo ApplicationInfo, c remote.Controller, onClose func()) *proto.ActorRef {
+
+	store := store.SpawnStoreHub(ctx, utils.GenIDWith("store-"))
+
+	controllerId := utils.GenIDWith("controller-")
 	props := actor.PropsFromProducer(func() actor.Actor {
 		return &Controller{
-			// manager:    venvs,
+			id:         controllerId,
 			controller: c,
 			appID:      appID,
 			appInfo:    appInfo,
 			deployer:   deployer,
-			// store:      store,
-			nodes:    make(map[string]*task.Node),
-			groups:   make(map[string]*task.ActorGroup),
-			runtimes: make(map[string]*task.Runtime),
+			store:      store,
+			nodes:      make(map[string]*task.Node),
+			groups:     make(map[string]*task.ActorGroup),
+			runtimes:   make(map[string]*task.Runtime),
 		}
 	})
 
-	controllerID := fmt.Sprintf("controller-%s", appID)
-	pid, _ := ctx.SpawnNamed(props, controllerID)
-	logrus.Infof("control: spawn controller %s with pid %s", controllerID, pid)
+	pid, _ := ctx.SpawnNamed(props, controllerId)
+	logrus.Infof("control: spawn controller %s with pid %s", controllerId, pid)
 
 	go func() {
 		defer onClose()
@@ -296,9 +298,11 @@ func SpawnTaskControllerV2(ctx *actor.RootContext, appID string, deployer task.D
 		}
 	}()
 
+	router.Register(controllerId, pid)
+
 	return &proto.ActorRef{
 		// Store: store,
-		ID:  controllerID,
+		ID:  controllerId,
 		PID: pid,
 	}
 }

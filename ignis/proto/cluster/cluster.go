@@ -8,7 +8,17 @@ import (
 
 type StreamChunk = proto.StreamChunk
 
-func NewObjectRequest(store *proto.StoreRef, id string, replyTo *proto.StoreRef) *Envelope {
+func NewFunction(name string, params []string, requirements []string, obj []byte, lang proto.Language) *Message {
+	return NewMessage(&Function{
+		Name:          name,
+		Params:        params,
+		Requirements:  requirements,
+		PickledObject: obj,
+		Language:      lang,
+	})
+}
+
+func NewObjectRequest(store *proto.StoreRef, id string, replyTo string) *Envelope {
 	msg := &ObjectRequest{
 		ID:      id,
 		ReplyTo: replyTo,
@@ -85,6 +95,16 @@ func NewMessage(msg pb.Message) *Message {
 		return &Message{
 			Type:    MessageType_INVOKE_START,
 			Message: &Message_InvokeStart{InvokeStart: msg},
+		}
+	case *proto.InvokeResponse:
+		return &Message{
+			Type:    MessageType_INVOKE_RESPONSE,
+			Message: &Message_InvokeResponse{InvokeResponse: msg},
+		}
+	case *Function:
+		return &Message{
+			Type:    MessageType_FUNCTION,
+			Message: &Message_Function{Function: msg},
 		}
 	default:
 		return nil

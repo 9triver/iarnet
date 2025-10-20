@@ -23,7 +23,7 @@ type Resources struct {
 }
 
 type Deployer interface {
-	DeployPyFunc(ctx actor.Context, appId string, f *controller.AppendPyFunc) ([]*proto.ActorInfo, error)
+	DeployPyFunc(ctx actor.Context, appId string, f *controller.AppendPyFunc, store *proto.StoreRef) ([]*proto.ActorInfo, error)
 }
 
 type Config struct {
@@ -33,18 +33,16 @@ type Config struct {
 
 // VenvMgrDeployer 是一个部署器，用于部署 Python 函数到 Venv 环境（原始默认实现）
 type VenvMgrDeployer struct {
-	vm    *functions.VenvManager
-	store *proto.StoreRef
+	vm *functions.VenvManager
 }
 
-func NewVenvMgrDeployer(vm *functions.VenvManager, store *proto.StoreRef) *VenvMgrDeployer {
+func NewVenvMgrDeployer(vm *functions.VenvManager) *VenvMgrDeployer {
 	return &VenvMgrDeployer{
-		vm:    vm,
-		store: store,
+		vm: vm,
 	}
 }
 
-func (d *VenvMgrDeployer) DeployPyFunc(ctx actor.Context, appId string, f *controller.AppendPyFunc) ([]*proto.ActorInfo, error) {
+func (d *VenvMgrDeployer) DeployPyFunc(ctx actor.Context, appId string, f *controller.AppendPyFunc, store *proto.StoreRef) ([]*proto.ActorInfo, error) {
 
 	pyFunc, err := functions.NewPy(d.vm, f.Name, f.Params, f.Venv, f.Requirements, f.PickledObject, f.Language)
 	if err != nil {
@@ -55,13 +53,13 @@ func (d *VenvMgrDeployer) DeployPyFunc(ctx actor.Context, appId string, f *contr
 
 	for i := range f.Replicas {
 		name := fmt.Sprintf("%s-%d", f.Name, i)
-		props := compute.NewActor(name, pyFunc, d.store.PID)
+		props := compute.NewActor(name, pyFunc, store.PID)
 		pid := ctx.Spawn(props)
 		info := &proto.ActorInfo{
 			Ref: &proto.ActorRef{
 				ID:    name,
 				PID:   pid,
-				Store: d.store,
+				Store: store,
 			},
 			CalcLatency: 0,
 			LinkLatency: 0,

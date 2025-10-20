@@ -6,6 +6,7 @@ import (
 	"github.com/asynkron/protoactor-go/actor"
 
 	"github.com/9triver/ignis/actor/remote"
+	"github.com/9triver/ignis/actor/router"
 	"github.com/9triver/ignis/configs"
 	"github.com/9triver/ignis/objects"
 	"github.com/9triver/ignis/proto"
@@ -27,7 +28,7 @@ type Actor struct {
 func (s *Actor) onObjectRequest(ctx actor.Context, req *cluster.ObjectRequest) {
 	ctx.Logger().Info("store: responding object",
 		"id", req.ID,
-		"replyTo", req.ReplyTo.ID,
+		"replyTo", req.ReplyTo,
 	)
 
 	reply := &cluster.ObjectResponse{ID: req.ID}
@@ -39,16 +40,16 @@ func (s *Actor) onObjectRequest(ctx actor.Context, req *cluster.ObjectRequest) {
 	} else {
 		reply.Value = encoded
 	}
-	s.stub.SendTo(req.ReplyTo, reply)
+	router.Send(ctx, req.ReplyTo, reply)
 
 	// if requested object is a stream, send all chunks
 	if stream, ok := obj.(*objects.Stream); ok {
 		go func() {
-			defer s.stub.SendTo(req.ReplyTo, proto.NewStreamEnd(req.ID))
+			defer router.Send(ctx, req.ReplyTo, proto.NewStreamEnd(req.ID))
 			for obj := range stream.ToChan() {
 				encoded, err := obj.Encode()
 				msg := proto.NewStreamChunk(req.ID, encoded, err)
-				s.stub.SendTo(req.ReplyTo, msg)
+				router.Send(ctx, req.ReplyTo, msg)
 			}
 		}()
 	}
@@ -140,7 +141,7 @@ func (s *Actor) requestRemoteObject(flow *proto.Flow) utils.Future[objects.Inter
 	remoteRef := flow.Source
 	s.stub.SendTo(remoteRef, &cluster.ObjectRequest{
 		ID:      flow.ID,
-		ReplyTo: s.ref,
+		ReplyTo: s.ref.ID,
 	})
 	return fut
 }
@@ -167,9 +168,9 @@ func (s *Actor) onFlowRequest(ctx actor.Context, req *RequestObject) {
 	}
 }
 
-func (s *Actor) onForward(ctx actor.Context, forward forwardMessage) {
+func (s *Actor) onForward(ctx actor.Context, forward ForwardMessage) {
 	target := forward.GetTarget()
-	if target.Store.Equals(s.ref) { // target is local
+	if target.Store.ID == s.ref.ID { // target is local
 		ctx.Send(target.PID, forward)
 	} else {
 		ctx.Logger().Info("store: forwarding request")
@@ -193,7 +194,7 @@ func (s *Actor) Receive(ctx actor.Context) {
 	case *RequestObject:
 		s.onFlowRequest(ctx, msg)
 	// forward messages
-	case forwardMessage:
+	case ForwardMessage:
 		s.onForward(ctx, msg)
 	}
 }
@@ -223,6 +224,7 @@ func Spawn(ctx *actor.RootContext, stub remote.Stub, id string) *proto.StoreRef 
 		return s
 	})
 	pid, _ := ctx.SpawnNamed(props, "store."+id)
+	router.Register(id, pid)
 	ref := &proto.StoreRef{
 		ID:  id,
 		PID: pid,
