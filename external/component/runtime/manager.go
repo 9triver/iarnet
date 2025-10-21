@@ -120,6 +120,7 @@ func (m *Manager) Run(ctx context.Context, addr, connId string, fn *cluster.Func
 	m.started = true
 
 	m.conn = NewConnection(addr, connId)
+	go m.conn.Run(ctx)
 
 	go func() {
 		for msg := range m.conn.RecvChan() {
@@ -133,7 +134,8 @@ func (m *Manager) Run(ctx context.Context, addr, connId string, fn *cluster.Func
 		m.conn.Id(), fn.Name,
 		fn.PickledObject, fn.Language, nil,
 	)
-	m.conn.SendChan() <- addHandler
 	<-m.conn.Ready()
+
+	m.conn.SendChan() <- addHandler
 	return NewFunciton(m, fn), nil
 }

@@ -45,9 +45,12 @@ RUN apk add --no-cache \
 # 创建非 root 用户
 RUN addgroup -S appuser && adduser -S -G appuser appuser
 
-# 安装 actorc 及其依赖
-COPY --from=builder /build/iarnet/external/runner/py/actorc /tmp/actorc
-RUN cd /tmp/actorc && pip install -e .
+# 安装 actorc 及其依赖到全局可访问位置
+COPY --from=builder /build/iarnet/external/runner/py/actorc /opt/actorc
+RUN cd /opt/actorc && pip install -e . --target /opt/python-packages
+
+# 设置 PYTHONPATH 使虚拟环境可以访问预安装的包
+ENV PYTHONPATH="/opt/python-packages:$PYTHONPATH"
 
 # 设置工作目录
 WORKDIR /app

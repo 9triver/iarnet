@@ -100,14 +100,14 @@ func main() {
 
 	// 清理可能存在的旧socket文件
 	socketPath := strings.TrimPrefix(ipcAddr, "ipc://")
-	if _, err := os.Stat(socketPath); err == nil {
+	if _, err1 := os.Stat(socketPath); err1 == nil {
 		logrus.Infof("Removing existing socket file: %s", socketPath)
 		os.Remove(socketPath)
 	}
 
 	manager := runtime.NewManager()
 
-	f, err := manager.Run(ctx, connId, funcMsg.Name, funcMsg, initializer)
+	f, err := manager.Run(ctx, ipcAddr, connId, funcMsg, initializer)
 	if err != nil {
 		logrus.Fatalf("runtime setup failed: %v", err)
 	}

@@ -30,6 +30,7 @@ func NewInitializer(venvPath string, executorPath string) (*Initializer, error) 
 	if err := exec.Command("python3", "-m", "venv", venvPath).Run(); err != nil {
 		return nil, errors.WrapWith(err, "venv %s: venv creation failed", venvPath)
 	}
+	logrus.Infof("venv %s: venv creation success", venvPath)
 
 	pythonExec := path.Join(venvPath, "bin", "python3")
 
@@ -45,6 +46,7 @@ func NewInitializer(venvPath string, executorPath string) (*Initializer, error) 
 func (i *Initializer) ensurePip(ctx context.Context) error {
 	// 尝试 python -m pip --version
 	cmd := exec.CommandContext(ctx, i.pythonExec, "-m", "pip", "--version")
+	cmd.Env = os.Environ()
 	if err := cmd.Run(); err == nil {
 		return nil
 	}
@@ -53,11 +55,14 @@ func (i *Initializer) ensurePip(ctx context.Context) error {
 	boot := exec.CommandContext(ctx, i.pythonExec, "-m", "ensurepip", "--upgrade")
 	boot.Stdout = os.Stdout
 	boot.Stderr = os.Stderr
+	boot.Env = os.Environ()
 	if err := boot.Run(); err != nil {
 		return err
 	}
 	// 再次校验
-	return exec.CommandContext(ctx, i.pythonExec, "-m", "pip", "--version").Run()
+	verify := exec.CommandContext(ctx, i.pythonExec, "-m", "pip", "--version")
+	verify.Env = os.Environ()
+	return verify.Run()
 }
 
 func (i *Initializer) InstallDependencies(requirements []string) error {
@@ -95,6 +100,8 @@ func (i *Initializer) InstallDependencies(requirements []string) error {
 	cmd := exec.CommandContext(ctx, i.pythonExec, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	// 继承环境变量，确保可以访问预安装的包
+	cmd.Env = os.Environ()
 	return cmd.Run()
 }
 
@@ -107,6 +114,11 @@ func (i *Initializer) Initialize(ctx context.Context, fn *cluster.Function, addr
 		cmd := exec.CommandContext(context.TODO(), i.pythonExec, i.executorPath, "--remote", addr, "--conn-id", connId)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
+		
+		// 确保虚拟环境可以访问预安装的 actorc 包
+		// 继承当前进程的环境变量，特别是 PYTHONPATH
+		cmd.Env = os.Environ()
+		
 		if err := cmd.Run(); err != nil {
 			logrus.Errorf("python executor failed for function %s: %v", fn.Name, err)
 			return
