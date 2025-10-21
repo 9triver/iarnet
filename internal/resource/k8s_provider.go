@@ -152,9 +152,9 @@ func (kp *K8sProvider) GetCapacity(ctx context.Context) (*Capacity, error) {
 		cpuQuantity := node.Status.Allocatable[v1.ResourceCPU]
 		memoryQuantity := node.Status.Allocatable[v1.ResourceMemory]
 
-		// Convert CPU to cores
-		cpuCores := float64(cpuQuantity.MilliValue()) / 1000.0
-		totalCPU += cpuCores
+		// Get CPU in millicores (K8s MilliValue() already returns millicores)
+		cpuMillicores := float64(cpuQuantity.MilliValue())
+		totalCPU += cpuMillicores
 
 		// Convert memory to bytes
 		memoryBytes := float64(memoryQuantity.Value())
@@ -209,20 +209,20 @@ func (kp *K8sProvider) GetAllocated(ctx context.Context) (*Info, error) {
 		}
 
 		for _, container := range pod.Spec.Containers {
-			// Get CPU requests/limits
+			// Get CPU requests/limits in millicores
 			if cpuRequest, exists := container.Resources.Requests[v1.ResourceCPU]; exists {
-				cpuCores := int64(cpuRequest.MilliValue()) / 1000
-				totalCPU += cpuCores
-				logrus.Infof("Pod %s, Container %s: CPU request %d cores", pod.Name, container.Name, cpuCores)
+				cpuMillicores := int64(cpuRequest.MilliValue())
+				totalCPU += cpuMillicores
+				logrus.Infof("Pod %s, Container %s: CPU request %d millicores", pod.Name, container.Name, cpuMillicores)
 			} else if cpuLimit, exists := container.Resources.Limits[v1.ResourceCPU]; exists {
-				cpuCores := int64(cpuLimit.MilliValue()) / 1000
-				totalCPU += cpuCores
-				logrus.Infof("Pod %s, Container %s: CPU limit %d cores", pod.Name, container.Name, cpuCores)
+				cpuMillicores := int64(cpuLimit.MilliValue())
+				totalCPU += cpuMillicores
+				logrus.Infof("Pod %s, Container %s: CPU limit %d millicores", pod.Name, container.Name, cpuMillicores)
 			} else {
-				// If no CPU request/limit is set, assume 0.1 cores per container
-				cpuCores := int64(1000)
-				totalCPU += cpuCores
-				logrus.Infof("Pod %s, Container %s: No CPU request/limit set, assuming %d cores", pod.Name, container.Name, cpuCores)
+				// If no CPU request/limit is set, assume 100 millicores per container
+				cpuMillicores := int64(100)
+				totalCPU += cpuMillicores
+				logrus.Infof("Pod %s, Container %s: No CPU request/limit set, assuming %d millicores", pod.Name, container.Name, cpuMillicores)
 			}
 
 			// Get memory requests/limits
@@ -350,11 +350,11 @@ func (kp *K8sProvider) Deploy(ctx context.Context, spec ContainerSpec) (string, 
 					Command: spec.Command,
 					Resources: v1.ResourceRequirements{
 						Requests: v1.ResourceList{
-							v1.ResourceCPU:    *resource.NewMilliQuantity(int64(spec.Requirements.CPU*1000), resource.DecimalSI),
+							v1.ResourceCPU:    *resource.NewMilliQuantity(int64(spec.Requirements.CPU), resource.DecimalSI),
 							v1.ResourceMemory: *resource.NewQuantity(int64(spec.Requirements.Memory), resource.BinarySI),
 						},
 						Limits: v1.ResourceList{
-							v1.ResourceCPU:    *resource.NewMilliQuantity(int64(spec.Requirements.CPU*1000), resource.DecimalSI),
+							v1.ResourceCPU:    *resource.NewMilliQuantity(int64(spec.Requirements.CPU), resource.DecimalSI),
 							v1.ResourceMemory: *resource.NewQuantity(int64(spec.Requirements.Memory), resource.BinarySI),
 						},
 					},

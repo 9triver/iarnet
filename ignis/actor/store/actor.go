@@ -169,13 +169,14 @@ func (s *Actor) onFlowRequest(ctx actor.Context, req *RequestObject) {
 }
 
 func (s *Actor) onForward(ctx actor.Context, forward ForwardMessage) {
-	target := forward.GetTarget()
-	if target.Store.ID == s.ref.ID { // target is local
-		ctx.Send(target.PID, forward)
-	} else {
-		ctx.Logger().Info("store: forwarding request")
-		s.stub.SendTo(target.Store, forward)
-	}
+	// target := forward.GetTarget()
+	// if target.Store.ID == s.ref.ID { // target is local
+	// 	ctx.Send(target.PID, forward)
+	// } else {
+	// 	ctx.Logger().Info("store: forwarding request")
+	// 	s.stub.SendTo(target.Store, forward)
+	// }
+	router.Send(ctx, forward.GetTarget(), forward)
 }
 
 func (s *Actor) Receive(ctx actor.Context) {

@@ -8,9 +8,14 @@ import (
 	"github.com/9triver/ignis/proto"
 )
 
+type RequiresReplyMessage interface {
+	pb.Message
+	GetReplyTo() string
+}
+
 type ForwardMessage interface {
 	pb.Message
-	GetTarget() *proto.ActorRef
+	GetTarget() string
 }
 
 type AddStore struct {

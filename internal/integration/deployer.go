@@ -9,11 +9,13 @@ import (
 	"github.com/9triver/iarnet/internal/config"
 	"github.com/9triver/iarnet/internal/resource"
 	"github.com/9triver/ignis/actor/router"
+	"github.com/9triver/ignis/actor/store"
 	"github.com/9triver/ignis/proto"
 	"github.com/9triver/ignis/proto/cluster"
 	"github.com/9triver/ignis/proto/controller"
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/sirupsen/logrus"
+	pb "google.golang.org/protobuf/proto"
 )
 
 type Deployer struct {
@@ -32,7 +34,7 @@ func NewDeployer(am *application.Manager, rm *resource.Manager, cm *ConnectionMa
 	}
 }
 
-func (d *Deployer) DeployPyFunc(ctx actor.Context, appId string, f *controller.AppendPyFunc, store *proto.StoreRef) ([]*proto.ActorInfo, error) {
+func (d *Deployer) DeployPyFunc(ctx actor.Context, appId string, f *controller.AppendPyFunc, sr *proto.StoreRef) ([]*proto.ActorInfo, error) {
 
 	image, ok := d.cfg.ComponentImages["python"]
 	if !ok {
@@ -45,8 +47,7 @@ func (d *Deployer) DeployPyFunc(ctx actor.Context, appId string, f *controller.A
 	infos := make([]*proto.ActorInfo, f.Replicas)
 
 	for i := range f.Replicas {
-		name := fmt.Sprintf("%s-%d", f.Name, i)
-		connId := fmt.Sprintf("%s:%s", appId, name)
+		connId := fmt.Sprintf("%s:%s-%d", appId, f.Name, i)
 		stream := d.cm.NewConn(context.TODO(), connId)
 
 		cf, err := d.rm.Deploy(context.Background(), resource.ContainerSpec{
@@ -57,35 +58,49 @@ func (d *Deployer) DeployPyFunc(ctx actor.Context, appId string, f *controller.A
 				GPU:    f.Resources.GPU,
 			},
 			Env: map[string]string{
-				"IGNIG_ADDR": d.cfg.ExternalAddr + ":" + strconv.Itoa(int(25565)),
-				// "CONN_ID":    fmt.Sprintf("%s_%s", appId, f.Name),
-				"APP_ID":    appId,
-				"FUNC_NAME": f.Name,
-				// "PYTHON_EXEC": "python",
+				"IGNIS_ADDR": d.cfg.ExternalAddr + ":" + strconv.Itoa(int(25565)),
+				"CONN_ID":    connId,
+				// "APP_ID":     appId,
+				// "FUNC_NAME":  f.Name,
 			},
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to deploy: %w", err)
 		}
 		logrus.Infof("deployed to provider: %s, container ID: %s", cf.Provider.GetID(), cf.ID)
-		d.am.RegisterComponent(appId, name, cf)
+		d.am.RegisterComponent(appId, connId, cf)
 
 		pid := ctx.Spawn(actor.PropsFromProducer(func() actor.Actor {
-			return NewStub(stream, store, funcMsg)
+			return NewStub(stream)
 		}))
+
+		router.Register(connId, pid)
+		router.Register("store-"+connId, pid)
 
 		go func() {
 			defer stream.Close()
 			for msg := range stream.RecvChan() {
-				ctx.Send(pid, msg)
+				m := msg.Unwrap()
+				if _, ok := m.(*cluster.Ready); ok {
+					stream.SendChan() <- funcMsg
+					continue
+				}
+				if mt, ok := m.(store.RequiresReplyMessage); ok {
+					router.RegisterIfAbsent(mt.GetReplyTo(), pid)
+				}
+				if mt, ok := m.(store.ForwardMessage); ok {
+					router.Send(ctx, mt.GetTarget(), mt)
+				} else {
+					logrus.Warnf("unsupported message type: %+v", m)
+				}
 			}
 		}()
 
 		info := &proto.ActorInfo{
 			Ref: &proto.ActorRef{
-				ID:    name,
+				ID:    connId,
 				PID:   pid,
-				Store: store,
+				Store: sr,
 			},
 			CalcLatency: 0,
 			LinkLatency: 0,
@@ -97,39 +112,24 @@ func (d *Deployer) DeployPyFunc(ctx actor.Context, appId string, f *controller.A
 }
 
 type Stub struct {
-	stream  *ClusterStreamImpl
-	store   *proto.StoreRef
-	funcMsg *cluster.Message
+	stream *ClusterStreamImpl
 }
 
-func NewStub(stream *ClusterStreamImpl, store *proto.StoreRef, funcMsg *cluster.Message) *Stub {
+func NewStub(stream *ClusterStreamImpl) *Stub {
 	return &Stub{
-		stream:  stream,
-		store:   store,
-		funcMsg: funcMsg,
-	}
-}
-
-func (s *Stub) onClusterMessage(ctx actor.Context, msg *cluster.Message) {
-	switch msg.Type {
-	case cluster.MessageType_READY:
-		s.stream.SendChan() <- s.funcMsg
-	case cluster.MessageType_INVOKE, cluster.MessageType_INVOKE_START:
-		s.stream.SendChan() <- msg
-	case cluster.MessageType_INVOKE_RESPONSE:
-		resp := msg.GetInvokeResponse()
-		router.Send(ctx, resp.GetTarget().ID, resp)
-	default:
-		ctx.Logger().Warn("unsupported message type", "msg", msg)
+		stream: stream,
 	}
 }
 
 func (s *Stub) Receive(ctx actor.Context) {
-	switch msg := ctx.Message().(type) {
-	case *cluster.Message:
-		s.onClusterMessage(ctx, msg)
-		s.stream.SendChan() <- msg
-	default:
-		ctx.Logger().Warn("unsupported message type", "msg", msg)
+	if msg, ok := ctx.Message().(pb.Message); ok {
+		m := cluster.NewMessage(msg)
+		if m == nil {
+			ctx.Logger().Warn("unsupported message type", "msg", msg)
+		} else {
+			s.stream.SendChan() <- m
+		}
+	} else {
+		ctx.Logger().Warn("unsupported message type", "msg", ctx.Message())
 	}
 }

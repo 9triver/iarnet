@@ -5,6 +5,7 @@ import (
 
 	"github.com/9triver/ignis/actor/compute"
 	"github.com/9triver/ignis/actor/functions"
+	"github.com/9triver/ignis/actor/router"
 	"github.com/9triver/ignis/proto"
 	"github.com/9triver/ignis/proto/controller"
 	"github.com/asynkron/protoactor-go/actor"
@@ -52,7 +53,7 @@ func (d *VenvMgrDeployer) DeployPyFunc(ctx actor.Context, appId string, f *contr
 	infos := make([]*proto.ActorInfo, f.Replicas)
 
 	for i := range f.Replicas {
-		name := fmt.Sprintf("%s-%d", f.Name, i)
+		name := fmt.Sprintf("%s:%s-%d", appId, f.Name, i)
 		props := compute.NewActor(name, pyFunc, store.PID)
 		pid := ctx.Spawn(props)
 		info := &proto.ActorInfo{
@@ -64,6 +65,7 @@ func (d *VenvMgrDeployer) DeployPyFunc(ctx actor.Context, appId string, f *contr
 			CalcLatency: 0,
 			LinkLatency: 0,
 		}
+		router.Register(name, pid)
 		infos[i] = info
 		// group.Push(info)
 	}

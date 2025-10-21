@@ -111,6 +111,31 @@ func NewMessage(msg pb.Message) *Message {
 	}
 }
 
+func (msg *Message) Unwrap() pb.Message {
+	switch msg := msg.Message.(type) {
+	case *Message_ObjectRequest:
+		return msg.ObjectRequest
+	case *Message_ObjectResponse:
+		return msg.ObjectResponse
+	case *Message_StreamChunk:
+		return msg.StreamChunk
+	case *Message_Ack:
+		return msg.Ack
+	case *Message_Ready:
+		return msg.Ready
+	case *Message_Invoke:
+		return msg.Invoke
+	case *Message_InvokeStart:
+		return msg.InvokeStart
+	case *Message_InvokeResponse:
+		return msg.InvokeResponse
+	case *Message_Function:
+		return msg.Function
+	default:
+		return nil
+	}
+}
+
 func (e *Envelope) Unwrap() pb.Message {
 	switch msg := e.Message.(type) {
 	case *Envelope_ObjectRequest:

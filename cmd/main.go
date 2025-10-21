@@ -60,6 +60,13 @@ func main() {
 	)
 	defer svr.Stop()
 
+	// fix: 启动 gRPC 服务器
+	go func() {
+		if err := svr.Serve(lis); err != nil {
+			logrus.Errorf("gRPC server failed: %v", err)
+		}
+	}()
+
 	cm := integration.NewConnectionManager()
 	cluster.RegisterServiceServer(svr, cm)
 

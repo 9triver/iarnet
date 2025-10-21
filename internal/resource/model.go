@@ -27,7 +27,7 @@ type ContainerRef struct {
 }
 
 type Info struct {
-	CPU    int64 `json:"cpu"`
+	CPU    int64 `json:"cpu"` // millicores
 	Memory int64 `json:"memory"`
 	GPU    int64 `json:"gpu"`
 }

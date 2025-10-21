@@ -103,8 +103,10 @@ func (dp *DockerProvider) GetCapacity(ctx context.Context) (*Capacity, error) {
 	// Convert memory from bytes to GB
 	totalMemoryGB := info.MemTotal
 
-	// Get CPU count
-	totalCPU := int64(info.NCPU)
+	// Get CPU count and convert to millicores
+	// Docker info.NCPU returns the number of CPU cores
+	// Convert to millicores: 1 CPU core = 1000 millicores
+	totalCPU := int64(info.NCPU) * 1000
 
 	// For GPU, we need to check if nvidia-docker is available
 	// This is a simplified approach - in production you might want to use nvidia-ml-go
@@ -158,16 +160,19 @@ func (dp *DockerProvider) GetAllocated(ctx context.Context) (*Info, error) {
 			containerName = containerName[1:] // Remove leading slash
 		}
 
-		// Get CPU limit (convert from nano CPUs to CPU cores)
+		// Get CPU limit (convert from nano CPUs to millicores)
 		var cpuAlloc int64
 		if inspect.HostConfig.Resources.NanoCPUs > 0 {
+			// Docker NanoCPUs: 1 CPU core = 1e9 NanoCPUs
+			// Convert to millicores: 1 CPU core = 1000 millicores
+			// So: NanoCPUs / 1e9 * 1000 = NanoCPUs / 1e6
 			cpuAlloc = int64(inspect.HostConfig.Resources.NanoCPUs) / 1e6
-			logrus.Infof("Container %s: CPU limit set to %d cores", containerName, cpuAlloc)
+			logrus.Infof("Container %s: CPU limit set to %d millicores", containerName, cpuAlloc)
 		} else {
 			// If no CPU limit is set, assume the container can use all available CPUs
-			// For now, we'll count it as 1 CPU core per container without limits
-			cpuAlloc = 1
-			logrus.Infof("Container %s: No CPU limit set, assuming %d cores", containerName, cpuAlloc)
+			// For now, we'll count it as 1000 millicores (1 CPU core) per container without limits
+			cpuAlloc = 1000
+			logrus.Infof("Container %s: No CPU limit set, assuming %d millicores", containerName, cpuAlloc)
 		}
 		totalCPU += cpuAlloc
 
@@ -421,14 +426,27 @@ func (dp *DockerProvider) Deploy(ctx context.Context, spec ContainerSpec) (strin
 		Image: spec.Image,
 		Cmd:   spec.Command,
 		// ExposedPorts: exposedPorts,
+		Env: func() []string {
+			var env []string
+			for k, v := range spec.Env {
+				env = append(env, k+"="+v)
+			}
+			return env
+		}(),
 	}
 
 	// 创建主机配置
 	hostConfig := &container.HostConfig{
 		Resources: container.Resources{
-			NanoCPUs: int64(spec.Requirements.CPU * 1e6), // Rough conversion
+			// CPU 单位转换：spec.Requirements.CPU 是毫核心 (millicores)
+			// Docker NanoCPUs: 1 CPU core = 1e9 NanoCPUs
+			// 1 millicore = 1e6 NanoCPUs
+			NanoCPUs: int64(spec.Requirements.CPU * 1e6),
 			Memory:   int64(spec.Requirements.Memory),
 			// GPU: Docker GPU support requires nvidia-docker, assume configured.
+		},
+		ExtraHosts: []string{
+			"host.internal:host-gateway",
 		},
 		// PortBindings: portBindings,
 	}

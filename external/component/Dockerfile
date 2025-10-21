@@ -30,21 +30,20 @@ RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build \
     -o component ./main.go
 
 # 运行阶段
-FROM python:3.11-slim
+FROM python:3.11-alpine
 
 # 安装系统依赖
-RUN apt-get update && apt-get install -y \
+RUN apk add --no-cache \
     ca-certificates \
     tzdata \
-    libzmq5 \
-    libczmq4 \
-    libzmq3-dev \
-    libczmq-dev \
-    pkg-config \
-    && rm -rf /var/lib/apt/lists/*
+    zeromq \
+    czmq \
+    zeromq-dev \
+    czmq-dev \
+    pkgconfig
 
 # 创建非 root 用户
-RUN groupadd -r appuser && useradd -r -g appuser appuser
+RUN addgroup -S appuser && adduser -S -G appuser appuser
 
 # 安装 actorc 及其依赖
 COPY --from=builder /build/iarnet/external/runner/py/actorc /tmp/actorc
@@ -69,7 +68,11 @@ ENV IGNIG_ADDR=""
 ENV FUNC_NAME=""
 ENV VENV_PATH="/tmp/venv"
 ENV EXECUTOR_PATH="/app/py/executor.py"
-ENV IPC_ADDR="ipc:///tmp/executor.sock"
+ENV IPC_ADDR="ipc:///app/executor.sock"
+
+# ZeroMQ 相关环境变量
+ENV ZMQ_HAVE_CURVE=1
+ENV PKG_CONFIG_PATH="/usr/lib/pkgconfig"
 
 # 暴露端口（如果需要）
 # EXPOSE 8080

@@ -7,7 +7,6 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/9triver/ignis/actor/remote"
-	"github.com/9triver/ignis/proto/cluster"
 	"github.com/9triver/ignis/proto/controller"
 	"github.com/9triver/ignis/proto/executor"
 	"github.com/sirupsen/logrus"
@@ -43,7 +42,7 @@ func (cm *ConnectionManager) Run(ctx context.Context) error {
 
 	controller.RegisterServiceServer(server, cm.cs)
 	executor.RegisterServiceServer(server, cm.es)
-	cluster.RegisterServiceServer(server, cm.cps)
+	// cluster.RegisterServiceServer(server, cm.cps)
 
 	ech := make(chan error)
 	go func() {

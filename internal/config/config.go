@@ -16,7 +16,7 @@ type Config struct {
 	WorkspaceDir      string            `yaml:"workspace_dir"`       // e.g., "./workspaces" - directory for git repositories
 	Ignis             IgnisConfig       `yaml:"ignis"`               // Ignis integration configuration
 	RunnerImages      RunnerImageConfig `yaml:"runner_images"`       // e.g., "python:3.11-alpine" - image to use for runner containers
-	ComponentImages   ActorImageConfig  `yaml:"actor_images"`        // e.g., "python:3.11-alpine" - image to use for actor containers
+	ComponentImages   ActorImageConfig  `yaml:"component_images"`    // e.g., "python:3.11-alpine" - image to use for actor containers
 	EnableLocalDocker bool              `yaml:"enable_local_docker"` // e.g., true - enable local docker provider
 }
 

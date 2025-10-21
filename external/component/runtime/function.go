@@ -18,12 +18,11 @@ type Funciton struct {
 	requirements  []string
 	pickledObject []byte
 	language      proto.Language
-	manager       Manager
+	manager       *Manager
 }
 
-func NewFunciton(manager Manager, funcMsg *cluster.Function) *Funciton {
+func NewFunciton(manager *Manager, funcMsg *cluster.Function) *Funciton {
 	dec := functions.Declare(funcMsg.Name, funcMsg.Params)
-	manager.Setup(funcMsg)
 	return &Funciton{
 		FuncDec:       dec,
 		language:      funcMsg.Language,
@@ -31,6 +30,7 @@ func NewFunciton(manager Manager, funcMsg *cluster.Function) *Funciton {
 		params:        funcMsg.Params,
 		requirements:  funcMsg.Requirements,
 		pickledObject: funcMsg.PickledObject,
+		manager:       manager,
 	}
 }
 

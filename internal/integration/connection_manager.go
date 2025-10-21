@@ -47,12 +47,11 @@ func (cm *ConnectionManager) onReceive(stream grpc.BidiStreamingServer[cluster.M
 		return
 	}
 
-	switch msg.Message.(type) {
-	case *cluster.Message_Ready:
+	if _, ok := msg.Message.(*cluster.Message_Ready); ok {
 		c.SetSender(stream.Send)
-	default:
-		c.Produce(msg)
 	}
+
+	c.Produce(msg)
 }
 
 func (cm *ConnectionManager) NewConn(ctx context.Context, connId string) *ClusterStreamImpl {

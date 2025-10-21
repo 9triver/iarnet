@@ -15,7 +15,6 @@ import (
 	"github.com/9triver/ignis/platform/task"
 	"github.com/9triver/ignis/proto"
 	"github.com/9triver/ignis/proto/controller"
-	"github.com/9triver/ignis/utils"
 	"github.com/9triver/ignis/utils/errors"
 )
 
@@ -271,9 +270,9 @@ type ApplicationInfo interface {
 func SpawnTaskControllerV2(ctx *actor.RootContext, appID string, deployer task.Deployer,
 	appInfo ApplicationInfo, c remote.Controller, onClose func()) *proto.ActorRef {
 
-	store := store.SpawnStoreHub(ctx, utils.GenIDWith("store-"))
+	store := store.Spawn(ctx, nil, "store-"+appID)
 
-	controllerId := utils.GenIDWith("controller-")
+	controllerId := "controller-" + appID
 	props := actor.PropsFromProducer(func() actor.Actor {
 		return &Controller{
 			id:         controllerId,

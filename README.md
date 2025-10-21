@@ -1,5 +1,7 @@
 # Container Peer Service
 
+实现前端点击 dag 节点显示详情
+
 整理代码、debug、跑通gossip交换provider部分
 proto actor go 远程调用问题手动解决，后续可以在proto actor go基础上进行二开，封装一个actor.Context自动适配远程调用
 

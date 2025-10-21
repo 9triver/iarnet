@@ -18,7 +18,20 @@ type Connection struct {
 }
 
 func NewConnection(addr string, connId string) *Connection {
+	// 创建 ZeroMQ router，添加错误处理
 	router := goczmq.NewRouterChanneler(addr)
+	if router == nil {
+		logrus.Fatalf("Failed to create ZeroMQ router for address: %s", addr)
+		return nil
+	}
+
+	// 验证 router 是否正常工作
+	if router.SendChan == nil || router.RecvChan == nil {
+		logrus.Fatalf("ZeroMQ router channels are nil for address: %s", addr)
+		return nil
+	}
+
+	logrus.Infof("Successfully created ZeroMQ router for address: %s", addr)
 
 	return &Connection{
 		router:         router,

@@ -225,7 +225,7 @@ func (m *Manager) RunApplication(appID string) error {
 		ExtraHosts: []string{
 			"host.internal:host-gateway",
 		},
-	}, nil, nil, "iarnet-app-runner-"+appID)
+	}, nil, nil, "")
 
 	if err != nil {
 		logrus.Errorf("Failed to create container for application %s: %v", appID, err)

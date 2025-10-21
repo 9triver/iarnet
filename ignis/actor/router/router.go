@@ -1,14 +1,20 @@
 package router
 
 import (
+	"log/slog"
 	"sync"
 
 	"github.com/asynkron/protoactor-go/actor"
 )
 
+type Context interface {
+	Send(pid *actor.PID, msg any)
+	Logger() *slog.Logger
+}
+
 var DefaultRouter = NewRouter()
 
-func Send(ctx actor.Context, targetId string, msg any) {
+func Send(ctx Context, targetId string, msg any) {
 	DefaultRouter.Send(ctx, targetId, msg)
 }
 
@@ -18,6 +24,10 @@ func Register(targetId string, pid *actor.PID) {
 
 func Unregister(targetId string) {
 	DefaultRouter.Unregister(targetId)
+}
+
+func RegisterIfAbsent(targetId string, pid *actor.PID) {
+	DefaultRouter.RegisterIfAbsent(targetId, pid)
 }
 
 type Router struct {
@@ -31,7 +41,7 @@ func NewRouter() *Router {
 	}
 }
 
-func (r *Router) Send(ctx actor.Context, targetId string, msg any) {
+func (r *Router) Send(ctx Context, targetId string, msg any) {
 	r.mu.Lock() // TODO: use read lock
 	defer r.mu.Unlock()
 
@@ -57,4 +67,15 @@ func (r *Router) Unregister(targetId string) {
 	defer r.mu.Unlock()
 
 	delete(r.routeTable, targetId)
+}
+
+func (r *Router) RegisterIfAbsent(targetId string, pid *actor.PID) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if _, ok := r.routeTable[targetId]; ok {
+		return
+	}
+
+	r.routeTable[targetId] = pid
 }
