@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/9triver/ignis/actor/remote"
 	"github.com/9triver/ignis/configs"
 	"github.com/9triver/ignis/objects"
 	"github.com/9triver/ignis/proto"
@@ -11,6 +12,8 @@ import (
 	"github.com/9triver/ignis/proto/executor"
 	"github.com/9triver/ignis/utils"
 )
+
+type ExecutorStream = remote.Executor
 
 type Manager struct {
 	mu      sync.Mutex
@@ -110,7 +113,7 @@ func (m *Manager) onReceive(msg *executor.Message) {
 	}
 }
 
-func (m *Manager) Run(ctx context.Context, addr, connId string, fn *cluster.Function, initializer Initializer) (*Funciton, error) {
+func (m *Manager) Run(ctx context.Context, conn *Connection, fn *cluster.Function, initializer Initializer) (*Funciton, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -119,15 +122,14 @@ func (m *Manager) Run(ctx context.Context, addr, connId string, fn *cluster.Func
 	}
 	m.started = true
 
-	m.conn = NewConnection(addr, connId)
-	go m.conn.Run(ctx)
+	m.conn = conn
 
 	go func() {
 		for msg := range m.conn.RecvChan() {
 			m.onReceive(msg)
 		}
 	}()
-	if err := initializer.Initialize(ctx, fn, addr, connId); err != nil {
+	if err := initializer.Initialize(ctx, fn, conn.Addr(), conn.Id()); err != nil {
 		return nil, err
 	}
 	addHandler := executor.NewAddHandler(

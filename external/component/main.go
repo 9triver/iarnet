@@ -17,6 +17,7 @@ import (
 	"github.com/9triver/iarnet/component/py"
 	"github.com/9triver/iarnet/component/runtime"
 	"github.com/9triver/ignis/actor/compute"
+	"github.com/9triver/ignis/actor/remote/ipc"
 	"github.com/9triver/ignis/actor/router"
 	"github.com/9triver/ignis/actor/store"
 	"github.com/9triver/ignis/proto"
@@ -104,11 +105,18 @@ func main() {
 		os.Remove(socketPath)
 	}
 
-	manager := runtime.NewManager()
+	im := ipc.NewManager(ipcAddr)
+	rm := runtime.NewManager()
 
-	f, err := manager.Run(ctx, ipcAddr, connId, funcMsg, initializer)
+	if err2 := im.Run(ctx); err2 != nil {
+		logrus.Fatalf("ipc manager start failed: %v", err2)
+	}
+
+	execConn := runtime.NewConnection(ipcAddr, connId, im.NewExecutor(ctx, connId))
+
+	f, err := rm.Run(ctx, execConn, funcMsg, initializer)
 	if err != nil {
-		logrus.Fatalf("runtime setup failed: %v", err)
+		logrus.Fatalf("runtime manager start failed: %v", err)
 	}
 
 	logrus.Infof("Function %s loaded and ready for execution", funcMsg.Name)
