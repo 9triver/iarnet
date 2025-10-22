@@ -130,7 +130,7 @@ func main() {
 	router.Register(connId, pid)
 
 	stubPid := sys.Root.Spawn(actor.PropsFromProducer(func() actor.Actor {
-		return NewStub(stream)
+		return NewStub(connId, stream)
 	}))
 	router.Register("stub-"+connId, stubPid)
 
@@ -184,11 +184,13 @@ func GetInitializer(language proto.Language) (runtime.Initializer, error) {
 }
 
 type Stub struct {
+	connId string
 	stream grpc.BidiStreamingClient[cluster.Message, cluster.Message]
 }
 
-func NewStub(stream grpc.BidiStreamingClient[cluster.Message, cluster.Message]) *Stub {
+func NewStub(connId string, stream grpc.BidiStreamingClient[cluster.Message, cluster.Message]) *Stub {
 	return &Stub{
+		connId: connId,
 		stream: stream,
 	}
 }
@@ -198,7 +200,10 @@ func (s *Stub) Receive(ctx actor.Context) {
 		m := cluster.NewMessage(msg)
 		if m == nil {
 			ctx.Logger().Warn("unsupported message type", "msg", msg)
-		} else if err := s.stream.Send(m); err != nil {
+			return
+		}
+		m.ConnID = s.connId
+		if err := s.stream.Send(m); err != nil {
 			ctx.Logger().Error("failed to send message", "msg", m, "error", err)
 		}
 	} else {

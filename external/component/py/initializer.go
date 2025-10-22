@@ -27,7 +27,7 @@ func NewInitializer(venvPath string, executorPath string) (*Initializer, error) 
 		return nil, errors.WrapWith(err, "venv %s: path creation failed", venvPath)
 	}
 
-	if err := exec.Command("python3", "-m", "venv", venvPath).Run(); err != nil {
+	if err := exec.Command("python3", "-m", "venv", "--system-site-packages", venvPath).Run(); err != nil {
 		return nil, errors.WrapWith(err, "venv %s: venv creation failed", venvPath)
 	}
 	logrus.Infof("venv %s: venv creation success", venvPath)

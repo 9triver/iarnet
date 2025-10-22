@@ -12,10 +12,12 @@ def parse_args():
 
 def main():
     args = parse_args()
-    logging.info("Starting executor, conn-id: %s, remote: %s", args.conn_id, args.remote)
+    logging.info(
+        "Starting executor, conn-id: %s, remote: %s", args.conn_id, args.remote
+    )
     executor = Executor(args.conn_id)
     executor.serve(args.remote)
-    logging.info("Executor %s serving on %s", args.conn_id, args.remote)
+    logging.info("Executor exits, conn-id: %s, remote: %s", args.conn_id, args.remote)
 
 
 if __name__ == "__main__":

@@ -31,8 +31,9 @@ func RegisterIfAbsent(targetId string, pid *actor.PID) {
 }
 
 type Router struct {
-	mu         sync.Mutex
-	routeTable map[string]*actor.PID
+	mu            sync.Mutex
+	routeTable    map[string]*actor.PID
+	defaultTarget *actor.PID
 }
 
 func NewRouter() *Router {
@@ -55,6 +56,13 @@ func (r *Router) Send(ctx Context, targetId string, msg any) {
 	ctx.Send(pid, msg)
 }
 
+func (r *Router) SetDefaultTarget(pid *actor.PID) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.defaultTarget = pid
+}
+
 func (r *Router) Register(targetId string, pid *actor.PID) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -69,6 +77,7 @@ func (r *Router) Unregister(targetId string) {
 	delete(r.routeTable, targetId)
 }
 
+// TODO: 根据消息最短路径，动态更新路由表
 func (r *Router) RegisterIfAbsent(targetId string, pid *actor.PID) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

@@ -1,7 +1,6 @@
 package control
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -176,15 +175,15 @@ func (c *Controller) onControllerMessage(ctx actor.Context, msg *controller.Mess
 	// 	c.onAppendActor(ctx, cmd.AppendActor)
 	case *controller.Message_AppendPyFunc:
 		c.onAppendPyFunc(ctx, cmd.AppendPyFunc)
-	// case *controller.Message_AppendData:
-	// 	c.onAppendData(ctx, cmd.AppendData)
-	// case *controller.Message_AppendArg:
-	// 	c.onAppendArg(ctx, cmd.AppendArg)
+	case *controller.Message_AppendData:
+		c.onAppendData(ctx, cmd.AppendData)
+	case *controller.Message_AppendArg:
+		c.onAppendArg(ctx, cmd.AppendArg)
 	case *controller.Message_DAG:
-		jsonBytes, _ := json.Marshal(cmd.DAG)
-		logrus.Info("control: onDAG",
-			"dag", string(jsonBytes),
-		)
+		// jsonBytes, _ := json.Marshal(cmd.DAG)
+		// logrus.Info("control: onDAG",
+		// 	"dag", string(jsonBytes),
+		// )
 		c.onDAG(ctx, cmd.DAG)
 	}
 }
