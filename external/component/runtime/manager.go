@@ -113,7 +113,7 @@ func (m *Manager) onReceive(msg *executor.Message) {
 	}
 }
 
-func (m *Manager) Run(ctx context.Context, conn *Connection, fn *cluster.Function, initializer Initializer) (*Funciton, error) {
+func (m *Manager) Start(ctx context.Context, conn *Connection, fn *cluster.Function, initializer Initializer) (*Funciton, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

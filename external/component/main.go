@@ -108,13 +108,13 @@ func main() {
 	im := ipc.NewManager(ipcAddr)
 	rm := runtime.NewManager()
 
-	if err2 := im.Run(ctx); err2 != nil {
+	if err2 := im.Start(ctx); err2 != nil {
 		logrus.Fatalf("ipc manager start failed: %v", err2)
 	}
 
 	execConn := runtime.NewConnection(ipcAddr, connId, im.NewExecutor(ctx, connId))
 
-	f, err := rm.Run(ctx, execConn, funcMsg, initializer)
+	f, err := rm.Start(ctx, execConn, funcMsg, initializer)
 	if err != nil {
 		logrus.Fatalf("runtime manager start failed: %v", err)
 	}
