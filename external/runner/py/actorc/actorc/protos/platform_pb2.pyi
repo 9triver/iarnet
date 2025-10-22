@@ -68,16 +68,18 @@ class EncodedObject(_message.Message):
     def __init__(self, ID: _Optional[str] = ..., Data: _Optional[bytes] = ..., Source: _Optional[_Union[StoreRef, _Mapping]] = ..., Language: _Optional[_Union[Language, str]] = ..., Stream: bool = ...) -> None: ...
 
 class StreamChunk(_message.Message):
-    __slots__ = ("StreamID", "EoS", "Value", "Error")
+    __slots__ = ("StreamID", "Target", "EoS", "Value", "Error")
     STREAMID_FIELD_NUMBER: _ClassVar[int]
+    TARGET_FIELD_NUMBER: _ClassVar[int]
     EOS_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     ERROR_FIELD_NUMBER: _ClassVar[int]
     StreamID: str
+    Target: str
     EoS: bool
     Value: EncodedObject
     Error: str
-    def __init__(self, StreamID: _Optional[str] = ..., EoS: bool = ..., Value: _Optional[_Union[EncodedObject, _Mapping]] = ..., Error: _Optional[str] = ...) -> None: ...
+    def __init__(self, StreamID: _Optional[str] = ..., Target: _Optional[str] = ..., EoS: bool = ..., Value: _Optional[_Union[EncodedObject, _Mapping]] = ..., Error: _Optional[str] = ...) -> None: ...
 
 class Invoke(_message.Message):
     __slots__ = ("Target", "SessionID", "Param", "Value")

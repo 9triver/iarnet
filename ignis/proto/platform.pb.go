@@ -380,9 +380,10 @@ func (x *EncodedObject) GetStream() bool {
 type StreamChunk struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	StreamID      string                 `protobuf:"bytes,1,opt,name=StreamID,proto3" json:"StreamID,omitempty"`
-	EoS           bool                   `protobuf:"varint,2,opt,name=EoS,proto3" json:"EoS,omitempty"`
-	Value         *EncodedObject         `protobuf:"bytes,3,opt,name=Value,proto3" json:"Value,omitempty"`
-	Error         string                 `protobuf:"bytes,4,opt,name=Error,proto3" json:"Error,omitempty"`
+	Target        string                 `protobuf:"bytes,2,opt,name=Target,proto3" json:"Target,omitempty"` // TODO: 封装统一消息类型包含 replyTo 和 target
+	EoS           bool                   `protobuf:"varint,3,opt,name=EoS,proto3" json:"EoS,omitempty"`
+	Value         *EncodedObject         `protobuf:"bytes,4,opt,name=Value,proto3" json:"Value,omitempty"`
+	Error         string                 `protobuf:"bytes,5,opt,name=Error,proto3" json:"Error,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -420,6 +421,13 @@ func (*StreamChunk) Descriptor() ([]byte, []int) {
 func (x *StreamChunk) GetStreamID() string {
 	if x != nil {
 		return x.StreamID
+	}
+	return ""
+}
+
+func (x *StreamChunk) GetTarget() string {
+	if x != nil {
+		return x.Target
 	}
 	return ""
 }
@@ -680,12 +688,13 @@ const file_platform_proto_rawDesc = "" +
 	"\x04Data\x18\x02 \x01(\fR\x04Data\x12'\n" +
 	"\x06Source\x18\x03 \x01(\v2\x0f.proto.StoreRefR\x06Source\x12+\n" +
 	"\bLanguage\x18\x04 \x01(\x0e2\x0f.proto.LanguageR\bLanguage\x12\x16\n" +
-	"\x06Stream\x18\x05 \x01(\bR\x06Stream\"}\n" +
+	"\x06Stream\x18\x05 \x01(\bR\x06Stream\"\x95\x01\n" +
 	"\vStreamChunk\x12\x1a\n" +
-	"\bStreamID\x18\x01 \x01(\tR\bStreamID\x12\x10\n" +
-	"\x03EoS\x18\x02 \x01(\bR\x03EoS\x12*\n" +
-	"\x05Value\x18\x03 \x01(\v2\x14.proto.EncodedObjectR\x05Value\x12\x14\n" +
-	"\x05Error\x18\x04 \x01(\tR\x05Error\"w\n" +
+	"\bStreamID\x18\x01 \x01(\tR\bStreamID\x12\x16\n" +
+	"\x06Target\x18\x02 \x01(\tR\x06Target\x12\x10\n" +
+	"\x03EoS\x18\x03 \x01(\bR\x03EoS\x12*\n" +
+	"\x05Value\x18\x04 \x01(\v2\x14.proto.EncodedObjectR\x05Value\x12\x14\n" +
+	"\x05Error\x18\x05 \x01(\tR\x05Error\"w\n" +
 	"\x06Invoke\x12\x16\n" +
 	"\x06Target\x18\x01 \x01(\tR\x06Target\x12\x1c\n" +
 	"\tSessionID\x18\x02 \x01(\tR\tSessionID\x12\x14\n" +

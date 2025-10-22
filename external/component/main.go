@@ -122,7 +122,7 @@ func main() {
 	router.Register("stub-"+connId, stubPid)
 	router.SetDefaultTarget(stubPid)
 
-	sr := store.Spawn(sys.Root, nil, "store"+connId)
+	sr := store.Spawn(sys.Root, nil, "store-"+connId)
 	router.Register("store"+connId, sr.PID)
 
 	props := compute.NewActor(connId, f, sr.PID)
@@ -197,14 +197,16 @@ func NewStub(connId string, stream grpc.BidiStreamingClient[cluster.Message, clu
 }
 
 func (s *Stub) Receive(ctx actor.Context) {
-	if msg, ok := ctx.Message().(pb.Message); ok {
+	orignalMsg := ctx.Message()
+	logrus.Infof("stub: receive message: %+v", orignalMsg)
+
+	if msg, ok := orignalMsg.(pb.Message); ok {
 		m := cluster.NewMessage(msg)
 		if m == nil {
 			ctx.Logger().Warn("unsupported message type", "msg", msg)
 			return
 		}
 		m.ConnID = s.connId
-		logrus.Infof("Sending message: %+v", m)
 		if err := s.stream.Send(m); err != nil {
 			ctx.Logger().Error("failed to send message", "msg", m, "error", err)
 		}

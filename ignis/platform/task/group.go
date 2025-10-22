@@ -62,6 +62,8 @@ func (h *GroupedTaskHandler) Start(ctx actor.Context, replyTo string) error {
 		return errors.New("no candidate actor selected")
 	}
 
+	ctx.Logger().Debug("task: start grouped task", "actor", h.selected.Ref.ID)
+
 	ctx.Send(h.store, &proto.InvokeStart{
 		Info:      h.selected,
 		SessionID: h.sessionId,
@@ -82,6 +84,9 @@ func (h *GroupedTaskHandler) Invoke(ctx actor.Context, param string, value *prot
 		Param:     param,
 		Value:     value,
 	})
+
+	ctx.Logger().Debug("task: invoke grouped task", "deps", h.deps, "ready", h.ready())
+
 	return h.ready(), nil
 }
 

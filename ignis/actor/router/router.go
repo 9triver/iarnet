@@ -55,11 +55,11 @@ func (r *Router) Send(ctx Context, targetId string, msg any) {
 	if !ok {
 		if r.defaultTarget == nil {
 			ctx.Logger().Error("target not found", "targetId", targetId)
+			return
 		} else {
-			ctx.Logger().Info("use default target", "targetId", targetId, "pid", r.defaultTarget)
+			ctx.Logger().Info("use default target", "targetId", targetId, "default target pid", r.defaultTarget)
 			pid = r.defaultTarget
 		}
-		return
 	}
 
 	ctx.Logger().Debug("route message to target", "targetId", targetId, "pid", pid, "msg", msg)

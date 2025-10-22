@@ -28,6 +28,20 @@ func NewConnectionManager() *ConnectionManager {
 }
 
 func (cm *ConnectionManager) Session(stream grpc.BidiStreamingServer[cluster.Message, cluster.Message]) error {
+	msg, err := stream.Recv()
+	if err != nil {
+		return err
+	}
+	if _, ok := msg.Message.(*cluster.Message_Ready); !ok {
+		logrus.Errorf("expect ready message, but got %+v", msg)
+		return nil
+	}
+	c, ok := cm.computers[msg.ConnID]
+	if !ok {
+		logrus.Errorf("compute session %s not found", msg.ConnID)
+		return nil
+	}
+	c.SetSender(stream.Send)
 	for {
 		msg, err := stream.Recv()
 		if err == io.EOF {
@@ -36,22 +50,8 @@ func (cm *ConnectionManager) Session(stream grpc.BidiStreamingServer[cluster.Mes
 		if err != nil {
 			return err
 		}
-		cm.onReceive(stream, msg)
+		c.Produce(msg)
 	}
-}
-
-func (cm *ConnectionManager) onReceive(stream grpc.BidiStreamingServer[cluster.Message, cluster.Message], msg *cluster.Message) {
-	c, ok := cm.computers[msg.ConnID]
-	if !ok {
-		logrus.Errorf("compute session %s not found, msg: %+v", msg.ConnID, msg)
-		return
-	}
-
-	if _, ok := msg.Message.(*cluster.Message_Ready); ok {
-		c.SetSender(stream.Send)
-	}
-
-	c.Produce(msg)
 }
 
 func (cm *ConnectionManager) NewConn(ctx context.Context, connId string) *ClusterStreamImpl {

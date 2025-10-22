@@ -18,9 +18,10 @@ func NewFunction(name string, params []string, requirements []string, obj []byte
 	})
 }
 
-func NewObjectRequest(store *proto.StoreRef, id string, replyTo string) *Envelope {
+func NewObjectRequest(store *proto.StoreRef, id string, target, replyTo string) *Envelope {
 	msg := &ObjectRequest{
 		ID:      id,
+		Target:  target,
 		ReplyTo: replyTo,
 	}
 	return NewEnvelope(store, msg)

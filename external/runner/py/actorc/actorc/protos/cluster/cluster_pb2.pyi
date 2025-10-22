@@ -31,22 +31,26 @@ STREAM_CHUNK: MessageType
 FUNCTION: MessageType
 
 class ObjectRequest(_message.Message):
-    __slots__ = ("ID", "ReplyTo")
+    __slots__ = ("ID", "Target", "ReplyTo")
     ID_FIELD_NUMBER: _ClassVar[int]
+    TARGET_FIELD_NUMBER: _ClassVar[int]
     REPLYTO_FIELD_NUMBER: _ClassVar[int]
     ID: str
+    Target: str
     ReplyTo: str
-    def __init__(self, ID: _Optional[str] = ..., ReplyTo: _Optional[str] = ...) -> None: ...
+    def __init__(self, ID: _Optional[str] = ..., Target: _Optional[str] = ..., ReplyTo: _Optional[str] = ...) -> None: ...
 
 class ObjectResponse(_message.Message):
-    __slots__ = ("ID", "Value", "Error")
+    __slots__ = ("ID", "Target", "Value", "Error")
     ID_FIELD_NUMBER: _ClassVar[int]
+    TARGET_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     ERROR_FIELD_NUMBER: _ClassVar[int]
     ID: str
+    Target: str
     Value: _platform_pb2.EncodedObject
     Error: str
-    def __init__(self, ID: _Optional[str] = ..., Value: _Optional[_Union[_platform_pb2.EncodedObject, _Mapping]] = ..., Error: _Optional[str] = ...) -> None: ...
+    def __init__(self, ID: _Optional[str] = ..., Target: _Optional[str] = ..., Value: _Optional[_Union[_platform_pb2.EncodedObject, _Mapping]] = ..., Error: _Optional[str] = ...) -> None: ...
 
 class Envelope(_message.Message):
     __slots__ = ("Store", "Type", "ObjectRequest", "ObjectResponse", "StreamChunk")

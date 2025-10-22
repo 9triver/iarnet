@@ -85,6 +85,7 @@ func (s *Session) onComplete(ctx actor.Context, obj objects.Interface, duration 
 }
 
 func (s *Session) doInvoke(ctx actor.Context) {
+	ctx.Logger().Info("session: invoke execution", "session", s.id, "params", s.params)
 	exec := &ExecInput{
 		Context:   ctx,
 		SessionID: s.id,

@@ -22,13 +22,15 @@ enum MessageType {
 // but no real stream chunk is transmitted.
 message ObjectRequest {
   string ID = 1;
-  string ReplyTo = 2;
+  string Target = 2;
+  string ReplyTo = 3;
 }
 
 message ObjectResponse {
   string ID = 1;
-  proto.EncodedObject Value = 2;
-  string Error = 3;
+  string Target = 2;
+  proto.EncodedObject Value = 3;
+  string Error = 4;
 }
 
 message Envelope {

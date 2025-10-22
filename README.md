@@ -1,5 +1,7 @@
 # Container Peer Service
 
+对等体actor通过router进行通信；replyTo 的场景；集成到 store 转发还是 router 转发；兼容hub转发和p2p转发；通信封装，对于actor而言拥有p2p通信体验
+
 实现前端点击 dag 节点显示详情
 
 整理代码、debug、跑通gossip交换provider部分

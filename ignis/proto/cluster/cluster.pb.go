@@ -98,7 +98,8 @@ func (MessageType) EnumDescriptor() ([]byte, []int) {
 type ObjectRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ID            string                 `protobuf:"bytes,1,opt,name=ID,proto3" json:"ID,omitempty"`
-	ReplyTo       string                 `protobuf:"bytes,2,opt,name=ReplyTo,proto3" json:"ReplyTo,omitempty"`
+	Target        string                 `protobuf:"bytes,2,opt,name=Target,proto3" json:"Target,omitempty"`
+	ReplyTo       string                 `protobuf:"bytes,3,opt,name=ReplyTo,proto3" json:"ReplyTo,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -140,6 +141,13 @@ func (x *ObjectRequest) GetID() string {
 	return ""
 }
 
+func (x *ObjectRequest) GetTarget() string {
+	if x != nil {
+		return x.Target
+	}
+	return ""
+}
+
 func (x *ObjectRequest) GetReplyTo() string {
 	if x != nil {
 		return x.ReplyTo
@@ -150,8 +158,9 @@ func (x *ObjectRequest) GetReplyTo() string {
 type ObjectResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ID            string                 `protobuf:"bytes,1,opt,name=ID,proto3" json:"ID,omitempty"`
-	Value         *proto.EncodedObject   `protobuf:"bytes,2,opt,name=Value,proto3" json:"Value,omitempty"`
-	Error         string                 `protobuf:"bytes,3,opt,name=Error,proto3" json:"Error,omitempty"`
+	Target        string                 `protobuf:"bytes,2,opt,name=Target,proto3" json:"Target,omitempty"`
+	Value         *proto.EncodedObject   `protobuf:"bytes,3,opt,name=Value,proto3" json:"Value,omitempty"`
+	Error         string                 `protobuf:"bytes,4,opt,name=Error,proto3" json:"Error,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -189,6 +198,13 @@ func (*ObjectResponse) Descriptor() ([]byte, []int) {
 func (x *ObjectResponse) GetID() string {
 	if x != nil {
 		return x.ID
+	}
+	return ""
+}
+
+func (x *ObjectResponse) GetTarget() string {
+	if x != nil {
+		return x.Target
 	}
 	return ""
 }
@@ -691,14 +707,16 @@ var File_cluster_cluster_proto protoreflect.FileDescriptor
 
 const file_cluster_cluster_proto_rawDesc = "" +
 	"\n" +
-	"\x15cluster/cluster.proto\x12\x05proto\x1a\x0eplatform.proto\"9\n" +
+	"\x15cluster/cluster.proto\x12\x05proto\x1a\x0eplatform.proto\"Q\n" +
 	"\rObjectRequest\x12\x0e\n" +
-	"\x02ID\x18\x01 \x01(\tR\x02ID\x12\x18\n" +
-	"\aReplyTo\x18\x02 \x01(\tR\aReplyTo\"b\n" +
+	"\x02ID\x18\x01 \x01(\tR\x02ID\x12\x16\n" +
+	"\x06Target\x18\x02 \x01(\tR\x06Target\x12\x18\n" +
+	"\aReplyTo\x18\x03 \x01(\tR\aReplyTo\"z\n" +
 	"\x0eObjectResponse\x12\x0e\n" +
-	"\x02ID\x18\x01 \x01(\tR\x02ID\x12*\n" +
-	"\x05Value\x18\x02 \x01(\v2\x14.proto.EncodedObjectR\x05Value\x12\x14\n" +
-	"\x05Error\x18\x03 \x01(\tR\x05Error\"\x9b\x02\n" +
+	"\x02ID\x18\x01 \x01(\tR\x02ID\x12\x16\n" +
+	"\x06Target\x18\x02 \x01(\tR\x06Target\x12*\n" +
+	"\x05Value\x18\x03 \x01(\v2\x14.proto.EncodedObjectR\x05Value\x12\x14\n" +
+	"\x05Error\x18\x04 \x01(\tR\x05Error\"\x9b\x02\n" +
 	"\bEnvelope\x12%\n" +
 	"\x05Store\x18\x01 \x01(\v2\x0f.proto.StoreRefR\x05Store\x12&\n" +
 	"\x04Type\x18\x02 \x01(\x0e2\x12.proto.MessageTypeR\x04Type\x12<\n" +

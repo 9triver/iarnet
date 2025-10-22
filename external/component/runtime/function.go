@@ -9,6 +9,7 @@ import (
 	"github.com/9triver/ignis/proto"
 	"github.com/9triver/ignis/proto/cluster"
 	"github.com/9triver/ignis/utils/errors"
+	"github.com/sirupsen/logrus"
 )
 
 type Funciton struct {
@@ -42,6 +43,7 @@ func (f *Funciton) Call(params map[string]objects.Interface) (objects.Interface,
 	} else {
 		obj, method = f.Name(), ""
 	}
+	logrus.Infof("runtime: call function %s.%s with params %v", obj, method, params)
 	result, err := f.manager.Execute(obj, method, params).Result()
 	if err != nil {
 		return nil, errors.WrapWith(err, "%s: execution failed", f.name)

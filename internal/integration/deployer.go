@@ -49,6 +49,7 @@ func (d *Deployer) DeployPyFunc(ctx actor.Context, appId string, f *controller.A
 	for i := range f.Replicas {
 		connId := fmt.Sprintf("%s:%s-%d", appId, f.Name, i)
 		stream := d.cm.NewConn(context.TODO(), connId)
+		stream.SendChan() <- funcMsg
 
 		cf, err := d.rm.Deploy(context.Background(), resource.ContainerSpec{
 			Image: image,
@@ -81,10 +82,6 @@ func (d *Deployer) DeployPyFunc(ctx actor.Context, appId string, f *controller.A
 			defer stream.Close()
 			for msg := range stream.RecvChan() {
 				m := msg.Unwrap()
-				if _, ok := m.(*cluster.Ready); ok {
-					stream.SendChan() <- funcMsg
-					continue
-				}
 				if mt, ok := m.(store.RequiresReplyMessage); ok {
 					router.RegisterIfAbsent(mt.GetReplyTo(), pid)
 				}

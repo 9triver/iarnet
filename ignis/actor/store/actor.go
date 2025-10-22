@@ -26,12 +26,21 @@ type Actor struct {
 }
 
 func (s *Actor) onObjectRequest(ctx actor.Context, req *cluster.ObjectRequest) {
+	if req.Target != s.id {
+		ctx.Logger().Warn("store: object request target not match",
+			"id", req.ID,
+			"target", req.Target,
+			"store", s.id,
+		)
+		return
+	}
+
 	ctx.Logger().Info("store: responding object",
 		"id", req.ID,
 		"replyTo", req.ReplyTo,
 	)
 
-	reply := &cluster.ObjectResponse{ID: req.ID}
+	reply := &cluster.ObjectResponse{ID: req.ID, Target: req.ReplyTo}
 	obj, ok := s.localObjects[req.ID]
 	if !ok {
 		reply.Error = errors.Format("store: object %s not found", req.ID).Error()
@@ -45,10 +54,10 @@ func (s *Actor) onObjectRequest(ctx actor.Context, req *cluster.ObjectRequest) {
 	// if requested object is a stream, send all chunks
 	if stream, ok := obj.(*objects.Stream); ok {
 		go func() {
-			defer router.Send(ctx, req.ReplyTo, proto.NewStreamEnd(req.ID))
+			defer router.Send(ctx, req.ReplyTo, proto.NewStreamEnd(req.ID, req.ReplyTo))
 			for obj := range stream.ToChan() {
 				encoded, err := obj.Encode()
-				msg := proto.NewStreamChunk(req.ID, encoded, err)
+				msg := proto.NewStreamChunk(req.ID, req.ReplyTo, encoded, err)
 				router.Send(ctx, req.ReplyTo, msg)
 			}
 		}()
@@ -142,7 +151,8 @@ func (s *Actor) requestRemoteObject(ctx actor.Context, flow *proto.Flow) utils.F
 
 	router.Send(ctx, remoteRef.ID, &cluster.ObjectRequest{
 		ID:      flow.ID,
-		ReplyTo: s.ref.ID,
+		Target:  flow.Source.ID,
+		ReplyTo: s.id,
 	})
 	return fut
 }
@@ -153,7 +163,7 @@ func (s *Actor) onFlowRequest(ctx actor.Context, req *RequestObject) {
 		"store", req.Flow.Source.ID,
 	)
 
-	if req.Flow.Source.ID == s.ref.ID {
+	if req.Flow.Source.ID == s.id {
 		obj, err := s.getLocalObject(req.Flow)
 		ctx.Send(req.ReplyTo, &ObjectResponse{
 			Value: obj,
@@ -177,6 +187,10 @@ func (s *Actor) onForward(ctx actor.Context, forward ForwardMessage) {
 	// 	ctx.Logger().Info("store: forwarding request")
 	// 	s.stub.SendTo(target.Store, forward)
 	// }
+	ctx.Logger().Info("store: forwarding request",
+		"target", forward.GetTarget(),
+		"msg", forward,
+	)
 	router.Send(ctx, forward.GetTarget(), forward)
 }
 
@@ -198,6 +212,8 @@ func (s *Actor) Receive(ctx actor.Context) {
 	// forward messages
 	case ForwardMessage:
 		s.onForward(ctx, msg)
+	default:
+		ctx.Logger().Warn("store: unknown message type", "store", s.id, "type", msg)
 	}
 }
 
