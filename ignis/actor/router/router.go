@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/asynkron/protoactor-go/actor"
+	"github.com/sirupsen/logrus"
 )
 
 type Context interface {
@@ -30,6 +31,10 @@ func RegisterIfAbsent(targetId string, pid *actor.PID) {
 	DefaultRouter.RegisterIfAbsent(targetId, pid)
 }
 
+func SetDefaultTarget(pid *actor.PID) {
+	DefaultRouter.SetDefaultTarget(pid)
+}
+
 type Router struct {
 	mu            sync.Mutex
 	routeTable    map[string]*actor.PID
@@ -48,7 +53,12 @@ func (r *Router) Send(ctx Context, targetId string, msg any) {
 
 	pid, ok := r.routeTable[targetId]
 	if !ok {
-		ctx.Logger().Error("target not found", "targetId", targetId)
+		if r.defaultTarget == nil {
+			ctx.Logger().Error("target not found", "targetId", targetId)
+		} else {
+			ctx.Logger().Info("use default target", "targetId", targetId, "pid", r.defaultTarget)
+			pid = r.defaultTarget
+		}
 		return
 	}
 
@@ -61,6 +71,7 @@ func (r *Router) SetDefaultTarget(pid *actor.PID) {
 	defer r.mu.Unlock()
 
 	r.defaultTarget = pid
+	logrus.Info("set default target", "pid", pid)
 }
 
 func (r *Router) Register(targetId string, pid *actor.PID) {

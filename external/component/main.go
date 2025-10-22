@@ -16,7 +16,6 @@ import (
 
 	"github.com/9triver/iarnet/component/py"
 	"github.com/9triver/iarnet/component/runtime"
-	"github.com/9triver/iarnet/component/stub"
 	"github.com/9triver/ignis/actor/compute"
 	"github.com/9triver/ignis/actor/router"
 	"github.com/9triver/ignis/actor/store"
@@ -117,7 +116,13 @@ func main() {
 	opt := utils.WithLogger()
 	sys := actor.NewActorSystem(opt)
 
-	sr := store.Spawn(sys.Root, stub.NewRpcStub(stream), "store"+connId)
+	stubPid := sys.Root.Spawn(actor.PropsFromProducer(func() actor.Actor {
+		return NewStub(connId, stream)
+	}))
+	router.Register("stub-"+connId, stubPid)
+	router.SetDefaultTarget(stubPid)
+
+	sr := store.Spawn(sys.Root, nil, "store"+connId)
 	router.Register("store"+connId, sr.PID)
 
 	props := compute.NewActor(connId, f, sr.PID)
@@ -128,11 +133,6 @@ func main() {
 	}
 
 	router.Register(connId, pid)
-
-	stubPid := sys.Root.Spawn(actor.PropsFromProducer(func() actor.Actor {
-		return NewStub(connId, stream)
-	}))
-	router.Register("stub-"+connId, stubPid)
 
 	go func() {
 		for {
@@ -145,9 +145,10 @@ func main() {
 				return
 			}
 			m := msg.Unwrap()
-			if m, ok := m.(store.RequiresReplyMessage); ok {
-				router.RegisterIfAbsent(m.GetReplyTo(), stubPid)
-			}
+			logrus.Infof("Received message: %+v", m)
+			// if m, ok := m.(store.RequiresReplyMessage); ok {
+			// 	router.RegisterIfAbsent(m.GetReplyTo(), stubPid)
+			// }
 			if m, ok := m.(store.ForwardMessage); ok {
 				router.Send(sys.Root, m.GetTarget(), m)
 			} else {
@@ -203,6 +204,7 @@ func (s *Stub) Receive(ctx actor.Context) {
 			return
 		}
 		m.ConnID = s.connId
+		logrus.Infof("Sending message: %+v", m)
 		if err := s.stream.Send(m); err != nil {
 			ctx.Logger().Error("failed to send message", "msg", m, "error", err)
 		}

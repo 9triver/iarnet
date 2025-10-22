@@ -130,7 +130,7 @@ func (s *Actor) getLocalObject(flow *proto.Flow) (objects.Interface, error) {
 	return obj, nil
 }
 
-func (s *Actor) requestRemoteObject(flow *proto.Flow) utils.Future[objects.Interface] {
+func (s *Actor) requestRemoteObject(ctx actor.Context, flow *proto.Flow) utils.Future[objects.Interface] {
 	if fut, ok := s.remoteObjects[flow.ID]; ok {
 		return fut
 	}
@@ -139,7 +139,8 @@ func (s *Actor) requestRemoteObject(flow *proto.Flow) utils.Future[objects.Inter
 	s.remoteObjects[flow.ID] = fut
 
 	remoteRef := flow.Source
-	s.stub.SendTo(remoteRef, &cluster.ObjectRequest{
+
+	router.Send(ctx, remoteRef.ID, &cluster.ObjectRequest{
 		ID:      flow.ID,
 		ReplyTo: s.ref.ID,
 	})
@@ -159,7 +160,7 @@ func (s *Actor) onFlowRequest(ctx actor.Context, req *RequestObject) {
 			Error: err,
 		})
 	} else {
-		s.requestRemoteObject(req.Flow).OnDone(func(obj objects.Interface, duration time.Duration, err error) {
+		s.requestRemoteObject(ctx, req.Flow).OnDone(func(obj objects.Interface, duration time.Duration, err error) {
 			ctx.Send(req.ReplyTo, &ObjectResponse{
 				Value: obj,
 				Error: err,

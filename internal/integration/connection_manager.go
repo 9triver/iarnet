@@ -43,7 +43,7 @@ func (cm *ConnectionManager) Session(stream grpc.BidiStreamingServer[cluster.Mes
 func (cm *ConnectionManager) onReceive(stream grpc.BidiStreamingServer[cluster.Message, cluster.Message], msg *cluster.Message) {
 	c, ok := cm.computers[msg.ConnID]
 	if !ok {
-		logrus.Errorf("compute session %s not found", msg.ConnID)
+		logrus.Errorf("compute session %s not found, msg: %+v", msg.ConnID, msg)
 		return
 	}
 
