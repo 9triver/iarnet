@@ -46,6 +46,7 @@ func (d *Deployer) DeployPyFunc(ctx actor.Context, appId string, f *controller.A
 
 	infos := make([]*proto.ActorInfo, f.Replicas)
 
+	ctx.Logger().Info("deploying %d replicas of function %s", "name", f.Name, "replicas", f.Replicas)
 	for i := range f.Replicas {
 		connId := fmt.Sprintf("%s:%s-%d", appId, f.Name, i)
 		stream := d.cm.NewConn(context.TODO(), connId)
@@ -71,9 +72,13 @@ func (d *Deployer) DeployPyFunc(ctx actor.Context, appId string, f *controller.A
 		logrus.Infof("deployed to provider: %s, container ID: %s", cf.Provider.GetID(), cf.ID)
 		d.am.RegisterComponent(appId, connId, cf)
 
+		ctx.Logger().Debug("122")
+
 		pid := ctx.Spawn(actor.PropsFromProducer(func() actor.Actor {
 			return NewStub(stream)
 		}))
+
+		ctx.Logger().Debug("123")
 
 		router.Register(connId, pid)
 		router.Register("store-"+connId, pid)

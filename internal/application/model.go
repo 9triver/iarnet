@@ -68,6 +68,7 @@ type ControlNode struct {
 	FunctionName string            `json:"functionName,omitempty"`
 	Params       map[string]string `json:"params,omitempty"` // lambda_id -> parameter_name mapping
 	Current      int32             `json:"current,omitempty"`
+	LastUpdated  time.Time         `json:"lastUpdated,omitempty"` // 最后更新时间
 }
 
 func (x *ControlNode) isDAGNode_Node() {}
@@ -108,12 +109,13 @@ func (x *ControlNode) GetCurrent() int32 {
 }
 
 type DataNode struct {
-	Id         string   `json:"id,omitempty"`
-	Done       bool     `json:"done,omitempty"`
-	Lambda     string   `json:"lambda,omitempty"` // lambda id
-	Ready      bool     `json:"ready,omitempty"`
-	ParentNode *string  `json:"parentNode,omitempty"` // id of parent data node (nullable)
-	ChildNode  []string `json:"childNode,omitempty"`  // ids of child data nodes
+	Id          string    `json:"id,omitempty"`
+	Done        bool      `json:"done,omitempty"`
+	Lambda      string    `json:"lambda,omitempty"` // lambda id
+	Ready       bool      `json:"ready,omitempty"`
+	ParentNode  *string   `json:"parentNode,omitempty"` // id of parent data node (nullable)
+	ChildNode   []string  `json:"childNode,omitempty"`  // ids of child data nodes
+	LastUpdated time.Time `json:"lastUpdated,omitempty"` // 最后更新时间
 }
 
 func (x *DataNode) isDAGNode_Node() {}

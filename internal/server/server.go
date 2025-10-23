@@ -64,6 +64,7 @@ func NewServer(rm *resource.Manager, am *application.Manager, pm *discovery.Peer
 	s.router.HandleFunc("/application/apps/{id}/dag", s.handleGetApplicationDAG).Methods("GET")
 	s.router.HandleFunc("/application/apps/{id}/analyze", s.handleAnalyzeApplication).Methods("POST")
 	s.router.HandleFunc("/application/apps/{id}/deploy-components", s.handleDeployComponents).Methods("POST")
+	s.router.HandleFunc("/application/apps/{id}/components", s.handleGetApplicationComponents).Methods("GET")
 	s.router.HandleFunc("/application/apps/{id}/components/{componentId}/start", s.handleStartComponent).Methods("POST")
 	s.router.HandleFunc("/application/apps/{id}/components/{componentId}/stop", s.handleStopComponent).Methods("POST")
 	s.router.HandleFunc("/application/apps/{id}/components/{componentId}/status", s.handleGetComponentStatus).Methods("GET")
@@ -75,6 +76,9 @@ func NewServer(rm *resource.Manager, am *application.Manager, pm *discovery.Peer
 	s.router.HandleFunc("/peer/nodes", s.handleGetPeerNodes).Methods("GET")
 	s.router.HandleFunc("/peer/nodes", s.handleAddPeerNode).Methods("POST")
 	s.router.HandleFunc("/peer/nodes/{id}", s.handleRemovePeerNode).Methods("DELETE")
+
+	// WebSocket API
+	s.router.HandleFunc("/ws/dag-state", s.handleWebSocketConnection).Methods("GET")
 
 	return s
 }
@@ -1001,6 +1005,73 @@ func (s *Server) deployComponent(component *application.Component) error {
 	return nil
 }
 
+// handleGetApplicationComponents 获取应用组件列表
+func (s *Server) handleGetApplicationComponents(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	appID := vars["id"]
+	logrus.Infof("Received request to get components for application: %s", appID)
+
+	// 验证应用是否存在
+	app, err := s.appMgr.GetApplication(appID)
+	if err != nil {
+		logrus.Warnf("Application not found: %s", appID)
+		response.WriteError(w, http.StatusNotFound, "application not found", err)
+		return
+	}
+
+	// 构建组件信息列表
+	var components []map[string]interface{}
+	for name, component := range app.Components {
+		var providerID string
+		var resourceUsage map[string]interface{}
+
+		// 获取 provider ID
+		if component.ContainerRef != nil && component.ContainerRef.Provider != nil {
+			providerID = component.ContainerRef.Provider.GetID()
+		}
+
+		// 获取资源使用信息
+		if component.ContainerRef != nil {
+			resourceUsage = map[string]interface{}{
+				"cpu":    component.ContainerRef.Spec.Requirements.CPU,
+				"memory": component.ContainerRef.Spec.Requirements.Memory,
+				"gpu":    component.ContainerRef.Spec.Requirements.GPU,
+			}
+		} else {
+			resourceUsage = map[string]interface{}{
+				"cpu":    0,
+				"memory": 0,
+				"gpu":    0,
+			}
+		}
+
+		componentInfo := map[string]interface{}{
+			"id":             name,
+			"name":           component.Name,
+			"image":          component.Image,
+			"status":         component.Status,
+			"provider_id":    providerID,
+			"resource_usage": resourceUsage,
+			"deployed_at":    component.DeployedAt.Format("2006-01-02 15:04:05"),
+			"created_at":     component.CreatedAt.Format("2006-01-02 15:04:05"),
+			"updated_at":     component.UpdatedAt.Format("2006-01-02 15:04:05"),
+		}
+		components = append(components, componentInfo)
+	}
+
+	componentsResponse := map[string]interface{}{
+		"application_id": appID,
+		"components":     components,
+		"total_count":    len(components),
+	}
+
+	if err := response.WriteSuccess(w, componentsResponse); err != nil {
+		logrus.Errorf("Failed to write components response: %v", err)
+		return
+	}
+	logrus.Debugf("Successfully retrieved %d components for application: %s", len(components), appID)
+}
+
 // handleStartComponent 启动组件
 func (s *Server) handleStartComponent(w http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
@@ -1508,4 +1579,33 @@ func (s *Server) handleStopApplication(w http.ResponseWriter, req *http.Request)
 		return
 	}
 	logrus.Infof("Successfully stopped application: %s", appID)
+}
+
+// handleWebSocketConnection 处理WebSocket连接
+func (s *Server) handleWebSocketConnection(w http.ResponseWriter, r *http.Request) {
+	// 获取应用ID（从查询参数）
+	applicationID := r.URL.Query().Get("appId")
+	if applicationID == "" {
+		http.Error(w, "appId parameter is required", http.StatusBadRequest)
+		return
+	}
+
+	// 获取客户端ID（可选，如果没有则生成一个）
+	clientID := r.URL.Query().Get("clientId")
+	if clientID == "" {
+		clientID = fmt.Sprintf("client_%d", time.Now().UnixNano())
+	}
+
+	// 获取WebSocket Hub
+	wsHub := s.appMgr.GetWebSocketHub()
+	if wsHub == nil {
+		logrus.Error("WebSocket hub is not available")
+		http.Error(w, "WebSocket service unavailable", http.StatusServiceUnavailable)
+		return
+	}
+
+	// 使用Hub的HandleWebSocket方法处理连接
+	wsHub.HandleWebSocket(w, r, applicationID, clientID)
+	
+	logrus.Infof("WebSocket connection handled for app %s, client %s", applicationID, clientID)
 }

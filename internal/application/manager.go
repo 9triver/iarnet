@@ -18,6 +18,7 @@ import (
 	"github.com/9triver/iarnet/internal/config"
 	"github.com/9triver/iarnet/internal/resource"
 	"github.com/9triver/iarnet/internal/server/request"
+	"github.com/9triver/iarnet/internal/websocket"
 	"github.com/9triver/iarnet/proto"
 	"github.com/9triver/ignis/platform"
 	"github.com/9triver/ignis/proto/controller"
@@ -52,6 +53,29 @@ type Manager struct {
 	analysisService CodeAnalysisService
 	ignisPlatform   *platform.Platform
 	dockerClient    *client.Client
+	wsHub           *websocket.Hub // WebSocket hub for real-time updates
+}
+
+// OnDAGStateChanged 实现StateChangeObserver接口
+func (m *Manager) OnDAGStateChanged(event *platform.DAGStateChangeEvent) {
+	logrus.Infof("DAG state changed for app %s, node %s", event.AppID, event.NodeID)
+
+	// 通过WebSocket广播DAG状态变化
+	if m.wsHub != nil {
+		wsEvent := websocket.DAGStateEvent{
+			Type:          "dag_node_state_change",
+			ApplicationID: event.AppID,
+			NodeID:        event.NodeID,
+			NodeState:     "done", // 节点完成状态
+			Timestamp:     event.Timestamp.Unix(),
+			Data: map[string]interface{}{
+				"node_type": event.NodeState.Type,
+				"done":      event.NodeState.Done,
+				"ready":     event.NodeState.Ready,
+			},
+		}
+		m.wsHub.BroadcastDAGStateChange(wsEvent)
+	}
 }
 
 // CodeBrowserInfo 代码浏览器信息
@@ -82,6 +106,10 @@ func NewManager(config *config.Config, resourceManager *resource.Manager) *Manag
 
 	logrus.Info("Successfully connected to docker daemon")
 
+	// Initialize WebSocket hub
+	wsHub := websocket.NewHub()
+	go wsHub.Run() // Start the hub in a goroutine
+
 	m := &Manager{
 		applications:  make(map[string]*AppRef),
 		nextAppID:     1,
@@ -90,6 +118,7 @@ func NewManager(config *config.Config, resourceManager *resource.Manager) *Manag
 		rm:            resourceManager,
 		ignisPlatform: nil,
 		dockerClient:  cli,
+		wsHub:         wsHub,
 	}
 
 	return m
@@ -97,6 +126,12 @@ func NewManager(config *config.Config, resourceManager *resource.Manager) *Manag
 
 func (m *Manager) SetIgnisPlatform(ignisPlatform *platform.Platform) {
 	m.ignisPlatform = ignisPlatform
+	logrus.Info("Ignis platform set in application manager")
+}
+
+// GetWebSocketHub returns the WebSocket hub for external use
+func (m *Manager) GetWebSocketHub() *websocket.Hub {
+	return m.wsHub
 }
 
 func (m *Manager) RegisterComponent(appID string, name string, cf *resource.ContainerRef) error {
@@ -446,6 +481,7 @@ func (m *Manager) CreateApplication(createReq *request.CreateApplicationRequest)
 		ID:          appID,
 		Name:        createReq.Name,
 		Status:      StatusUndeployed,
+		Components:  make(map[string]*Component),
 		Type:        createReq.Type,
 		GitUrl:      createReq.GitUrl,
 		Branch:      createReq.Branch,
@@ -1022,18 +1058,30 @@ func (m *Manager) GetApplicationDAG(appID string) (*DAG, error) {
 	// m.mu.RLock()
 	// defer m.mu.RUnlock()
 
-	ignisDAG := m.ignisPlatform.GetApplicationDAG(appID)
+	// 获取ApplicationInfo并注册观察者
+	appInfo := m.ignisPlatform.GetApplicationInfo(appID)
+	if appInfo == nil {
+		return nil, errors.New("application info not found")
+	}
+
+	// 注册观察者（如果还没有注册的话）
+	appInfo.AddObserver(m)
+
+	ignisDAG := appInfo.GetDAG()
 	if ignisDAG == nil {
 		return nil, errors.New("application DAG not found")
 	}
 
-	return m.ConvertToApplicationDAG(ignisDAG), nil
+	return m.ConvertToApplicationDAG(ignisDAG, appInfo), nil
 }
 
-func (m *Manager) ConvertToApplicationDAG(dag *controller.DAG) *DAG {
+func (m *Manager) ConvertToApplicationDAG(dag *controller.DAG, appInfo *platform.ApplicationInfo) *DAG {
 	protoNodes := dag.GetNodes()
 
 	protoDataNodeMap := make(map[string]*controller.DataNode)
+
+	// 获取最新的节点状态
+	nodeStates := appInfo.GetNodeStates()
 
 	// 转换节点
 	var appNodes []*DAGNode
@@ -1043,24 +1091,54 @@ func (m *Manager) ConvertToApplicationDAG(dag *controller.DAG) *DAG {
 
 		if protoNode.GetType() == "ControlNode" {
 			controlNode := protoNode.GetControlNode()
+			nodeID := controlNode.GetId()
+			
+			// 从最新状态获取信息
+			var done bool
+			var lastUpdated time.Time
+			if nodeState, exists := nodeStates[nodeID]; exists {
+				done = nodeState.Done
+				lastUpdated = nodeState.UpdateAt
+			} else {
+				done = controlNode.GetDone()
+				lastUpdated = time.Now()
+			}
+			
 			appNode = &DAGNode{
 				Type: "ControlNode",
 				Node: &ControlNode{
-					Id:           controlNode.GetId(),
-					Done:         controlNode.GetDone(),
+					Id:           nodeID,
+					Done:         done,
 					FunctionName: controlNode.GetFunctionName(),
 					Params:       controlNode.GetParams(),
 					Current:      controlNode.GetCurrent(),
+					LastUpdated:  lastUpdated,
 				},
 			}
 		} else if protoNode.GetType() == "DataNode" {
 			dataNode := protoNode.GetDataNode()
+			nodeID := dataNode.GetId()
+			
+			// 从最新状态获取信息
+			var done, ready bool
+			var lastUpdated time.Time
+			if nodeState, exists := nodeStates[nodeID]; exists {
+				done = nodeState.Done
+				ready = nodeState.Ready
+				lastUpdated = nodeState.UpdateAt
+			} else {
+				done = dataNode.GetDone()
+				ready = dataNode.GetReady()
+				lastUpdated = time.Now()
+			}
+			
 			appDataNode := &DataNode{
-				Id:        dataNode.GetId(),
-				Done:      dataNode.GetDone(),
-				Lambda:    dataNode.GetLambda(),
-				Ready:     dataNode.GetReady(),
-				ChildNode: dataNode.GetChildNode(),
+				Id:          nodeID,
+				Done:        done,
+				Lambda:      dataNode.GetLambda(),
+				Ready:       ready,
+				ChildNode:   dataNode.GetChildNode(),
+				LastUpdated: lastUpdated,
 			}
 
 			// 处理可选字段

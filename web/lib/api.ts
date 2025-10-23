@@ -26,7 +26,10 @@ async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promi
 
   const data = await response.json()
 
-  console.log("API Response:", response.status, data)
+  // 只记录非404错误的日志，404通常表示资源不存在，这在某些情况下是正常的
+  // if (response.status !== 404) {
+  //   console.log("API Response:", response.status, data)
+  // }
 
   if (!response.ok) {
     throw new APIError(response.status, data.message || data.error || "API request failed")

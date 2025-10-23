@@ -9,11 +9,13 @@ RUN go mod download
 RUN go build -o runner ./main.go
 
 # ======= 运行环境 1：Python =======
-FROM python:3.11-slim AS python_3.11
-RUN apt-get update && apt-get install -y \
+FROM python:3.11-alpine AS python_3.11
+RUN apk update && apk add --no-cache \
     git \
     ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+    bash \
+    && ln -sf /usr/local/bin/python3 /usr/bin/python \
+    && ln -sf /usr/local/bin/pip3 /usr/bin/pip
 
 # 安装 actorc 及其依赖
 COPY containers/envs/python/libs/actorc /tmp/actorc

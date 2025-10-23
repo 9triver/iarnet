@@ -1,16 +1,20 @@
 # Container Peer Service
 
-gossip 优化前后端 跑例子 debug
+docker stop $(docker ps -q) && docker rm $(docker ps -aq)
 
-k8s router 
+1. gossip 完善前后端交互 跑例子 debug  实现前端点击 dag 节点显示详情 ws调通
+2. k8s router git submodule
+3. 从 ignis 中获取应用实际执行结果
+4. actorc 调度改为异步非阻塞
+<!-- 4. dag node 改三状态：等待、进行、完成，更改节点状态的获取机制，如前端拿到ref时才变为已完成 -->
+5. 例子重构，文件访问需要换种方式
+
+(并发优化)
 
 两边py版本不一样会报错 segfault
 
 对等体actor通过router进行通信；replyTo 的场景；集成到 store 转发还是 router 转发；兼容hub转发和p2p转发；通信封装，对于actor而言拥有p2p通信体验
 
-实现前端点击 dag 节点显示详情
-
-整理代码、debug、跑通gossip交换provider部分
 proto actor go 远程调用问题手动解决，后续可以在proto actor go基础上进行二开，封装一个actor.Context自动适配远程调用
 
 问题记录

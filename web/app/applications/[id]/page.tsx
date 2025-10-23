@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { applicationsAPI } from "@/lib/api"
+import { applicationsAPI, APIError } from "@/lib/api"
+import { getWebSocketManager, disconnectWebSocketManager } from "@/lib/websocket"
 import type { LogEntry, Application, DAG, DAGNode, DAGEdge, ControlNode, DataNode } from "@/lib/model"
 import { Sidebar } from "@/components/sidebar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -75,17 +76,17 @@ const DAGNodeComponent = ({ g6Node }: { g6Node: any }) => {
   
   const getStatusColor = () => {
     if (isControl) {
-      return (node as ControlNode)?.done ? "bg-green-500" : "bg-yellow-500"
+      return (node as ControlNode)?.done ? "bg-green-500" : "bg-gray-400"
     } else {
-      return (node as DataNode)?.ready ? "bg-green-500" : "bg-gray-400"
+      return (node as DataNode)?.done ? "bg-green-500" : "bg-gray-400"
     }
   }
-  
+
   const getStatusText = () => {
     if (isControl) {
-      return (node as ControlNode)?.done ? "已完成" : "进行中"
+      return (node as ControlNode)?.done ? "已完成" : "未开始"
     } else {
-      return (node as DataNode)?.ready ? "就绪" : "未就绪"
+      return (node as DataNode)?.done ? "已完成" : "未开始"
     }
   }
 
@@ -129,9 +130,35 @@ export default function ApplicationDetailPage() {
 
   const applicationId = params.id as string
 
+  // 处理刷新DAG按钮点击
+  const handleRefreshDAG = () => {
+    loadAppDAG()
+  }
+
   useEffect(() => {
     loadApplicationDetail()
     loadAppDAG()
+    
+    // 建立WebSocket连接以接收实时DAG状态更新
+    if (applicationId) {
+      const wsManager = getWebSocketManager(applicationId)
+      
+      // 监听DAG状态变化事件
+      const handleDAGStateChange = (event: any) => {
+        console.log('Received DAG state change:', event)
+        // 重新加载DAG数据
+        handleRefreshDAG()
+      }
+      
+      wsManager.addHandler(handleDAGStateChange)
+      wsManager.connect()
+      
+      // 清理函数
+      return () => {
+        wsManager.removeHandler(handleDAGStateChange)
+        disconnectWebSocketManager(applicationId)
+      }
+    }
   }, [applicationId])
 
   // 当日志行数改变时重新加载日志
@@ -213,8 +240,8 @@ export default function ApplicationDetailPage() {
               nodeName: nodeName,
               node: node.node,
               status: node.type === "ControlNode" 
-                ? ((node.node as ControlNode)?.done ? "done" : "running")
-                : ((node.node as DataNode)?.ready ? "ready" : "pending")
+                ? ((node.node as ControlNode)?.done ? "done" : "pending")
+                : ((node.node as DataNode)?.done ? "done" : "pending")
             },
           }
         }),
@@ -423,7 +450,13 @@ export default function ApplicationDetailPage() {
 
       setAppDAG(dagResponse.dag)
     } catch (error) {
-      console.error('Failed to load DAG:', error)
+      // DAG不存在是正常现象，应用只有在运行时才会有DAG
+      // 只在非404错误时才记录错误日志
+      if (error instanceof APIError && error.status === 404) {
+        // 404错误是正常的，不记录日志
+      } else {
+        console.error('Failed to load DAG:', error)
+      }
       setAppDAG(null)
     } finally {
       setIsLoadingAppDAG(false)
@@ -703,7 +736,7 @@ export default function ApplicationDetailPage() {
                       <span>组件管理</span>
                     </CardTitle>
                     <div className="flex items-center space-x-2">
-                      <Button variant="outline" size="sm" onClick={loadAppDAG} disabled={isLoadingComponents}>
+                      <Button variant="outline" size="sm" onClick={handleRefreshDAG} disabled={isLoadingComponents}>
                         <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingComponents ? 'animate-spin' : ''}`} />
                         刷新
                       </Button>
@@ -826,13 +859,13 @@ export default function ApplicationDetailPage() {
                                 <div className="flex items-center space-x-2">
                                   <div className="flex items-center space-x-1">
                                     <div className={`w-2 h-2 rounded-full ${isControl
-                                      ? (controlNode?.done ? "bg-green-500" : "bg-yellow-500")
-                                      : (dataNode?.ready ? "bg-green-500" : "bg-gray-400")
+                                      ? (controlNode?.done ? "bg-green-500" : "bg-gray-400")
+                                      : (dataNode?.done ? "bg-green-500" : "bg-gray-400")
                                       }`} />
                                     <span className="text-xs text-muted-foreground">
                                       {isControl
-                                        ? (controlNode?.done ? "已完成" : "进行中")
-                                        : (dataNode?.ready ? "就绪" : "未就绪")
+                                        ? (controlNode?.done ? "已完成" : "未开始")
+                                        : (dataNode?.done ? "已完成" : "未开始")
                                       }</span>
                                   </div>
                                 </div>
