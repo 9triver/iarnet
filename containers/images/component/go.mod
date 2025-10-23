@@ -4,7 +4,7 @@ go 1.24
 
 replace github.com/9triver/ignis => ../../../ignis
 
-replace github.com/9triver/iarnet/component/python/runtime => ../../shared/python/runtime
+replace github.com/9triver/iarnet/component/python/runtime => ../../envs/python/runtime
 
 require (
 	github.com/9triver/iarnet/component/python/runtime v0.0.0-00010101000000-000000000000
