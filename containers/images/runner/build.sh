@@ -29,17 +29,21 @@ echo "👉 环境:   ${ENVIRONMENT}"
 echo "👉 镜像:   ${FULL_TAG}"
 echo "============================================"
 
+# 切换到项目根目录进行构建（因为需要访问跨目录依赖）
+PROJECT_ROOT="../../../"
+cd "$PROJECT_ROOT"
+
 # 构建镜像
 if [ "$ENVIRONMENT" = "python_3.11" ]; then
   docker build \
     --target python_3.11 \
     -t ${FULL_TAG} \
-    -f Dockerfile .
+    -f containers/images/runner/Dockerfile .
 else
   docker build \
     --build-arg BUILD_ENV=${ENVIRONMENT} \
     -t ${FULL_TAG} \
-    -f Dockerfile .
+    -f containers/images/runner/Dockerfile .
 fi
 
 echo "✅ 构建完成: ${FULL_TAG}"

@@ -1,8 +1,6 @@
 FROM golang:1.25.0 AS builder
 WORKDIR /app
-COPY go.mod .
-COPY go.sum .
-COPY main.go .
+COPY containers/images/runner .
 
 ENV GOPROXY=https://goproxy.cn,direct
 ENV GOSUMDB=sum.golang.org
@@ -18,11 +16,11 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # 安装 actorc 及其依赖
-COPY ../shared/python/libs/actorc /tmp/actorc
+COPY containers/envs/python/libs/actorc /tmp/actorc
 RUN cd /tmp/actorc && pip install -e .
 
 # 安装 lucas 及其依赖
-COPY ../shared/python/libs/lucas /tmp/lucas
+COPY containers/envs/python/libs/lucas /tmp/lucas
 RUN cd /tmp/lucas && pip install -e .
 
 COPY --from=builder /app/runner /usr/bin/runner

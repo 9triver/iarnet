@@ -40,7 +40,7 @@ echo -e "${YELLOW}构建镜像标签: $IMAGE_TAG${NC}"
 
 # 构建 Docker 镜像
 echo -e "${YELLOW}开始 Docker 构建...${NC}"
-docker build -f iarnet/external/component/Dockerfile -t "$IMAGE_TAG" .
+docker build -f containers/images/component/Dockerfile -t "$IMAGE_TAG" .
 
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✅ Docker 镜像构建成功!${NC}"

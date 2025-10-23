@@ -15,10 +15,10 @@ WORKDIR /build
 
 # 复制整个项目到构建容器中（因为有跨目录依赖）
 # 注意：这需要从项目根目录运行 docker build
-COPY iarnet /build/iarnet
+COPY . /build/iarnet
 
 # 切换到 component 目录
-WORKDIR /build/iarnet/external/component
+WORKDIR /build/iarnet/containers/images/component
 
 # 下载依赖
 RUN go mod download
@@ -71,7 +71,7 @@ RUN apk add --no-cache \
 RUN addgroup -S appuser && adduser -S -G appuser appuser
 
 # 安装 actorc 及其依赖到系统 Python
-COPY --from=builder /build/iarnet/containers/shared/python/libs/actorc /tmp/actorc
+COPY --from=builder /build/iarnet/containers/envs/python/libs/actorc /tmp/actorc
 RUN pip install --upgrade pip
 RUN pip install numpy
 RUN cd /tmp/actorc && pip install -e .
@@ -83,7 +83,7 @@ WORKDIR /app
 COPY --from=builder /build/iarnet/containers/images/component/component /app/component
 
 # 复制 Python 执行器文件
-COPY --from=builder /build/iarnet/containers/shared/python/runtime/executor.py /app/py/executor.py
+COPY --from=builder /build/iarnet/containers/envs/python/runtime/executor.py /app/py/executor.py
 
 # 设置权限
 RUN chown -R appuser:appuser /app
