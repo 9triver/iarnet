@@ -71,7 +71,7 @@ RUN apk add --no-cache \
 RUN addgroup -S appuser && adduser -S -G appuser appuser
 
 # 安装 actorc 及其依赖到系统 Python
-COPY --from=builder /build/iarnet/external/runner/py/actorc /tmp/actorc
+COPY --from=builder /build/iarnet/containers/shared/python/libs/actorc /tmp/actorc
 RUN pip install --upgrade pip
 RUN pip install numpy
 RUN cd /tmp/actorc && pip install -e .
@@ -80,10 +80,10 @@ RUN cd /tmp/actorc && pip install -e .
 WORKDIR /app
 
 # 从构建阶段复制二进制文件
-COPY --from=builder /build/iarnet/external/component/component /app/component
+COPY --from=builder /build/iarnet/containers/images/component/component /app/component
 
 # 复制 Python 执行器文件
-COPY --from=builder /build/iarnet/external/component/py/executor.py /app/py/executor.py
+COPY --from=builder /build/iarnet/containers/shared/python/runtime/executor.py /app/py/executor.py
 
 # 设置权限
 RUN chown -R appuser:appuser /app

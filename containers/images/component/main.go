@@ -14,7 +14,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/9triver/iarnet/component/py"
+	py "github.com/9triver/iarnet/component/python/runtime"
 	"github.com/9triver/iarnet/component/runtime"
 	"github.com/9triver/ignis/actor/compute"
 	"github.com/9triver/ignis/actor/remote/ipc"
