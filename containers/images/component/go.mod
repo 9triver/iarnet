@@ -2,7 +2,7 @@ module github.com/9triver/iarnet/component
 
 go 1.24
 
-replace github.com/9triver/ignis => ../../../ignis
+replace github.com/9triver/ignis => ../../../ignis/ignis-go
 
 replace github.com/9triver/iarnet/component/python/runtime => ../../envs/python/runtime
 

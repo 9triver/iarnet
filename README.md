@@ -1,5 +1,9 @@
 # Container Peer Service
 
+gossip 优化前后端 跑例子 debug
+
+k8s router 
+
 两边py版本不一样会报错 segfault
 
 对等体actor通过router进行通信；replyTo 的场景；集成到 store 转发还是 router 转发；兼容hub转发和p2p转发；通信封装，对于actor而言拥有p2p通信体验
