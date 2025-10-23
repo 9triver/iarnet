@@ -2,7 +2,7 @@ module github.com/9triver/iarnet
 
 go 1.25.0
 
-replace github.com/9triver/ignis => ./ignis
+replace github.com/9triver/ignis => ./ignis/ignis-go
 
 require (
 	github.com/9triver/ignis v0.0.0-00010101000000-000000000000
