@@ -1,0 +1,3 @@
+[submodule "containers/envs/python/libs/lucas"]
+	path = containers/envs/python/libs/lucas
+	url = git@github.com:Xdydy/Lucas.git
