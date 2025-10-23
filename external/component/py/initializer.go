@@ -86,6 +86,11 @@ func (i *Initializer) InstallDependencies(requirements []string) error {
 		return err
 	}
 
+	if err := exec.CommandContext(ctx, i.pythonExec, "-m", "pip", "install", "--upgrade", "pip").Run(); err != nil {
+		return errors.WrapWith(err, "venv %s: pip installation failed", i.venvPath)
+	}
+	logrus.Infof("venv %s: pip installation success", i.venvPath)
+
 	args := []string{"-m", "pip", "install", "--no-cache-dir", "--upgrade"}
 	// 允许通过环境变量追加自定义 index 源
 	if idx := strings.TrimSpace(os.Getenv("PIP_INDEX_URL")); idx != "" {
@@ -114,11 +119,11 @@ func (i *Initializer) Initialize(ctx context.Context, fn *cluster.Function, addr
 		cmd := exec.CommandContext(context.TODO(), i.pythonExec, i.executorPath, "--remote", addr, "--conn-id", connId)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
-		
+
 		// 确保虚拟环境可以访问预安装的 actorc 包
 		// 继承当前进程的环境变量，特别是 PYTHONPATH
 		cmd.Env = os.Environ()
-		
+
 		if err := cmd.Run(); err != nil {
 			logrus.Errorf("python executor failed for function %s: %v", fn.Name, err)
 			return

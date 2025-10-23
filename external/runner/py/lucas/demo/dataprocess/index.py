@@ -1,43 +1,32 @@
 import sys
 sys.path.append("./protos")
 sys.path.append("./utils")
-from lucas import workflow, Workflow,actor
+from lucas import workflow, function, Workflow
+from lucas.train.trainer import data_process
 from lucas.serverless_function import Metadata
 from lucas.utils.logging import log
-from actor import ActorContext,ActorFunction,ActorExecutor,ActorRuntime,ActorRuntimeClass
+from actor import ActorContext,ActorFunction,ActorExecutor,ActorRuntime
 import uuid
 
 context = ActorContext.createContext()
 
-@actor(wrapper=ActorRuntimeClass, dependency=['torch', 'numpy'], provider='actor', name='classA',venv='conda')
-class A:
-    def method(self, a):
-        print(a)
-        def generator() :
-            for i in range(10):
-                yield i
-        return generator()
 
-@actor(wrapper=ActorRuntimeClass, dependency=['torch', 'numpy'], provider='actor', name='classB',venv='conda')
-class B:
-    def method(self, stream):
-        result = []
-        for i in stream:
-            result.append(i)
-        return result
-
-    
-
+@data_process(
+        num_workers=2,
+        wrapper=ActorFunction, 
+        dependency=['torch', 'numpy'], provider='actor', 
+        name='process',
+        venv='conda'
+    )
+def process(x):
+    return x*2
 
 
 @workflow(executor=ActorExecutor)
 def workflowfunc(wf: Workflow):
     _in = wf.input()
-    in_a = A.export()
-    in_b = B.export()
-    a = wf.call_method(in_a, 'method', {'a': _in['a']})
-    b = wf.call_method(in_b, 'method', {'stream': a})
-    return b
+    res = wf.call("process", {'x': _in['a']})
+    return res
 
 
 
@@ -56,9 +45,7 @@ def actorWorkflowExportFunc(dict: dict):
     for function in route.functions:
         route_dict[function.name] = function.handler
     for workflow in route.workflows:
-        route_dict[workflow.name] = workflow._generate_workflow
-    for actor in route.actors:
-        route_dict[actor.name] = actor._cls
+        route_dict[workflow.name] = function.handler
     metadata = Metadata(
         id=str(uuid.uuid4()),
         params=dict,
@@ -76,6 +63,6 @@ def actorWorkflowExportFunc(dict: dict):
 
 workflow_func = workflowfunc.export(actorWorkflowExportFunc)
 print("----first execute----")
-workflow_func({'a': 1})
+workflow_func({'a': [1,2,3]})
 print("----second execute----")
-workflow_func({'a': 2})
+workflow_func({'a': [2,3,4]})

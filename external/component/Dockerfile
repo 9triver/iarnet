@@ -32,7 +32,7 @@ RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build \
 # 运行阶段
 FROM python:3.11-alpine
 
-# 安装系统依赖
+# 安装系统依赖和编译工具（opencv-python-headless 需要）
 RUN apk add --no-cache \
     ca-certificates \
     tzdata \
@@ -40,13 +40,40 @@ RUN apk add --no-cache \
     czmq \
     zeromq-dev \
     czmq-dev \
-    pkgconfig
+    pkgconfig \
+    # 编译工具
+    gcc \
+    g++ \
+    make \
+    cmake \
+    ninja \
+    # OpenCV 依赖
+    musl-dev \
+    linux-headers \
+    libffi-dev \
+    openssl-dev \
+    # 图像处理库
+    libjpeg-turbo-dev \
+    libpng-dev \
+    tiff-dev \
+    libwebp-dev \
+    openjpeg-dev \
+    # 数学库
+    openblas-dev \
+    lapack-dev \
+    # 其他依赖
+    zlib-dev \
+    freetype-dev \
+    # Python 开发头文件
+    python3-dev
 
 # 创建非 root 用户
 RUN addgroup -S appuser && adduser -S -G appuser appuser
 
 # 安装 actorc 及其依赖到系统 Python
 COPY --from=builder /build/iarnet/external/runner/py/actorc /tmp/actorc
+RUN pip install --upgrade pip
+RUN pip install numpy
 RUN cd /tmp/actorc && pip install -e .
 
 # 设置工作目录

@@ -1,10 +1,12 @@
 import sys
-sys.path.append("./protos")
+import os
+sys.path.append(os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),"protos"))
 import grpc
 import cloudpickle
 from concurrent import futures 
-from protos.controller import controller_pb2, controller_pb2_grpc
-from protos import platform_pb2
+from .protos.controller import controller_pb2, controller_pb2_grpc
+from .protos import platform_pb2
 
 class FunctionToExecute:
     def __init__(self, fn,params):
@@ -17,6 +19,7 @@ class FunctionToExecute:
     def can_run(self)-> bool:
         for params in self._params:
             if params not in self._args:
+                print(f"{params} not in {self._args}")
                 return False
         return True
     def run(self):

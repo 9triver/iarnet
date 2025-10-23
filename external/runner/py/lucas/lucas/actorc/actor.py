@@ -1,12 +1,12 @@
-from lucas import Function, Runtime
+from lucas import Runtime, Function, ActorClass, ActorInstance
 from lucas.serverless_function import Metadata
 from lucas.workflow.executor import Executor
-from lucas.workflow.dag import DAGNode, DataNode, ControlNode
+from lucas.workflow.dag import DAGNode, DataNode, ControlNode, ActorNode
 from lucas.utils.logging import log
 
-from ..protos.controller import controller_pb2, controller_pb2_grpc
-from ..protos import platform_pb2
-from ..utils import EncDec
+from .protos import platform_pb2
+from .protos.controller import controller_pb2, controller_pb2_grpc
+from .utils import EncDec
 
 import cloudpickle
 import grpc
@@ -15,150 +15,22 @@ import queue
 import time
 import inspect
 import threading
-import os
-import re
 
 actorContext: "ActorContext | None" = None
 
 
-def parse_memory_string(memory_str):
-    """
-    将Kubernetes风格的内存字符串转换为字节数
-    支持的单位: K, M, G, T, P, E (1000进制) 和 Ki, Mi, Gi, Ti, Pi, Ei (1024进制)
-    
-    Args:
-        memory_str: 内存字符串，如 "1024Mi", "2Gi", "512M" 等
-        
-    Returns:
-        int: 以字节为单位的内存大小
-    """
-    if isinstance(memory_str, (int, float)):
-        return int(memory_str)
-    
-    if not isinstance(memory_str, str):
-        raise ValueError(f"Invalid memory format: {memory_str}")
-    
-    # 移除空格并转换为大写
-    memory_str = memory_str.strip()
-    
-    # 正则表达式匹配数字和单位
-    match = re.match(r'^(\d+(?:\.\d+)?)\s*([KMGTPE]i?)?$', memory_str, re.IGNORECASE)
-    if not match:
-        raise ValueError(f"Invalid memory format: {memory_str}")
-    
-    value = float(match.group(1))
-    unit = match.group(2)
-    
-    if not unit:
-        # 没有单位，默认为字节
-        return int(value)
-    
-    unit = unit.upper()
-    
-    # 1024进制单位 (Ki, Mi, Gi, Ti, Pi, Ei)
-    if unit.endswith('I'):
-        multipliers = {
-            'KI': 1024,
-            'MI': 1024 ** 2,
-            'GI': 1024 ** 3,
-            'TI': 1024 ** 4,
-            'PI': 1024 ** 5,
-            'EI': 1024 ** 6,
-        }
-    else:
-        # 1000进制单位 (K, M, G, T, P, E)
-        multipliers = {
-            'K': 1000,
-            'M': 1000 ** 2,
-            'G': 1000 ** 3,
-            'T': 1000 ** 4,
-            'P': 1000 ** 5,
-            'E': 1000 ** 6,
-        }
-    
-    if unit not in multipliers:
-        raise ValueError(f"Unknown memory unit: {unit}")
-    
-    return int(value * multipliers[unit])
-
-
-def convert_dag_to_proto(dag):
-    """Convert lucas DAG object to proto DAG message"""
-    dag_metadata = dag.metadata()
-    proto_nodes = []
-    
-    for node_data in dag_metadata:
-        if node_data['type'] == 'ControlNode':
-            # Create ControlNode proto message
-            control_node = controller_pb2.ControlNode()
-            control_node.Id = node_data['id']
-            control_node.Done = node_data['done']
-            control_node.FunctionName = node_data['functionname']
-            # Handle params map
-            for key, value in node_data['params'].items():
-                control_node.Params[key] = str(value)
-            control_node.Current = node_data['current']
-            control_node.DataNode = node_data['data_node']
-            control_node.PreDataNodes.extend(node_data['pre_data_nodes'])
-            control_node.FunctionType = node_data['functiontype']
-            
-            # Create DAGNode with ControlNode
-            dag_node = controller_pb2.DAGNode()
-            dag_node.Type = "ControlNode"
-            dag_node.ControlNode.CopyFrom(control_node)
-            proto_nodes.append(dag_node)
-            
-        elif node_data['type'] == 'DataNode':
-            # Create DataNode proto message
-            data_node = controller_pb2.DataNode()
-            data_node.Id = node_data['id']
-            data_node.Done = node_data['done']
-            data_node.Lambda = node_data['lambda']
-            data_node.Ready = node_data['ready']
-            data_node.SufControlNodes.extend(node_data['suf_control_nodes'])
-            data_node.ChildNode.extend(node_data['child_node'])
-            
-            # Handle optional fields
-            if node_data['pre_control_node'] is not None:
-                data_node.PreControlNode = node_data['pre_control_node']
-            if node_data['parent_node'] is not None:
-                data_node.ParentNode = node_data['parent_node']
-            
-            # Create DAGNode with DataNode
-            dag_node = controller_pb2.DAGNode()
-            dag_node.Type = "DataNode"
-            dag_node.DataNode.CopyFrom(data_node)
-            proto_nodes.append(dag_node)
-    
-    # Create and return proto DAG
-    proto_dag = controller_pb2.DAG()
-    proto_dag.Nodes.extend(proto_nodes)
-    return proto_dag
-
-
 class ActorContext:
     @staticmethod
-    def createContext(ignis_address: str = None, app_id: str = None):
+    def createContext(master_address: str = "localhost:50051"):
         global actorContext
         if actorContext is None:
-            if ignis_address is None:
-                ignis_address = os.getenv("IGNIS_ADDR", "localhost:50051")
-            if app_id is None:
-                app_id = os.getenv("APP_ID", None)
-            actorContext = ActorContext(ignis_address, app_id)
+            actorContext = ActorContext(master_address)
         return actorContext
 
-    def __init__(self, ignis_address: str = None, app_id: str = None):
-        if ignis_address is None:
-            log.error("IGNIS_ADDR is not set")
-            raise ValueError("IGNIS_ADDR is not set")
-        if app_id is None:
-            log.error("APP_ID is not set")
-            raise ValueError("APP_ID is not set")
-        self._ignis_address = ignis_address
-        self._app_id = app_id
+    def __init__(self, master_address: str = "localhost:50051"):
+        self._master_address = master_address
         self._channel = grpc.insecure_channel(
-            ignis_address,
+            master_address,
             options=[("grpc.max_receive_message_length", 512 * 1024 * 1024)],
         )
         self._stub = controller_pb2_grpc.ServiceStub(self._channel)
@@ -166,27 +38,6 @@ class ActorContext:
         self._response_stream = self._stub.Session(self._generate())
         self._result_map: dict[str, platform_pb2.Flow] = {}
         self._thread = threading.Thread(target=self._run, daemon=True)
-
-        # register application
-        self.send(
-            controller_pb2.Message(
-                Type=controller_pb2.CommandType.FR_REGISTER_REQUEST,
-                RegisterRequest=controller_pb2.RegisterRequest(
-                    ApplicationID=app_id,
-                ),
-            )
-        )
-
-        # wait for ready
-        for response in self._response_stream:
-            response: controller_pb2.Message
-            if response.Type == controller_pb2.CommandType.ACK:
-                ack: controller_pb2.Ack = response.Ack
-                if ack.Error != "":
-                    log.error(f"Register application failed: {ack.Error}")
-                    raise ValueError(f"Register application failed: {ack.Error}")
-                break
-
         self._thread.start()
 
     def _generate(self):
@@ -234,6 +85,7 @@ class ActorRuntime(Runtime):
         instanceID = fnParams["instanceID"]
         name = fnParams["name"]
         key = f"{sessionID}-{instanceID}-{name}"
+        print(f"find key: {key}")
         result = None
         while result is None:
             result = actorContext.get_result(key)
@@ -259,17 +111,6 @@ class ActorFunction(Function):
             replicas = self._config.replicas
         except AttributeError:
             replicas = 1
-        try:
-            resources = dict(self._config.resources)
-            resources["cpu"] = resources.get("cpu", 500)
-            resources["memory"] = resources.get("memory", "128Mi")
-            resources["gpu"] = resources.get("gpu", 0)
-        except AttributeError:
-            resources = {
-                "cpu": 500,
-                "memory": "128Mi",
-                "gpu": 0,
-            }
         sig = inspect.signature(fn)
         params = []
         for name, param in sig.parameters.items():
@@ -285,11 +126,6 @@ class ActorFunction(Function):
                 PickledObject=cloudpickle.dumps(self._fn),
                 Language=platform_pb2.LANG_PYTHON,
                 Replicas=replicas,
-                Resources=controller_pb2.Resources(
-                    CPU=resources["cpu"],
-                    Memory=parse_memory_string(resources["memory"]),
-                    GPU=resources["gpu"],
-                ),
             ),
         )
         actorContext.send(message)
@@ -297,17 +133,49 @@ class ActorFunction(Function):
     def _transformfunction(self, fn):
         return fn
 
+class ActorRuntimeClass(ActorClass):
+    def _get_class_methods(self, instance) -> list[controller_pb2.AppendPyClass.ClassMethod]:
+        methods = []
+        all_methods = inspect.getmembers(instance, predicate=inspect.ismethod)
+        for name, method in all_methods:
+            sig = inspect.signature(method)
+            params = sig.parameters.keys()
+            params = list(params)
+            methods.append(controller_pb2.AppendPyClass.ClassMethod(
+                Name=f"{self._config.name}.{name}",
+                Params=params
+            ))
+        return methods
+
+    def onClassInit(self, instance):
+        dependcy = self._config.dependency
+        class_name = self._config.name
+        instance.__class__.__name__ = class_name
+        venv = self._config.venv
+        try:
+            replicas = self._config.replicas
+        except AttributeError:
+            replicas = 1
+        obj = cloudpickle.dumps(instance)
+        actorInstance = ActorInstance(instance)
+        message = controller_pb2.Message(
+            Type=controller_pb2.CommandType.FR_APPEND_PY_CLASS,
+            AppendPyClass=controller_pb2.AppendPyClass(
+                Name=f"{actorInstance._id}",
+                Methods=self._get_class_methods(instance),
+                Venv=venv,
+                Requirements=dependcy,
+                PickledObject=obj,
+                Language=platform_pb2.LANG_PYTHON,
+                Replicas=replicas,
+            )
+        )
+        actorContext.send(message)
+        return actorInstance
 
 class ActorExecutor(Executor):
     def __init__(self, dag):
         super().__init__(dag)
-        # send DAG to controller
-        proto_dag = convert_dag_to_proto(dag)
-        message = controller_pb2.Message(
-            Type=controller_pb2.CommandType.FR_DAG,
-            DAG=proto_dag,
-        )
-        actorContext.send(message)
 
     def execute(self):
         session_id = str(uuid.uuid4())
@@ -336,9 +204,12 @@ class ActorExecutor(Executor):
                         data = node._ld.value
 
                         if fn_type == "remote":  # 要调用的函数是远程函数时才需要
+                            print(data)
                             if isinstance(data, controller_pb2.Data):
+                                print("data is already a Data object")
                                 rpc_data = data
                             else:
+                                print("data is not a Data object, encode it")
                                 rpc_data = controller_pb2.Data(
                                     Type=controller_pb2.Data.ObjectType.OBJ_ENCODED,
                                     Encoded=EncDec.encode(
@@ -359,27 +230,42 @@ class ActorExecutor(Executor):
                             #     )
                             # else:
                             #     rpc_data = controller_pb2.Data(Type=data_type, Ref=data)
-
-                            appendArg = controller_pb2.AppendArg(
-                                SessionID=session_id,
-                                InstanceID=control_node_metadata["id"],
-                                Name=control_node_metadata["functionname"],
-                                Param=params[node._ld.getid()],
-                                Value=rpc_data,
-                            )
-                            message = controller_pb2.Message(
-                                Type=controller_pb2.CommandType.FR_APPEND_ARG,
-                                AppendArg=appendArg,
-                            )
+                            if isinstance(control_node, ActorNode):
+                                actorNode: ActorNode = control_node
+                                appendClassMethodArg = controller_pb2.AppendClassMethodArg(
+                                    SessionID=session_id,
+                                    InstanceID=actorNode._obj._id,
+                                    MethodName=control_node_metadata["functionname"],
+                                    Param=params[node._ld.getid()],
+                                    Value=rpc_data,
+                                )
+                                message = controller_pb2.Message(
+                                    Type=controller_pb2.CommandType.FR_APPEND_CLASS_METHOD_ARG,
+                                    AppendClassMethodArg=appendClassMethodArg,
+                                )
+                            else:    
+                                appendArg = controller_pb2.AppendArg(
+                                    SessionID=session_id,
+                                    InstanceID=control_node_metadata["id"],
+                                    Name=control_node_metadata["functionname"],
+                                    Param=params[node._ld.getid()],
+                                    Value=rpc_data,
+                                )
+                                message = controller_pb2.Message(
+                                    Type=controller_pb2.CommandType.FR_APPEND_ARG,
+                                    AppendArg=appendArg,
+                                )
                             actorContext.send(message)
 
                         log.info(f"{control_node.describe()} appargs {node._ld.value}")
                         if control_node.appargs(node._ld):
                             if control_node._fn_type == "remote":
                                 control_node._datas["sessionID"] = session_id
-                                control_node._datas["instanceID"] = (
-                                    control_node_metadata["id"]
-                                )
+                                if isinstance(control_node, ActorNode):
+                                    control_node._datas['instanceID'] = control_node._obj._id
+                                else:
+                                    control_node._datas["instanceID"] = control_node_metadata["id"]
+                                    
                                 control_node._datas["name"] = control_node_metadata[
                                     "functionname"
                                 ]
@@ -397,17 +283,16 @@ class ActorExecutor(Executor):
                     log.info(f"{node.describe()} calculate {r_node.describe()}")
                     if r_node.is_ready():
                         task.append(r_node)
+                
+                with open("dag.json", 'w') as f:
+                    import json
+                    f.write(json.dumps(self.dag.metadata(fn_export=False), indent=2))
             if _end:
                 break
         result = None
-        print(self.dag.get_nodes())
         for node in self.dag.get_nodes():
-            
-            if isinstance(node, DataNode):
-                print(node._is_end_node)
-                if node._is_end_node:
-                    result = node._ld.value
-                    break
-        
+            if isinstance(node, DataNode) and node._is_end_node:
+                result = node._ld.value
+                break
         self.dag.reset()
         return result
