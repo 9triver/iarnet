@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { applicationsAPI, APIError } from "@/lib/api"
+import { applicationsAPI, componentsAPI, APIError } from "@/lib/api"
 import { getWebSocketManager, disconnectWebSocketManager } from "@/lib/websocket"
-import type { LogEntry, Application, DAG, DAGNode, DAGEdge, ControlNode, DataNode } from "@/lib/model"
+import type { LogEntry, Application, DAG, DAGNode, DAGEdge, ControlNode, DataNode, Component } from "@/lib/model"
 import { Sidebar } from "@/components/sidebar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { CodeEditor } from "@/components/code-editor"
 import {
   ArrowLeft,
@@ -117,12 +118,20 @@ export default function ApplicationDetailPage() {
   const [application, setApplication] = useState<Application | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  const [isLoadingComponents, setIsLoadingAppDAG] = useState(false)
+  const [isLoadingComponents, setIsLoadingComponents] = useState(false)// 组件列表状态
+  const [components, setComponents] = useState<Component[]>([])
+  const [isLoadingComponentsList, setIsLoadingComponentsList] = useState(false)
+  
+  // 组件日志状态
+  const [selectedComponent, setSelectedComponent] = useState<string | null>(null)
+  const [componentLogs, setComponentLogs] = useState<string>("")
+  const [isLoadingComponentLogs, setIsLoadingComponentLogs] = useState(false)
+  const [showLogsDialog, setShowLogsDialog] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [codeBrowserStatus, setCodeBrowserStatus] = useState<CodeBrowserInfo | null>(null)
   const [isStartingCodeBrowser, setIsStartingCodeBrowser] = useState(false)
   const [logs, setLogs] = useState<LogEntry[]>([])
-  const [isLoadingLogs, setIsLoadingLogs] = useState(false)
+  const [isLoadingAppLogs, setIsLoadingAppLogs] = useState(false)
   const [logLines, setLogLines] = useState(100)
   const [activeTab, setActiveTab] = useState("components")
   const [logSearchTerm, setLogSearchTerm] = useState("")
@@ -133,11 +142,13 @@ export default function ApplicationDetailPage() {
   // 处理刷新DAG按钮点击
   const handleRefreshDAG = () => {
     loadAppDAG()
+    loadComponents()
   }
 
   useEffect(() => {
     loadApplicationDetail()
     loadAppDAG()
+    loadComponents()
     
     // 建立WebSocket连接以接收实时DAG状态更新
     if (applicationId) {
@@ -148,6 +159,8 @@ export default function ApplicationDetailPage() {
         console.log('Received DAG state change:', event)
         // 重新加载DAG数据
         handleRefreshDAG()
+        // 重新加载组件数据
+        loadComponents()
       }
       
       wsManager.addHandler(handleDAGStateChange)
@@ -405,14 +418,14 @@ export default function ApplicationDetailPage() {
     if (!applicationId) return
 
     try {
-      setIsLoadingLogs(true)
+      setIsLoadingAppLogs(true)
       const response = await applicationsAPI.getLogsParsed(applicationId, logLines)
       setLogs(response.logs || [])
     } catch (err) {
       console.error('Failed to load logs:', err)
       setLogs([])
     } finally {
-      setIsLoadingLogs(false)
+      setIsLoadingAppLogs(false)
     }
   }
 
@@ -444,7 +457,7 @@ export default function ApplicationDetailPage() {
   const loadAppDAG = async () => {
     if (!applicationId) return
 
-    setIsLoadingAppDAG(true)
+    setIsLoadingComponents(true)
     try {
       const dagResponse = await applicationsAPI.getAppDAG(applicationId)
 
@@ -459,8 +472,46 @@ export default function ApplicationDetailPage() {
       }
       setAppDAG(null)
     } finally {
-      setIsLoadingAppDAG(false)
+      setIsLoadingComponents(false)
     }
+  }
+
+  const loadComponents = async () => {
+    if (!applicationId) return
+
+    setIsLoadingComponentsList(true)
+    try {
+      const response = await applicationsAPI.getComponents(applicationId) as { components: Component[] }
+      setComponents(response.components || [])
+    } catch (error) {
+      console.error('Failed to load components:', error)
+      setComponents([])
+    } finally {
+      setIsLoadingComponentsList(false)
+    }
+  }
+
+  // 加载组件日志
+  const loadComponentLogs = async (componentName: string) => {
+    if (!applicationId || !componentName) return
+    
+    setIsLoadingComponentLogs(true)
+    try {
+      const response = await componentsAPI.getLogs(applicationId, componentName) as { logs: string }
+      setComponentLogs(response.logs || "")
+    } catch (error) {
+      console.error('Failed to load component logs:', error)
+      setComponentLogs("获取日志失败: " + (error instanceof Error ? error.message : String(error)))
+    } finally {
+      setIsLoadingComponentLogs(false)
+    }
+  }
+
+  // 处理查看组件日志
+  const handleViewComponentLogs = (componentName: string) => {
+    setSelectedComponent(componentName)
+    setShowLogsDialog(true)
+    loadComponentLogs(componentName)
   }
 
   const handleStart = async () => {
@@ -809,70 +860,104 @@ export default function ApplicationDetailPage() {
                       </TabsContent>
 
                       <TabsContent value="list" className="space-y-4">
-                        <div className="space-y-2">
-                          {appDAG?.nodes.map((node, index) => {
-                            const isControl = node.type === "ControlNode"
-                            const isData = node.type === "DataNode"
-                            const nodeData = node.node as ControlNode | DataNode
-                            const nodeId = nodeData?.id
-                            const controlNode = isControl ? nodeData as ControlNode : null
-                            const dataNode = isData ? nodeData as DataNode : null
-                            const nodeName = isControl
-                              ? (controlNode?.functionName || `Control Node ${index}`)
-                              : `Data Node ${index}`
+                        {isLoadingComponentsList ? (
+                          <div className="flex items-center justify-center h-32">
+                            <RefreshCw className="h-6 w-6 animate-spin mr-2" />
+                            <span>加载组件列表中...</span>
+                          </div>
+                        ) : components.length > 0 ? (
+                          <div className="space-y-2">
+                            {components.map((component, index) => {
+                              const getStatusColor = (status: string) => {
+                                switch (status) {
+                                  case "running": return "bg-green-500"
+                                  case "deploying": return "bg-blue-500"
+                                  case "stopped": return "bg-gray-500"
+                                  case "failed": return "bg-red-500"
+                                  case "pending": return "bg-yellow-500"
+                                  default: return "bg-gray-400"
+                                }
+                              }
 
-                            return (
-                              <div key={nodeId || `node-${index}`} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50">
-                                <div className="flex items-center space-x-4 flex-1">
+                              const getStatusText = (status: string) => {
+                                switch (status) {
+                                  case "running": return "运行中"
+                                  case "deploying": return "部署中"
+                                  case "stopped": return "已停止"
+                                  case "failed": return "失败"
+                                  case "pending": return "等待中"
+                                  default: return "未知"
+                                }
+                              }
+
+                              return (
+                                <div key={component.name || `component-${index}`} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50">
+                                  <div className="flex items-center space-x-4 flex-1">
+                                    <div className="flex items-center space-x-2">
+                                      <Package className="w-4 h-4" />
+                                      <div>
+                                        <h4 className="font-semibold">{component.name}</h4>
+                                        <p className="text-sm text-muted-foreground font-mono text-xs">
+                                          {component.image}
+                                        </p>
+                                      </div>
+                                    </div>
+
+                                    <div className="flex items-center space-x-6 text-sm">
+                                      <div className="flex items-center space-x-1">
+                                        <span className="text-muted-foreground">Provider:</span>
+                                        <span className="font-mono text-xs">{component.provider_id}</span>
+                                      </div>
+
+                                      <div className="flex items-center space-x-1">
+                                        <Cpu className="w-3 h-3" />
+                                        <span className="text-muted-foreground">CPU:</span>
+                                        <span className="font-mono text-xs">{component.resource_usage.cpu}</span>
+                                      </div>
+
+                                      <div className="flex items-center space-x-1">
+                                        <MemoryStick className="w-3 h-3" />
+                                        <span className="text-muted-foreground">内存:</span>
+                                        <span className="font-mono text-xs">{component.resource_usage.memory}MB</span>
+                                      </div>
+
+                                      {component.resource_usage.gpu > 0 && (
+                                        <div className="flex items-center space-x-1">
+                                          <HardDrive className="w-3 h-3" />
+                                          <span className="text-muted-foreground">GPU:</span>
+                                          <span className="font-mono text-xs">{component.resource_usage.gpu}</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+
                                   <div className="flex items-center space-x-2">
-                                    {isControl ? <Activity className="w-4 h-4" /> : <Database className="w-4 h-4" />}
-                                    <div>
-                                      <h4 className="font-semibold">{nodeName}</h4>
-                                      <p className="text-sm text-muted-foreground">
-                                        {isControl ? "控制节点" : "数据节点"}
-                                      </p>
-                                    </div>
-                                  </div>
-
-                                  <div className="flex items-center space-x-6 text-sm">
                                     <div className="flex items-center space-x-1">
-                                      <span className="text-muted-foreground">类型:</span>
-                                      <span className="font-mono text-xs">{node.type}</span>
+                                      <div className={`w-2 h-2 rounded-full ${getStatusColor(component.status)}`} />
+                                      <span className="text-xs text-muted-foreground">
+                                        {getStatusText(component.status)}
+                                      </span>
                                     </div>
-
-                                    {isControl && controlNode?.functionType && (
-                                      <div className="flex items-center space-x-1">
-                                        <span className="text-muted-foreground">函数类型:</span>
-                                        <span className="font-mono text-xs">{controlNode?.functionType}</span>
-                                      </div>
-                                    )}
-
-                                    {isData && dataNode?.lambda && (
-                                      <div className="flex items-center space-x-1">
-                                        <span className="text-muted-foreground">Lambda:</span>
-                                        <span className="font-mono text-xs">{dataNode?.lambda}</span>
-                                      </div>
-                                    )}
+                                    
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm"
+                                      onClick={() => handleViewComponentLogs(component.name)}
+                                    >
+                                      <FileText className="w-3 h-3 mr-1" />
+                                      日志
+                                    </Button>
                                   </div>
                                 </div>
-
-                                <div className="flex items-center space-x-2">
-                                  <div className="flex items-center space-x-1">
-                                    <div className={`w-2 h-2 rounded-full ${isControl
-                                      ? (controlNode?.done ? "bg-green-500" : "bg-gray-400")
-                                      : (dataNode?.done ? "bg-green-500" : "bg-gray-400")
-                                      }`} />
-                                    <span className="text-xs text-muted-foreground">
-                                      {isControl
-                                        ? (controlNode?.done ? "已完成" : "未开始")
-                                        : (dataNode?.done ? "已完成" : "未开始")
-                                      }</span>
-                                  </div>
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
+                              )
+                            })}
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-center h-32 text-muted-foreground">
+                            <Package className="h-8 w-8 mr-2 opacity-50" />
+                            <span>暂无组件数据</span>
+                          </div>
+                        )}
                       </TabsContent>
                     </Tabs>
                   )}
@@ -905,8 +990,8 @@ export default function ApplicationDetailPage() {
                           <SelectItem value="500">最近 500 行</SelectItem>
                         </SelectContent>
                       </Select>
-                      <Button variant="outline" size="sm" onClick={loadLogs} disabled={isLoadingLogs}>
-                        <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingLogs ? 'animate-spin' : ''}`} />
+                      <Button variant="outline" size="sm" onClick={loadLogs} disabled={isLoadingAppLogs}>
+                        <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingAppLogs ? 'animate-spin' : ''}`} />
                         刷新
                       </Button>
                     </div>
@@ -948,7 +1033,7 @@ export default function ApplicationDetailPage() {
                 </CardHeader>
                 <CardContent>
                   <ScrollArea className="h-[500px] w-full border rounded-md p-4 bg-gray-50 dark:bg-gray-900">
-                    {isLoadingLogs ? (
+                    {isLoadingAppLogs ? (
                       <div className="flex items-center justify-center h-32">
                         <RefreshCw className="h-6 w-6 animate-spin mr-2" />
                         <span>加载日志中...</span>
@@ -1119,6 +1204,47 @@ export default function ApplicationDetailPage() {
           </Tabs>
         </div>
       </main>
+
+      {/* 组件日志对话框 */}
+      <Dialog open={showLogsDialog} onOpenChange={setShowLogsDialog}>
+        <DialogContent className="max-w-4xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>组件日志 - {selectedComponent}</DialogTitle>
+            <DialogDescription>
+              查看组件的运行日志信息
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-hidden">
+            {isLoadingComponentLogs ? (
+              <div className="flex items-center justify-center h-64">
+                <RefreshCw className="h-6 w-6 animate-spin mr-2" />
+                <span>加载日志中...</span>
+              </div>
+            ) : (
+              <ScrollArea className="h-96 w-full rounded border">
+                <div className="p-4">
+                  <pre className="text-sm font-mono whitespace-pre-wrap break-words">
+                    {componentLogs || "暂无日志数据"}
+                  </pre>
+                </div>
+              </ScrollArea>
+            )}
+          </div>
+          <div className="flex justify-end space-x-2 pt-4">
+            <Button 
+              variant="outline" 
+              onClick={() => selectedComponent && loadComponentLogs(selectedComponent)}
+              disabled={isLoadingComponentLogs}
+            >
+              <RefreshCw className="w-4 h-4 mr-2" />
+              刷新
+            </Button>
+            <Button variant="outline" onClick={() => setShowLogsDialog(false)}>
+              关闭
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

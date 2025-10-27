@@ -140,6 +140,31 @@ export interface GetRunnerEnvironmentsResponse {
   environments: RunnerEnvironment[]
 }
 
+export interface ComponentResourceUsage {
+  cpu: number
+  memory: number
+  gpu: number
+}
+
+export interface Component {
+  name: string
+  image: string
+  status: "pending" | "deploying" | "running" | "stopped" | "failed"
+  provider_id: string
+  resource_usage: ComponentResourceUsage
+  deployed_at?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface GetComponentsResponse {
+  components: Component[]
+}
+
+export interface GetComponentLogsResponse {
+  logs: string[]
+}
+
 export interface ControlNode {
   id: string
   done: boolean

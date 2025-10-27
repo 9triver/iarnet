@@ -153,22 +153,26 @@ export const applicationsAPI = {
     }),
   getRunnerEnvironments: () =>
     apiRequest<GetRunnerEnvironmentsResponse>("/application/runner-environments"),
+  getComponents: (id: string) =>
+    apiRequest(`/application/apps/${id}/components`),
 }
 
 // Actor组件管理 API
 export const componentsAPI = {
-  start: (componentId: string) =>
-    apiRequest(`/components/${componentId}/start`, {
+  start: (appId: string, componentId: string) =>
+    apiRequest(`/application/apps/${appId}/components/${componentId}/start`, {
       method: "POST",
     }),
-  stop: (componentId: string) =>
-    apiRequest(`/components/${componentId}/stop`, {
+  stop: (appId: string, componentId: string) =>
+    apiRequest(`/application/apps/${appId}/components/${componentId}/stop`, {
       method: "POST",
     }),
-  getStatus: (componentId: string) =>
-    apiRequest(`/components/${componentId}/status`),
-  getLogs: (componentId: string, lines?: number) =>
-    apiRequest(`/components/${componentId}/logs${lines ? `?lines=${lines}` : ''}`),
+  getStatus: (appId: string, componentId: string) =>
+    apiRequest(`/application/apps/${appId}/components/${componentId}/status`),
+  getLogs: (appId: string, componentId: string, lines?: number) =>
+    apiRequest(`/application/apps/${appId}/components/${componentId}/logs${lines ? `?lines=${lines}` : ''}`),
+  getResourceUsage: (appId: string, componentId: string) =>
+    apiRequest(`/application/apps/${appId}/components/${componentId}/resource-usage`),
 }
 
 // 状态监控 API

@@ -6,8 +6,9 @@ docker stop $(docker ps -q) && docker rm $(docker ps -aq)
 2. k8s router git submodule
 3. 从 ignis 中获取应用实际执行结果
 4. actorc 调度改为异步非阻塞
+5. 任务调度、actor调度+通信封装、actor部署+资源管理+应用管理
 <!-- 4. dag node 改三状态：等待、进行、完成，更改节点状态的获取机制，如前端拿到ref时才变为已完成 -->
-5. 例子重构，文件访问需要换种方式
+6. 例子重构，文件访问需要换种方式
 
 (并发优化)
 
