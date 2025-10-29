@@ -145,31 +145,59 @@ export default function ApplicationDetailPage() {
     loadComponents()
   }
 
+  // 标记 WebSocket 是否已初始化，避免重复连接
+  const wsInitializedRef = useRef(false)
+  const updateTimerRef = useRef<NodeJS.Timeout | null>(null)
+
   useEffect(() => {
     loadApplicationDetail()
     loadAppDAG()
     loadComponents()
-    
+  }, [applicationId])
+
+  // WebSocket 连接独立管理，避免与数据加载冲突
+  useEffect(() => {
     // 建立WebSocket连接以接收实时DAG状态更新
-    if (applicationId) {
+    if (applicationId && !wsInitializedRef.current) {
+      wsInitializedRef.current = true
+      
       const wsManager = getWebSocketManager(applicationId)
       
-      // 监听DAG状态变化事件
+      // 监听DAG状态变化事件 - 添加防抖避免频繁更新
       const handleDAGStateChange = (event: any) => {
-        console.log('Received DAG state change:', event)
-        // 重新加载DAG数据
-        handleRefreshDAG()
-        // 重新加载组件数据
-        loadComponents()
+        console.log('收到 DAG 状态变化事件:', event)
+        
+        // 清除之前的定时器
+        if (updateTimerRef.current) {
+          clearTimeout(updateTimerRef.current)
+        }
+        
+        // 防抖：300ms 内的多次更新只执行最后一次
+        updateTimerRef.current = setTimeout(() => {
+          console.log('执行 DAG 数据更新')
+          loadAppDAG()
+          loadComponents()
+        }, 300)
       }
       
       wsManager.addHandler(handleDAGStateChange)
-      wsManager.connect()
+      
+      // 延迟连接，确保组件已完全挂载
+      const connectTimer = setTimeout(() => {
+        wsManager.connect().catch((error) => {
+          console.log('WebSocket 连接失败（这不影响应用的其他功能）:', error.message)
+        })
+      }, 100)
       
       // 清理函数
       return () => {
+        clearTimeout(connectTimer)
+        if (updateTimerRef.current) {
+          clearTimeout(updateTimerRef.current)
+        }
         wsManager.removeHandler(handleDAGStateChange)
         disconnectWebSocketManager(applicationId)
+        wsInitializedRef.current = false
       }
     }
   }, [applicationId])
@@ -348,8 +376,13 @@ export default function ApplicationDetailPage() {
         autoResize: true
       })
 
-      // 渲染图形
-      graph.render()
+      // 渲染图形 - 使用 try-catch 捕获可能的错误
+      try {
+        graph.render()
+      } catch (error) {
+        console.error('图表渲染失败:', error)
+        return
+      }
 
       // 保存图实例引用
       graphRef.current = graph
@@ -357,8 +390,13 @@ export default function ApplicationDetailPage() {
       // 清理函数
       return () => {
         if (graphRef.current) {
-          graphRef.current.destroy()
-          graphRef.current = null
+          try {
+            graphRef.current.destroy()
+            graphRef.current = null
+          } catch (error) {
+            // 忽略销毁时的错误，这通常不是问题
+            console.debug('图表销毁时出错:', error)
+          }
         }
       }
     }, [dag])
@@ -849,7 +887,10 @@ export default function ApplicationDetailPage() {
                           </CardHeader>
                           <CardContent>
                             {appDAG ? (
-                              <DAGVisualization dag={appDAG} />
+                              <DAGVisualization 
+                                key={`dag-${appDAG.nodes.length}-${appDAG.edges.length}`} 
+                                dag={appDAG} 
+                              />
                             ) : (
                               <div className="flex items-center justify-center h-64 text-muted-foreground">
                                 {isLoadingComponents ? "加载组件数据中..." : "暂无组件数据"}

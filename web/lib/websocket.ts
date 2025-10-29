@@ -45,11 +45,20 @@ export class WebSocketManager {
         const backendHost = window.location.hostname + ':8083'
         const wsUrl = `${protocol}//${backendHost}/ws/dag-state?appId=${this.applicationId}`
 
-        console.log('Connecting to WebSocket:', wsUrl)
+        console.log('尝试连接 WebSocket:', {
+          url: wsUrl,
+          applicationId: this.applicationId,
+          protocol: protocol,
+          backendHost: backendHost
+        })
         this.ws = new WebSocket(wsUrl)
 
         this.ws.onopen = () => {
-          console.log('WebSocket connected for application:', this.applicationId)
+          console.log('✅ WebSocket 连接成功！', {
+            applicationId: this.applicationId,
+            url: wsUrl,
+            readyState: this.ws?.readyState
+          })
           this.isConnecting = false
           this.reconnectAttempts = 0
           resolve()
@@ -74,7 +83,11 @@ export class WebSocketManager {
         }
 
         this.ws.onclose = (event) => {
-          console.log('WebSocket closed:', event.code, event.reason)
+          console.log('WebSocket closed:', {
+            code: event.code,
+            reason: event.reason || '(no reason provided)',
+            wasClean: event.wasClean
+          })
           this.isConnecting = false
           this.ws = null
 
@@ -84,12 +97,18 @@ export class WebSocketManager {
           }
         }
 
-        this.ws.onerror = (error) => {
-          console.error('WebSocket error:', error)
+        this.ws.onerror = (event) => {
+          // WebSocket的error事件不包含详细错误信息
+          // 真正的错误信息会在onclose事件中提供
+          console.warn('WebSocket 连接错误，详细信息请查看 close 事件', {
+            readyState: this.ws?.readyState,
+            url: wsUrl,
+            event: event
+          })
           this.isConnecting = false
           
           if (this.reconnectAttempts === 0) {
-            reject(error)
+            reject(new Error('WebSocket 连接失败'))
           }
         }
 

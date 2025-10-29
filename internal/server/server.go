@@ -862,8 +862,14 @@ func (s *Server) handleGetApplicationDAG(w http.ResponseWriter, req *http.Reques
 	// 获取应用的DAG信息
 	dag, err := s.appMgr.GetApplicationDAG(appID)
 	if err != nil {
-		logrus.Warnf("No DAG found for application: %s", appID)
-		response.WriteError(w, http.StatusNotFound, "application DAG not found", err)
+		// 没有DAG数据时，返回200状态码，但dag字段为nil
+		logrus.Infof("No DAG found for application: %s, returning empty response", appID)
+		if err := response.WriteSuccess(w, response.GetDAGResponse{
+			DAG: nil,
+		}); err != nil {
+			logrus.Errorf("Failed to write empty DAG response: %v", err)
+			return
+		}
 		return
 	}
 
@@ -1606,6 +1612,6 @@ func (s *Server) handleWebSocketConnection(w http.ResponseWriter, r *http.Reques
 
 	// 使用Hub的HandleWebSocket方法处理连接
 	wsHub.HandleWebSocket(w, r, applicationID, clientID)
-	
+
 	logrus.Infof("WebSocket connection handled for app %s, client %s", applicationID, clientID)
 }
