@@ -76,6 +76,7 @@ func main() {
 		ignisPlatform = platform.NewPlatform(
 			context.Background(), "0.0.0.0:"+strconv.FormatInt(int64(cfg.Ignis.Port), 10),
 			integration.NewDeployer(am, rm, cm, cfg),
+			nil,
 		)
 		if err != nil {
 			log.Fatalf("Ignis platform init: %v", err)

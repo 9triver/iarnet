@@ -4,6 +4,10 @@ go 1.25.0
 
 replace github.com/9triver/ignis => ./ignis/ignis-go
 
+replace github.com/9triver/iarnet/integration/ignis/deployer => ./integration/ignis/deployer
+
+replace github.com/9triver/iarnet/integration/ignis/monitor => ./integration/ignis/monitor
+
 require (
 	github.com/9triver/ignis v0.0.0-00010101000000-000000000000
 	github.com/asynkron/protoactor-go v0.0.0-20240822202345-3c0e61ca19c9

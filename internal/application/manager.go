@@ -21,7 +21,6 @@ import (
 	"github.com/9triver/iarnet/internal/websocket"
 	"github.com/9triver/iarnet/proto"
 	"github.com/9triver/ignis/platform"
-	"github.com/9triver/ignis/proto/controller"
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/client"
 	"github.com/sirupsen/logrus"
@@ -56,27 +55,27 @@ type Manager struct {
 	wsHub           *websocket.Hub // WebSocket hub for real-time updates
 }
 
-// OnDAGStateChanged 实现StateChangeObserver接口
-func (m *Manager) OnDAGStateChanged(event *platform.DAGStateChangeEvent) {
-	logrus.Infof("DAG state changed for app %s, node %s", event.AppID, event.NodeID)
+// // OnDAGStateChanged 实现StateChangeObserver接口
+// func (m *Manager) OnDAGStateChanged(event *platform.DAGStateChangeEvent) {
+// 	logrus.Infof("DAG state changed for app %s, node %s", event.AppID, event.NodeID)
 
-	// 通过WebSocket广播DAG状态变化
-	if m.wsHub != nil {
-		wsEvent := websocket.DAGStateEvent{
-			Type:          "dag_node_state_change",
-			ApplicationID: event.AppID,
-			NodeID:        event.NodeID,
-			NodeState:     "done", // 节点完成状态
-			Timestamp:     event.Timestamp.Unix(),
-			Data: map[string]interface{}{
-				"node_type": event.NodeState.Type,
-				"done":      event.NodeState.Done,
-				"ready":     event.NodeState.Ready,
-			},
-		}
-		m.wsHub.BroadcastDAGStateChange(wsEvent)
-	}
-}
+// 	// 通过WebSocket广播DAG状态变化
+// 	if m.wsHub != nil {
+// 		wsEvent := websocket.DAGStateEvent{
+// 			Type:          "dag_node_state_change",
+// 			ApplicationID: event.AppID,
+// 			NodeID:        event.NodeID,
+// 			NodeState:     "done", // 节点完成状态
+// 			Timestamp:     event.Timestamp.Unix(),
+// 			Data: map[string]interface{}{
+// 				"node_type": event.NodeState.Type,
+// 				"done":      event.NodeState.Done,
+// 				"ready":     event.NodeState.Ready,
+// 			},
+// 		}
+// 		m.wsHub.BroadcastDAGStateChange(wsEvent)
+// 	}
+// }
 
 // CodeBrowserInfo 代码浏览器信息
 type CodeBrowserInfo struct {
@@ -1055,164 +1054,165 @@ func (m *Manager) getAvailableProviders() []*proto.ProviderInfo {
 
 // GetApplicationDAG 获取应用的DAG图
 func (m *Manager) GetApplicationDAG(appID string) (*DAG, error) {
-	// m.mu.RLock()
-	// defer m.mu.RUnlock()
+	// // m.mu.RLock()
+	// // defer m.mu.RUnlock()
 
-	// 获取ApplicationInfo并注册观察者
-	appInfo := m.ignisPlatform.GetApplicationInfo(appID)
-	if appInfo == nil {
-		return nil, errors.New("application info not found")
-	}
+	// // 获取ApplicationInfo并注册观察者
+	// appInfo := m.ignisPlatform.GetApplicationInfo(appID)
+	// if appInfo == nil {
+	// 	return nil, errors.New("application info not found")
+	// }
 
-	// 注册观察者（如果还没有注册的话）
-	appInfo.AddObserver(m)
+	// // 注册观察者（如果还没有注册的话）
+	// appInfo.AddObserver(m)
 
-	ignisDAG := appInfo.GetDAG()
-	if ignisDAG == nil {
-		return nil, errors.New("application DAG not found")
-	}
+	// ignisDAG := appInfo.GetDAG()
+	// if ignisDAG == nil {
+	// 	return nil, errors.New("application DAG not found")
+	// }
 
-	return m.ConvertToApplicationDAG(ignisDAG, appInfo), nil
+	// return m.ConvertToApplicationDAG(ignisDAG, appInfo), nil
+	return nil, nil
 }
 
-func (m *Manager) ConvertToApplicationDAG(dag *controller.DAG, appInfo *platform.ApplicationInfo) *DAG {
-	protoNodes := dag.GetNodes()
+// func (m *Manager) ConvertToApplicationDAG(dag *controller.DAG, appInfo *platform.ApplicationInfo) *DAG {
+// 	protoNodes := dag.GetNodes()
 
-	protoDataNodeMap := make(map[string]*controller.DataNode)
+// 	protoDataNodeMap := make(map[string]*controller.DataNode)
 
-	// 获取最新的节点状态
-	nodeStates := appInfo.GetNodeStates()
+// 	// 获取最新的节点状态
+// 	nodeStates := appInfo.GetNodeStates()
 
-	// 转换节点
-	var appNodes []*DAGNode
+// 	// 转换节点
+// 	var appNodes []*DAGNode
 
-	for _, protoNode := range protoNodes {
-		var appNode *DAGNode
+// 	for _, protoNode := range protoNodes {
+// 		var appNode *DAGNode
 
-		if protoNode.GetType() == "ControlNode" {
-			controlNode := protoNode.GetControlNode()
-			nodeID := controlNode.GetId()
-			
-			// 从最新状态获取信息
-			var done bool
-			var lastUpdated time.Time
-			if nodeState, exists := nodeStates[nodeID]; exists {
-				done = nodeState.Done
-				lastUpdated = nodeState.UpdateAt
-			} else {
-				done = controlNode.GetDone()
-				lastUpdated = time.Now()
-			}
-			
-			appNode = &DAGNode{
-				Type: "ControlNode",
-				Node: &ControlNode{
-					Id:           nodeID,
-					Done:         done,
-					FunctionName: controlNode.GetFunctionName(),
-					Params:       controlNode.GetParams(),
-					Current:      controlNode.GetCurrent(),
-					LastUpdated:  lastUpdated,
-				},
-			}
-		} else if protoNode.GetType() == "DataNode" {
-			dataNode := protoNode.GetDataNode()
-			nodeID := dataNode.GetId()
-			
-			// 从最新状态获取信息
-			var done, ready bool
-			var lastUpdated time.Time
-			if nodeState, exists := nodeStates[nodeID]; exists {
-				done = nodeState.Done
-				ready = nodeState.Ready
-				lastUpdated = nodeState.UpdateAt
-			} else {
-				done = dataNode.GetDone()
-				ready = dataNode.GetReady()
-				lastUpdated = time.Now()
-			}
-			
-			appDataNode := &DataNode{
-				Id:          nodeID,
-				Done:        done,
-				Lambda:      dataNode.GetLambda(),
-				Ready:       ready,
-				ChildNode:   dataNode.GetChildNode(),
-				LastUpdated: lastUpdated,
-			}
+// 		if protoNode.GetType() == "ControlNode" {
+// 			controlNode := protoNode.GetControlNode()
+// 			nodeID := controlNode.GetId()
 
-			// 处理可选字段
-			if dataNode.GetParentNode() != "" {
-				parentNode := dataNode.GetParentNode()
-				appDataNode.ParentNode = &parentNode
-			}
+// 			// 从最新状态获取信息
+// 			var done bool
+// 			var lastUpdated time.Time
+// 			if nodeState, exists := nodeStates[nodeID]; exists {
+// 				done = nodeState.Done
+// 				lastUpdated = nodeState.UpdateAt
+// 			} else {
+// 				done = controlNode.GetDone()
+// 				lastUpdated = time.Now()
+// 			}
 
-			appNode = &DAGNode{
-				Type: "DataNode",
-				Node: appDataNode,
-			}
+// 			appNode = &DAGNode{
+// 				Type: "ControlNode",
+// 				Node: &ControlNode{
+// 					Id:           nodeID,
+// 					Done:         done,
+// 					FunctionName: controlNode.GetFunctionName(),
+// 					Params:       controlNode.GetParams(),
+// 					Current:      controlNode.GetCurrent(),
+// 					LastUpdated:  lastUpdated,
+// 				},
+// 			}
+// 		} else if protoNode.GetType() == "DataNode" {
+// 			dataNode := protoNode.GetDataNode()
+// 			nodeID := dataNode.GetId()
 
-			protoDataNodeMap[dataNode.GetId()] = dataNode
-		}
+// 			// 从最新状态获取信息
+// 			var done, ready bool
+// 			var lastUpdated time.Time
+// 			if nodeState, exists := nodeStates[nodeID]; exists {
+// 				done = nodeState.Done
+// 				ready = nodeState.Ready
+// 				lastUpdated = nodeState.UpdateAt
+// 			} else {
+// 				done = dataNode.GetDone()
+// 				ready = dataNode.GetReady()
+// 				lastUpdated = time.Now()
+// 			}
 
-		if appNode != nil {
-			appNodes = append(appNodes, appNode)
-		}
-	}
+// 			appDataNode := &DataNode{
+// 				Id:          nodeID,
+// 				Done:        done,
+// 				Lambda:      dataNode.GetLambda(),
+// 				Ready:       ready,
+// 				ChildNode:   dataNode.GetChildNode(),
+// 				LastUpdated: lastUpdated,
+// 			}
 
-	// 构建边
-	var edges []*DAGEdge
+// 			// 处理可选字段
+// 			if dataNode.GetParentNode() != "" {
+// 				parentNode := dataNode.GetParentNode()
+// 				appDataNode.ParentNode = &parentNode
+// 			}
 
-	for _, protoNode := range protoNodes {
-		if protoNode.GetType() == "DataNode" {
-			continue
-		}
-		controlNode := protoNode.GetControlNode()
+// 			appNode = &DAGNode{
+// 				Type: "DataNode",
+// 				Node: appDataNode,
+// 			}
 
-		// 从PreDataNodes到ControlNode的边
-		for _, preDataNodeId := range controlNode.GetPreDataNodes() {
-			// 查找对应的参数名
-			preDataNode := protoDataNodeMap[preDataNodeId]
-			if preDataNode == nil {
-				logrus.Errorf("PreDataNode %s not found for ControlNode %s", preDataNodeId, controlNode.GetId())
-				continue
-			}
+// 			protoDataNodeMap[dataNode.GetId()] = dataNode
+// 		}
 
-			var info string
-			lambdaId := preDataNode.GetLambda()
-			if controlNode.GetParams() != nil {
-				paramName, ok := controlNode.GetParams()[lambdaId]
-				if !ok {
-					logrus.Errorf("Param for lambda %s not found for ControlNode %s", lambdaId, controlNode.GetId())
-					continue
-				}
-				info = paramName
-			}
+// 		if appNode != nil {
+// 			appNodes = append(appNodes, appNode)
+// 		}
+// 	}
 
-			edge := &DAGEdge{
-				FromNodeID: preDataNodeId,
-				ToNodeID:   controlNode.GetId(),
-				Info:       info,
-			}
-			edges = append(edges, edge)
-		}
+// 	// 构建边
+// 	var edges []*DAGEdge
 
-		// 从ControlNode到DataNode的边
-		if controlNode.GetDataNode() != "" {
-			edge := &DAGEdge{
-				FromNodeID: controlNode.GetId(),
-				ToNodeID:   controlNode.GetDataNode(),
-				Info:       "", // 控制节点到数据节点的边通常没有信息
-			}
-			edges = append(edges, edge)
-		}
-	}
+// 	for _, protoNode := range protoNodes {
+// 		if protoNode.GetType() == "DataNode" {
+// 			continue
+// 		}
+// 		controlNode := protoNode.GetControlNode()
 
-	return &DAG{
-		Nodes: appNodes,
-		Edges: edges,
-	}
-}
+// 		// 从PreDataNodes到ControlNode的边
+// 		for _, preDataNodeId := range controlNode.GetPreDataNodes() {
+// 			// 查找对应的参数名
+// 			preDataNode := protoDataNodeMap[preDataNodeId]
+// 			if preDataNode == nil {
+// 				logrus.Errorf("PreDataNode %s not found for ControlNode %s", preDataNodeId, controlNode.GetId())
+// 				continue
+// 			}
+
+// 			var info string
+// 			lambdaId := preDataNode.GetLambda()
+// 			if controlNode.GetParams() != nil {
+// 				paramName, ok := controlNode.GetParams()[lambdaId]
+// 				if !ok {
+// 					logrus.Errorf("Param for lambda %s not found for ControlNode %s", lambdaId, controlNode.GetId())
+// 					continue
+// 				}
+// 				info = paramName
+// 			}
+
+// 			edge := &DAGEdge{
+// 				FromNodeID: preDataNodeId,
+// 				ToNodeID:   controlNode.GetId(),
+// 				Info:       info,
+// 			}
+// 			edges = append(edges, edge)
+// 		}
+
+// 		// 从ControlNode到DataNode的边
+// 		if controlNode.GetDataNode() != "" {
+// 			edge := &DAGEdge{
+// 				FromNodeID: controlNode.GetId(),
+// 				ToNodeID:   controlNode.GetDataNode(),
+// 				Info:       "", // 控制节点到数据节点的边通常没有信息
+// 			}
+// 			edges = append(edges, edge)
+// 		}
+// 	}
+
+// 	return &DAG{
+// 		Nodes: appNodes,
+// 		Edges: edges,
+// 	}
+// }
 
 // GetApplicationLogs 获取应用的Docker容器日志
 func (m *Manager) GetApplicationLogs(appID string, lines int) ([]string, error) {
