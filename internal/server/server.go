@@ -31,12 +31,14 @@ type Server struct {
 func NewServer(rm *resource.Manager, am *application.Manager, pm *discovery.PeerManager, cfg *config.Config) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{router: mux.NewRouter(), resMgr: rm, appMgr: am, peerMgr: pm, config: cfg, ctx: ctx, cancel: cancel}
-	// s.router.HandleFunc("/run", s.handleRun).Methods("POST")
+
 	s.router.HandleFunc("/resource/capacity", s.handleResourceCapacity).Methods("GET")
 	s.router.HandleFunc("/resource/providers", s.handleResourceProviders).Methods("GET")
 	s.router.HandleFunc("/resource/providers", s.handleRegisterProvider).Methods("POST")
 	s.router.HandleFunc("/resource/providers/{id}", s.handleUnregisterProvider).Methods("DELETE")
 
+	s.router.HandleFunc("/application/stats", s.handleGetApplicationStats).Methods("GET")
+	s.router.HandleFunc("/application/runner-environments", s.handleGetRunnerEnvironments).Methods("GET")
 	s.router.HandleFunc("/application/apps", s.handleGetApplications).Methods("GET")
 	s.router.HandleFunc("/application/apps", s.handleCreateApplication).Methods("POST")
 	s.router.HandleFunc("/application/apps/{id}", s.handleGetApplicationById).Methods("GET")
@@ -46,12 +48,6 @@ func NewServer(rm *resource.Manager, am *application.Manager, pm *discovery.Peer
 	s.router.HandleFunc("/application/apps/{id}/stop", s.handleStopApplication).Methods("POST")
 	s.router.HandleFunc("/application/apps/{id}/logs", s.handleGetApplicationLogs).Methods("GET")
 	s.router.HandleFunc("/application/apps/{id}/logs/parsed", s.handleGetApplicationLogsParsed).Methods("GET")
-	s.router.HandleFunc("/application/stats", s.handleGetApplicationStats).Methods("GET")
-	s.router.HandleFunc("/application/runner-environments", s.handleGetRunnerEnvironments).Methods("GET")
-	// s.router.HandleFunc("/application/create", s.handleCreateApplication).Methods("POST")
-	// s.router.HandleFunc("/application/apps/{id}/code-browser", s.handleStartCodeBrowser).Methods("POST")
-	// s.router.HandleFunc("/application/apps/{id}/code-browser", s.handleStopCodeBrowser).Methods("DELETE")
-	// s.router.HandleFunc("/application/apps/{id}/code-browser/status", s.handleGetCodeBrowserStatus).Methods("GET")
 	s.router.HandleFunc("/application/apps/{id}/files", s.handleGetFileTree).Methods("GET")
 	s.router.HandleFunc("/application/apps/{id}/files/content", s.handleGetFileContent).Methods("GET")
 	s.router.HandleFunc("/application/apps/{id}/files/content", s.handleSaveFileContent).Methods("PUT")
@@ -59,8 +55,6 @@ func NewServer(rm *resource.Manager, am *application.Manager, pm *discovery.Peer
 	s.router.HandleFunc("/application/apps/{id}/files", s.handleDeleteFile).Methods("DELETE")
 	s.router.HandleFunc("/application/apps/{id}/directories", s.handleCreateDirectory).Methods("POST")
 	s.router.HandleFunc("/application/apps/{id}/directories", s.handleDeleteDirectory).Methods("DELETE")
-
-	// 组件相关API
 	s.router.HandleFunc("/application/apps/{id}/dag", s.handleGetApplicationDAG).Methods("GET")
 	s.router.HandleFunc("/application/apps/{id}/analyze", s.handleAnalyzeApplication).Methods("POST")
 	s.router.HandleFunc("/application/apps/{id}/deploy-components", s.handleDeployComponents).Methods("POST")
@@ -701,77 +695,6 @@ func (s *Server) handleUnregisterProvider(w http.ResponseWriter, req *http.Reque
 
 	if err := response.WriteSuccess(w, unregisterResp); err != nil {
 		logrus.Errorf("Failed to write unregister provider response: %v", err)
-	}
-}
-
-// handleStartCodeBrowser 启动代码浏览器
-func (s *Server) handleStartCodeBrowser(w http.ResponseWriter, req *http.Request) {
-	vars := mux.Vars(req)
-	appID := vars["id"]
-
-	// 获取应用信息
-	_, err := s.appMgr.GetApplication(appID)
-	if err != nil {
-		response.WriteError(w, http.StatusNotFound, "Application not found", err)
-		return
-	}
-
-	// 启动代码浏览器
-	port, err := s.appMgr.StartCodeBrowser(appID)
-	if err != nil {
-		response.WriteError(w, http.StatusInternalServerError, "Failed to start code browser", err)
-		return
-	}
-
-	startResponse := response.StartCodeBrowserResponse{
-		Message: "Code browser started successfully",
-		Port:    port,
-		URL:     fmt.Sprintf("http://localhost:%d", port),
-	}
-
-	if err := response.WriteSuccess(w, startResponse); err != nil {
-		logrus.Errorf("Failed to write start code browser response: %v", err)
-		return
-	}
-}
-
-// handleStopCodeBrowser 停止代码浏览器
-func (s *Server) handleStopCodeBrowser(w http.ResponseWriter, req *http.Request) {
-	vars := mux.Vars(req)
-	appID := vars["id"]
-
-	// 停止代码浏览器
-	err := s.appMgr.StopCodeBrowser(appID)
-	if err != nil {
-		response.WriteError(w, http.StatusInternalServerError, "Failed to stop code browser", err)
-		return
-	}
-
-	stopResponse := response.StopCodeBrowserResponse{
-		Message: "Code browser stopped successfully",
-	}
-
-	if err := response.WriteSuccess(w, stopResponse); err != nil {
-		logrus.Errorf("Failed to write stop code browser response: %v", err)
-		return
-	}
-}
-
-// handleGetCodeBrowserStatus 获取代码浏览器状态
-func (s *Server) handleGetCodeBrowserStatus(w http.ResponseWriter, req *http.Request) {
-	vars := mux.Vars(req)
-	appID := vars["id"]
-
-	// 获取代码浏览器状态
-	status, err := s.appMgr.GetCodeBrowserStatus(appID)
-	if err != nil {
-		response.WriteError(w, http.StatusInternalServerError, "Failed to get code browser status", err)
-		return
-	}
-
-	if err := response.WriteSuccess(w, status); err != nil {
-		logrus.Errorf("Failed to write code browser status response: %v", err)
-		return
 	}
 }
 

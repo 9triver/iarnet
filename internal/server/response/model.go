@@ -2,6 +2,7 @@ package response
 
 import (
 	"github.com/9triver/iarnet/internal/application"
+	"github.com/9triver/iarnet/internal/compute"
 	"github.com/9triver/iarnet/internal/resource"
 )
 
@@ -165,5 +166,5 @@ type RunnerEnvironment struct {
 }
 
 type GetDAGResponse struct {
-	DAG *application.DAG `json:"dag"`
+	DAG *compute.DAG `json:"dag"`
 }

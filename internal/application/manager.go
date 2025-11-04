@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,21 +14,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/9triver/iarnet/internal/compute"
 	"github.com/9triver/iarnet/internal/config"
 	"github.com/9triver/iarnet/internal/resource"
 	"github.com/9triver/iarnet/internal/server/request"
 	"github.com/9triver/iarnet/internal/websocket"
-	"github.com/9triver/iarnet/proto"
-	"github.com/9triver/ignis/platform"
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/client"
 	"github.com/sirupsen/logrus"
 )
-
-// CodeAnalysisService 代码分析服务接口
-type CodeAnalysisService interface {
-	AnalyzeCode(ctx context.Context, req *proto.CodeAnalysisRequest) (*proto.CodeAnalysisResponse, error)
-}
 
 // LogEntry 表示解析后的日志条目
 type LogEntry struct {
@@ -43,39 +36,16 @@ type LogEntry struct {
 }
 
 type Manager struct {
-	applications    map[string]*AppRef
-	nextAppID       int
-	mu              sync.RWMutex
-	config          *config.Config
-	codeBrowsers    map[string]*CodeBrowserInfo // appID -> 代码浏览器信息
-	rm              *resource.Manager
-	analysisService CodeAnalysisService
-	ignisPlatform   *platform.Platform
-	dockerClient    *client.Client
-	wsHub           *websocket.Hub // WebSocket hub for real-time updates
+	applications  map[string]*AppRef
+	nextAppID     int
+	mu            sync.RWMutex
+	config        *config.Config
+	codeBrowsers  map[string]*CodeBrowserInfo // appID -> 代码浏览器信息
+	rm            *resource.Manager
+	computeEngine compute.Engine // 计算引擎
+	dockerClient  *client.Client
+	wsHub         *websocket.Hub // WebSocket hub for real-time updates
 }
-
-// // OnDAGStateChanged 实现StateChangeObserver接口
-// func (m *Manager) OnDAGStateChanged(event *platform.DAGStateChangeEvent) {
-// 	logrus.Infof("DAG state changed for app %s, node %s", event.AppID, event.NodeID)
-
-// 	// 通过WebSocket广播DAG状态变化
-// 	if m.wsHub != nil {
-// 		wsEvent := websocket.DAGStateEvent{
-// 			Type:          "dag_node_state_change",
-// 			ApplicationID: event.AppID,
-// 			NodeID:        event.NodeID,
-// 			NodeState:     "done", // 节点完成状态
-// 			Timestamp:     event.Timestamp.Unix(),
-// 			Data: map[string]interface{}{
-// 				"node_type": event.NodeState.Type,
-// 				"done":      event.NodeState.Done,
-// 				"ready":     event.NodeState.Ready,
-// 			},
-// 		}
-// 		m.wsHub.BroadcastDAGStateChange(wsEvent)
-// 	}
-// }
 
 // CodeBrowserInfo 代码浏览器信息
 type CodeBrowserInfo struct {
@@ -115,7 +85,7 @@ func NewManager(config *config.Config, resourceManager *resource.Manager) *Manag
 		config:        config,
 		codeBrowsers:  make(map[string]*CodeBrowserInfo),
 		rm:            resourceManager,
-		ignisPlatform: nil,
+		computeEngine: nil, // 通过 SetComputeEngine 设置
 		dockerClient:  cli,
 		wsHub:         wsHub,
 	}
@@ -123,9 +93,15 @@ func NewManager(config *config.Config, resourceManager *resource.Manager) *Manag
 	return m
 }
 
-func (m *Manager) SetIgnisPlatform(ignisPlatform *platform.Platform) {
-	m.ignisPlatform = ignisPlatform
-	logrus.Info("Ignis platform set in application manager")
+// SetComputeEngine 设置计算引擎
+func (m *Manager) SetComputeEngine(engine compute.Engine) {
+	m.computeEngine = engine
+	logrus.Info("Compute engine set in application manager")
+}
+
+// GetComputeEngine 获取计算引擎
+func (m *Manager) GetComputeEngine() compute.Engine {
+	return m.computeEngine
 }
 
 // GetWebSocketHub returns the WebSocket hub for external use
@@ -205,11 +181,6 @@ func (m *Manager) UpdateApplication(ctx context.Context, appID string, app *requ
 	}
 
 	return nil
-}
-
-// SetAnalysisService 设置代码分析服务
-func (m *Manager) SetAnalysisService(service CodeAnalysisService) {
-	m.analysisService = service
 }
 
 // RunApplication 运行应用容器
@@ -554,15 +525,6 @@ func (m *Manager) DeleteApplication(appID string) error {
 		// }
 	}
 
-	// 停止代码浏览器（如果正在运行）
-	if _, exists := m.codeBrowsers[appID]; exists {
-		logrus.Infof("Stopping code browser for application: %s", appID)
-		if err := m.StopCodeBrowser(appID); err != nil {
-			logrus.Warnf("Failed to stop code browser during deletion: %v", err)
-		}
-		delete(m.codeBrowsers, appID)
-	}
-
 	// 删除应用目录（如果存在）
 	workspaceDir := m.config.WorkspaceDir
 	if workspaceDir == "" {
@@ -631,134 +593,6 @@ func (m *Manager) GetApplicationStats() ApplicationStats {
 	}
 
 	return stats
-}
-
-// StartCodeBrowser 启动代码浏览器
-func (m *Manager) StartCodeBrowser(appID string) (int, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	// 检查应用是否存在
-	_, exists := m.applications[appID]
-	if !exists {
-		return 0, errors.New("application not found")
-	}
-
-	// 检查是否已经有代码浏览器在运行
-	if browserInfo, exists := m.codeBrowsers[appID]; exists && browserInfo.Status == "running" {
-		return browserInfo.Port, nil
-	}
-
-	// 获取应用的工作目录
-	workspaceBaseDir := m.config.WorkspaceDir
-	if workspaceBaseDir == "" {
-		workspaceBaseDir = "./workspaces"
-	}
-	workDir := filepath.Join(workspaceBaseDir, appID)
-
-	// 检查工作目录是否存在
-	if _, err := os.Stat(workDir); os.IsNotExist(err) {
-		return 0, fmt.Errorf("workspace directory does not exist: %s", workDir)
-	}
-
-	// 找到可用端口
-	port, err := m.findAvailablePort()
-	if err != nil {
-		return 0, fmt.Errorf("failed to find available port: %v", err)
-	}
-
-	// 启动code-server
-	cmd := exec.Command("code-server",
-		"--bind-addr", fmt.Sprintf("0.0.0.0:%d", port),
-		"--auth", "none",
-		"--disable-telemetry",
-		workDir,
-	)
-
-	err = cmd.Start()
-	if err != nil {
-		return 0, fmt.Errorf("failed to start code-server: %v", err)
-	}
-
-	// 记录代码浏览器信息
-	m.codeBrowsers[appID] = &CodeBrowserInfo{
-		Port:      port,
-		PID:       cmd.Process.Pid,
-		StartTime: time.Now(),
-		Status:    "running",
-		WorkDir:   workDir,
-		Cmd:       cmd,
-	}
-
-	logrus.Infof("Started code browser for app %s on port %d", appID, port)
-	return port, nil
-}
-
-// StopCodeBrowser 停止代码浏览器
-func (m *Manager) StopCodeBrowser(appID string) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	browserInfo, exists := m.codeBrowsers[appID]
-	if !exists {
-		return errors.New("code browser not found")
-	}
-
-	if browserInfo.Status != "running" {
-		return errors.New("code browser is not running")
-	}
-
-	// 停止进程
-	if browserInfo.Cmd != nil && browserInfo.Cmd.Process != nil {
-		err := browserInfo.Cmd.Process.Kill()
-		if err != nil {
-			logrus.Errorf("Failed to kill code browser process: %v", err)
-			return err
-		}
-	}
-
-	// 更新状态
-	browserInfo.Status = "stopped"
-	logrus.Infof("Stopped code browser for app %s", appID)
-	return nil
-}
-
-// GetCodeBrowserStatus 获取代码浏览器状态
-func (m *Manager) GetCodeBrowserStatus(appID string) (*CodeBrowserInfo, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	browserInfo, exists := m.codeBrowsers[appID]
-	if !exists {
-		return &CodeBrowserInfo{
-			Status: "stopped",
-		}, nil
-	}
-
-	// 检查进程是否还在运行
-	if browserInfo.Cmd != nil && browserInfo.Cmd.Process != nil {
-		// 尝试发送信号0来检查进程是否存在
-		err := browserInfo.Cmd.Process.Signal(os.Signal(nil))
-		if err != nil {
-			// 进程不存在，更新状态
-			browserInfo.Status = "stopped"
-		}
-	}
-
-	return browserInfo, nil
-}
-
-// findAvailablePort 找到可用端口
-func (m *Manager) findAvailablePort() (int, error) {
-	// 从8080开始查找可用端口
-	for port := 8080; port <= 9000; port++ {
-		ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
-		if err == nil {
-			ln.Close()
-			return port, nil
-		}
-	}
-	return 0, errors.New("no available port found")
 }
 
 // FileInfo 文件信息结构
@@ -938,281 +772,16 @@ func (m *Manager) detectLanguage(ext string) string {
 	return "plaintext"
 }
 
-// readApplicationCode 读取应用代码内容
-func (m *Manager) readApplicationCode(appDir string) (string, error) {
-	// 简化实现：读取主要文件内容
-	var codeContent strings.Builder
-
-	err := filepath.Walk(appDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		// 跳过隐藏文件和目录
-		if strings.HasPrefix(info.Name(), ".") {
-			return nil
-		}
-
-		// 只读取代码文件
-		if !info.IsDir() && m.isCodeFile(info.Name()) {
-			content, err := ioutil.ReadFile(path)
-			if err != nil {
-				return err
-			}
-			codeContent.WriteString(fmt.Sprintf("// File: %s\n%s\n\n", path, string(content)))
-		}
-
-		return nil
-	})
-
-	return codeContent.String(), err
-}
-
-// isCodeFile 判断是否为代码文件
-func (m *Manager) isCodeFile(filename string) bool {
-	ext := strings.ToLower(filepath.Ext(filename))
-	codeExts := []string{".js", ".ts", ".py", ".go", ".java", ".cpp", ".c", ".php", ".rb", ".cs", ".json", ".yaml", ".yml", ".dockerfile"}
-
-	for _, codeExt := range codeExts {
-		if ext == codeExt {
-			return true
-		}
-	}
-	return false
-}
-
-// detectLanguageFromCode 从代码内容检测编程语言
-func (m *Manager) detectLanguageFromCode(codeContent string) string {
-	content := strings.ToLower(codeContent)
-
-	if strings.Contains(content, "package.json") || strings.Contains(content, "npm") || strings.Contains(content, "node_modules") {
-		return "javascript"
-	}
-	if strings.Contains(content, "requirements.txt") || strings.Contains(content, "import ") && strings.Contains(content, "def ") {
-		return "python"
-	}
-	if strings.Contains(content, "go.mod") || strings.Contains(content, "package main") {
-		return "go"
-	}
-	if strings.Contains(content, "pom.xml") || strings.Contains(content, "public class") {
-		return "java"
-	}
-
-	return "unknown"
-}
-
-// detectFrameworkFromCode 从代码内容检测框架
-func (m *Manager) detectFrameworkFromCode(codeContent string) string {
-	content := strings.ToLower(codeContent)
-
-	if strings.Contains(content, "next.js") || strings.Contains(content, "next/") {
-		return "next.js"
-	}
-	if strings.Contains(content, "react") {
-		return "react"
-	}
-	if strings.Contains(content, "django") {
-		return "django"
-	}
-	if strings.Contains(content, "flask") {
-		return "flask"
-	}
-	if strings.Contains(content, "spring") {
-		return "spring"
-	}
-
-	return "unknown"
-}
-
-// getAvailableProviders 获取可用的资源提供者
-func (m *Manager) getAvailableProviders() []*proto.ProviderInfo {
-	providers := m.rm.GetProviders()
-	var protoProviders []*proto.ProviderInfo
-
-	// 转换本地提供者（包含内部和外部托管）
-	for _, provider := range providers.LocalProviders {
-		protoProviders = append(protoProviders, &proto.ProviderInfo{
-			Id:     provider.GetID(),
-			Name:   provider.GetName(),
-			Type:   string(provider.GetType()),
-			Status: 1, // 假设状态为活跃
-		})
-	}
-
-	// 转换远程提供者（通过协作发现）
-	for _, provider := range providers.RemoteProviders {
-		protoProviders = append(protoProviders, &proto.ProviderInfo{
-			Id:     provider.GetID(),
-			Name:   provider.GetName(),
-			Type:   string(provider.GetType()),
-			Status: 1,
-		})
-	}
-
-	return protoProviders
-}
-
 // GetApplicationDAG 获取应用的DAG图
-func (m *Manager) GetApplicationDAG(appID string) (*DAG, error) {
-	// // m.mu.RLock()
-	// // defer m.mu.RUnlock()
+func (m *Manager) GetApplicationDAG(appID string) (*compute.DAG, error) {
+	if m.computeEngine == nil {
+		logrus.Warnf("Compute engine not available for app %s", appID)
+		return nil, fmt.Errorf("compute engine not available")
+	}
 
-	// // 获取ApplicationInfo并注册观察者
-	// appInfo := m.ignisPlatform.GetApplicationInfo(appID)
-	// if appInfo == nil {
-	// 	return nil, errors.New("application info not found")
-	// }
-
-	// // 注册观察者（如果还没有注册的话）
-	// appInfo.AddObserver(m)
-
-	// ignisDAG := appInfo.GetDAG()
-	// if ignisDAG == nil {
-	// 	return nil, errors.New("application DAG not found")
-	// }
-
-	// return m.ConvertToApplicationDAG(ignisDAG, appInfo), nil
-	return nil, nil
+	// 直接通过计算引擎获取 DAG
+	return m.computeEngine.GetApplicationDAG(context.Background(), appID)
 }
-
-// func (m *Manager) ConvertToApplicationDAG(dag *controller.DAG, appInfo *platform.ApplicationInfo) *DAG {
-// 	protoNodes := dag.GetNodes()
-
-// 	protoDataNodeMap := make(map[string]*controller.DataNode)
-
-// 	// 获取最新的节点状态
-// 	nodeStates := appInfo.GetNodeStates()
-
-// 	// 转换节点
-// 	var appNodes []*DAGNode
-
-// 	for _, protoNode := range protoNodes {
-// 		var appNode *DAGNode
-
-// 		if protoNode.GetType() == "ControlNode" {
-// 			controlNode := protoNode.GetControlNode()
-// 			nodeID := controlNode.GetId()
-
-// 			// 从最新状态获取信息
-// 			var done bool
-// 			var lastUpdated time.Time
-// 			if nodeState, exists := nodeStates[nodeID]; exists {
-// 				done = nodeState.Done
-// 				lastUpdated = nodeState.UpdateAt
-// 			} else {
-// 				done = controlNode.GetDone()
-// 				lastUpdated = time.Now()
-// 			}
-
-// 			appNode = &DAGNode{
-// 				Type: "ControlNode",
-// 				Node: &ControlNode{
-// 					Id:           nodeID,
-// 					Done:         done,
-// 					FunctionName: controlNode.GetFunctionName(),
-// 					Params:       controlNode.GetParams(),
-// 					Current:      controlNode.GetCurrent(),
-// 					LastUpdated:  lastUpdated,
-// 				},
-// 			}
-// 		} else if protoNode.GetType() == "DataNode" {
-// 			dataNode := protoNode.GetDataNode()
-// 			nodeID := dataNode.GetId()
-
-// 			// 从最新状态获取信息
-// 			var done, ready bool
-// 			var lastUpdated time.Time
-// 			if nodeState, exists := nodeStates[nodeID]; exists {
-// 				done = nodeState.Done
-// 				ready = nodeState.Ready
-// 				lastUpdated = nodeState.UpdateAt
-// 			} else {
-// 				done = dataNode.GetDone()
-// 				ready = dataNode.GetReady()
-// 				lastUpdated = time.Now()
-// 			}
-
-// 			appDataNode := &DataNode{
-// 				Id:          nodeID,
-// 				Done:        done,
-// 				Lambda:      dataNode.GetLambda(),
-// 				Ready:       ready,
-// 				ChildNode:   dataNode.GetChildNode(),
-// 				LastUpdated: lastUpdated,
-// 			}
-
-// 			// 处理可选字段
-// 			if dataNode.GetParentNode() != "" {
-// 				parentNode := dataNode.GetParentNode()
-// 				appDataNode.ParentNode = &parentNode
-// 			}
-
-// 			appNode = &DAGNode{
-// 				Type: "DataNode",
-// 				Node: appDataNode,
-// 			}
-
-// 			protoDataNodeMap[dataNode.GetId()] = dataNode
-// 		}
-
-// 		if appNode != nil {
-// 			appNodes = append(appNodes, appNode)
-// 		}
-// 	}
-
-// 	// 构建边
-// 	var edges []*DAGEdge
-
-// 	for _, protoNode := range protoNodes {
-// 		if protoNode.GetType() == "DataNode" {
-// 			continue
-// 		}
-// 		controlNode := protoNode.GetControlNode()
-
-// 		// 从PreDataNodes到ControlNode的边
-// 		for _, preDataNodeId := range controlNode.GetPreDataNodes() {
-// 			// 查找对应的参数名
-// 			preDataNode := protoDataNodeMap[preDataNodeId]
-// 			if preDataNode == nil {
-// 				logrus.Errorf("PreDataNode %s not found for ControlNode %s", preDataNodeId, controlNode.GetId())
-// 				continue
-// 			}
-
-// 			var info string
-// 			lambdaId := preDataNode.GetLambda()
-// 			if controlNode.GetParams() != nil {
-// 				paramName, ok := controlNode.GetParams()[lambdaId]
-// 				if !ok {
-// 					logrus.Errorf("Param for lambda %s not found for ControlNode %s", lambdaId, controlNode.GetId())
-// 					continue
-// 				}
-// 				info = paramName
-// 			}
-
-// 			edge := &DAGEdge{
-// 				FromNodeID: preDataNodeId,
-// 				ToNodeID:   controlNode.GetId(),
-// 				Info:       info,
-// 			}
-// 			edges = append(edges, edge)
-// 		}
-
-// 		// 从ControlNode到DataNode的边
-// 		if controlNode.GetDataNode() != "" {
-// 			edge := &DAGEdge{
-// 				FromNodeID: controlNode.GetId(),
-// 				ToNodeID:   controlNode.GetDataNode(),
-// 				Info:       "", // 控制节点到数据节点的边通常没有信息
-// 			}
-// 			edges = append(edges, edge)
-// 		}
-// 	}
-
-// 	return &DAG{
-// 		Nodes: appNodes,
-// 		Edges: edges,
-// 	}
-// }
 
 // GetApplicationLogs 获取应用的Docker容器日志
 func (m *Manager) GetApplicationLogs(appID string, lines int) ([]string, error) {
