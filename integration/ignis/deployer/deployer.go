@@ -62,8 +62,6 @@ func (d *Deployer) DeployPyFunc(ctx actor.Context, appId string, f *controller.A
 			Env: map[string]string{
 				"IGNIS_ADDR": d.cfg.ExternalAddr + ":" + strconv.Itoa(int(25565)),
 				"CONN_ID":    connId,
-				// "APP_ID":     appId,
-				// "FUNC_NAME":  f.Name,
 			},
 		})
 		if err != nil {
