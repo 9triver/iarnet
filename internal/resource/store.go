@@ -28,9 +28,6 @@ type Store interface {
 	// UpdateProviderStatus 更新 provider 状态
 	UpdateProviderStatus(providerID string, status Status) error
 
-	// GetNextProviderID 获取下一个 provider ID
-	GetNextProviderID() (int, error)
-
 	// Close 关闭数据库连接
 	Close() error
 }
@@ -304,25 +301,6 @@ func (s *store) UpdateProviderStatus(providerID string, status Status) error {
 
 	logrus.Debugf("Updated provider status in store: ID=%s, Status=%d", providerID, status)
 	return nil
-}
-
-// GetNextProviderID 获取下一个 provider ID
-func (s *store) GetNextProviderID() (int, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	maxID := 0
-	for providerID := range s.cache {
-		// 尝试从 provider ID 中提取数字
-		var typePrefix string
-		var idNum int
-		_, err := fmt.Sscanf(providerID, "%[^-]-%d", &typePrefix, &idNum)
-		if err == nil && idNum > maxID {
-			maxID = idNum
-		}
-	}
-
-	return maxID + 1, nil
 }
 
 // getCurrentTimestamp 获取当前时间戳

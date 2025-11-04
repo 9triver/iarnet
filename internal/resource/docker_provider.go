@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/docker/go-connections/nat"
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/client"
 	"github.com/sirupsen/logrus"
@@ -330,96 +329,7 @@ func (dp *DockerProvider) GetStatus() Status {
 	return dp.status
 }
 
-// getDockerHost 解析Docker主机地址，返回主机IP或域名
-func (dp *DockerProvider) getDockerHost() string {
-	if dp.config.Host == "" {
-		// 如果没有配置Host，默认为本地主机
-		return "localhost"
-	}
-
-	// 解析Docker主机地址，支持格式如：tcp://192.168.1.100:2376
-	host := dp.config.Host
-	if after, ok := strings.CutPrefix(host, "tcp://"); ok {
-		host = after
-	}
-	if strings.HasPrefix(host, "unix://") {
-		// Unix socket连接，表示本地主机
-		return "localhost"
-	}
-
-	// 提取主机部分（去掉端口）
-	if colonIndex := strings.LastIndex(host, ":"); colonIndex != -1 {
-		host = host[:colonIndex]
-	}
-
-	return host
-}
-
-// createPortBindings 为容器端口创建主机端口映射，让Docker自动分配主机端口
-func (dp *DockerProvider) createPortBindings(containerPorts []int) (nat.PortSet, nat.PortMap, error) {
-	portSet := nat.PortSet{}
-	portMap := nat.PortMap{}
-
-	dockerHost := dp.getDockerHost()
-	logrus.Infof("Creating port mappings on Docker host: %s (Docker will auto-assign host ports)", dockerHost)
-
-	for _, containerPort := range containerPorts {
-		// 创建容器端口
-		port, err := nat.NewPort("tcp", strconv.Itoa(containerPort))
-		if err != nil {
-			return nil, nil, fmt.Errorf("invalid container port %d: %w", containerPort, err)
-		}
-
-		// 添加到端口集合（暴露容器端口）
-		portSet[port] = struct{}{}
-
-		// 创建端口绑定，HostPort为空字符串表示让Docker自动分配
-		portMap[port] = []nat.PortBinding{
-			{
-				HostIP:   "0.0.0.0", // 绑定到所有网络接口
-				HostPort: "",        // 空字符串让Docker自动分配可用端口
-			},
-		}
-
-		logrus.Infof("Container port %d will be auto-mapped by Docker on host %s", containerPort, dockerHost)
-	}
-
-	return portSet, portMap, nil
-}
-
-// logActualPortMappings 获取并记录容器的实际端口映射
-func (dp *DockerProvider) logActualPortMappings(ctx context.Context, containerID string) error {
-	// 获取容器信息
-	containerJSON, err := dp.client.ContainerInspect(ctx, containerID)
-	if err != nil {
-		return fmt.Errorf("failed to inspect container: %w", err)
-	}
-
-	dockerHost := dp.getDockerHost()
-
-	// 记录端口映射信息
-	if containerJSON.NetworkSettings != nil && containerJSON.NetworkSettings.Ports != nil {
-		logrus.Infof("Actual port mappings for container %s on host %s:", containerID, dockerHost)
-		for containerPort, bindings := range containerJSON.NetworkSettings.Ports {
-			if len(bindings) > 0 {
-				for _, binding := range bindings {
-					logrus.Infof("  Container port %s -> Host %s:%s",
-						containerPort, binding.HostIP, binding.HostPort)
-				}
-			}
-		}
-	} else {
-		logrus.Infof("No port mappings found for container %s", containerID)
-	}
-
-	return nil
-}
-
 func (dp *DockerProvider) Deploy(ctx context.Context, spec ContainerSpec) (string, error) {
-	// 创建端口映射
-	// var exposedPorts nat.PortSet
-	// var portBindings nat.PortMap
-	var err error
 
 	// 创建容器配置
 	containerConfig := &container.Config{

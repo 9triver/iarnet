@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/9triver/iarnet/internal/config"
+	"github.com/lithammer/shortuuid/v4"
 	"github.com/sirupsen/logrus"
 )
 
@@ -30,7 +31,6 @@ type Manager struct {
 	internalProvider Provider            // 节点内部provider
 	localProviders   map[string]Provider // 直接接入的外部provider
 	remoteProviders  map[string]Provider // 通过gossip协议发现的provider
-	nextProviderID   int
 	monitor          *ProviderMonitor
 	cfg              *config.Config
 	store            Store // 持久化存储
@@ -47,18 +47,10 @@ func NewManager(cfg *config.Config) *Manager {
 		return nil
 	}
 
-	// 获取下一个 provider ID
-	nextProviderID, err := store.GetNextProviderID()
-	if err != nil {
-		logrus.Warnf("Failed to get next provider ID: %v, using default 1", err)
-		nextProviderID = 1
-	}
-
 	rm := &Manager{
 		internalProvider: nil,
 		localProviders:   make(map[string]Provider),
 		remoteProviders:  make(map[string]Provider),
-		nextProviderID:   nextProviderID,
 		cfg:              cfg,
 		store:            store,
 	}
@@ -104,9 +96,8 @@ func (rm *Manager) RegisterProvider(providerType ProviderType, name string, conf
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
 
-	// Generate auto-increment provider ID
-	providerID := fmt.Sprintf("%s-%d", providerType, rm.nextProviderID)
-	rm.nextProviderID++
+	// Generate provider ID using shortuuid
+	providerID := fmt.Sprintf("%s-%s", providerType, shortuuid.New())
 
 	// Create provider based on type
 	var provider Provider
