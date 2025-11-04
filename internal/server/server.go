@@ -14,6 +14,7 @@ import (
 	"github.com/9triver/iarnet/internal/resource"
 	"github.com/9triver/iarnet/internal/server/request"
 	"github.com/9triver/iarnet/internal/server/response"
+	"github.com/9triver/iarnet/internal/websocket"
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
 )
@@ -1526,7 +1527,7 @@ func (s *Server) handleWebSocketConnection(w http.ResponseWriter, r *http.Reques
 	}
 
 	// 获取WebSocket Hub
-	wsHub := s.appMgr.GetWebSocketHub()
+	wsHub := websocket.NewHub()
 	if wsHub == nil {
 		logrus.Error("WebSocket hub is not available")
 		http.Error(w, "WebSocket service unavailable", http.StatusServiceUnavailable)

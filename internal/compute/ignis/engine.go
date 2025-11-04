@@ -54,9 +54,7 @@ func NewEngine(ctx context.Context, cfg *config.Config,
 
 	// 创建 ignis monitor
 	monitorConfig := &ignisMonitor.Config{
-		DBPath:        "./ignis_monitor.db",
-		QueueSize:     10000,
-		FlushInterval: 1000,
+		MaxApplications: 1000,
 	}
 	mon, err := ignisMonitor.New(monitorConfig)
 	if err != nil {

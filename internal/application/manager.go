@@ -30,10 +30,6 @@ type Manager struct {
 	runtime       RuntimeService
 	logger        LoggerService
 	computeEngine compute.Engine
-
-	// 遗留字段（待逐步移除）
-	rm    *resource.Manager
-	wsHub *websocket.Hub
 }
 
 func NewManager(config *config.Config, resourceManager *resource.Manager) *Manager {
@@ -88,10 +84,6 @@ func NewManager(config *config.Config, resourceManager *resource.Manager) *Manag
 		runtime:       runtime,
 		logger:        logger,
 		computeEngine: nil,
-
-		// 遗留字段
-		rm:    resourceManager,
-		wsHub: wsHub,
 	}
 
 	return m
@@ -106,11 +98,6 @@ func (m *Manager) SetComputeEngine(engine compute.Engine) {
 // GetComputeEngine 获取计算引擎
 func (m *Manager) GetComputeEngine() compute.Engine {
 	return m.computeEngine
-}
-
-// GetWebSocketHub returns the WebSocket hub for external use
-func (m *Manager) GetWebSocketHub() *websocket.Hub {
-	return m.wsHub
 }
 
 func (m *Manager) RegisterComponent(appID string, name string, cf *resource.ContainerRef) error {
