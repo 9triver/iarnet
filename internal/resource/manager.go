@@ -33,18 +33,37 @@ type Manager struct {
 	nextProviderID   int
 	monitor          *ProviderMonitor
 	cfg              *config.Config
+	store            Store // 持久化存储
 }
 
 func NewManager(cfg *config.Config) *Manager {
 	limits := cfg.ResourceLimits
+
+	// 初始化持久化存储
+	dbPath := "./data/resource_providers.db"
+	store, err := NewStore(dbPath)
+	if err != nil {
+		logrus.Errorf("Failed to initialize resource provider store: %v", err)
+		return nil
+	}
+
+	// 获取下一个 provider ID
+	nextProviderID, err := store.GetNextProviderID()
+	if err != nil {
+		logrus.Warnf("Failed to get next provider ID: %v, using default 1", err)
+		nextProviderID = 1
+	}
+
 	rm := &Manager{
 		internalProvider: nil,
 		localProviders:   make(map[string]Provider),
 		remoteProviders:  make(map[string]Provider),
-		nextProviderID:   1,
+		nextProviderID:   nextProviderID,
 		cfg:              cfg,
+		store:            store,
 	}
 	rm.monitor = NewProviderMonitor(rm)
+
 	for k, v := range limits {
 		switch Type(k) {
 		case CPU:
@@ -67,6 +86,11 @@ func NewManager(cfg *config.Config) *Manager {
 		}
 	} else {
 		logrus.Infof("Docker is not available, skipping internal provider creation")
+	}
+
+	// 从数据库加载已保存的 local providers 并重新连接
+	if err := rm.loadProvidersFromStore(); err != nil {
+		logrus.Errorf("Failed to load providers from store: %v", err)
 	}
 
 	// Initialize provider monitor
@@ -94,10 +118,22 @@ func (rm *Manager) RegisterProvider(providerType ProviderType, name string, conf
 		if err != nil {
 			return "", fmt.Errorf("failed to create Docker provider: %w", err)
 		}
+		// 保存到数据库
+		if dockerConfig, ok := config.(DockerConfig); ok {
+			if err := rm.saveProviderToStore(providerID, providerType, name, dockerConfig); err != nil {
+				logrus.Errorf("Failed to save Docker provider to store: %v", err)
+			}
+		}
 	case ProviderTypeK8s:
 		provider, err = NewK8sProvider(providerID, name, config)
 		if err != nil {
 			return "", fmt.Errorf("failed to create K8s provider: %w", err)
+		}
+		// 保存到数据库
+		if k8sConfig, ok := config.(K8sConfig); ok {
+			if err := rm.saveProviderToStore(providerID, providerType, name, k8sConfig); err != nil {
+				logrus.Errorf("Failed to save K8s provider to store: %v", err)
+			}
 		}
 	default:
 		return "", fmt.Errorf("unsupported provider type: %s", providerType)
@@ -129,6 +165,12 @@ func (rm *Manager) UnregisterProvider(providerID string) {
 	if _, exists := rm.localProviders[providerID]; exists {
 		delete(rm.localProviders, providerID)
 		rm.RemoveProviderFromMonitoring(providerID)
+
+		// 从数据库删除
+		if err := rm.store.DeleteLocalProvider(providerID); err != nil {
+			logrus.Errorf("Failed to delete provider from store: %v", err)
+		}
+
 		logrus.Infof("Unregistered external provider: %s", providerID)
 		return
 	}
@@ -471,6 +513,125 @@ func (rm *Manager) HandleProviderFailure(providerID string) {
 	// 1. Migrate running containers to other providers
 	// 2. Remove the provider from load balancing
 	// 3. Attempt automatic recovery
+}
+
+// loadProvidersFromStore 从数据库加载 providers 并重新建立连接
+func (rm *Manager) loadProvidersFromStore() error {
+	providers, err := rm.store.GetAllLocalProviders()
+	if err != nil {
+		return fmt.Errorf("failed to get all local providers: %w", err)
+	}
+
+	for _, providerConfig := range providers {
+		// 根据配置重新创建 provider
+		var config interface{}
+
+		switch providerConfig.ProviderType {
+		case ProviderTypeDocker:
+			dockerConfig, err := DeserializeDockerConfig(providerConfig.Config)
+			if err != nil {
+				logrus.Errorf("Failed to deserialize Docker config for provider %s: %v", providerConfig.ProviderID, err)
+				continue
+			}
+			config = dockerConfig
+		case ProviderTypeK8s:
+			k8sConfig, err := DeserializeK8sConfig(providerConfig.Config)
+			if err != nil {
+				logrus.Errorf("Failed to deserialize K8s config for provider %s: %v", providerConfig.ProviderID, err)
+				continue
+			}
+			config = k8sConfig
+		default:
+			logrus.Warnf("Unknown provider type %s for provider %s", providerConfig.ProviderType, providerConfig.ProviderID)
+			continue
+		}
+
+		// 创建 provider 实例
+		var provider Provider
+		switch providerConfig.ProviderType {
+		case ProviderTypeDocker:
+			provider, err = NewDockerProvider(providerConfig.ProviderID, providerConfig.Name, config)
+			if err != nil {
+				logrus.Errorf("Failed to recreate Docker provider %s: %v", providerConfig.ProviderID, err)
+				// 更新状态为断开
+				rm.store.UpdateProviderStatus(providerConfig.ProviderID, StatusDisconnected)
+				continue
+			}
+		case ProviderTypeK8s:
+			provider, err = NewK8sProvider(providerConfig.ProviderID, providerConfig.Name, config)
+			if err != nil {
+				logrus.Errorf("Failed to recreate K8s provider %s: %v", providerConfig.ProviderID, err)
+				// 更新状态为断开
+				rm.store.UpdateProviderStatus(providerConfig.ProviderID, StatusDisconnected)
+				continue
+			}
+		}
+
+		// 注册到 localProviders
+		rm.localProviders[providerConfig.ProviderID] = provider
+		// 更新状态为已连接
+		rm.store.UpdateProviderStatus(providerConfig.ProviderID, StatusConnected)
+		logrus.Infof("Loaded and connected provider from store: ID=%s, Type=%s, Name=%s",
+			providerConfig.ProviderID, providerConfig.ProviderType, providerConfig.Name)
+	}
+
+	return nil
+}
+
+// saveProviderToStore 保存 provider 配置到数据库
+func (rm *Manager) saveProviderToStore(providerID string, providerType ProviderType, name string, config interface{}) error {
+	var configStr string
+	var err error
+
+	switch providerType {
+	case ProviderTypeDocker:
+		dockerConfig, ok := config.(DockerConfig)
+		if !ok {
+			return fmt.Errorf("invalid Docker config type")
+		}
+		configStr, err = SerializeDockerConfig(dockerConfig)
+		if err != nil {
+			return err
+		}
+	case ProviderTypeK8s:
+		k8sConfig, ok := config.(K8sConfig)
+		if !ok {
+			return fmt.Errorf("invalid K8s config type")
+		}
+		configStr, err = SerializeK8sConfig(k8sConfig)
+		if err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unsupported provider type: %s", providerType)
+	}
+
+	providerConfig := &ProviderConfig{
+		ProviderID:   providerID,
+		ProviderType: providerType,
+		Name:         name,
+		Config:       configStr,
+		Status:       StatusConnected,
+		CreatedAt:    getCurrentTimestamp(),
+		UpdatedAt:    getCurrentTimestamp(),
+	}
+
+	return rm.store.SaveLocalProvider(providerConfig)
+}
+
+// Close 关闭 Manager 及其持久化存储
+func (rm *Manager) Close() error {
+	// 停止监控
+	if rm.monitor != nil {
+		rm.monitor.Stop()
+	}
+
+	// 关闭存储
+	if rm.store != nil {
+		return rm.store.Close()
+	}
+
+	return nil
 }
 
 // HandleProviderRecovery handles when a provider recovers
