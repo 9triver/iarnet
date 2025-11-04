@@ -10,11 +10,11 @@ import (
 	"strconv"
 	"syscall"
 
+	"github.com/9triver/iarnet/integration/ignis/deployer"
 	"github.com/9triver/iarnet/internal/analysis"
 	"github.com/9triver/iarnet/internal/application"
 	"github.com/9triver/iarnet/internal/config"
 	"github.com/9triver/iarnet/internal/discovery"
-	"github.com/9triver/iarnet/internal/integration"
 	"github.com/9triver/iarnet/internal/resource"
 	"github.com/9triver/iarnet/internal/server"
 	"github.com/9triver/ignis/platform"
@@ -67,7 +67,7 @@ func main() {
 		}
 	}()
 
-	cm := integration.NewConnectionManager()
+	cm := deployer.NewConnectionManager()
 	cluster.RegisterServiceServer(svr, cm)
 
 	// 初始化 Ignis 平台
@@ -75,7 +75,7 @@ func main() {
 	if cfg.Ignis.Port != 0 {
 		ignisPlatform = platform.NewPlatform(
 			context.Background(), "0.0.0.0:"+strconv.FormatInt(int64(cfg.Ignis.Port), 10),
-			integration.NewDeployer(am, rm, cm, cfg),
+			deployer.NewDeployer(am, rm, cm, cfg),
 			nil,
 		)
 		if err != nil {

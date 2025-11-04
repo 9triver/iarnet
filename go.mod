@@ -12,8 +12,10 @@ require (
 	github.com/9triver/ignis v0.0.0-00010101000000-000000000000
 	github.com/asynkron/protoactor-go v0.0.0-20240822202345-3c0e61ca19c9
 	github.com/docker/go-connections v0.5.0
+	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
+	github.com/mattn/go-sqlite3 v1.14.32
 	github.com/moby/moby/api v1.52.0-alpha.1
 	github.com/moby/moby/client v0.1.0-alpha.0
 	github.com/sirupsen/logrus v1.9.3
@@ -46,7 +48,6 @@ require (
 	github.com/go-openapi/swag v0.23.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/google/gnostic-models v0.7.0 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/lithammer/shortuuid/v4 v4.2.0 // indirect

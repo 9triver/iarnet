@@ -1,4 +1,4 @@
-package integration
+package deployer
 
 import (
 	"context"
