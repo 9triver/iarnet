@@ -11,6 +11,7 @@ import (
 	"github.com/9triver/iarnet/internal/application"
 	"github.com/9triver/iarnet/internal/config"
 	"github.com/9triver/iarnet/internal/discovery"
+	"github.com/9triver/iarnet/internal/logger"
 	"github.com/9triver/iarnet/internal/resource"
 	"github.com/9triver/iarnet/internal/server/request"
 	"github.com/9triver/iarnet/internal/server/response"
@@ -20,13 +21,14 @@ import (
 )
 
 type Server struct {
-	router  *mux.Router
-	resMgr  *resource.Manager
-	appMgr  *application.Manager
-	peerMgr *discovery.PeerManager
-	config  *config.Config
-	ctx     context.Context
-	cancel  context.CancelFunc
+	router    *mux.Router
+	resMgr    *resource.Manager
+	appMgr    *application.Manager
+	peerMgr   *discovery.PeerManager
+	logSystem logger.System
+	config    *config.Config
+	ctx       context.Context
+	cancel    context.CancelFunc
 }
 
 func NewServer(rm *resource.Manager, am *application.Manager, pm *discovery.PeerManager, cfg *config.Config) *Server {
@@ -75,7 +77,17 @@ func NewServer(rm *resource.Manager, am *application.Manager, pm *discovery.Peer
 	// WebSocket API
 	s.router.HandleFunc("/ws/dag-state", s.handleWebSocketConnection).Methods("GET")
 
+	// 注册日志系统 API（如果日志系统已启用）
+	// 日志系统会在启动后通过 SetLogSystem 注入
+
 	return s
+}
+
+// SetLogSystem 设置日志系统并注册路由
+func (s *Server) SetLogSystem(logSystem logger.System) {
+	s.logSystem = logSystem
+	s.registerLogRoutes()
+	logrus.Info("Log system set and routes registered in server")
 }
 
 func (s *Server) handleUpdateApplication(w http.ResponseWriter, req *http.Request) {
@@ -1538,4 +1550,126 @@ func (s *Server) handleWebSocketConnection(w http.ResponseWriter, r *http.Reques
 	wsHub.HandleWebSocket(w, r, applicationID, clientID)
 
 	logrus.Infof("WebSocket connection handled for app %s, client %s", applicationID, clientID)
+}
+
+// registerLogRoutes 注册日志系统路由
+func (s *Server) registerLogRoutes() {
+	// 应用日志
+	s.router.HandleFunc("/application/apps/{id}/system-logs", s.handleGetApplicationSystemLogs).Methods("GET")
+
+	// 组件日志
+	s.router.HandleFunc("/application/apps/{id}/components/{componentId}/system-logs", s.handleGetComponentSystemLogs).Methods("GET")
+
+	// 日志统计
+	s.router.HandleFunc("/api/logs/stats", s.handleGetLogStats).Methods("GET")
+
+	logrus.Info("Log system API routes registered")
+}
+
+// handleGetApplicationSystemLogs 获取应用的系统日志
+func (s *Server) handleGetApplicationSystemLogs(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	appID := vars["id"]
+
+	if appID == "" {
+		response.WriteError(w, http.StatusBadRequest, "application id is required", nil)
+		return
+	}
+
+	if s.logSystem == nil {
+		response.WriteError(w, http.StatusServiceUnavailable, "log system not available", nil)
+		return
+	}
+
+	// 解析参数
+	lines := 100 // 默认100行
+	if linesStr := r.URL.Query().Get("lines"); linesStr != "" {
+		if n, err := strconv.Atoi(linesStr); err == nil && n > 0 {
+			lines = n
+		}
+	}
+
+	levelStr := r.URL.Query().Get("level")
+
+	// 查询日志
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	entries, err := s.logSystem.QueryApplicationLogs(ctx, appID, lines, levelStr)
+	if err != nil {
+		logrus.Errorf("Failed to query application logs: %v", err)
+		response.WriteError(w, http.StatusInternalServerError, "failed to query logs", err)
+		return
+	}
+
+	response.SuccessWithMessage("Application system logs retrieved", map[string]interface{}{
+		"app_id":  appID,
+		"entries": entries,
+		"count":   len(entries),
+	}).WriteJSON(w)
+}
+
+// handleGetComponentSystemLogs 获取组件的系统日志
+func (s *Server) handleGetComponentSystemLogs(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	appID := vars["id"]
+	componentID := vars["componentId"]
+
+	if appID == "" || componentID == "" {
+		response.WriteError(w, http.StatusBadRequest, "application id and component id are required", nil)
+		return
+	}
+
+	if s.logSystem == nil {
+		response.WriteError(w, http.StatusServiceUnavailable, "log system not available", nil)
+		return
+	}
+
+	// 解析参数
+	lines := 100
+	if linesStr := r.URL.Query().Get("lines"); linesStr != "" {
+		if n, err := strconv.Atoi(linesStr); err == nil && n > 0 {
+			lines = n
+		}
+	}
+
+	levelStr := r.URL.Query().Get("level")
+
+	// 查询日志
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	entries, err := s.logSystem.QueryComponentLogs(ctx, componentID, lines, levelStr)
+	if err != nil {
+		logrus.Errorf("Failed to query component logs: %v", err)
+		response.WriteError(w, http.StatusInternalServerError, "failed to query logs", err)
+		return
+	}
+
+	response.SuccessWithMessage("Component system logs retrieved", map[string]interface{}{
+		"app_id":       appID,
+		"component_id": componentID,
+		"entries":      entries,
+		"count":        len(entries),
+	}).WriteJSON(w)
+}
+
+// handleGetLogStats 获取日志统计信息
+func (s *Server) handleGetLogStats(w http.ResponseWriter, r *http.Request) {
+	if s.logSystem == nil {
+		response.WriteError(w, http.StatusServiceUnavailable, "log system not available", nil)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	stats, err := s.logSystem.GetStats(ctx)
+	if err != nil {
+		logrus.Errorf("Failed to get log stats: %v", err)
+		response.WriteError(w, http.StatusInternalServerError, "failed to get log stats", err)
+		return
+	}
+
+	response.SuccessWithMessage("Log statistics retrieved", stats).WriteJSON(w)
 }

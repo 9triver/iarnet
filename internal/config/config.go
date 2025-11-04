@@ -20,6 +20,7 @@ type Config struct {
 	ComponentImages   ActorImageConfig  `yaml:"component_images"`    // e.g., "python:3.11-alpine" - image to use for actor containers
 	EnableLocalDocker bool              `yaml:"enable_local_docker"` // e.g., true - enable local docker provider
 	Database          DatabaseConfig    `yaml:"database"`            // Database configuration
+	Logging           LoggingConfig     `yaml:"logging"`             // Logging configuration
 }
 
 type IgnisConfig struct {
@@ -41,6 +42,23 @@ type DatabaseConfig struct {
 
 	// ConnMaxLifetimeSeconds 连接最大生命周期（秒）
 	ConnMaxLifetimeSeconds int `yaml:"conn_max_lifetime_seconds"` // default: 300 (5 minutes)
+}
+
+// LoggingConfig 日志系统配置
+type LoggingConfig struct {
+	Enabled              bool   `yaml:"enabled"`                // 是否启用日志系统
+	DataDir              string `yaml:"data_dir"`               // 日志数据目录
+	DBPath               string `yaml:"db_path"`                // 日志元数据数据库路径
+	ChunkDurationMinutes int    `yaml:"chunk_duration_minutes"` // 块时间长度（分钟）
+	ChunkMaxLines        int    `yaml:"chunk_max_lines"`        // 块最大行数
+	ChunkMaxSizeMB       int    `yaml:"chunk_max_size_mb"`      // 块最大大小（MB）
+	CompressionLevel     int    `yaml:"compression_level"`      // 压缩级别（1-9）
+	RetentionDays        int    `yaml:"retention_days"`         // 保留天数
+	CleanupIntervalHours int    `yaml:"cleanup_interval_hours"` // 清理间隔（小时）
+	MaxDiskUsageGB       int    `yaml:"max_disk_usage_gb"`      // 最大磁盘使用（GB）
+	BufferSize           int    `yaml:"buffer_size"`            // 缓冲区大小
+	FlushIntervalSeconds int    `yaml:"flush_interval_seconds"` // 刷新间隔（秒）
+	BatchSize            int    `yaml:"batch_size"`             // 批量大小
 }
 
 type RunnerImageConfig map[string]string
@@ -85,6 +103,44 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.Database.ConnMaxLifetimeSeconds == 0 {
 		cfg.Database.ConnMaxLifetimeSeconds = 300 // 5 minutes
+	}
+
+	// 日志系统配置默认值
+	if cfg.Logging.DataDir == "" {
+		cfg.Logging.DataDir = cfg.DataDir + "/logs"
+	}
+	if cfg.Logging.DBPath == "" {
+		cfg.Logging.DBPath = cfg.DataDir + "/logs.db"
+	}
+	if cfg.Logging.ChunkDurationMinutes == 0 {
+		cfg.Logging.ChunkDurationMinutes = 5
+	}
+	if cfg.Logging.ChunkMaxLines == 0 {
+		cfg.Logging.ChunkMaxLines = 10000
+	}
+	if cfg.Logging.ChunkMaxSizeMB == 0 {
+		cfg.Logging.ChunkMaxSizeMB = 10
+	}
+	if cfg.Logging.CompressionLevel == 0 {
+		cfg.Logging.CompressionLevel = 6
+	}
+	if cfg.Logging.RetentionDays == 0 {
+		cfg.Logging.RetentionDays = 7
+	}
+	if cfg.Logging.CleanupIntervalHours == 0 {
+		cfg.Logging.CleanupIntervalHours = 1
+	}
+	if cfg.Logging.MaxDiskUsageGB == 0 {
+		cfg.Logging.MaxDiskUsageGB = 10
+	}
+	if cfg.Logging.BufferSize == 0 {
+		cfg.Logging.BufferSize = 10000
+	}
+	if cfg.Logging.FlushIntervalSeconds == 0 {
+		cfg.Logging.FlushIntervalSeconds = 5
+	}
+	if cfg.Logging.BatchSize == 0 {
+		cfg.Logging.BatchSize = 1000
 	}
 }
 

@@ -30,6 +30,18 @@ type Manager struct {
 	runtime       RuntimeService
 	logger        LoggerService
 	computeEngine compute.Engine
+	logSystem     LogSystem // 新日志系统
+
+	// 遗留字段（待逐步移除）
+	rm    *resource.Manager
+	wsHub *websocket.Hub
+}
+
+// LogSystem 日志系统接口（简化，避免循环依赖）
+type LogSystem interface {
+	StartCollectingContainer(containerID string, containerType string, labels map[string]string) error
+	StopCollectingContainer(containerID string) error
+	Stop() error
 }
 
 func NewManager(config *config.Config, resourceManager *resource.Manager) *Manager {
@@ -83,9 +95,25 @@ func NewManager(config *config.Config, resourceManager *resource.Manager) *Manag
 		runtime:       runtime,
 		logger:        logger,
 		computeEngine: nil,
+		logSystem:     nil, // 将由外部注入
+
+		// 遗留字段
+		rm:    resourceManager,
+		wsHub: wsHub,
 	}
 
 	return m
+}
+
+// SetLogSystem 设置日志系统
+func (m *Manager) SetLogSystem(logSystem LogSystem) {
+	m.logSystem = logSystem
+	logrus.Info("Log system set in application manager")
+}
+
+// GetLogSystem 获取日志系统
+func (m *Manager) GetLogSystem() LogSystem {
+	return m.logSystem
 }
 
 // SetComputeEngine 设置计算引擎
@@ -105,6 +133,13 @@ func (m *Manager) RegisterComponent(appID string, name string, cf *resource.Cont
 }
 
 func (m *Manager) Stop() {
+	// 停止日志系统
+	if m.logSystem != nil {
+		if err := m.logSystem.Stop(); err != nil {
+			logrus.Errorf("Failed to stop log system: %v", err)
+		}
+	}
+
 	// 关闭存储
 	if m.store != nil {
 		if err := m.store.Close(); err != nil {
@@ -212,6 +247,17 @@ func (m *Manager) RunApplication(appID string) error {
 		// 不返回错误，因为容器已经启动成功
 	}
 
+	// 开始收集日志
+	if m.logSystem != nil {
+		labels := map[string]string{
+			"app_id":   appID,
+			"app_name": app.Name,
+		}
+		if err := m.logSystem.StartCollectingContainer(containerID, "runner", labels); err != nil {
+			logrus.Warnf("Failed to start log collection for container %s: %v", containerID, err)
+		}
+	}
+
 	logrus.Infof("Successfully started application %s with container ID %s", appID, containerID)
 
 	return nil
@@ -255,6 +301,13 @@ func (m *Manager) StopApplication(appID string) error {
 	}
 
 	logrus.Infof("Stopping application %s (container ID: %s)", appID, *app.ContainerID)
+
+	// 停止日志收集
+	if m.logSystem != nil {
+		if err := m.logSystem.StopCollectingContainer(*app.ContainerID); err != nil {
+			logrus.Warnf("Failed to stop log collection for container %s: %v", *app.ContainerID, err)
+		}
+	}
 
 	// 委托给 runtime 服务停止容器
 	if err := m.runtime.StopContainer(context.Background(), *app.ContainerID); err != nil {

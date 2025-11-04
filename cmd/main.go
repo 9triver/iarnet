@@ -14,9 +14,11 @@ import (
 	"github.com/9triver/iarnet/internal/compute/ignis"
 	"github.com/9triver/iarnet/internal/config"
 	"github.com/9triver/iarnet/internal/discovery"
+	"github.com/9triver/iarnet/internal/logger"
 	"github.com/9triver/iarnet/internal/resource"
 	"github.com/9triver/iarnet/internal/server"
 	"github.com/9triver/ignis/proto/cluster"
+	"github.com/moby/moby/client"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 )
@@ -41,6 +43,26 @@ func main() {
 	am := application.NewManager(cfg, rm)
 	if am == nil {
 		log.Fatal("Failed to create application manager - Docker connection failed")
+	}
+
+	// 初始化日志系统
+	var logSystem logger.System
+	dockerClient, err := client.NewClientWithOpts(client.FromEnv, client.WithVersion("1.51"))
+	if err != nil {
+		logrus.Warnf("Failed to create docker client for log system: %v", err)
+	} else {
+		logConfig := logger.ConfigFromAppConfig(cfg)
+		logSystem, err = logger.NewSystem(dockerClient, logConfig)
+		if err != nil {
+			logrus.Errorf("Failed to create log system: %v", err)
+		} else {
+			if err := logSystem.Start(); err != nil {
+				logrus.Errorf("Failed to start log system: %v", err)
+			} else {
+				am.SetLogSystem(logSystem)
+				logrus.Info("Log system initialized and started")
+			}
+		}
 	}
 
 	// 启动 actor cluster gRPC 服务器
@@ -101,6 +123,12 @@ func main() {
 
 	// 启动 HTTP API 服务器
 	srv := server.NewServer(rm, am, pm, cfg)
+
+	// 如果日志系统已启用，注入到 server
+	if logSystem != nil {
+		srv.SetLogSystem(logSystem)
+	}
+
 	go func() {
 		if err := srv.Start(cfg.ListenAddr); err != nil {
 			log.Fatalf("HTTP server: %v", err)
