@@ -195,8 +195,15 @@ config.prod.yaml
 
 # Database files
 *.db
+*.db-shm
+*.db-wal
 *.sqlite
 *.sqlite3
+
+# Data directories
+data/
+workspaces/
+../workspaces/
 
 # Generated protobuf files (uncomment if you want to ignore generated files)
 # *.pb.go

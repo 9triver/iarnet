@@ -40,8 +40,12 @@ func NewManager(cfg *config.Config) *Manager {
 	limits := cfg.ResourceLimits
 
 	// 初始化持久化存储
-	dbPath := "./data/resource_providers.db"
-	store, err := NewStore(dbPath)
+	storeConfig := &StoreConfig{
+		MaxOpenConns:           cfg.Database.MaxOpenConns,
+		MaxIdleConns:           cfg.Database.MaxIdleConns,
+		ConnMaxLifetimeSeconds: cfg.Database.ConnMaxLifetimeSeconds,
+	}
+	store, err := NewStoreWithConfig(cfg.Database.ResourceProviderDBPath, storeConfig)
 	if err != nil {
 		logrus.Errorf("Failed to initialize resource provider store: %v", err)
 		return nil

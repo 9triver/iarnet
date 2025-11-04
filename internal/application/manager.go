@@ -60,8 +60,7 @@ func NewManager(config *config.Config, resourceManager *resource.Manager) *Manag
 	logger := NewLogger(cli)
 
 	// 初始化持久化存储
-	dbPath := "./data/applications.db"
-	store, err := NewStore(dbPath)
+	store, err := NewStore(config.Database.ApplicationDBPath)
 	if err != nil {
 		logrus.Errorf("Failed to initialize application store: %v", err)
 		return nil

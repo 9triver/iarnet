@@ -47,8 +47,20 @@ type store struct {
 	dbPath string
 }
 
+// StoreConfig 存储配置
+type StoreConfig struct {
+	MaxOpenConns           int
+	MaxIdleConns           int
+	ConnMaxLifetimeSeconds int
+}
+
 // NewStore 创建新的存储实例
 func NewStore(dbPath string) (Store, error) {
+	return NewStoreWithConfig(dbPath, nil)
+}
+
+// NewStoreWithConfig 使用配置创建存储实例
+func NewStoreWithConfig(dbPath string, config *StoreConfig) (Store, error) {
 	if dbPath == "" {
 		dbPath = "./data/applications.db"
 	}
@@ -58,10 +70,18 @@ func NewStore(dbPath string) (Store, error) {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
-	// 设置连接池参数
-	db.SetMaxOpenConns(10)
-	db.SetMaxIdleConns(5)
-	db.SetConnMaxLifetime(5 * time.Minute)
+	// 设置连接池参数（使用配置或默认值）
+	if config != nil {
+		db.SetMaxOpenConns(config.MaxOpenConns)
+		db.SetMaxIdleConns(config.MaxIdleConns)
+		if config.ConnMaxLifetimeSeconds > 0 {
+			db.SetConnMaxLifetime(time.Duration(config.ConnMaxLifetimeSeconds) * time.Second)
+		}
+	} else {
+		db.SetMaxOpenConns(10)
+		db.SetMaxIdleConns(5)
+		db.SetConnMaxLifetime(5 * time.Minute)
+	}
 
 	s := &store{
 		db:     db,
