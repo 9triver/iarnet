@@ -1,7 +1,7 @@
 [submodule "containers/envs/python/libs/lucas"]
 	path = containers/envs/python/libs/lucas
 	url = git@github.com:Xdydy/Lucas.git
-[submodule "ignis"]
-	path = ignis
-	url = git@github.com:9triver/ignis.git
-	branch = kekwy
+# [submodule "ignis"]
+# 	path = ignis
+# 	url = git@github.com:9triver/ignis.git
+# 	branch = kekwy
