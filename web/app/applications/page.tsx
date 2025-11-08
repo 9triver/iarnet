@@ -648,6 +648,8 @@ export default function ApplicationsPage() {
             <div className="mb-8">
               <Card>
                 <CardContent className="pt-6">
+                  const lastDeployedDisplay = new Date().toLocaleString()
+
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium">正在导入应用...</span>
@@ -718,8 +720,11 @@ export default function ApplicationsPage() {
 
           {/* Applications Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {applications.map((app) => (
-              <Card
+            {applications.map((app) => {
+              const lastDeployedDisplay = new Date().toLocaleString()
+
+              return (
+                <Card
                 key={app.id}
                 className="hover:shadow-lg transition-shadow cursor-pointer"
                 onClick={() => router.push(`/applications/${app.id}`)}
@@ -772,13 +777,11 @@ export default function ApplicationsPage() {
                       </div>
                     )}
 
-                    {app.lastDeployed && (
-                      <div className="flex items-center space-x-2 text-sm">
-                        <Clock className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-muted-foreground">最后部署:</span>
-                        <span className="text-xs">{app.lastDeployed}</span>
-                      </div>
-                    )}
+                    <div className="flex items-center space-x-2 text-sm">
+                      <Clock className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-muted-foreground">最后部署:</span>
+                      <span className="text-xs">{lastDeployedDisplay}</span>
+                    </div>
 
                     {app.runningOn && app.runningOn.length > 0 && (
                       <div className="space-y-1">
@@ -824,8 +827,9 @@ export default function ApplicationsPage() {
                     </Button>
                   </div>
                 </CardContent>
-              </Card>
-            ))}
+                </Card>
+              )
+            })}
           </div>
         </div>
       </main>

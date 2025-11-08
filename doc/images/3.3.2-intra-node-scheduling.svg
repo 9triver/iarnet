@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1160" height="640" viewBox="0 0 1160 640">
+  <defs>
+    <style><![CDATA[
+      .title{font:700 24px system-ui,Segoe UI,Roboto,Helvetica,Arial}
+      .subtitle{font:600 18px system-ui,Segoe UI,Roboto,Helvetica,Arial}
+      .label{font:500 14px system-ui,Segoe UI,Roboto,Helvetica,Arial}
+      .mono{font:600 12px ui-monospace,Consolas,Menlo}
+    ]]></style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,3 L0,6 z" fill="#455A64"/>
+    </marker>
+    <filter id="shadow"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.2"/></filter>
+  </defs>
+  <rect x="0" y="0" width="1160" height="640" fill="#FAFAFA"/>
+  <text x="580" y="40" text-anchor="middle" class="title">节点内异构算力统一管理与部署调度流程</text>
+
+  <!-- Swimlanes: Request -> Scoring -> Filter -> Select -> Deploy -> Observe -->
+  <g filter="url(#shadow)">
+    <rect x="70" y="90" width="1020" height="460" rx="14" fill="#FFFFFF" stroke="#CFD8DC"/>
+  </g>
+
+  <g>
+    <rect x="100" y="130" width="180" height="90" rx="10" fill="#E3F2FD" stroke="#90CAF9"/>
+    <text x="190" y="165" text-anchor="middle" class="subtitle">资源请求 R_a</text>
+    <text x="190" y="188" text-anchor="middle" class="label">CPU / MEM / GPU</text>
+
+    <rect x="320" y="130" width="220" height="120" rx="10" fill="#F1F8E9" stroke="#AED581"/>
+    <text x="430" y="160" text-anchor="middle" class="subtitle">评分函数 Score(p_i,a)</text>
+    <text x="430" y="184" text-anchor="middle" class="mono">利用率·均衡·碎片·优先级·成本</text>
+
+    <rect x="580" y="130" width="200" height="90" rx="10" fill="#FFF8E1" stroke="#FFD54F"/>
+    <text x="680" y="165" text-anchor="middle" class="subtitle">资源约束过滤</text>
+    <text x="680" y="188" text-anchor="middle" class="mono">A_i ≥ R_a</text>
+
+    <rect x="820" y="120" width="220" height="110" rx="10" fill="#EDE7F6" stroke="#B39DDB"/>
+    <text x="930" y="155" text-anchor="middle" class="subtitle">选择最优 Provider p*</text>
+    <text x="930" y="178" text-anchor="middle" class="mono">arg max Score</text>
+
+    <path d="M280 175 H320 M540 175 H580 M780 175 H820" stroke="#455A64" stroke-width="2" marker-end="url(#arrow)"/>
+  </g>
+
+  <!-- Deploy & Monitor -->
+  <g>
+    <rect x="220" y="300" width="260" height="90" rx="10" fill="#E1F5FE" stroke="#4FC3F7"/>
+    <text x="350" y="335" text-anchor="middle" class="subtitle">Deploy 容器/实例</text>
+    <text x="350" y="358" text-anchor="middle" class="mono">Provider(p*)</text>
+
+    <rect x="520" y="300" width="220" height="90" rx="10" fill="#FCE4EC" stroke="#F48FB1"/>
+    <text x="630" y="335" text-anchor="middle" class="subtitle">监控与健康检查</text>
+    <text x="630" y="358" text-anchor="middle" class="mono">状态/容量/事件</text>
+
+    <rect x="780" y="280" width="260" height="60" rx="10" fill="#FFF9C4" stroke="#FFD54F"/>
+    <text x="910" y="315" text-anchor="middle" class="subtitle">写入 Store（结果）</text>
+
+    <rect x="780" y="360" width="260" height="60" rx="10" fill="#F8BBD0" stroke="#F06292"/>
+    <text x="910" y="395" text-anchor="middle" class="subtitle">推送 Logger（日志）</text>
+
+    <path d="M480 345 H520 M740 345 H780" stroke="#455A64" stroke-width="2" marker-end="url(#arrow)"/>
+    <path d="M740 345 V310 H780" stroke="#455A64" stroke-width="2" marker-end="url(#arrow)"/>
+    <path d="M740 345 V390 H780" stroke="#455A64" stroke-width="2" marker-end="url(#arrow)"/>
+  </g>
+
+  <!-- Provider Pool illustration -->
+  <g>
+    <rect x="120" y="460" width="920" height="50" rx="10" fill="#FFFFFF" stroke="#CFD8DC"/>
+    <circle cx="170" cy="485" r="16" fill="#42A5F5"/>
+    <text x="170" y="490" text-anchor="middle" fill="#fff" class="mono">D</text>
+    <circle cx="210" cy="485" r="16" fill="#66BB6A"/>
+    <text x="210" y="490" text-anchor="middle" fill="#fff" class="mono">K</text>
+    <circle cx="250" cy="485" r="16" fill="#8D6E63"/>
+    <text x="250" y="490" text-anchor="middle" fill="#fff" class="mono">BM</text>
+    <text x="310" y="492" class="label">Provider 池（Docker/K8s/裸金属 ...）</text>
+  </g>
+</svg>
+
