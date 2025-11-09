@@ -5,38 +5,33 @@ import (
 	"errors"
 
 	ctrlpb "github.com/9triver/iarnet/internal/proto/ignis/controller"
+	"github.com/9triver/iarnet/internal/resource"
+	"github.com/9triver/iarnet/internal/resource/component"
+	"github.com/sirupsen/logrus"
 )
 
-// Controller 聚合根：负责单个应用的会话绑定与消息处理生命周期。
 type Controller struct {
-	appID      string
-	events     *EventHub
-	responseCh chan *ctrlpb.Message
+	appID            string
+	events           *EventHub
+	responseCh       chan *ctrlpb.Message
+	componentService component.ComponentService
 }
 
 const defaultOutboundBuffer = 32
 
-func NewController(appID string, events *EventHub) *Controller {
+func NewController(componentService component.ComponentService, appID string, events *EventHub) *Controller {
 	return &Controller{
-		appID:      appID,
-		events:     events,
-		responseCh: make(chan *ctrlpb.Message, defaultOutboundBuffer),
+		appID:            appID,
+		events:           events,
+		responseCh:       make(chan *ctrlpb.Message, defaultOutboundBuffer),
+		componentService: componentService,
 	}
 }
 
 func (c *Controller) AppID() string { return c.appID }
 
-// Start 可做预热/注册等，最小实现直接返回。
-func (c *Controller) Start(ctx context.Context) error { return nil }
-
-// Stop 做资源回收/取消订阅。
-func (c *Controller) Stop(ctx context.Context) error { return nil }
-
-// HandleMessage 领域入口：将上行消息转换为领域动作。
 func (c *Controller) HandleMessage(ctx context.Context, msg *ctrlpb.Message) error {
 	switch m := msg.GetCommand().(type) {
-	case *ctrlpb.Message_RegisterRequest:
-		return c.handleRegister(ctx, m.RegisterRequest)
 	case *ctrlpb.Message_AppendPyFunc:
 		return c.handleAppendPyFunc(ctx, m.AppendPyFunc)
 	case *ctrlpb.Message_AppendPyClass:
@@ -56,8 +51,20 @@ func (c *Controller) HandleMessage(ctx context.Context, msg *ctrlpb.Message) err
 	}
 }
 
-func (c *Controller) handleRegister(ctx context.Context, m *ctrlpb.RegisterRequest) error { return nil }
 func (c *Controller) handleAppendPyFunc(ctx context.Context, m *ctrlpb.AppendPyFunc) error {
+	replicas := int(m.GetReplicas())
+	for i := 0; i < replicas; i++ {
+		logrus.Infof("Deploying component %d", i)
+		containerRef, err := c.componentService.DeployComponent(
+			ctx, resource.RuntimeEnvPython,
+			&resource.ResourceRequest{},
+		)
+		if err != nil {
+			logrus.Errorf("Failed to deploy component: %v", err)
+			return err
+		}
+		logrus.Infof("Component deployed successfully: %s", containerRef.ID)
+	}
 	return nil
 }
 func (c *Controller) handleAppendPyClass(ctx context.Context, m *ctrlpb.AppendPyClass) error {
@@ -88,18 +95,13 @@ func (c *Controller) emit(ctx context.Context, event Event) {
 	c.events.Publish(ctx, event)
 }
 
-// ResponseChan 返回向客户端发送消息的通道视图。
 func (c *Controller) ResponseChan() <-chan *ctrlpb.Message {
 	return c.responseCh
 }
 
-// PushResponse 将消息放入客户端发送队列。
 func (c *Controller) PushResponse(ctx context.Context, msg *ctrlpb.Message) error {
 	if msg == nil {
 		return errors.New("push message: nil payload")
-	}
-	if ctx == nil {
-		ctx = context.Background()
 	}
 
 	select {
@@ -109,5 +111,3 @@ func (c *Controller) PushResponse(ctx context.Context, msg *ctrlpb.Message) erro
 		return nil
 	}
 }
-
-var errSessionAlreadyActive = errors.New("controller session already active")

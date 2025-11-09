@@ -4,19 +4,21 @@ import (
 	"context"
 	"errors"
 	"sync"
+
+	"github.com/9triver/iarnet/internal/resource"
 )
 
 type Manager interface {
 	CreateController(ctx context.Context, appID string) (*Controller, error)
-	GetController(appID string) (*Controller, error)
 	AcquireControllerSession(appID string) (*Controller, func(), error)
 	On(eventType EventType, handler EventHandler)
 }
 
 type manager struct {
-	mu          sync.RWMutex
-	controllers map[string]*controllerEntry
-	events      *EventHub
+	mu               sync.RWMutex
+	componentService resource.ComponentService
+	controllers      map[string]*controllerEntry
+	events           *EventHub
 }
 
 type controllerEntry struct {
@@ -24,10 +26,11 @@ type controllerEntry struct {
 	sessionActive bool
 }
 
-func NewManager() Manager {
+func NewManager(componentService resource.ComponentService) Manager {
 	return &manager{
-		controllers: make(map[string]*controllerEntry),
-		events:      NewEventHub(),
+		componentService: componentService,
+		controllers:      make(map[string]*controllerEntry),
+		events:           NewEventHub(),
 	}
 }
 
@@ -35,7 +38,7 @@ func (m *manager) CreateController(ctx context.Context, appID string) (*Controll
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	controller := NewController(appID, m.events)
+	controller := NewController(m.componentService, appID, m.events)
 	m.controllers[appID] = &controllerEntry{
 		controller: controller,
 	}
@@ -44,17 +47,6 @@ func (m *manager) CreateController(ctx context.Context, appID string) (*Controll
 
 func (m *manager) On(eventType EventType, handler EventHandler) {
 	m.events.Subscribe(eventType, handler)
-}
-
-func (m *manager) GetController(appID string) (*Controller, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	entry, ok := m.controllers[appID]
-	if !ok {
-		return nil, errors.New("controller not found")
-	}
-	return entry.controller, nil
 }
 
 func (m *manager) AcquireControllerSession(appID string) (*Controller, func(), error) {
@@ -67,7 +59,7 @@ func (m *manager) AcquireControllerSession(appID string) (*Controller, func(), e
 	}
 
 	if entry.sessionActive {
-		return nil, nil, errSessionAlreadyActive
+		return nil, nil, errors.New("controller session already active")
 	}
 
 	entry.sessionActive = true

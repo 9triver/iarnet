@@ -14,22 +14,10 @@ type Usage struct {
 	GPU    float64 `json:"gpu"`
 }
 
-type Capacity struct {
-	Total     *Info `json:"total"`
-	Used      *Info `json:"used"`
-	Available *Info `json:"available"`
-}
-
 type ContainerRef struct {
 	ID       string        `json:"id"`
 	Provider Provider      `json:"provider"`
 	Spec     ContainerSpec `json:"spec"`
-}
-
-type Info struct {
-	CPU    int64 `json:"cpu"` // millicores
-	Memory int64 `json:"memory"`
-	GPU    int64 `json:"gpu"`
 }
 
 type ContainerSpec struct {

@@ -1,29 +1,24 @@
-package platform
+package ignis
 
 import (
-	"context"
-
 	"github.com/9triver/iarnet/internal/ignis/controller"
 	ctrlpb "github.com/9triver/iarnet/internal/proto/ignis/controller"
+	"github.com/9triver/iarnet/internal/resource"
 	"google.golang.org/grpc"
 )
 
 type Platform struct {
-	controllerService controller.Service
-	controllerManager controller.Manager
+	controllerManager controller.Manager // 控制器管理器 有状态
+	controllerService controller.Service // 控制器服务 无状态
 }
 
-func NewPlatform() *Platform {
-	controllerManager := controller.NewManager()
+func NewPlatform(componentService resource.ComponentService) *Platform {
+	controllerManager := controller.NewManager(componentService)
 	controllerService := controller.NewService(controllerManager)
 	return &Platform{
-		controllerService: controllerService,
 		controllerManager: controllerManager,
+		controllerService: controllerService,
 	}
-}
-
-func (p *Platform) Run(ctx context.Context) error {
-	return nil
 }
 
 func (p *Platform) RegisterHandlers(srv *grpc.Server) {

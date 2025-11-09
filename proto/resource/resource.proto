@@ -1,0 +1,7 @@
+syntax = "proto3";
+package resource;
+option go_package = "github.com/9triver/iarnet/internal/proto/resource";
+
+message Info {
+    
+}
