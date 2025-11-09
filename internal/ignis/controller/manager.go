@@ -2,93 +2,86 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"sync"
 )
 
 type Manager interface {
-	GetOrCreateController(ctx context.Context, appID string) (*Controller, error)
-	AttachSession(appID, sessionID string) error
-	DetachSession(appID, sessionID string)
-	ReleaseIfIdle(ctx context.Context, appID string) bool
-	StopAll(ctx context.Context) error
+	CreateController(ctx context.Context, appID string) (*Controller, error)
+	GetController(appID string) (*Controller, error)
+	AcquireControllerSession(appID string) (*Controller, func(), error)
+	On(eventType EventType, handler EventHandler)
 }
 
 type manager struct {
-	mu      sync.RWMutex
-	controllers map[string]*Controller // appID -> entry
+	mu          sync.RWMutex
+	controllers map[string]*controllerEntry
+	events      *EventHub
+}
+
+type controllerEntry struct {
+	controller    *Controller
+	sessionActive bool
 }
 
 func NewManager() Manager {
 	return &manager{
-		controllers: make(map[string]*Controller),
+		controllers: make(map[string]*controllerEntry),
+		events:      NewEventHub(),
 	}
 }
 
-func (m *manager) GetOrCreateController(ctx context.Context, appID string) (*Controller, error) {
+func (m *manager) CreateController(ctx context.Context, appID string) (*Controller, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	controller := NewController(appID, m.events)
+	m.controllers[appID] = &controllerEntry{
+		controller: controller,
+	}
+	return controller, nil
+}
+
+func (m *manager) On(eventType EventType, handler EventHandler) {
+	m.events.Subscribe(eventType, handler)
+}
+
+func (m *manager) GetController(appID string) (*Controller, error) {
 	m.mu.RLock()
-	if e, ok := m.entries[appID]; ok {
-		m.mu.RUnlock()
-		return e, nil
-	}
-	m.mu.RUnlock()
+	defer m.mu.RUnlock()
 
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if e, ok := m.entries[appID]; ok {
-		return e, nil
-	}
-
-	ctrl := NewController(appID)
-	// 延迟启动：首次需要时启动
-	if err := ctrl.Start(ctx); err != nil {
-		return nil, err
-	}
-	m.entries[appID] = ctrl
-	return ctrl, nil
-}
-
-func (m *manager) AttachSession(appID, sessionID string) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	entry, ok := m.controllers[appID]
 	if !ok {
-		// 惰性创建：未预先 GetOrCreate 的情况下也允许绑定
-		ctrl := NewController(appID)
-		// 启动
-		if err := ctrl.Start(context.Background()); err != nil {
-			return err
-		}
-		m.entries[appID] = ctrl
+		return nil, errors.New("controller not found")
 	}
-	return nil
+	return entry.controller, nil
 }
 
-func (m *manager) DetachSession(appID, sessionID string) {
+func (m *manager) AcquireControllerSession(appID string) (*Controller, func(), error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-		delete(m.entries, appID)
-	}
-}
 
-func (m *manager) ReleaseIfIdle(ctx context.Context, appID string) bool {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	entry, ok := m.controllers[appID]
 	if !ok {
-		return false
+		return nil, nil, errors.New("controller not found")
 	}
-	if len(m.entries) > 0 {
-		return false
-	}
-	_ = ctrl.Stop(ctx)
-	delete(m.entries, appID)
-	return true
-}
 
-func (m *manager) StopAll(ctx context.Context) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	for appID := range m.entries {
-		_ = m.entries[appID].Stop(ctx)
-		delete(m.entries, appID)
+	if entry.sessionActive {
+		return nil, nil, errSessionAlreadyActive
 	}
-	return nil
+
+	entry.sessionActive = true
+
+	var once sync.Once
+	release := func() {
+		once.Do(func() {
+			m.mu.Lock()
+			defer m.mu.Unlock()
+			if entry, ok := m.controllers[appID]; ok {
+				entry.sessionActive = false
+			}
+		})
+	}
+
+	return entry.controller, release, nil
 }

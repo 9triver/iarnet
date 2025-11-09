@@ -1568,6 +1568,7 @@ func (x *ResponseObject) GetError() string {
 type Message struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Type  CommandType            `protobuf:"varint,1,opt,name=Type,proto3,enum=controller.CommandType" json:"Type,omitempty"`
+	AppID string                 `protobuf:"bytes,2,opt,name=AppID,proto3" json:"AppID,omitempty"`
 	// Types that are valid to be assigned to Command:
 	//
 	//	*Message_Ack
@@ -1625,6 +1626,13 @@ func (x *Message) GetType() CommandType {
 		return x.Type
 	}
 	return CommandType_UNSPECIFIED
+}
+
+func (x *Message) GetAppID() string {
+	if x != nil {
+		return x.AppID
+	}
+	return ""
 }
 
 func (x *Message) GetCommand() isMessage_Command {
@@ -1774,63 +1782,63 @@ type isMessage_Command interface {
 }
 
 type Message_Ack struct {
-	Ack *Ack `protobuf:"bytes,2,opt,name=Ack,proto3,oneof"`
+	Ack *Ack `protobuf:"bytes,3,opt,name=Ack,proto3,oneof"`
 }
 
 type Message_Ready struct {
-	Ready *Ready `protobuf:"bytes,3,opt,name=Ready,proto3,oneof"`
+	Ready *Ready `protobuf:"bytes,4,opt,name=Ready,proto3,oneof"`
 }
 
 type Message_AppendData struct {
-	AppendData *AppendData `protobuf:"bytes,4,opt,name=AppendData,proto3,oneof"`
+	AppendData *AppendData `protobuf:"bytes,5,opt,name=AppendData,proto3,oneof"`
 }
 
 type Message_AppendActor struct {
-	AppendActor *AppendActor `protobuf:"bytes,5,opt,name=AppendActor,proto3,oneof"`
+	AppendActor *AppendActor `protobuf:"bytes,6,opt,name=AppendActor,proto3,oneof"`
 }
 
 type Message_AppendPyFunc struct {
-	AppendPyFunc *AppendPyFunc `protobuf:"bytes,6,opt,name=AppendPyFunc,proto3,oneof"`
+	AppendPyFunc *AppendPyFunc `protobuf:"bytes,7,opt,name=AppendPyFunc,proto3,oneof"`
 }
 
 type Message_AppendPyClass struct {
-	AppendPyClass *AppendPyClass `protobuf:"bytes,7,opt,name=AppendPyClass,proto3,oneof"`
+	AppendPyClass *AppendPyClass `protobuf:"bytes,8,opt,name=AppendPyClass,proto3,oneof"`
 }
 
 type Message_AppendArg struct {
-	AppendArg *AppendArg `protobuf:"bytes,8,opt,name=AppendArg,proto3,oneof"`
+	AppendArg *AppendArg `protobuf:"bytes,9,opt,name=AppendArg,proto3,oneof"`
 }
 
 type Message_AppendClassMethodArg struct {
-	AppendClassMethodArg *AppendClassMethodArg `protobuf:"bytes,9,opt,name=AppendClassMethodArg,proto3,oneof"`
+	AppendClassMethodArg *AppendClassMethodArg `protobuf:"bytes,10,opt,name=AppendClassMethodArg,proto3,oneof"`
 }
 
 type Message_Invoke struct {
-	Invoke *Invoke `protobuf:"bytes,10,opt,name=Invoke,proto3,oneof"`
+	Invoke *Invoke `protobuf:"bytes,11,opt,name=Invoke,proto3,oneof"`
 }
 
 type Message_ReturnResult struct {
-	ReturnResult *ReturnResult `protobuf:"bytes,11,opt,name=ReturnResult,proto3,oneof"`
+	ReturnResult *ReturnResult `protobuf:"bytes,12,opt,name=ReturnResult,proto3,oneof"`
 }
 
 type Message_RegisterRequest struct {
-	RegisterRequest *RegisterRequest `protobuf:"bytes,12,opt,name=RegisterRequest,proto3,oneof"`
+	RegisterRequest *RegisterRequest `protobuf:"bytes,13,opt,name=RegisterRequest,proto3,oneof"`
 }
 
 type Message_DAG struct {
-	DAG *DAG `protobuf:"bytes,13,opt,name=DAG,proto3,oneof"`
+	DAG *DAG `protobuf:"bytes,14,opt,name=DAG,proto3,oneof"`
 }
 
 type Message_MarkDAGNodeDone struct {
-	MarkDAGNodeDone *MarkDAGNodeDone `protobuf:"bytes,14,opt,name=MarkDAGNodeDone,proto3,oneof"`
+	MarkDAGNodeDone *MarkDAGNodeDone `protobuf:"bytes,15,opt,name=MarkDAGNodeDone,proto3,oneof"`
 }
 
 type Message_RequestObject struct {
-	RequestObject *RequestObject `protobuf:"bytes,15,opt,name=RequestObject,proto3,oneof"`
+	RequestObject *RequestObject `protobuf:"bytes,16,opt,name=RequestObject,proto3,oneof"`
 }
 
 type Message_ResponseObject struct {
-	ResponseObject *ResponseObject `protobuf:"bytes,16,opt,name=ResponseObject,proto3,oneof"`
+	ResponseObject *ResponseObject `protobuf:"bytes,17,opt,name=ResponseObject,proto3,oneof"`
 }
 
 func (*Message_Ack) isMessage_Command() {}
@@ -2045,27 +2053,28 @@ const file_controller_controller_proto_rawDesc = "" +
 	"\x0eResponseObject\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12*\n" +
 	"\x05Value\x18\x02 \x01(\v2\x14.proto.EncodedObjectR\x05Value\x12\x14\n" +
-	"\x05Error\x18\x03 \x01(\tR\x05Error\"\xc8\a\n" +
+	"\x05Error\x18\x03 \x01(\tR\x05Error\"\xde\a\n" +
 	"\aMessage\x12+\n" +
-	"\x04Type\x18\x01 \x01(\x0e2\x17.controller.CommandTypeR\x04Type\x12#\n" +
-	"\x03Ack\x18\x02 \x01(\v2\x0f.controller.AckH\x00R\x03Ack\x12)\n" +
-	"\x05Ready\x18\x03 \x01(\v2\x11.controller.ReadyH\x00R\x05Ready\x128\n" +
+	"\x04Type\x18\x01 \x01(\x0e2\x17.controller.CommandTypeR\x04Type\x12\x14\n" +
+	"\x05AppID\x18\x02 \x01(\tR\x05AppID\x12#\n" +
+	"\x03Ack\x18\x03 \x01(\v2\x0f.controller.AckH\x00R\x03Ack\x12)\n" +
+	"\x05Ready\x18\x04 \x01(\v2\x11.controller.ReadyH\x00R\x05Ready\x128\n" +
 	"\n" +
-	"AppendData\x18\x04 \x01(\v2\x16.controller.AppendDataH\x00R\n" +
+	"AppendData\x18\x05 \x01(\v2\x16.controller.AppendDataH\x00R\n" +
 	"AppendData\x12;\n" +
-	"\vAppendActor\x18\x05 \x01(\v2\x17.controller.AppendActorH\x00R\vAppendActor\x12>\n" +
-	"\fAppendPyFunc\x18\x06 \x01(\v2\x18.controller.AppendPyFuncH\x00R\fAppendPyFunc\x12A\n" +
-	"\rAppendPyClass\x18\a \x01(\v2\x19.controller.AppendPyClassH\x00R\rAppendPyClass\x125\n" +
-	"\tAppendArg\x18\b \x01(\v2\x15.controller.AppendArgH\x00R\tAppendArg\x12V\n" +
-	"\x14AppendClassMethodArg\x18\t \x01(\v2 .controller.AppendClassMethodArgH\x00R\x14AppendClassMethodArg\x12,\n" +
-	"\x06Invoke\x18\n" +
-	" \x01(\v2\x12.controller.InvokeH\x00R\x06Invoke\x12>\n" +
-	"\fReturnResult\x18\v \x01(\v2\x18.controller.ReturnResultH\x00R\fReturnResult\x12G\n" +
-	"\x0fRegisterRequest\x18\f \x01(\v2\x1b.controller.RegisterRequestH\x00R\x0fRegisterRequest\x12#\n" +
-	"\x03DAG\x18\r \x01(\v2\x0f.controller.DAGH\x00R\x03DAG\x12G\n" +
-	"\x0fMarkDAGNodeDone\x18\x0e \x01(\v2\x1b.controller.MarkDAGNodeDoneH\x00R\x0fMarkDAGNodeDone\x12A\n" +
-	"\rRequestObject\x18\x0f \x01(\v2\x19.controller.RequestObjectH\x00R\rRequestObject\x12D\n" +
-	"\x0eResponseObject\x18\x10 \x01(\v2\x1a.controller.ResponseObjectH\x00R\x0eResponseObjectB\t\n" +
+	"\vAppendActor\x18\x06 \x01(\v2\x17.controller.AppendActorH\x00R\vAppendActor\x12>\n" +
+	"\fAppendPyFunc\x18\a \x01(\v2\x18.controller.AppendPyFuncH\x00R\fAppendPyFunc\x12A\n" +
+	"\rAppendPyClass\x18\b \x01(\v2\x19.controller.AppendPyClassH\x00R\rAppendPyClass\x125\n" +
+	"\tAppendArg\x18\t \x01(\v2\x15.controller.AppendArgH\x00R\tAppendArg\x12V\n" +
+	"\x14AppendClassMethodArg\x18\n" +
+	" \x01(\v2 .controller.AppendClassMethodArgH\x00R\x14AppendClassMethodArg\x12,\n" +
+	"\x06Invoke\x18\v \x01(\v2\x12.controller.InvokeH\x00R\x06Invoke\x12>\n" +
+	"\fReturnResult\x18\f \x01(\v2\x18.controller.ReturnResultH\x00R\fReturnResult\x12G\n" +
+	"\x0fRegisterRequest\x18\r \x01(\v2\x1b.controller.RegisterRequestH\x00R\x0fRegisterRequest\x12#\n" +
+	"\x03DAG\x18\x0e \x01(\v2\x0f.controller.DAGH\x00R\x03DAG\x12G\n" +
+	"\x0fMarkDAGNodeDone\x18\x0f \x01(\v2\x1b.controller.MarkDAGNodeDoneH\x00R\x0fMarkDAGNodeDone\x12A\n" +
+	"\rRequestObject\x18\x10 \x01(\v2\x19.controller.RequestObjectH\x00R\rRequestObject\x12D\n" +
+	"\x0eResponseObject\x18\x11 \x01(\v2\x1a.controller.ResponseObjectH\x00R\x0eResponseObjectB\t\n" +
 	"\aCommand*\xd4\x02\n" +
 	"\vCommandType\x12\x0f\n" +
 	"\vUNSPECIFIED\x10\x00\x12\a\n" +

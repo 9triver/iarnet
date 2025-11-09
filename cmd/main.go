@@ -34,6 +34,9 @@ func main() {
 	if cfg.Mode == "" {
 		cfg.Mode = config.DetectMode()
 	}
+
+	logrus.SetReportCaller(true)
+
 	logrus.Infof("Running in mode: %s", cfg.Mode)
 
 	// 初始化资源管理器

@@ -177,22 +177,23 @@ message ResponseObject {
 
 message Message {
   CommandType Type = 1;
+  string AppID = 2;
   oneof Command {
-    Ack Ack = 2;
-    Ready Ready = 3;
-    AppendData AppendData = 4;
-    AppendActor AppendActor = 5;
-    AppendPyFunc AppendPyFunc = 6;
-    AppendPyClass AppendPyClass = 7;
-    AppendArg AppendArg = 8;
-    AppendClassMethodArg AppendClassMethodArg = 9;
-    Invoke Invoke = 10;
-    ReturnResult ReturnResult = 11;
-    RegisterRequest RegisterRequest = 12;
-    DAG DAG = 13;
-    MarkDAGNodeDone MarkDAGNodeDone = 14;
-    RequestObject RequestObject = 15;
-    ResponseObject ResponseObject = 16;
+    Ack Ack = 3;
+    Ready Ready = 4;
+    AppendData AppendData = 5;
+    AppendActor AppendActor = 6;
+    AppendPyFunc AppendPyFunc = 7;
+    AppendPyClass AppendPyClass = 8;
+    AppendArg AppendArg = 9;
+    AppendClassMethodArg AppendClassMethodArg = 10;
+    Invoke Invoke = 11;
+    ReturnResult ReturnResult = 12;
+    RegisterRequest RegisterRequest = 13;
+    DAG DAG = 14;
+    MarkDAGNodeDone MarkDAGNodeDone = 15;
+    RequestObject RequestObject = 16;
+    ResponseObject ResponseObject = 17;
   }
 }
 
