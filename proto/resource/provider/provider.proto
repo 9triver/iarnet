@@ -2,6 +2,8 @@ syntax = "proto3";
 package provider;
 option go_package = "github.com/9triver/iarnet/internal/proto/resource/provider";
 
+import "resource.proto";
+
 message AssignIDRequest {
   string provider_id = 1;
 }
@@ -11,6 +13,22 @@ message AssignIDResponse {
   string error = 2;
 }
 
+message GetCapacityRequest {
+}
+
+message GetCapacityResponse {
+  resource.Capacity capacity = 1;
+}
+
+message GetAvailableRequest {
+}
+
+message GetAvailableResponse {
+  resource.Info available = 1;
+}
+
 service ProviderService {
   rpc AssignID(AssignIDRequest) returns (AssignIDResponse);
+  rpc GetCapacity(GetCapacityRequest) returns (GetCapacityResponse);
+  rpc GetAvailable(GetAvailableRequest) returns (GetAvailableResponse);
 }

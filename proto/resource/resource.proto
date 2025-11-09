@@ -3,5 +3,17 @@ package resource;
 option go_package = "github.com/9triver/iarnet/internal/proto/resource";
 
 message Info {
-    
+    int64 cpu = 1;
+    int64 memory = 2;
+    int64 gpu = 3;
+}
+
+message Capacity {
+    Info total = 1;
+    Info used = 2;
+    Info available = 3;
+}
+
+message ResourceRequest {
+    Info info = 1;
 }

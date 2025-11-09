@@ -1,4 +1,4 @@
-package docker
+package config
 
 import (
 	"fmt"
@@ -26,26 +26,35 @@ type DockerConfig struct {
 	APIVersion  string `yaml:"api_version"`
 }
 
-// LoadConfig 从文件加载配置
 func LoadConfig(path string) (*Config, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read config file: %w", err)
-	}
-
 	var config Config
-	if err := yaml.Unmarshal(data, &config); err != nil {
-		return nil, fmt.Errorf("failed to parse config file: %w", err)
-	}
 
-	// 设置默认值
-	if config.Server.Port == 0 {
-		config.Server.Port = 50051
-	}
+	if _, err := os.Stat(path); err == nil {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read config file: %w", err)
+		}
 
-	if config.Docker.Host == "" {
-		config.Docker.Host = "unix:///var/run/docker.sock"
+		if err := yaml.Unmarshal(data, &config); err != nil {
+			return nil, fmt.Errorf("failed to parse config file: %w", err)
+		}
+	} else {
+		config = getDefaultConfig()
 	}
 
 	return &config, nil
+}
+
+func getDefaultConfig() Config {
+	return Config{
+		Server: ServerConfig{
+			Port: 50051,
+		},
+		Docker: DockerConfig{
+			Host:        "unix:///var/run/docker.sock",
+			TLSCertPath: "",
+			TLSVerify:   false,
+			APIVersion:  "",
+		},
+	}
 }

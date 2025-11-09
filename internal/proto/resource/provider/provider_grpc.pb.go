@@ -19,7 +19,9 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ProviderService_AssignID_FullMethodName = "/provider.ProviderService/AssignID"
+	ProviderService_AssignID_FullMethodName     = "/provider.ProviderService/AssignID"
+	ProviderService_GetCapacity_FullMethodName  = "/provider.ProviderService/GetCapacity"
+	ProviderService_GetAvailable_FullMethodName = "/provider.ProviderService/GetAvailable"
 )
 
 // ProviderServiceClient is the client API for ProviderService service.
@@ -27,6 +29,8 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ProviderServiceClient interface {
 	AssignID(ctx context.Context, in *AssignIDRequest, opts ...grpc.CallOption) (*AssignIDResponse, error)
+	GetCapacity(ctx context.Context, in *GetCapacityRequest, opts ...grpc.CallOption) (*GetCapacityResponse, error)
+	GetAvailable(ctx context.Context, in *GetAvailableRequest, opts ...grpc.CallOption) (*GetAvailableResponse, error)
 }
 
 type providerServiceClient struct {
@@ -47,11 +51,33 @@ func (c *providerServiceClient) AssignID(ctx context.Context, in *AssignIDReques
 	return out, nil
 }
 
+func (c *providerServiceClient) GetCapacity(ctx context.Context, in *GetCapacityRequest, opts ...grpc.CallOption) (*GetCapacityResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetCapacityResponse)
+	err := c.cc.Invoke(ctx, ProviderService_GetCapacity_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *providerServiceClient) GetAvailable(ctx context.Context, in *GetAvailableRequest, opts ...grpc.CallOption) (*GetAvailableResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetAvailableResponse)
+	err := c.cc.Invoke(ctx, ProviderService_GetAvailable_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ProviderServiceServer is the server API for ProviderService service.
 // All implementations must embed UnimplementedProviderServiceServer
 // for forward compatibility.
 type ProviderServiceServer interface {
 	AssignID(context.Context, *AssignIDRequest) (*AssignIDResponse, error)
+	GetCapacity(context.Context, *GetCapacityRequest) (*GetCapacityResponse, error)
+	GetAvailable(context.Context, *GetAvailableRequest) (*GetAvailableResponse, error)
 	mustEmbedUnimplementedProviderServiceServer()
 }
 
@@ -64,6 +90,12 @@ type UnimplementedProviderServiceServer struct{}
 
 func (UnimplementedProviderServiceServer) AssignID(context.Context, *AssignIDRequest) (*AssignIDResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AssignID not implemented")
+}
+func (UnimplementedProviderServiceServer) GetCapacity(context.Context, *GetCapacityRequest) (*GetCapacityResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetCapacity not implemented")
+}
+func (UnimplementedProviderServiceServer) GetAvailable(context.Context, *GetAvailableRequest) (*GetAvailableResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetAvailable not implemented")
 }
 func (UnimplementedProviderServiceServer) mustEmbedUnimplementedProviderServiceServer() {}
 func (UnimplementedProviderServiceServer) testEmbeddedByValue()                         {}
@@ -104,6 +136,42 @@ func _ProviderService_AssignID_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProviderService_GetCapacity_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetCapacityRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProviderServiceServer).GetCapacity(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProviderService_GetCapacity_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProviderServiceServer).GetCapacity(ctx, req.(*GetCapacityRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProviderService_GetAvailable_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAvailableRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProviderServiceServer).GetAvailable(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProviderService_GetAvailable_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProviderServiceServer).GetAvailable(ctx, req.(*GetAvailableRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ProviderService_ServiceDesc is the grpc.ServiceDesc for ProviderService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -114,6 +182,14 @@ var ProviderService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AssignID",
 			Handler:    _ProviderService_AssignID_Handler,
+		},
+		{
+			MethodName: "GetCapacity",
+			Handler:    _ProviderService_GetCapacity_Handler,
+		},
+		{
+			MethodName: "GetAvailable",
+			Handler:    _ProviderService_GetAvailable_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
