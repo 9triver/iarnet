@@ -128,12 +128,15 @@ func (s *Service) GetCapacity(ctx context.Context, req *providerpb.GetCapacityRe
 		Gpu:    total.Gpu - allocated.Gpu,
 	}
 
+	capacity := &resourcepb.Capacity{
+		Total:     total,
+		Used:      allocated,
+		Available: available,
+	}
+	logrus.Infof("docker provider get capacity, capacity: %v", capacity)
+
 	return &providerpb.GetCapacityResponse{
-		Capacity: &resourcepb.Capacity{
-			Total:     total,
-			Used:      allocated,
-			Available: available,
-		},
+		Capacity: capacity,
 	}, nil
 }
 
