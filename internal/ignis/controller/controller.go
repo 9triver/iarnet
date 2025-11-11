@@ -7,30 +7,48 @@ import (
 	ctrlpb "github.com/9triver/iarnet/internal/proto/ignis/controller"
 	"github.com/9triver/iarnet/internal/resource"
 	"github.com/9triver/iarnet/internal/resource/component"
+	clusterpb "github.com/9triver/ignis/proto/cluster"
 	"github.com/sirupsen/logrus"
 )
 
 type Controller struct {
-	appID            string
-	events           *EventHub
-	responseCh       chan *ctrlpb.Message
-	componentService component.ComponentService
+	appID             string
+	events            *EventHub
+	toClientChan      chan *ctrlpb.Message
+	fromComponentChan chan *clusterpb.Message
+	componentService  component.ComponentService
 }
 
-const defaultOutboundBuffer = 32
-
-func NewController(componentService component.ComponentService, appID string, events *EventHub) *Controller {
+func NewController(componentService component.ComponentService, appID string) *Controller {
 	return &Controller{
 		appID:            appID,
-		events:           events,
-		responseCh:       make(chan *ctrlpb.Message, defaultOutboundBuffer),
 		componentService: componentService,
 	}
 }
 
+func (c *Controller) SetToClientChan(toClientChan chan *ctrlpb.Message) {
+	c.toClientChan = toClientChan
+}
+
+func (c *Controller) ClearToClientChan() {
+	c.toClientChan = nil
+}
+
+func (c *Controller) SetEvents(events *EventHub) {
+	c.events = events
+}
+
+func (c *Controller) GetToClientChan() chan *ctrlpb.Message {
+	return c.toClientChan
+}
+
 func (c *Controller) AppID() string { return c.appID }
 
-func (c *Controller) HandleMessage(ctx context.Context, msg *ctrlpb.Message) error {
+func (c *Controller) HandleComponentMessage(ctx context.Context, msg *clusterpb.Message) error {
+	return nil
+}
+
+func (c *Controller) HandleClientMessage(ctx context.Context, msg *ctrlpb.Message) error {
 	switch m := msg.GetCommand().(type) {
 	case *ctrlpb.Message_AppendPyFunc:
 		return c.handleAppendPyFunc(ctx, m.AppendPyFunc)
@@ -55,15 +73,29 @@ func (c *Controller) handleAppendPyFunc(ctx context.Context, m *ctrlpb.AppendPyF
 	replicas := int(m.GetReplicas())
 	for i := 0; i < replicas; i++ {
 		logrus.Infof("Deploying component %d", i)
-		containerRef, err := c.componentService.DeployComponent(
-			ctx, resource.RuntimeEnvPython,
-			&resource.ResourceRequest{},
+		component, err := c.componentService.DeployComponent(
+			ctx, m.GetName(), resource.RuntimeEnvPython,
+			&resource.Info{
+				CPU:    int64(m.GetResources().GetCPU()),
+				Memory: int64(m.GetResources().GetMemory()),
+				GPU:    int64(m.GetResources().GetGPU()),
+			},
 		)
 		if err != nil {
 			logrus.Errorf("Failed to deploy component: %v", err)
 			return err
 		}
-		logrus.Infof("Component deployed successfully: %s", containerRef.ID)
+		logrus.Infof("Component deployed successfully: %s", component.GetID())
+		go func() {
+			for {
+				msg := component.Receive(ctx)
+				if msg == nil {
+					return
+				}
+				c.HandleComponentMessage(ctx, msg)
+			}
+		}()
+
 	}
 	return nil
 }
@@ -95,11 +127,7 @@ func (c *Controller) emit(ctx context.Context, event Event) {
 	c.events.Publish(ctx, event)
 }
 
-func (c *Controller) ResponseChan() <-chan *ctrlpb.Message {
-	return c.responseCh
-}
-
-func (c *Controller) PushResponse(ctx context.Context, msg *ctrlpb.Message) error {
+func (c *Controller) PushToClient(ctx context.Context, msg *ctrlpb.Message) error {
 	if msg == nil {
 		return errors.New("push message: nil payload")
 	}
@@ -107,7 +135,7 @@ func (c *Controller) PushResponse(ctx context.Context, msg *ctrlpb.Message) erro
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case c.responseCh <- msg:
+	case c.toClientChan <- msg:
 		return nil
 	}
 }

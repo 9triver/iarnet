@@ -1,11 +1,65 @@
 package component
 
-import "github.com/9triver/iarnet/internal/resource"
+import (
+	"context"
+	"sync"
+
+	"github.com/9triver/iarnet/internal/resource"
+	clusterpb "github.com/9triver/ignis/proto/cluster"
+)
+
+type Sender func(componentID string, msg *clusterpb.Message)
 
 type Component struct {
-	ID              string
-	Name            string
-	Image           string
-	ResourceRequest *resource.ResourceRequest
-	ContainerRef    *resource.ContainerRef
+	mu            sync.RWMutex
+	id            string
+	name          string
+	image         string
+	resourceUsage *resource.Info
+	buffer        chan *clusterpb.Message
+	sender        Sender
+}
+
+func NewComponent(id, name, image string, resourceUsage *resource.Info) *Component {
+	comp := &Component{
+		id:            id,
+		name:          name,
+		image:         image,
+		resourceUsage: resourceUsage,
+	}
+
+	return comp
+}
+
+func (c *Component) GetID() string {
+	return c.id
+}
+
+func (c *Component) GetName() string {
+	return c.name
+}
+
+func (c *Component) GetImage() string {
+	return c.image
+}
+
+func (c *Component) SetSender(sender Sender) {
+	c.sender = sender
+}
+
+func (c *Component) Send(msg *clusterpb.Message) {
+	c.sender(c.id, msg)
+}
+
+func (c *Component) Receive(ctx context.Context) *clusterpb.Message {
+	select {
+	case <-ctx.Done():
+		return nil
+	case msg := <-c.buffer:
+		return msg
+	}
+}
+
+func (c *Component) Push(msg *clusterpb.Message) {
+	c.buffer <- msg
 }
