@@ -12,6 +12,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const providerType = providerpb.ProviderType_PROVIDER_TYPE_DOCKER
+
 type Service struct {
 	providerpb.UnimplementedProviderServiceServer
 	mu         sync.RWMutex
@@ -97,7 +99,8 @@ func (s *Service) AssignID(ctx context.Context, req *providerpb.AssignIDRequest)
 	logrus.Infof("Provider ID assigned: %s", s.providerID)
 
 	return &providerpb.AssignIDResponse{
-		Success: true,
+		Success:      true,
+		ProviderType: providerType,
 	}, nil
 }
 

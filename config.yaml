@@ -1,5 +1,5 @@
 mode: ""  # Auto-detect, or set to "standalone" or "k8s"
-external_addr: "host.internal" # External address for actor container connection. TODO: 通信问题待解决
+host: "host.internal" # Host for external connection. TODO: 通信问题待解决
 listen_addr: ":8083"
 peer_listen_addr: ":50051"
 initial_peers:
@@ -24,6 +24,8 @@ database:
   max_open_conns: 10
   max_idle_conns: 5
   conn_max_lifetime_seconds: 300  # 5 minutes
+zmq:
+  port: 5555
 logging:
   enabled: true
   data_dir: "./data/logs"

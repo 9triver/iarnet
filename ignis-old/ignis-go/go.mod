@@ -1,6 +1,6 @@
 module github.com/9triver/ignis
 
-go 1.24
+go 1.25.0
 
 require (
 	github.com/asynkron/protoactor-go v0.0.0-20240822202345-3c0e61ca19c9
