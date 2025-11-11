@@ -19,9 +19,10 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ProviderService_AssignID_FullMethodName     = "/provider.ProviderService/AssignID"
-	ProviderService_GetCapacity_FullMethodName  = "/provider.ProviderService/GetCapacity"
-	ProviderService_GetAvailable_FullMethodName = "/provider.ProviderService/GetAvailable"
+	ProviderService_AssignID_FullMethodName        = "/provider.ProviderService/AssignID"
+	ProviderService_GetCapacity_FullMethodName     = "/provider.ProviderService/GetCapacity"
+	ProviderService_GetAvailable_FullMethodName    = "/provider.ProviderService/GetAvailable"
+	ProviderService_DeployComponent_FullMethodName = "/provider.ProviderService/DeployComponent"
 )
 
 // ProviderServiceClient is the client API for ProviderService service.
@@ -31,6 +32,7 @@ type ProviderServiceClient interface {
 	AssignID(ctx context.Context, in *AssignIDRequest, opts ...grpc.CallOption) (*AssignIDResponse, error)
 	GetCapacity(ctx context.Context, in *GetCapacityRequest, opts ...grpc.CallOption) (*GetCapacityResponse, error)
 	GetAvailable(ctx context.Context, in *GetAvailableRequest, opts ...grpc.CallOption) (*GetAvailableResponse, error)
+	DeployComponent(ctx context.Context, in *DeployComponentRequest, opts ...grpc.CallOption) (*DeployComponentResponse, error)
 }
 
 type providerServiceClient struct {
@@ -71,6 +73,16 @@ func (c *providerServiceClient) GetAvailable(ctx context.Context, in *GetAvailab
 	return out, nil
 }
 
+func (c *providerServiceClient) DeployComponent(ctx context.Context, in *DeployComponentRequest, opts ...grpc.CallOption) (*DeployComponentResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeployComponentResponse)
+	err := c.cc.Invoke(ctx, ProviderService_DeployComponent_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ProviderServiceServer is the server API for ProviderService service.
 // All implementations must embed UnimplementedProviderServiceServer
 // for forward compatibility.
@@ -78,6 +90,7 @@ type ProviderServiceServer interface {
 	AssignID(context.Context, *AssignIDRequest) (*AssignIDResponse, error)
 	GetCapacity(context.Context, *GetCapacityRequest) (*GetCapacityResponse, error)
 	GetAvailable(context.Context, *GetAvailableRequest) (*GetAvailableResponse, error)
+	DeployComponent(context.Context, *DeployComponentRequest) (*DeployComponentResponse, error)
 	mustEmbedUnimplementedProviderServiceServer()
 }
 
@@ -96,6 +109,9 @@ func (UnimplementedProviderServiceServer) GetCapacity(context.Context, *GetCapac
 }
 func (UnimplementedProviderServiceServer) GetAvailable(context.Context, *GetAvailableRequest) (*GetAvailableResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAvailable not implemented")
+}
+func (UnimplementedProviderServiceServer) DeployComponent(context.Context, *DeployComponentRequest) (*DeployComponentResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeployComponent not implemented")
 }
 func (UnimplementedProviderServiceServer) mustEmbedUnimplementedProviderServiceServer() {}
 func (UnimplementedProviderServiceServer) testEmbeddedByValue()                         {}
@@ -172,6 +188,24 @@ func _ProviderService_GetAvailable_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProviderService_DeployComponent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeployComponentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProviderServiceServer).DeployComponent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProviderService_DeployComponent_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProviderServiceServer).DeployComponent(ctx, req.(*DeployComponentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ProviderService_ServiceDesc is the grpc.ServiceDesc for ProviderService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -190,6 +224,10 @@ var ProviderService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetAvailable",
 			Handler:    _ProviderService_GetAvailable_Handler,
+		},
+		{
+			MethodName: "DeployComponent",
+			Handler:    _ProviderService_DeployComponent_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

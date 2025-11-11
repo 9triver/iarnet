@@ -3,16 +3,24 @@ package component
 import (
 	"context"
 	"fmt"
+	"net"
+	"strconv"
 	"time"
 
+	"github.com/9triver/iarnet/internal/config"
+	resourcepb "github.com/9triver/iarnet/internal/proto/resource"
+	providerpb "github.com/9triver/iarnet/internal/proto/resource/provider"
 	"github.com/9triver/iarnet/internal/resource"
-	"github.com/sirupsen/logrus"
+	"github.com/lithammer/shortuuid/v4"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 type Provider interface {
+	Connect(ctx context.Context) error
 	GetCapacity(ctx context.Context) (*resource.Capacity, error)
 	GetAvailable(ctx context.Context) (*resource.Info, error)
-	GetType() string
+	GetType() resource.ProviderType
 	GetID() string
 	GetName() string
 	GetHost() string
@@ -20,7 +28,7 @@ type Provider interface {
 	GetLastUpdateTime() time.Time
 	GetStatus() resource.ProviderStatus
 	GetLogs(d string, lines int) ([]string, error)
-	DeployComponent(ctx context.Context, runtimeEnv resource.RuntimeEnv, resourceRequest *resource.ResourceRequest) (*resource.ContainerRef, error)
+	DeployComponent(ctx context.Context, id, image string, resourceRequest *resource.Info) error
 }
 
 type provider struct {
@@ -28,66 +36,57 @@ type provider struct {
 	name           string
 	host           string
 	port           int
-	providerType   string
+	providerType   resource.ProviderType
 	lastUpdateTime time.Time
 	status         resource.ProviderStatus
-}
 
-// NewProviderOptions provider 创建选项
-type NewProviderOptions struct {
-	ID           string // 如果提供，将使用此 ID；否则通过 RPC 注册获取
-	Name         string
-	Host         string
-	Port         int
-	ProviderType string // provider 类型（如 "docker", "k8s"）
-	ServiceHost  string // RPC 服务地址
-	ServicePort  int    // RPC 服务端口
-	Config       string // 可选配置信息（JSON 格式）
+	conn   *grpc.ClientConn
+	client providerpb.ProviderServiceClient
 }
 
 // NewProvider 创建新的 provider，如果未提供 ID，将通过 RPC 服务注册并获取分配的 ID
-func NewProvider(ctx context.Context, opts NewProviderOptions) (Provider, error) {
-	var providerID string
-	var err error
+func NewProvider(name string, host string, port int) Provider {
+	return &provider{
+		name:           name,
+		host:           host,
+		port:           port,
+		lastUpdateTime: time.Now(),
+		status:         resource.ProviderStatusDisconnected,
+	}
+}
 
+func (p *provider) Connect(ctx context.Context) error {
 	// 如果未提供 ID，通过 RPC 服务注册并获取分配的 ID
-	if opts.ID == "" {
-		if opts.ServiceHost == "" || opts.ServicePort == 0 {
-			return nil, fmt.Errorf("service host and port are required when ID is not provided")
-		}
-
-		client, err := provider.NewClient(opts.ServiceHost, opts.ServicePort)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create provider client: %w", err)
-		}
-		defer client.Close()
-
-		providerID, err = client.RegisterProvider(
-			ctx,
-			opts.Name,
-			opts.Host,
-			opts.ProviderType,
-			int32(opts.Port),
-			opts.Config,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to register provider via RPC: %w", err)
-		}
-
-		logrus.Infof("Successfully registered provider %s with ID %s via RPC", opts.Name, providerID)
-	} else {
-		providerID = opts.ID
+	if p.host == "" || p.port == 0 {
+		return fmt.Errorf("service host and port are required when ID is not provided")
 	}
 
-	return &provider{
-		id:             providerID,
-		name:           opts.Name,
-		host:           opts.Host,
-		port:           opts.Port,
-		providerType:   opts.ProviderType,
-		lastUpdateTime: time.Now(),
-		status:         resource.ProviderStatusConnected,
-	}, nil
+	conn, err := grpc.NewClient(fmt.Sprintf("%s:%d", p.host, p.port), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return fmt.Errorf("failed to create provider connection: %w", err)
+	}
+	client := providerpb.NewProviderServiceClient(conn)
+
+	providerID := shortuuid.New()
+	req := &providerpb.AssignIDRequest{
+		ProviderId: providerID,
+	}
+	resp, err := client.AssignID(ctx, req)
+	if err != nil {
+		conn.Close()
+		return fmt.Errorf("failed to assign ID: %w", err)
+	}
+	if !resp.Success {
+		conn.Close()
+		return fmt.Errorf("failed to assign ID: %s", resp.Error)
+	}
+
+	p.id = providerID
+	p.providerType = resource.ProviderType(resp.ProviderType.Name)
+	p.client = client
+	p.conn = conn
+	p.status = resource.ProviderStatusConnected
+	return nil
 }
 
 func (p *provider) GetID() string {
@@ -106,7 +105,7 @@ func (p *provider) GetPort() int {
 	return p.port
 }
 
-func (p *provider) GetType() string {
+func (p *provider) GetType() resource.ProviderType {
 	return p.providerType
 }
 
@@ -119,8 +118,19 @@ func (p *provider) GetStatus() resource.ProviderStatus {
 }
 
 func (p *provider) GetCapacity(ctx context.Context) (*resource.Capacity, error) {
-	// TODO: 实现获取容量的逻辑
-	return nil, fmt.Errorf("not implemented")
+	if p.client == nil {
+		return nil, fmt.Errorf("provider not connected")
+	}
+	req := &providerpb.GetCapacityRequest{}
+	resp, err := p.client.GetCapacity(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get capacity: %w", err)
+	}
+	return &resource.Capacity{
+		Total:     &resource.Info{CPU: resp.Capacity.Total.Cpu, Memory: resp.Capacity.Total.Memory, GPU: resp.Capacity.Total.Gpu},
+		Used:      &resource.Info{CPU: resp.Capacity.Used.Cpu, Memory: resp.Capacity.Used.Memory, GPU: resp.Capacity.Used.Gpu},
+		Available: &resource.Info{CPU: resp.Capacity.Available.Cpu, Memory: resp.Capacity.Available.Memory, GPU: resp.Capacity.Available.Gpu},
+	}, nil
 }
 
 func (p *provider) GetAvailable(ctx context.Context) (*resource.Info, error) {
@@ -133,7 +143,35 @@ func (p *provider) GetLogs(d string, lines int) ([]string, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
-func (p *provider) DeployComponent(ctx context.Context, runtimeEnv resource.RuntimeEnv, resourceRequest *resource.ResourceRequest) (*resource.ContainerRef, error) {
-	// TODO: 实现部署组件的逻辑
-	return nil, fmt.Errorf("not implemented")
+func (p *provider) DeployComponent(ctx context.Context, id, image string, resourceRequest *resource.Info) error {
+	if p.client == nil {
+		return fmt.Errorf("provider not connected")
+	}
+	req := &providerpb.DeployComponentRequest{
+		ComponentId: id,
+		Image:       image,
+		ResourceRequest: &resourcepb.Info{
+			Cpu:    resourceRequest.CPU,
+			Memory: resourceRequest.Memory,
+			Gpu:    resourceRequest.GPU,
+		},
+		EnvVars: map[string]string{
+			"ZMQ_ADDR": net.JoinHostPort(config.GetConfig().Host, strconv.Itoa(config.GetConfig().ZMQ.Port)),
+		},
+	}
+	resp, err := p.client.DeployComponent(ctx, req)
+	if err != nil {
+		return fmt.Errorf("failed to deploy component: %w", err)
+	}
+	if resp.Error != "" {
+		return fmt.Errorf("failed to deploy component: %s", resp.Error)
+	}
+	return nil
+}
+
+func (p *provider) Close() error {
+	if p.client != nil {
+		return p.conn.Close()
+	}
+	return nil
 }

@@ -6,9 +6,15 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+var cfg *Config
+
+func GetConfig() *Config {
+	return cfg
+}
+
 type Config struct {
 	Mode              string            `yaml:"mode"`                // "standalone" or "k8s"
-	ExternalAddr      string            `yaml:"external_addr"`       // External address for actor container connection. TODO: 通信问题待解决
+	Host              string            `yaml:"host"`                // Host for external connection. TODO: 通信问题待解决
 	ListenAddr        string            `yaml:"listen_addr"`         // e.g., ":8080"
 	PeerListenAddr    string            `yaml:"peer_listen_addr"`    // e.g., ":50051" for gRPC
 	InitialPeers      []string          `yaml:"initial_peers"`       // e.g., ["peer1:50051"]
@@ -21,6 +27,11 @@ type Config struct {
 	EnableLocalDocker bool              `yaml:"enable_local_docker"` // e.g., true - enable local docker provider
 	Database          DatabaseConfig    `yaml:"database"`            // Database configuration
 	Logging           LoggingConfig     `yaml:"logging"`             // Logging configuration
+	ZMQ               ZMQConfig         `yaml:"zmq"`                 // ZMQ configuration
+}
+
+type ZMQConfig struct {
+	Port int `yaml:"port"` // e.g., "5555"
 }
 
 type IgnisConfig struct {

@@ -1,5 +1,11 @@
 package resource
 
+import (
+	"context"
+
+	clusterpb "github.com/9triver/ignis/proto/cluster"
+)
+
 type RuntimeEnv string
 
 type Info struct {
@@ -20,6 +26,8 @@ const (
 
 type ResourceRequest Info
 
+type ProviderType string
+
 type ProviderStatus int32
 
 const (
@@ -27,3 +35,20 @@ const (
 	ProviderStatusConnected    ProviderStatus = 1
 	ProviderStatusDisconnected ProviderStatus = 2
 )
+
+type Subscriber interface {
+	Notify(ctx context.Context, message *clusterpb.Message) error
+}
+
+type Consumer interface {
+	Consume(ctx context.Context, message *clusterpb.Message) error
+}
+
+type ConsumerSupplier interface {
+	GetConsumers() ([]Consumer, error)
+}
+
+type Envelope struct {
+	ComponentID string
+	Message     *clusterpb.Message
+}

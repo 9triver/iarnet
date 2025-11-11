@@ -11,14 +11,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// ProviderType defines the type of resource provider
-type ProviderType string
-
-const (
-	ProviderTypeDocker ProviderType = "docker"
-	ProviderTypeK8s    ProviderType = "k8s"
-)
-
 // String returns the string representation of providerType
 func (pt ProviderType) String() string {
 	return string(pt)
