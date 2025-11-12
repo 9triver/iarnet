@@ -1,6 +1,6 @@
 syntax = "proto3";
 package cluster;
-option go_package = "github.com/9triver/ignis/proto/cluster";
+option go_package = "github.com/9triver/iarnet/internal/proto/ignis/cluster";
 
 import "platform.proto";
 

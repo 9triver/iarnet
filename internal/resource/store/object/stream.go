@@ -1,11 +1,11 @@
-package objects
+package object
 
 import (
 	"reflect"
 	"sync"
 
-	"github.com/9triver/ignis/configs"
-	"github.com/9triver/ignis/utils"
+	"github.com/9triver/iarnet/internal/resource/config"
+	"github.com/9triver/iarnet/internal/util"
 )
 
 type Stream struct {
@@ -45,7 +45,7 @@ func (s *Stream) Encode() (*Remote, error) {
 	return &Remote{
 		ID:       s.id,
 		Language: s.language,
-		Stream:   true,
+		IsStream: true,
 	}, nil
 }
 
@@ -85,13 +85,13 @@ func (s *Stream) ToChan() <-chan Interface {
 }
 
 func NewStream(values any, language Language) *Stream {
-	return StreamWithID(utils.GenIDWith("stream."), values, language)
+	return StreamWithID(util.GenIDWith("stream."), values, language)
 }
 
 func StreamWithID(id string, values any, language Language) *Stream {
 	s := &Stream{
 		id:       id,
-		values:   make(chan Interface, configs.ChannelBufferSize),
+		values:   make(chan Interface, config.ChannelBufferSize),
 		language: language,
 	}
 

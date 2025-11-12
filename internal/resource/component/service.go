@@ -14,7 +14,7 @@ type ConsumerSupplier interface {
 	GetConsumers() (resource.Consumer, error)
 }
 
-type ComponentService interface {
+type Service interface {
 	RegisterProvider(provider Provider)
 	DeployComponent(ctx context.Context, name string, runtimeEnv resource.RuntimeEnv, resourceRequest *resource.Info) (*Component, error)
 }
@@ -26,7 +26,7 @@ type componentService struct {
 	images              map[resource.RuntimeEnv]string
 }
 
-func NewComponentService(componentRepository repository.ComponentRepository, manager Manager) ComponentService {
+func NewComponentService(componentRepository repository.ComponentRepository, manager Manager) Service {
 	return &componentService{
 		providers:           []Provider{nil},
 		componentRepository: componentRepository,

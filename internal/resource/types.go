@@ -3,7 +3,10 @@ package resource
 import (
 	"context"
 
-	clusterpb "github.com/9triver/ignis/proto/cluster"
+	"github.com/9triver/iarnet/internal/ignis/objects"
+	proto "github.com/9triver/iarnet/internal/proto/ignis"
+	clusterpb "github.com/9triver/iarnet/internal/proto/ignis/cluster"
+	"github.com/asynkron/protoactor-go/actor"
 )
 
 type RuntimeEnv string
@@ -52,3 +55,11 @@ type Envelope struct {
 	ComponentID string
 	Message     *clusterpb.Message
 }
+
+// SaveObject is sent to store when actor generates new return objects from functions
+type SaveObjectRequest struct {
+	Value    objects.Interface                        // object or stream
+	Callback func(ctx actor.Context, ref *proto.Flow) // called when object saving is completed
+}
+
+type ObjectID = string

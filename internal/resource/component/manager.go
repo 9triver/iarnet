@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	clusterpb "github.com/9triver/ignis/proto/cluster"
+	clusterpb "github.com/9triver/iarnet/internal/proto/ignis/cluster"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
 	"gopkg.in/zeromq/goczmq.v4"

@@ -4,14 +4,12 @@ import (
 	"context"
 	"sync"
 
-	"github.com/asynkron/protoactor-go/actor"
 	"github.com/sirupsen/logrus"
 
 	"github.com/9triver/iarnet/internal/ignis/types"
 	"github.com/9triver/iarnet/internal/ignis/utils"
-	"github.com/9triver/ignis/proto"
-	clusterpb "github.com/9triver/ignis/proto/cluster"
-	"github.com/9triver/ignis/utils/errors"
+	"github.com/9triver/iarnet/internal/ignis/utils/errors"
+	proto "github.com/9triver/iarnet/internal/proto/ignis"
 )
 
 type Node struct {
@@ -23,7 +21,7 @@ type Node struct {
 func (node *Node) Runtime(sessionID types.SessionID) *Runtime {
 	return &Runtime{
 		sessionID: sessionID,
-		actorInfo: node.group.Select(),
+		actor:     node.group.Select(),
 		deps:      utils.MakeSetFromSlice(node.inputs),
 		cond:      sync.NewCond(&sync.Mutex{}),
 	}
@@ -39,7 +37,7 @@ func NewNode(id string, inputs []string, group *ActorGroup) *Node {
 
 type Runtime struct {
 	sessionID types.SessionID
-	actorInfo *ActorInfo
+	actor     *Actor
 	deps      utils.Set[string]
 	cond      *sync.Cond
 }
@@ -55,32 +53,31 @@ func (rt *Runtime) Start(ctx context.Context) error {
 	}
 	rt.cond.L.Unlock()
 
-	if rt.actorInfo == nil {
+	if rt.actor == nil {
 		return errors.New("no candidate actor selected")
 	}
 
-	logrus.Infof("task: start grouped task", "actor", rt.actorInfo.ID)
+	logrus.Infof("task: start grouped task", "actor", rt.actor.GetID())
 
-	rt.actorInfo.Component.Send(clusterpb.NewMessage(&proto.InvokeStart{
-		Info:      &rt.actorInfo.ActorInfo,
+	rt.actor.Send(&proto.InvokeStart{
+		Info:      rt.actor.GetInfo(),
 		SessionID: rt.sessionID,
-	}))
+	})
 
 	return nil
 }
 
-func (rt *Runtime) Invoke(ctx actor.Context, param string, value *proto.Flow) (err error) {
+func (rt *Runtime) Invoke(ctx context.Context, param string, value *proto.Flow) (err error) {
 
-	if rt.actorInfo == nil {
+	if rt.actor == nil {
 		return errors.New("no candidate actor selected")
 	}
 
-	rt.actorInfo.Component.Send(clusterpb.NewMessage(&proto.Invoke{
-		Target:    rt.actorInfo.ID,
+	rt.actor.Send(&proto.Invoke{
 		SessionID: rt.sessionID,
 		Param:     param,
 		Value:     value,
-	}))
+	})
 
 	rt.deps.Remove(param)
 

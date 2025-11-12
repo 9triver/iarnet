@@ -3,7 +3,7 @@ package cluster
 import (
 	pb "google.golang.org/protobuf/proto"
 
-	"github.com/9triver/ignis/proto"
+	proto "github.com/9triver/iarnet/internal/proto/ignis"
 )
 
 type StreamChunk = proto.StreamChunk

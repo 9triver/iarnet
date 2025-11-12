@@ -2,14 +2,7 @@ module github.com/9triver/iarnet
 
 go 1.25.0
 
-replace github.com/9triver/ignis => ./ignis-old/ignis-go
-
-replace github.com/9triver/iarnet/integration/ignis/deployer => ./integration/ignis/deployer
-
-replace github.com/9triver/iarnet/integration/ignis/monitor => ./integration/ignis/monitor
-
 require (
-	github.com/9triver/ignis v0.0.0-00010101000000-000000000000
 	github.com/asynkron/protoactor-go v0.0.0-20240822202345-3c0e61ca19c9
 	github.com/docker/go-connections v0.5.0
 	github.com/google/uuid v1.6.0

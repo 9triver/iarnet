@@ -4,8 +4,8 @@ import (
 	"context"
 	"sync"
 
+	clusterpb "github.com/9triver/iarnet/internal/proto/ignis/cluster"
 	"github.com/9triver/iarnet/internal/resource"
-	clusterpb "github.com/9triver/ignis/proto/cluster"
 )
 
 type Sender func(componentID string, msg *clusterpb.Message)

@@ -3,26 +3,37 @@ package controller
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strconv"
 
+	"github.com/9triver/iarnet/internal/ignis/task"
+	ignispb "github.com/9triver/iarnet/internal/proto/ignis"
+	clusterpb "github.com/9triver/iarnet/internal/proto/ignis/cluster"
 	ctrlpb "github.com/9triver/iarnet/internal/proto/ignis/controller"
+	storepb "github.com/9triver/iarnet/internal/proto/resource/store"
 	"github.com/9triver/iarnet/internal/resource"
 	"github.com/9triver/iarnet/internal/resource/component"
-	clusterpb "github.com/9triver/ignis/proto/cluster"
+	"github.com/9triver/iarnet/internal/resource/store"
 	"github.com/sirupsen/logrus"
 )
 
 type Controller struct {
-	appID             string
-	events            *EventHub
-	toClientChan      chan *ctrlpb.Message
-	fromComponentChan chan *clusterpb.Message
-	componentService  component.ComponentService
+	appID            string
+	events           *EventHub
+	toClientChan     chan *ctrlpb.Message
+	componentService component.Service
+	storeService     store.Service
+	nodes            map[string]*task.Node
+	runtimes         map[string]*task.Runtime
 }
 
-func NewController(componentService component.ComponentService, appID string) *Controller {
+func NewController(componentService component.Service, storeService store.Service, appID string) *Controller {
 	return &Controller{
 		appID:            appID,
 		componentService: componentService,
+		storeService:     storeService,
+		nodes:            make(map[string]*task.Node),
+		runtimes:         make(map[string]*task.Runtime),
 	}
 }
 
@@ -52,6 +63,8 @@ func (c *Controller) HandleClientMessage(ctx context.Context, msg *ctrlpb.Messag
 	switch m := msg.GetCommand().(type) {
 	case *ctrlpb.Message_AppendPyFunc:
 		return c.handleAppendPyFunc(ctx, m.AppendPyFunc)
+	case *ctrlpb.Message_AppendData:
+		return c.handleAppendData(ctx, m.AppendData)
 	case *ctrlpb.Message_AppendPyClass:
 		return c.handleAppendPyClass(ctx, m.AppendPyClass)
 	case *ctrlpb.Message_AppendArg:
@@ -69,7 +82,42 @@ func (c *Controller) HandleClientMessage(ctx context.Context, msg *ctrlpb.Messag
 	}
 }
 
+func (c *Controller) handleAppendData(ctx context.Context, m *ctrlpb.AppendData) error {
+	obj := m.Object
+	logrus.Infof("control: append data node", "id", obj.ID, "session", m.SessionID)
+	go func() {
+		// TODO: 整理 proto 定义，将 EncodedObject 和 Object 合并
+		resp, err := c.storeService.SaveObject(ctx, &storepb.SaveObjectRequest{
+			Object: &storepb.EncodedObject{
+				ID:       obj.ID,
+				Language: storepb.Language(obj.Language),
+				Data:     obj.Data,
+				IsStream: obj.Stream,
+			},
+		})
+		if err != nil {
+			logrus.Errorf("Failed to save object: %v", err)
+			return
+		}
+		if !resp.Success {
+			logrus.Errorf("Failed to save object: %s", resp.Error)
+			return
+		}
+		logrus.Infof("Object saved successfully: %s", resp.ObjectRef.ID)
+		ret := ctrlpb.NewReturnResult(m.SessionID, "", resp.ObjectRef.ID, &ignispb.Flow{
+			ID: resp.ObjectRef.ID,
+			Source: &ignispb.StoreRef{
+				ID: resp.ObjectRef.Source,
+			},
+		}, nil)
+		c.PushToClient(ctx, ret)
+	}()
+
+	return nil
+}
+
 func (c *Controller) handleAppendPyFunc(ctx context.Context, m *ctrlpb.AppendPyFunc) error {
+	actorGroup := task.NewGroup(m.GetName())
 	replicas := int(m.GetReplicas())
 	for i := 0; i < replicas; i++ {
 		logrus.Infof("Deploying component %d", i)
@@ -86,6 +134,16 @@ func (c *Controller) handleAppendPyFunc(ctx context.Context, m *ctrlpb.AppendPyF
 			return err
 		}
 		logrus.Infof("Component deployed successfully: %s", component.GetID())
+
+		component.Send(clusterpb.NewMessage(&clusterpb.Function{
+			Name:          m.GetName(),
+			Params:        m.GetParams(),
+			Requirements:  m.GetRequirements(),
+			PickledObject: m.GetPickledObject(),
+			Language:      m.GetLanguage(),
+		}))
+		logrus.Infof("Function sent to component: %s", component.GetID())
+
 		go func() {
 			for {
 				msg := component.Receive(ctx)
@@ -96,24 +154,81 @@ func (c *Controller) handleAppendPyFunc(ctx context.Context, m *ctrlpb.AppendPyF
 			}
 		}()
 
+		actorGroup.Push(task.NewActor(m.GetName()+"-"+strconv.Itoa(i), component))
+	}
+
+	c.nodes[m.GetName()] = task.NewNode(m.GetName(), m.GetParams(), actorGroup)
+
+	return nil
+}
+
+func (c *Controller) handleAppendArg(ctx context.Context, m *ctrlpb.AppendArg) error {
+	logrus.Infof("control: append arg", "name", m.Name, "param", m.Param, "session", m.SessionID, "instance", m.InstanceID)
+
+	rt, err := c.getOrCreateRuntime(m.Name, m.SessionID, m.InstanceID)
+	if err != nil {
+		logrus.Errorf("Failed to get or create runtime: %v", err)
+		return err
+	}
+
+	switch v := m.Value.Object.(type) {
+	case *ctrlpb.Data_Ref:
+		if err := rt.Invoke(ctx, m.Param, v.Ref); err != nil {
+			logrus.Errorf("Failed to invoke runtime: %v", err)
+			ret := ctrlpb.NewReturnResult(m.SessionID, m.InstanceID, m.Name, nil, err)
+			c.PushToClient(ctx, ret)
+			return err
+		}
+	case *ctrlpb.Data_Encoded:
+		go func() {
+			resp, err := c.storeService.SaveObject(ctx, &storepb.SaveObjectRequest{
+				Object: &storepb.EncodedObject{
+					ID:       v.Encoded.ID,
+					Language: storepb.Language(v.Encoded.Language),
+					Data:     v.Encoded.Data,
+					IsStream: v.Encoded.Stream,
+				},
+			})
+			if err != nil {
+				logrus.Errorf("Failed to save object: %v", err)
+				return
+			}
+			if !resp.Success {
+				logrus.Errorf("Failed to save object: %s", resp.Error)
+				return
+			}
+			logrus.Infof("Object saved successfully: %s", resp.ObjectRef.ID)
+			ret := ctrlpb.NewReturnResult(m.SessionID, "", resp.ObjectRef.ID, &ignispb.Flow{
+				ID: resp.ObjectRef.ID,
+				Source: &ignispb.StoreRef{
+					ID: resp.ObjectRef.Source,
+				},
+			}, nil)
+			c.PushToClient(ctx, ret)
+		}()
 	}
 	return nil
 }
+
+func (c *Controller) handleInvoke(ctx context.Context, m *ctrlpb.Invoke) error {
+	logrus.Infof("control: invoke", "name", m.Name, "session", m.SessionID, "instance", m.InstanceID)
+	rt, err := c.getOrCreateRuntime(m.Name, m.SessionID, m.InstanceID)
+	if err != nil {
+		logrus.Errorf("Failed to get or create runtime: %v", err)
+		return err
+	}
+	return rt.Start(ctx)
+}
+
 func (c *Controller) handleAppendPyClass(ctx context.Context, m *ctrlpb.AppendPyClass) error {
-	return nil
+	panic("not implemented")
 }
-func (c *Controller) handleAppendArg(ctx context.Context, m *ctrlpb.AppendArg) error { return nil }
+
 func (c *Controller) handleAppendClassMethodArg(ctx context.Context, m *ctrlpb.AppendClassMethodArg) error {
-	return nil
+	panic("not implemented")
 }
-func (c *Controller) handleInvoke(ctx context.Context, m *ctrlpb.Invoke) error { return nil }
+
 func (c *Controller) handleMarkDAGNodeDone(ctx context.Context, m *ctrlpb.MarkDAGNodeDone) error {
-	c.emit(ctx, &DAGNodeStatusChangedEvent{
-		AppID:     c.appID,
-		NodeID:    m.GetNodeId(),
-		SessionID: m.GetSessionId(),
-		Status:    DAGNodeStatusDone,
-	})
 	return nil
 }
 func (c *Controller) handleRequestObject(ctx context.Context, m *ctrlpb.RequestObject) error {
@@ -138,4 +253,20 @@ func (c *Controller) PushToClient(ctx context.Context, msg *ctrlpb.Message) erro
 	case c.toClientChan <- msg:
 		return nil
 	}
+}
+
+func (c *Controller) getOrCreateRuntime(name, sessionId, instanceId string) (*task.Runtime, error) {
+	runtimeId := fmt.Sprintf("%s::%s::%s", name, sessionId, instanceId)
+	rt, ok := c.runtimes[runtimeId]
+	if !ok {
+		node, ok := c.nodes[name]
+		if !ok {
+			return nil, fmt.Errorf("actor node %s not found", name)
+		}
+
+		rt = node.Runtime(runtimeId)
+		c.runtimes[runtimeId] = rt
+	}
+
+	return rt, nil
 }

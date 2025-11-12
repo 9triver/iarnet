@@ -12,6 +12,7 @@ import (
 )
 
 type Manager interface {
+	ctrlpb.UnsafeServiceServer
 	Session(stream grpc.BidiStreamingServer[ctrlpb.Message, ctrlpb.Message]) error
 	AddController(controller *Controller) error
 	On(eventType EventType, handler EventHandler)
@@ -21,12 +22,12 @@ type manager struct {
 	ctrlpb.UnimplementedServiceServer
 
 	mu               sync.RWMutex
-	componentService component.ComponentService
+	componentService component.Service
 	controllers      map[string]*Controller
 	events           *EventHub
 }
 
-func NewManager(componentService component.ComponentService) Manager {
+func NewManager(componentService component.Service) Manager {
 	return &manager{
 		componentService: componentService,
 		controllers:      make(map[string]*Controller),

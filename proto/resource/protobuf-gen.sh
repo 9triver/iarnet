@@ -4,7 +4,7 @@ PROTOC="python -m grpc_tools.protoc"
 export PATH="$PATH:$HOME/go/bin"
 
 PROTOC="$PROTOC -I ."
-PROTO_SRC="*.proto ./provider/*.proto"
+PROTO_SRC="*.proto ./provider/*.proto ./store/*.proto"
 
 GO_OUTPUTS="../../internal/proto/resource"
 

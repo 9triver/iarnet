@@ -4,7 +4,7 @@
 // 	protoc        v6.31.1
 // source: platform.proto
 
-package proto
+package ignis
 
 import (
 	actor "github.com/asynkron/protoactor-go/actor"
@@ -714,7 +714,7 @@ const file_platform_proto_rawDesc = "" +
 	"\fLANG_UNKNOWN\x10\x00\x12\r\n" +
 	"\tLANG_JSON\x10\x01\x12\v\n" +
 	"\aLANG_GO\x10\x02\x12\x0f\n" +
-	"\vLANG_PYTHON\x10\x03B Z\x1egithub.com/9triver/ignis/protob\x06proto3"
+	"\vLANG_PYTHON\x10\x03B0Z.github.com/9triver/iarnet/internal/proto/ignisb\x06proto3"
 
 var (
 	file_platform_proto_rawDescOnce sync.Once

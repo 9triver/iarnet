@@ -1,6 +1,6 @@
 syntax = "proto3";
 package controller;
-option go_package = "github.com/9triver/ignis/proto/controller";
+option go_package = "github.com/9triver/iarnet/internal/proto/ignis/controller";
 
 import "platform.proto";
 

@@ -7,7 +7,7 @@
 package cluster
 
 import (
-	proto "github.com/9triver/ignis/proto"
+	ignis "github.com/9triver/iarnet/internal/proto/ignis"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -159,7 +159,7 @@ type ObjectResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ID            string                 `protobuf:"bytes,1,opt,name=ID,proto3" json:"ID,omitempty"`
 	Target        string                 `protobuf:"bytes,2,opt,name=Target,proto3" json:"Target,omitempty"`
-	Value         *proto.EncodedObject   `protobuf:"bytes,3,opt,name=Value,proto3" json:"Value,omitempty"`
+	Value         *ignis.EncodedObject   `protobuf:"bytes,3,opt,name=Value,proto3" json:"Value,omitempty"`
 	Error         string                 `protobuf:"bytes,4,opt,name=Error,proto3" json:"Error,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -209,7 +209,7 @@ func (x *ObjectResponse) GetTarget() string {
 	return ""
 }
 
-func (x *ObjectResponse) GetValue() *proto.EncodedObject {
+func (x *ObjectResponse) GetValue() *ignis.EncodedObject {
 	if x != nil {
 		return x.Value
 	}
@@ -225,7 +225,7 @@ func (x *ObjectResponse) GetError() string {
 
 type Envelope struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	Store *proto.StoreRef        `protobuf:"bytes,1,opt,name=Store,proto3" json:"Store,omitempty"`
+	Store *ignis.StoreRef        `protobuf:"bytes,1,opt,name=Store,proto3" json:"Store,omitempty"`
 	Type  MessageType            `protobuf:"varint,2,opt,name=Type,proto3,enum=cluster.MessageType" json:"Type,omitempty"`
 	// Types that are valid to be assigned to Message:
 	//
@@ -267,7 +267,7 @@ func (*Envelope) Descriptor() ([]byte, []int) {
 	return file_cluster_cluster_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *Envelope) GetStore() *proto.StoreRef {
+func (x *Envelope) GetStore() *ignis.StoreRef {
 	if x != nil {
 		return x.Store
 	}
@@ -306,7 +306,7 @@ func (x *Envelope) GetObjectResponse() *ObjectResponse {
 	return nil
 }
 
-func (x *Envelope) GetStreamChunk() *proto.StreamChunk {
+func (x *Envelope) GetStreamChunk() *ignis.StreamChunk {
 	if x != nil {
 		if x, ok := x.Message.(*Envelope_StreamChunk); ok {
 			return x.StreamChunk
@@ -328,7 +328,7 @@ type Envelope_ObjectResponse struct {
 }
 
 type Envelope_StreamChunk struct {
-	StreamChunk *proto.StreamChunk `protobuf:"bytes,5,opt,name=StreamChunk,proto3,oneof"`
+	StreamChunk *ignis.StreamChunk `protobuf:"bytes,5,opt,name=StreamChunk,proto3,oneof"`
 }
 
 func (*Envelope_ObjectRequest) isEnvelope_Message() {}
@@ -423,7 +423,7 @@ type Function struct {
 	Params        []string               `protobuf:"bytes,2,rep,name=Params,proto3" json:"Params,omitempty"`                          //function params
 	Requirements  []string               `protobuf:"bytes,3,rep,name=Requirements,proto3" json:"Requirements,omitempty"`              // function dependencies
 	PickledObject []byte                 `protobuf:"bytes,4,opt,name=PickledObject,proto3" json:"PickledObject,omitempty"`            // encoded function impl
-	Language      proto.Language         `protobuf:"varint,5,opt,name=Language,proto3,enum=proto.Language" json:"Language,omitempty"` // return type of function
+	Language      ignis.Language         `protobuf:"varint,5,opt,name=Language,proto3,enum=proto.Language" json:"Language,omitempty"` // return type of function
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -486,11 +486,11 @@ func (x *Function) GetPickledObject() []byte {
 	return nil
 }
 
-func (x *Function) GetLanguage() proto.Language {
+func (x *Function) GetLanguage() ignis.Language {
 	if x != nil {
 		return x.Language
 	}
-	return proto.Language(0)
+	return ignis.Language(0)
 }
 
 type Message struct {
@@ -582,7 +582,7 @@ func (x *Message) GetReady() *Ready {
 	return nil
 }
 
-func (x *Message) GetInvoke() *proto.Invoke {
+func (x *Message) GetInvoke() *ignis.Invoke {
 	if x != nil {
 		if x, ok := x.Message.(*Message_Invoke); ok {
 			return x.Invoke
@@ -591,7 +591,7 @@ func (x *Message) GetInvoke() *proto.Invoke {
 	return nil
 }
 
-func (x *Message) GetInvokeStart() *proto.InvokeStart {
+func (x *Message) GetInvokeStart() *ignis.InvokeStart {
 	if x != nil {
 		if x, ok := x.Message.(*Message_InvokeStart); ok {
 			return x.InvokeStart
@@ -600,7 +600,7 @@ func (x *Message) GetInvokeStart() *proto.InvokeStart {
 	return nil
 }
 
-func (x *Message) GetInvokeResponse() *proto.InvokeResponse {
+func (x *Message) GetInvokeResponse() *ignis.InvokeResponse {
 	if x != nil {
 		if x, ok := x.Message.(*Message_InvokeResponse); ok {
 			return x.InvokeResponse
@@ -627,7 +627,7 @@ func (x *Message) GetObjectResponse() *ObjectResponse {
 	return nil
 }
 
-func (x *Message) GetStreamChunk() *proto.StreamChunk {
+func (x *Message) GetStreamChunk() *ignis.StreamChunk {
 	if x != nil {
 		if x, ok := x.Message.(*Message_StreamChunk); ok {
 			return x.StreamChunk
@@ -658,15 +658,15 @@ type Message_Ready struct {
 }
 
 type Message_Invoke struct {
-	Invoke *proto.Invoke `protobuf:"bytes,5,opt,name=Invoke,proto3,oneof"`
+	Invoke *ignis.Invoke `protobuf:"bytes,5,opt,name=Invoke,proto3,oneof"`
 }
 
 type Message_InvokeStart struct {
-	InvokeStart *proto.InvokeStart `protobuf:"bytes,6,opt,name=InvokeStart,proto3,oneof"`
+	InvokeStart *ignis.InvokeStart `protobuf:"bytes,6,opt,name=InvokeStart,proto3,oneof"`
 }
 
 type Message_InvokeResponse struct {
-	InvokeResponse *proto.InvokeResponse `protobuf:"bytes,7,opt,name=InvokeResponse,proto3,oneof"`
+	InvokeResponse *ignis.InvokeResponse `protobuf:"bytes,7,opt,name=InvokeResponse,proto3,oneof"`
 }
 
 type Message_ObjectRequest struct {
@@ -678,7 +678,7 @@ type Message_ObjectResponse struct {
 }
 
 type Message_StreamChunk struct {
-	StreamChunk *proto.StreamChunk `protobuf:"bytes,10,opt,name=StreamChunk,proto3,oneof"`
+	StreamChunk *ignis.StreamChunk `protobuf:"bytes,10,opt,name=StreamChunk,proto3,oneof"`
 }
 
 type Message_Function struct {
@@ -760,7 +760,7 @@ const file_cluster_cluster_proto_rawDesc = "" +
 	"\fSTREAM_CHUNK\x10\b\x12\f\n" +
 	"\bFUNCTION\x10\t2>\n" +
 	"\aService\x123\n" +
-	"\aSession\x12\x10.cluster.Message\x1a\x10.cluster.Message\"\x00(\x010\x01B(Z&github.com/9triver/ignis/proto/clusterb\x06proto3"
+	"\aSession\x12\x10.cluster.Message\x1a\x10.cluster.Message\"\x00(\x010\x01B8Z6github.com/9triver/iarnet/internal/proto/ignis/clusterb\x06proto3"
 
 var (
 	file_cluster_cluster_proto_rawDescOnce sync.Once
@@ -785,13 +785,13 @@ var file_cluster_cluster_proto_goTypes = []any{
 	(*Ready)(nil),                // 5: cluster.Ready
 	(*Function)(nil),             // 6: cluster.Function
 	(*Message)(nil),              // 7: cluster.Message
-	(*proto.EncodedObject)(nil),  // 8: proto.EncodedObject
-	(*proto.StoreRef)(nil),       // 9: proto.StoreRef
-	(*proto.StreamChunk)(nil),    // 10: proto.StreamChunk
-	(proto.Language)(0),          // 11: proto.Language
-	(*proto.Invoke)(nil),         // 12: proto.Invoke
-	(*proto.InvokeStart)(nil),    // 13: proto.InvokeStart
-	(*proto.InvokeResponse)(nil), // 14: proto.InvokeResponse
+	(*ignis.EncodedObject)(nil),  // 8: proto.EncodedObject
+	(*ignis.StoreRef)(nil),       // 9: proto.StoreRef
+	(*ignis.StreamChunk)(nil),    // 10: proto.StreamChunk
+	(ignis.Language)(0),          // 11: proto.Language
+	(*ignis.Invoke)(nil),         // 12: proto.Invoke
+	(*ignis.InvokeStart)(nil),    // 13: proto.InvokeStart
+	(*ignis.InvokeResponse)(nil), // 14: proto.InvokeResponse
 }
 var file_cluster_cluster_proto_depIdxs = []int32{
 	8,  // 0: cluster.ObjectResponse.Value:type_name -> proto.EncodedObject

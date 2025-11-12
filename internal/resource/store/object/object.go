@@ -1,13 +1,13 @@
-package objects
+package object
 
 import (
 	"bytes"
 	"encoding/gob"
 	"encoding/json"
+	"fmt"
 
-	"github.com/9triver/ignis/proto"
-	"github.com/9triver/ignis/utils"
-	"github.com/9triver/ignis/utils/errors"
+	storepb "github.com/9triver/iarnet/internal/proto/resource/store"
+	"github.com/9triver/iarnet/internal/util"
 )
 
 // Interface wraps Local, Stream and proto.EncodedObject, and all these types support serialization.
@@ -27,15 +27,15 @@ var (
 )
 
 type (
-	Remote   = proto.EncodedObject
-	Language = proto.Language
+	Remote   = storepb.EncodedObject
+	Language = storepb.Language
 )
 
 const (
-	LangUnknown = proto.Language_LANG_UNKNOWN
-	LangJson    = proto.Language_LANG_JSON
-	LangGo      = proto.Language_LANG_GO
-	LangPython  = proto.Language_LANG_PYTHON
+	LangUnknown = storepb.Language_LANGUAGE_UNKNOWN
+	LangJson    = storepb.Language_LANGUAGE_JSON
+	LangGo      = storepb.Language_LANGUAGE_GO
+	LangPython  = storepb.Language_LANGUAGE_PYTHON
 )
 
 type Local struct {
@@ -62,12 +62,12 @@ func (obj *Local) Encode() (*Remote, error) {
 	case LangJson:
 		data, err := json.Marshal(obj.value)
 		if err != nil {
-			return nil, errors.WrapWith(err, "encoder: json failed")
+			return nil, fmt.Errorf("encoder: json failed: %w", err)
 		}
 		o.Data = data
 	case LangPython:
 		if data, ok := obj.value.([]byte); !ok {
-			return nil, errors.New("encoder: python object must be pickled bytes")
+			return nil, fmt.Errorf("encoder: python object must be pickled bytes")
 		} else {
 			o.Data = data
 		}
@@ -75,11 +75,11 @@ func (obj *Local) Encode() (*Remote, error) {
 		buf := &bytes.Buffer{}
 		enc := gob.NewEncoder(buf)
 		if err := enc.Encode(obj.value); err != nil {
-			return nil, errors.WrapWith(err, "encoder: gob failed")
+			return nil, fmt.Errorf("encoder: gob failed: %w", err)
 		}
 		o.Data = buf.Bytes()
 	default:
-		return nil, errors.New("encoder: unsupported language")
+		return nil, fmt.Errorf("encoder: unsupported language")
 	}
 	return o, nil
 }
@@ -89,7 +89,7 @@ func (obj *Local) GetLanguage() Language {
 }
 
 func NewLocal(value any, language Language) *Local {
-	return LocalWithID(utils.GenIDWith("obj."), value, language)
+	return LocalWithID(util.GenIDWith("obj."), value, language)
 }
 
 func LocalWithID(id string, value any, language Language) *Local {

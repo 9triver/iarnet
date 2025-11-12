@@ -7,7 +7,7 @@
 package executor
 
 import (
-	proto "github.com/9triver/ignis/proto"
+	ignis "github.com/9triver/iarnet/internal/proto/ignis"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -90,7 +90,7 @@ type AddHandler struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=Name,proto3" json:"Name,omitempty"`
 	Handler       []byte                 `protobuf:"bytes,2,opt,name=Handler,proto3" json:"Handler,omitempty"`
-	Language      proto.Language         `protobuf:"varint,3,opt,name=Language,proto3,enum=proto.Language" json:"Language,omitempty"`
+	Language      ignis.Language         `protobuf:"varint,3,opt,name=Language,proto3,enum=proto.Language" json:"Language,omitempty"`
 	Methods       []string               `protobuf:"bytes,4,rep,name=Methods,proto3" json:"Methods,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -140,11 +140,11 @@ func (x *AddHandler) GetHandler() []byte {
 	return nil
 }
 
-func (x *AddHandler) GetLanguage() proto.Language {
+func (x *AddHandler) GetLanguage() ignis.Language {
 	if x != nil {
 		return x.Language
 	}
-	return proto.Language(0)
+	return ignis.Language(0)
 }
 
 func (x *AddHandler) GetMethods() []string {
@@ -203,7 +203,7 @@ type Execute struct {
 	CorrID        string                          `protobuf:"bytes,1,opt,name=CorrID,proto3" json:"CorrID,omitempty"`
 	Name          string                          `protobuf:"bytes,2,opt,name=Name,proto3" json:"Name,omitempty"`
 	Method        string                          `protobuf:"bytes,3,opt,name=Method,proto3" json:"Method,omitempty"`
-	Args          map[string]*proto.EncodedObject `protobuf:"bytes,4,rep,name=Args,proto3" json:"Args,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Args          map[string]*ignis.EncodedObject `protobuf:"bytes,4,rep,name=Args,proto3" json:"Args,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -259,7 +259,7 @@ func (x *Execute) GetMethod() string {
 	return ""
 }
 
-func (x *Execute) GetArgs() map[string]*proto.EncodedObject {
+func (x *Execute) GetArgs() map[string]*ignis.EncodedObject {
 	if x != nil {
 		return x.Args
 	}
@@ -394,7 +394,7 @@ func (x *Return) GetResult() isReturn_Result {
 	return nil
 }
 
-func (x *Return) GetValue() *proto.EncodedObject {
+func (x *Return) GetValue() *ignis.EncodedObject {
 	if x != nil {
 		if x, ok := x.Result.(*Return_Value); ok {
 			return x.Value
@@ -417,7 +417,7 @@ type isReturn_Result interface {
 }
 
 type Return_Value struct {
-	Value *proto.EncodedObject `protobuf:"bytes,2,opt,name=Value,proto3,oneof"`
+	Value *ignis.EncodedObject `protobuf:"bytes,2,opt,name=Value,proto3,oneof"`
 }
 
 type Return_Error struct {
@@ -551,7 +551,7 @@ func (x *Message) GetReturn() *Return {
 	return nil
 }
 
-func (x *Message) GetStreamChunk() *proto.StreamChunk {
+func (x *Message) GetStreamChunk() *ignis.StreamChunk {
 	if x != nil {
 		if x, ok := x.Command.(*Message_StreamChunk); ok {
 			return x.StreamChunk
@@ -589,7 +589,7 @@ type Message_Return struct {
 }
 
 type Message_StreamChunk struct {
-	StreamChunk *proto.StreamChunk `protobuf:"bytes,9,opt,name=StreamChunk,proto3,oneof"`
+	StreamChunk *ignis.StreamChunk `protobuf:"bytes,9,opt,name=StreamChunk,proto3,oneof"`
 }
 
 func (*Message_AddHandler) isMessage_Command() {}
@@ -658,7 +658,7 @@ const file_executor_executor_proto_rawDesc = "" +
 	"\bD_RETURN\x10\x06\x12\x10\n" +
 	"\fSTREAM_CHUNK\x10\a2@\n" +
 	"\aService\x125\n" +
-	"\aSession\x12\x11.executor.Message\x1a\x11.executor.Message\"\x00(\x010\x01B)Z'github.com/9triver/ignis/proto/executorb\x06proto3"
+	"\aSession\x12\x11.executor.Message\x1a\x11.executor.Message\"\x00(\x010\x01B9Z7github.com/9triver/iarnet/internal/proto/ignis/executorb\x06proto3"
 
 var (
 	file_executor_executor_proto_rawDescOnce sync.Once
@@ -684,9 +684,9 @@ var file_executor_executor_proto_goTypes = []any{
 	(*Return)(nil),              // 6: executor.Return
 	(*Message)(nil),             // 7: executor.Message
 	nil,                         // 8: executor.Execute.ArgsEntry
-	(proto.Language)(0),         // 9: proto.Language
-	(*proto.EncodedObject)(nil), // 10: proto.EncodedObject
-	(*proto.StreamChunk)(nil),   // 11: proto.StreamChunk
+	(ignis.Language)(0),         // 9: proto.Language
+	(*ignis.EncodedObject)(nil), // 10: proto.EncodedObject
+	(*ignis.StreamChunk)(nil),   // 11: proto.StreamChunk
 }
 var file_executor_executor_proto_depIdxs = []int32{
 	9,  // 0: executor.AddHandler.Language:type_name -> proto.Language

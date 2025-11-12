@@ -7,7 +7,7 @@
 package controller
 
 import (
-	proto "github.com/9triver/ignis/proto"
+	ignis "github.com/9triver/iarnet/internal/proto/ignis"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -298,7 +298,7 @@ func (x *Data) GetObject() isData_Object {
 	return nil
 }
 
-func (x *Data) GetRef() *proto.Flow {
+func (x *Data) GetRef() *ignis.Flow {
 	if x != nil {
 		if x, ok := x.Object.(*Data_Ref); ok {
 			return x.Ref
@@ -307,7 +307,7 @@ func (x *Data) GetRef() *proto.Flow {
 	return nil
 }
 
-func (x *Data) GetEncoded() *proto.EncodedObject {
+func (x *Data) GetEncoded() *ignis.EncodedObject {
 	if x != nil {
 		if x, ok := x.Object.(*Data_Encoded); ok {
 			return x.Encoded
@@ -321,11 +321,11 @@ type isData_Object interface {
 }
 
 type Data_Ref struct {
-	Ref *proto.Flow `protobuf:"bytes,2,opt,name=Ref,proto3,oneof"`
+	Ref *ignis.Flow `protobuf:"bytes,2,opt,name=Ref,proto3,oneof"`
 }
 
 type Data_Encoded struct {
-	Encoded *proto.EncodedObject `protobuf:"bytes,3,opt,name=Encoded,proto3,oneof"`
+	Encoded *ignis.EncodedObject `protobuf:"bytes,3,opt,name=Encoded,proto3,oneof"`
 }
 
 func (*Data_Ref) isData_Object() {}
@@ -335,7 +335,7 @@ func (*Data_Encoded) isData_Object() {}
 type AppendData struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	SessionID     string                 `protobuf:"bytes,1,opt,name=SessionID,proto3" json:"SessionID,omitempty"` // current execution session, empty if shared by all sessions
-	Object        *proto.EncodedObject   `protobuf:"bytes,2,opt,name=Object,proto3" json:"Object,omitempty"`       // encoded object
+	Object        *ignis.EncodedObject   `protobuf:"bytes,2,opt,name=Object,proto3" json:"Object,omitempty"`       // encoded object
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -377,7 +377,7 @@ func (x *AppendData) GetSessionID() string {
 	return ""
 }
 
-func (x *AppendData) GetObject() *proto.EncodedObject {
+func (x *AppendData) GetObject() *ignis.EncodedObject {
 	if x != nil {
 		return x.Object
 	}
@@ -388,7 +388,7 @@ type AppendActor struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=Name,proto3" json:"Name,omitempty"`     // actor name
 	Params        []string               `protobuf:"bytes,2,rep,name=Params,proto3" json:"Params,omitempty"` // function params
-	Ref           *proto.ActorRef        `protobuf:"bytes,3,opt,name=Ref,proto3" json:"Ref,omitempty"`       // Ref to actor
+	Ref           *ignis.ActorRef        `protobuf:"bytes,3,opt,name=Ref,proto3" json:"Ref,omitempty"`       // Ref to actor
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -437,7 +437,7 @@ func (x *AppendActor) GetParams() []string {
 	return nil
 }
 
-func (x *AppendActor) GetRef() *proto.ActorRef {
+func (x *AppendActor) GetRef() *ignis.ActorRef {
 	if x != nil {
 		return x.Ref
 	}
@@ -511,7 +511,7 @@ type AppendPyFunc struct {
 	Venv          string                 `protobuf:"bytes,3,opt,name=Venv,proto3" json:"Venv,omitempty"`                              // function virtual environment
 	Requirements  []string               `protobuf:"bytes,4,rep,name=Requirements,proto3" json:"Requirements,omitempty"`              // function dependencies
 	PickledObject []byte                 `protobuf:"bytes,5,opt,name=PickledObject,proto3" json:"PickledObject,omitempty"`            // encoded function impl
-	Language      proto.Language         `protobuf:"varint,6,opt,name=Language,proto3,enum=proto.Language" json:"Language,omitempty"` // return type of function
+	Language      ignis.Language         `protobuf:"varint,6,opt,name=Language,proto3,enum=proto.Language" json:"Language,omitempty"` // return type of function
 	Resources     *Resources             `protobuf:"bytes,7,opt,name=Resources,proto3" json:"Resources,omitempty"`                    // resources required by function
 	Replicas      int32                  `protobuf:"varint,8,opt,name=Replicas,proto3" json:"Replicas,omitempty"`                     // number of replicas
 	unknownFields protoimpl.UnknownFields
@@ -583,11 +583,11 @@ func (x *AppendPyFunc) GetPickledObject() []byte {
 	return nil
 }
 
-func (x *AppendPyFunc) GetLanguage() proto.Language {
+func (x *AppendPyFunc) GetLanguage() ignis.Language {
 	if x != nil {
 		return x.Language
 	}
-	return proto.Language(0)
+	return ignis.Language(0)
 }
 
 func (x *AppendPyFunc) GetResources() *Resources {
@@ -611,7 +611,7 @@ type AppendPyClass struct {
 	Venv          string                       `protobuf:"bytes,3,opt,name=Venv,proto3" json:"Venv,omitempty"`                              // function virtual environment
 	Requirements  []string                     `protobuf:"bytes,4,rep,name=Requirements,proto3" json:"Requirements,omitempty"`              // function dependencies
 	PickledObject []byte                       `protobuf:"bytes,5,opt,name=PickledObject,proto3" json:"PickledObject,omitempty"`            // encoded function impl
-	Language      proto.Language               `protobuf:"varint,6,opt,name=Language,proto3,enum=proto.Language" json:"Language,omitempty"` // return type of function
+	Language      ignis.Language               `protobuf:"varint,6,opt,name=Language,proto3,enum=proto.Language" json:"Language,omitempty"` // return type of function
 	Resources     *Resources                   `protobuf:"bytes,7,opt,name=Resources,proto3" json:"Resources,omitempty"`                    // resources required by class
 	Replicas      int32                        `protobuf:"varint,8,opt,name=Replicas,proto3" json:"Replicas,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -683,11 +683,11 @@ func (x *AppendPyClass) GetPickledObject() []byte {
 	return nil
 }
 
-func (x *AppendPyClass) GetLanguage() proto.Language {
+func (x *AppendPyClass) GetLanguage() ignis.Language {
 	if x != nil {
 		return x.Language
 	}
-	return proto.Language(0)
+	return ignis.Language(0)
 }
 
 func (x *AppendPyClass) GetResources() *Resources {
@@ -1508,7 +1508,7 @@ func (x *RequestObject) GetTarget() string {
 type ResponseObject struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ID            string                 `protobuf:"bytes,1,opt,name=ID,proto3" json:"ID,omitempty"`
-	Value         *proto.EncodedObject   `protobuf:"bytes,2,opt,name=Value,proto3" json:"Value,omitempty"`
+	Value         *ignis.EncodedObject   `protobuf:"bytes,2,opt,name=Value,proto3" json:"Value,omitempty"`
 	Error         string                 `protobuf:"bytes,3,opt,name=Error,proto3" json:"Error,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1551,7 +1551,7 @@ func (x *ResponseObject) GetID() string {
 	return ""
 }
 
-func (x *ResponseObject) GetValue() *proto.EncodedObject {
+func (x *ResponseObject) GetValue() *ignis.EncodedObject {
 	if x != nil {
 		return x.Value
 	}
@@ -2096,7 +2096,7 @@ const file_controller_controller_proto_rawDesc = "" +
 	"\x11FR_REQUEST_OBJECT\x10\x0e\x12\x16\n" +
 	"\x12BK_RESPONSE_OBJECT\x10\x0f2D\n" +
 	"\aService\x129\n" +
-	"\aSession\x12\x13.controller.Message\x1a\x13.controller.Message\"\x00(\x010\x01B+Z)github.com/9triver/ignis/proto/controllerb\x06proto3"
+	"\aSession\x12\x13.controller.Message\x1a\x13.controller.Message\"\x00(\x010\x01B;Z9github.com/9triver/iarnet/internal/proto/ignis/controllerb\x06proto3"
 
 var (
 	file_controller_controller_proto_rawDescOnce sync.Once
@@ -2138,10 +2138,10 @@ var file_controller_controller_proto_goTypes = []any{
 	(*Message)(nil),                   // 22: controller.Message
 	(*AppendPyClass_ClassMethod)(nil), // 23: controller.AppendPyClass.ClassMethod
 	nil,                               // 24: controller.ControlNode.ParamsEntry
-	(*proto.Flow)(nil),                // 25: proto.Flow
-	(*proto.EncodedObject)(nil),       // 26: proto.EncodedObject
-	(*proto.ActorRef)(nil),            // 27: proto.ActorRef
-	(proto.Language)(0),               // 28: proto.Language
+	(*ignis.Flow)(nil),                // 25: proto.Flow
+	(*ignis.EncodedObject)(nil),       // 26: proto.EncodedObject
+	(*ignis.ActorRef)(nil),            // 27: proto.ActorRef
+	(ignis.Language)(0),               // 28: proto.Language
 }
 var file_controller_controller_proto_depIdxs = []int32{
 	1,  // 0: controller.Data.Type:type_name -> controller.Data.ObjectType
