@@ -1,3 +1,8 @@
+"""
+Python Component Executor
+用于执行远程函数的 Python 组件，通过 ZMQ 与 Go 服务端通信，通过 gRPC 与 Store 服务通信
+"""
+
 import inspect
 import json
 import logging
@@ -7,7 +12,7 @@ import subprocess
 import sys
 import threading
 import uuid
-from collections.abc import Callable, Iterable
+from collections.abc import Callable
 from typing import Any, NamedTuple, Optional
 
 import cloudpickle
@@ -19,7 +24,9 @@ from proto.ignis import platform_pb2 as platform
 from proto.resource.store import store_pb2 as store_pb
 from proto.resource.store import store_pb2_grpc as store_grpc
 
-# Configure logging
+# ============================================================================
+# 日志配置
+# ============================================================================
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -28,28 +35,51 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-class RemoteFunction(NamedTuple):
-    language: platform.Language
-    fn: Callable[..., Any]
+# ============================================================================
+# 工具类
+# ============================================================================
 
-    def call(self, *args, **kwargs):
+class RemoteFunction(NamedTuple):
+    """远程函数封装，包含函数对象和语言类型"""
+    language: platform.Language  # 函数返回值的语言类型
+    fn: Callable[..., Any]        # 可调用的函数对象
+
+    def call(self, *args, **kwargs) -> Any:
+        """调用函数，使用关键字参数"""
         return self.fn(**kwargs)
 
 
 class StoreClient:
-    """gRPC client for store service"""
-
+    """Store 服务的 gRPC 客户端，用于获取和保存对象"""
+    
     def __init__(self, store_addr: str):
+        """
+        初始化 Store 客户端
+        
+        Args:
+            store_addr: Store 服务的地址（格式：host:port）
+        """
+        # TODO: 当前 Store 客户端被注释，需要时取消注释
         # self.channel = grpc.insecure_channel(store_addr)
         # self.stub = store_grpc.ServiceStub(self.channel)
-
         self.store_addr = store_addr
 
     def close(self):
-        self.channel.close()
+        """关闭 gRPC 连接"""
+        if hasattr(self, 'channel'):
+            self.channel.close()
 
     def get_object(self, object_id: str, source: str = "") -> Optional[store_pb.EncodedObject]:
-        """Get object from store by ObjectRef"""
+        """
+        从 Store 获取对象
+        
+        Args:
+            object_id: 对象 ID
+            source: 对象来源（可选）
+            
+        Returns:
+            编码后的对象，如果获取失败返回 None
+        """
         try:
             request = store_pb.GetObjectRequest(
                 ObjectRef=store_pb.ObjectRef(ID=object_id, Source=source)
@@ -61,9 +91,24 @@ class StoreClient:
             return None
 
     def save_object(
-        self, data: bytes, language: store_pb.Language, object_id: str = "", is_stream: bool = False
+        self, 
+        data: bytes, 
+        language: store_pb.Language, 
+        object_id: str = "", 
+        is_stream: bool = False
     ) -> Optional[store_pb.ObjectRef]:
-        """Save object to store and return ObjectRef"""
+        """
+        保存对象到 Store
+        
+        Args:
+            data: 对象的字节数据
+            language: 对象的语言类型
+            object_id: 对象 ID（如果为空则自动生成）
+            is_stream: 是否为流对象
+            
+        Returns:
+            对象引用，如果保存失败返回 None
+        """
         try:
             if not object_id:
                 object_id = f"obj.{uuid.uuid4()}"
@@ -88,15 +133,27 @@ class StoreClient:
 
 
 class EncDec:
-    """Encode/decode objects with language support"""
-
+    """对象编解码工具类，支持不同语言的序列化/反序列化"""
+    
     @staticmethod
     def next_id() -> str:
+        """生成下一个对象 ID"""
         return f"obj.{uuid.uuid4()}"
 
     @staticmethod
     def decode(obj: store_pb.EncodedObject) -> Any:
-        """Decode EncodedObject from store"""
+        """
+        解码 Store 中的编码对象
+        
+        Args:
+            obj: 编码后的对象
+            
+        Returns:
+            解码后的 Python 对象
+            
+        Raises:
+            ValueError: 如果对象是流或语言类型不支持
+        """
         if obj.IsStream:
             raise ValueError("Stream objects should be handled separately")
 
@@ -111,7 +168,16 @@ class EncDec:
 
     @classmethod
     def encode(cls, obj: Any, language: store_pb.Language = store_pb.LANGUAGE_JSON) -> tuple[bytes, bool]:
-        """Encode object to bytes and return (data, is_stream)"""
+        """
+        编码 Python 对象为字节数据
+        
+        Args:
+            obj: 要编码的 Python 对象
+            language: 目标语言类型
+            
+        Returns:
+            (编码后的字节数据, 是否为流对象)
+        """
         if inspect.isgenerator(obj):
             return b"", True
 
@@ -126,7 +192,15 @@ class EncDec:
 
     @staticmethod
     def platform_to_store_language(lang: platform.Language) -> store_pb.Language:
-        """Convert platform.Language to store.Language"""
+        """
+        将平台语言类型转换为 Store 语言类型
+        
+        Args:
+            lang: 平台语言类型
+            
+        Returns:
+            Store 语言类型
+        """
         match lang:
             case platform.LANG_JSON:
                 return store_pb.LANGUAGE_JSON
@@ -138,38 +212,67 @@ class EncDec:
                 return store_pb.LANGUAGE_UNKNOWN
 
 
-class Executor:
-    def __init__(self, store_client: StoreClient):
-        self.store_client = store_client
-        self.function: Optional[RemoteFunction] = None  # Single function to execute
-        self.function_name: Optional[str] = None
-        self.expected_params: set[str] = set()  # Expected parameters for the function
-        self.send_q = queue.Queue[cluster.Message | None]()
-        self.session_id: Optional[str] = None
-        self.invoke_params: dict[str, Any] = {}  # Store params for current invoke session
-        self.invoke_start_msg: Optional[platform.InvokeStart] = None  # Store InvokeStart for response
+# ============================================================================
+# 执行器主类
+# ============================================================================
 
+class Executor:
+    """
+    函数执行器，负责：
+    1. 接收并注册远程函数
+    2. 接收批量调用请求
+    3. 从 Store 获取参数
+    4. 执行函数
+    5. 将结果保存到 Store
+    6. 发送响应消息
+    """
+    
+    def __init__(self, store_client: StoreClient):
+        """
+        初始化执行器
+        
+        Args:
+            store_client: Store 客户端实例
+        """
+        self.store_client = store_client
+        self.function: Optional[RemoteFunction] = None      # 当前注册的函数
+        self.function_name: Optional[str] = None            # 函数名称
+        self.expected_params: set[str] = set()              # 函数期望的参数名集合
+        self.send_q = queue.Queue[cluster.Message | None]() # 发送消息队列
+        self.session_id: Optional[str] = None               # 当前会话 ID
+
+    # ========================================================================
+    # 函数注册相关方法
+    # ========================================================================
+    
     def _install_requirements(self, requirements: list[str]) -> bool:
-        """Install Python package requirements using pip in virtual environment"""
+        """
+        安装 Python 依赖包（在虚拟环境中）
+        
+        Args:
+            requirements: 依赖包列表
+            
+        Returns:
+            安装是否成功
+        """
         if not requirements:
             return True
         
         logger.info(f"Installing {len(requirements)} dependencies: {requirements}")
         try:
-            # Use the same Python executable (which should be from venv)
-            # This ensures packages are installed in the virtual environment
+            # 使用虚拟环境中的 Python 和 pip
             cmd = [
                 sys.executable, "-m", "pip", "install",
-                "--quiet",  # Reduce output
-                "--no-cache-dir",  # Don't cache packages
-                "--no-warn-script-location"  # Suppress warnings
+                "--quiet",                    # 减少输出
+                "--no-cache-dir",             # 不缓存包
+                "--no-warn-script-location"   # 抑制警告
             ] + requirements
             
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=300  # 5 minutes timeout
+                timeout=300  # 5 分钟超时
             )
             
             if result.returncode == 0:
@@ -188,20 +291,32 @@ class Executor:
             return False
 
     def on_function(self, msg: cluster.Function) -> bool:
-        """Handle Function message - register function. Returns True if successful."""
-        # Install dependencies if specified
+        """
+        处理 Function 消息，注册函数
+        
+        Args:
+            msg: Function 消息
+            
+        Returns:
+            注册是否成功
+        """
+        # 安装依赖（如果有）
         if msg.Requirements:
             if not self._install_requirements(list(msg.Requirements)):
                 logger.warning(f"Failed to install some dependencies for {msg.Name}, continuing anyway")
         
         try:
+            # 反序列化函数对象
             fn = cloudpickle.loads(msg.PickledObject)
             if not callable(fn):
                 logger.error(f"Function {msg.Name} is not callable")
                 return False
 
+            # 注册函数
             self.function = RemoteFunction(msg.Language, fn)
             self.function_name = msg.Name
+            
+            # 获取函数签名，提取参数名
             try:
                 sig = inspect.signature(fn)
                 self.expected_params = set(sig.parameters.keys())
@@ -214,48 +329,98 @@ class Executor:
             logger.error(f"Failed to load function {msg.Name}: {e}")
             return False
 
-    def on_invoke_start(self, msg: platform.InvokeStart):
-        """Handle InvokeStart message - prepare for invocation"""
-        self.session_id = msg.SessionID
-        self.invoke_params = {}
-        self.invoke_start_msg = msg
-        logger.info(f"InvokeStart: session={msg.SessionID}, reply_to={msg.ReplyTo}, function={self.function_name}, expected_params={self.expected_params}")
-
-    def on_invoke(self, msg: platform.Invoke):
-        """Handle Invoke message - provide parameter value"""
-        if not self.session_id or self.session_id != msg.SessionID:
-            logger.warning(f"Session ID mismatch: expected {self.session_id}, got {msg.SessionID}")
-            return
-
-        # Get object from store using Flow ref
-        flow = msg.Value
-        store_obj = self.store_client.get_object(flow.ID, flow.Source.ID if flow.Source else "")
+    # ========================================================================
+    # 函数调用相关方法
+    # ========================================================================
+    
+    def on_invoke_request(self, msg: cluster.InvokeRequest):
+        """
+        处理批量调用请求（InvokeRequest）
         
-        if store_obj is None:
-            logger.error(f"Failed to get object {flow.ID} from store")
-            return
+        在新线程中执行，避免阻塞主消息循环
+        
+        Args:
+            msg: InvokeRequest 消息，包含会话 ID 和参数列表
+        """
+        logger.info(
+            "InvokeRequest received",
+            extra={
+                "session": msg.SessionID,
+                "instance": msg.InstanceID,
+                "args": len(msg.Args),
+            }
+        )
 
-        # Decode object
-        try:
-            value = EncDec.decode(store_obj)
-            self.invoke_params[msg.Param] = value
-            logger.debug(f"Invoke: param={msg.Param}, value_type={type(value).__name__}, collected={len(self.invoke_params)}/{len(self.expected_params)}")
-            
-            # Check if all parameters are collected
-            if self.expected_params and self.expected_params.issubset(set(self.invoke_params.keys())):
-                logger.info(f"All parameters collected, executing function {self.function_name}")
-                self._execute_and_respond()
-        except Exception as e:
-            logger.error(f"Failed to decode object {flow.ID}: {e}")
+        # 在新线程中执行，避免阻塞主消息循环
+        thread = threading.Thread(
+            target=self._handle_invoke_request,
+            args=(msg,),
+            daemon=True
+        )
+        thread.start()
 
-    def _execute_and_respond(self):
-        """Execute function and send InvokeResponse"""
+    def _handle_invoke_request(self, msg: cluster.InvokeRequest):
+        """
+        在新线程中处理批量调用请求
+        
+        流程：
+        1. 从 Store 获取所有参数值
+        2. 解码参数
+        3. 执行函数
+        4. 发送响应
+        
+        Args:
+            msg: InvokeRequest 消息，包含会话 ID 和参数列表
+        """
+        session_id = msg.SessionID
+        
+        # 收集所有参数到局部字典（不使用实例变量，避免状态污染）
+        invoke_params = {}
+        
+        for arg in msg.Args:
+            # 验证 Flow 引用
+            if not arg.Value or not arg.Value.ID:
+                logger.error(f"Invalid flow for param {arg.Param}")
+                continue
+                
+            # 从 Store 获取对象
+            store_obj = self.store_client.get_object(
+                arg.Value.ID, 
+                arg.Value.Source.ID if arg.Value.Source else ""
+            )
+            if store_obj is None:
+                logger.error(f"Failed to get object {arg.Value.ID} from store")
+                continue
+                
+            # 解码对象并添加到参数字典
+            try:
+                value = EncDec.decode(store_obj)
+                invoke_params[arg.Param] = value
+                logger.debug(
+                    f"Collected arg: param={arg.Param}, value_type={type(value).__name__}, "
+                    f"collected={len(invoke_params)}/{len(msg.Args)}"
+                )
+            except Exception as e:
+                logger.error(f"Failed to decode object {arg.Value.ID}: {e}")
+                continue
+        
+        # 如果所有参数都收集成功，执行函数
+        if len(invoke_params) == len(msg.Args):
+            logger.info(f"All parameters collected, executing function {self.function_name}")
+            self._execute_and_respond(invoke_params, session_id)
+        else:
+            logger.error(f"Failed to collect all parameters: got {len(invoke_params)}/{len(msg.Args)}")
+
+    def _execute_and_respond(self, invoke_params: dict[str, Any], session_id: str):
+        """
+        执行函数并发送响应
+        
+        Args:
+            invoke_params: 函数参数字典
+            session_id: 会话 ID
+        """
         if not self.function:
             logger.error("Function not registered")
-            return
-
-        if not self.invoke_start_msg:
-            logger.error("No InvokeStart message stored")
             return
 
         func = self.function
@@ -263,20 +428,21 @@ class Executor:
         result_flow = None
         
         try:
-            logger.info(f"Executing function {self.function_name} with params: {list(self.invoke_params.keys())}")
-            value = func.call(**self.invoke_params)
+            # 执行函数
+            logger.info(f"Executing function {self.function_name} with params: {list(invoke_params.keys())}")
+            value = func.call(**invoke_params)
             
-            # Encode result
+            # 编码结果
             store_lang = EncDec.platform_to_store_language(func.language)
             data, is_stream = EncDec.encode(value, store_lang)
             
-            # Save to store
+            # 保存结果到 Store
             object_ref = self.store_client.save_object(data, store_lang, is_stream=is_stream)
             if object_ref is None:
                 error_msg = "Failed to save result to store"
                 logger.error(error_msg)
             else:
-                # Create Flow reference
+                # 创建 Flow 引用
                 result_flow = platform.Flow(
                     ID=object_ref.ID,
                     Source=platform.StoreRef(ID=object_ref.Source)
@@ -286,10 +452,9 @@ class Executor:
             error_msg = f"{e.__class__.__name__}: {e}"
             logger.error(f"Function {self.function_name} execution failed: {error_msg}", exc_info=True)
         
-        # Send InvokeResponse
+        # 发送 InvokeResponse
         invoke_response = platform.InvokeResponse(
-            Target="",  # Will be set by controller
-            SessionID=self.session_id,
+            SessionID=session_id,
             Result=result_flow if result_flow else None,
             Error=error_msg if error_msg else ""
         )
@@ -299,13 +464,21 @@ class Executor:
             InvokeResponse=invoke_response
         )
         self.send_q.put(response_msg)
-        
-        # Reset for next invocation
-        self.invoke_params = {}
-        self.invoke_start_msg = None
 
+    # ========================================================================
+    # ZMQ 通信相关方法
+    # ========================================================================
+    
     def wait_for_function(self, socket: zmq.Socket) -> bool:
-        """Wait for and register Function message. Returns True if successful."""
+        """
+        等待并注册 Function 消息（启动时调用）
+        
+        Args:
+            socket: ZMQ socket
+            
+        Returns:
+            注册是否成功
+        """
         logger.info("Waiting for Function message...")
         while True:
             try:
@@ -315,7 +488,7 @@ class Executor:
                 if msg.Type == cluster.FUNCTION:
                     logger.info(f"Received FUNCTION: {msg.Function.Name}")
                     if self.on_function(msg.Function):
-                        # Send ACK
+                        # 发送 ACK 确认
                         ack_msg = cluster.Message(
                             Type=cluster.ACK,
                             Ack=cluster.Ack()
@@ -334,34 +507,28 @@ class Executor:
                 return False
 
     def loop(self, socket: zmq.Socket):
-        """Main message loop"""
+        """
+        主消息循环，持续接收并处理消息
+        
+        Args:
+            socket: ZMQ socket
+        """
         while True:
             try:
                 msg_bytes = socket.recv()
                 msg = cluster.Message.FromString(msg_bytes)
                 
                 match msg.Type:
-                        
-                    case cluster.INVOKE_START:
-                        logger.info("Received INVOKE_START")
-                        self.on_invoke_start(msg.InvokeStart)
-                        # Send ACK
+                    case cluster.INVOKE_REQUEST:
+                        logger.info(f"Received INVOKE_REQUEST with {len(msg.InvokeRequest.Args)} args")
+                        self.on_invoke_request(msg.InvokeRequest)
+                        # 发送 ACK 确认
                         ack_msg = cluster.Message(
                             Type=cluster.ACK,
                             Ack=cluster.Ack()
                         )
                         self.send_q.put(ack_msg)
-                        
-                    case cluster.INVOKE:
-                        logger.debug(f"Received INVOKE: param={msg.Invoke.Param}")
-                        self.on_invoke(msg.Invoke)
-                        # Send ACK
-                        ack_msg = cluster.Message(
-                            Type=cluster.ACK,
-                            Ack=cluster.Ack()
-                        )
-                        self.send_q.put(ack_msg)
-                        
+                     
                     case _:
                         logger.warning(f"Unknown message type: {msg.Type}")
                         
@@ -372,11 +539,16 @@ class Executor:
                 logger.error(f"Error processing message: {e}", exc_info=True)
 
     def _start_send(self, socket: zmq.Socket):
-        """Send messages from queue"""
+        """
+        发送消息线程（后台运行）
+        
+        Args:
+            socket: ZMQ socket
+        """
         while True:
             msg = self.send_q.get()
             self.send_q.task_done()
-            if msg is None:
+            if msg is None:  # 收到 None 表示退出信号
                 break
             try:
                 socket.send(msg.SerializeToString())
@@ -384,21 +556,25 @@ class Executor:
                 logger.error(f"Failed to send message: {e}")
 
     def serve(self, zmq_addr: str, component_id: str = ""):
-        """Start serving"""
+        """
+        启动服务，建立 ZMQ 连接并开始处理消息
+        
+        Args:
+            zmq_addr: ZMQ 服务器地址
+            component_id: 组件 ID（用于 ZMQ 身份标识）
+        """
         ctx = zmq.Context()
         socket = ctx.socket(zmq.DEALER)
         
-        # Set socket identity to component ID so Router can identify this component
+        # 设置 socket 身份标识，以便 Router 能够识别此组件
         if component_id:
             socket.setsockopt_string(zmq.IDENTITY, component_id)
             logger.info(f"Set ZMQ socket identity to: {component_id}")
         
         socket.connect(zmq_addr)
-        
         logger.info(f"Connected to ZMQ: {zmq_addr}")
         
-        # Send initial READY message immediately after connection
-        # This allows Go side to identify this component and send cached Function message
+        # 发送初始 READY 消息，让 Go 端识别此组件并发送缓存的 Function 消息
         ready_msg = cluster.Message(
             Type=cluster.READY,
             Ready=cluster.Ready()
@@ -407,33 +583,40 @@ class Executor:
         logger.info("Initial READY message sent to identify component")
         
         try:
-            # Now wait for Function message and register it
+            # 等待 Function 消息并注册函数
             if not self.wait_for_function(socket):
                 logger.error("Failed to register function, exiting")
                 return
             
-            # Start send thread
+            # 启动发送线程
             send_thread = threading.Thread(target=self._start_send, args=(socket,))
             send_thread.daemon = True
             send_thread.start()
             
-            # Main loop
+            # 进入主消息循环
             self.loop(socket)
         except Exception as e:
             logger.error(f"Executor stopped: {e}", exc_info=True)
         finally:
-            self.send_q.put(None)
+            # 清理资源
+            self.send_q.put(None)  # 通知发送线程退出
             socket.close()
             ctx.term()
             self.store_client.close()
 
 
+# ============================================================================
+# 主函数
+# ============================================================================
+
 def main():
-    # Read environment variables
+    """主入口函数"""
+    # 读取环境变量
     zmq_addr = os.getenv("ZMQ_ADDR")
     store_addr = os.getenv("STORE_ADDR")
     component_id = os.getenv("COMPONENT_ID")
     
+    # 验证必需的环境变量
     if not zmq_addr:
         logger.error("ZMQ_ADDR environment variable is required")
         sys.exit(1)
@@ -444,17 +627,17 @@ def main():
         logger.error("COMPONENT_ID environment variable is required")
         sys.exit(1)
     
-    # Ensure ZMQ address has protocol prefix
+    # 确保 ZMQ 地址包含协议前缀
     if not zmq_addr.startswith(("tcp://", "ipc://", "inproc://")):
         zmq_addr = f"tcp://{zmq_addr}"
     
     logger.info(f"Starting executor: zmq={zmq_addr}, store={store_addr}, component_id={component_id}")
     
-    # Create store client
+    # 创建 Store 客户端和执行器
     store_client = StoreClient(store_addr)
-    
-    # Create and start executor
     executor = Executor(store_client)
+    
+    # 启动服务
     executor.serve(zmq_addr, component_id)
 
 

@@ -173,8 +173,8 @@ func (c *Controller) handleAppendArg(ctx context.Context, m *ctrlpb.AppendArg) e
 
 	switch v := m.Value.Object.(type) {
 	case *ctrlpb.Data_Ref:
-		if err := rt.Invoke(ctx, m.Param, v.Ref); err != nil {
-			logrus.Errorf("Failed to invoke runtime: %v", err)
+		if err := rt.AddArg(m.Param, v.Ref); err != nil {
+			logrus.Errorf("Failed to add runtime argument: %v", err)
 			ret := ctrlpb.NewReturnResult(m.SessionID, m.InstanceID, m.Name, nil, err)
 			c.PushToClient(ctx, ret)
 			return err
@@ -197,13 +197,13 @@ func (c *Controller) handleAppendArg(ctx context.Context, m *ctrlpb.AppendArg) e
 				return
 			}
 			logrus.Infof("Object saved successfully: %s", resp.ObjectRef.ID)
-			if err = rt.Invoke(ctx, m.Param, &ignispb.Flow{
+			if err = rt.AddArg(m.Param, &ignispb.Flow{
 				ID: resp.ObjectRef.ID,
 				Source: &ignispb.StoreRef{
 					ID: resp.ObjectRef.Source,
 				},
 			}); err != nil {
-				logrus.Errorf("Failed to invoke runtime: %v", err)
+				logrus.Errorf("Failed to add runtime argument: %v", err)
 				ret := ctrlpb.NewReturnResult(m.SessionID, m.InstanceID, m.Name, nil, err)
 				c.PushToClient(ctx, ret)
 				return
@@ -223,7 +223,7 @@ func (c *Controller) handleInvoke(ctx context.Context, m *ctrlpb.Invoke) error {
 		logrus.Errorf("Failed to get or create runtime: %v", err)
 		return err
 	}
-	return rt.Start(ctx)
+	return rt.Invoke(ctx)
 }
 
 func (c *Controller) handleAppendPyClass(ctx context.Context, m *ctrlpb.AppendPyClass) error {

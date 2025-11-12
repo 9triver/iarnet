@@ -15,6 +15,7 @@ enum MessageType {
   OBJECT_RESPONSE = 7;
   STREAM_CHUNK = 8;
   FUNCTION = 9; // python function
+  INVOKE_REQUEST = 10; // invoke request
 }
 
 // ObjectRequest requests object with ID, and the object is sent to ReplyTo, asynchronously.
@@ -57,9 +58,19 @@ message Function {
   proto.Language Language = 5; // return type of function
 }
 
+message InvokeArg {
+  string Param = 1;
+  proto.Flow Value = 2;
+}
+
+message InvokeRequest {
+  string SessionID = 1;
+  repeated InvokeArg Args = 2;
+}
+
 message Message {
   MessageType Type = 1;
-  string ConnID = 2;    // connection id: `${AppId}:${FuncName}`
+  string ConnID = 2;    // Deprecated: connection id: `${AppId}:${FuncName}`
   oneof Message {
     Ack Ack = 3;
     Ready Ready = 4;
@@ -70,6 +81,7 @@ message Message {
     ObjectResponse ObjectResponse = 9;
     proto.StreamChunk StreamChunk = 10;
     Function Function = 11;
+    InvokeRequest InvokeRequest = 12;
   }
 }
 

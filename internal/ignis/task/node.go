@@ -10,6 +10,7 @@ import (
 	"github.com/9triver/iarnet/internal/ignis/utils"
 	"github.com/9triver/iarnet/internal/ignis/utils/errors"
 	proto "github.com/9triver/iarnet/internal/proto/ignis"
+	clusterpb "github.com/9triver/iarnet/internal/proto/ignis/cluster"
 )
 
 type Node struct {
@@ -24,6 +25,8 @@ func (node *Node) Runtime(sessionID types.SessionID) *Runtime {
 		actor:     node.group.Select(),
 		deps:      utils.MakeSetFromSlice(node.inputs),
 		cond:      sync.NewCond(&sync.Mutex{}),
+		params:    append([]string(nil), node.inputs...),
+		args:      make(map[string]*proto.Flow),
 	}
 }
 
@@ -40,16 +43,45 @@ type Runtime struct {
 	actor     *Actor
 	deps      utils.Set[string]
 	cond      *sync.Cond
+	params    []string
+	args      map[string]*proto.Flow
 }
 
 func (rt *Runtime) Ready() bool {
 	return rt.deps.Empty()
 }
 
-func (rt *Runtime) Start(ctx context.Context) error {
+func (rt *Runtime) Invoke(ctx context.Context) error {
 	rt.cond.L.Lock()
 	for !rt.Ready() {
 		rt.cond.Wait()
+	}
+
+	args := make([]*clusterpb.InvokeArg, 0, len(rt.args))
+	for _, param := range rt.params {
+		if value, ok := rt.args[param]; ok {
+			args = append(args, &clusterpb.InvokeArg{
+				Param: param,
+				Value: value,
+			})
+		}
+	}
+	if len(args) < len(rt.args) {
+		for param, value := range rt.args {
+			found := false
+			for _, existing := range args {
+				if existing.Param == param {
+					found = true
+					break
+				}
+			}
+			if !found {
+				args = append(args, &clusterpb.InvokeArg{
+					Param: param,
+					Value: value,
+				})
+			}
+		}
 	}
 	rt.cond.L.Unlock()
 
@@ -57,43 +89,42 @@ func (rt *Runtime) Start(ctx context.Context) error {
 		return errors.New("no candidate actor selected")
 	}
 
-	logrus.WithFields(logrus.Fields{"actor": rt.actor.GetID()}).Info("task: start grouped task")
+	logrus.WithFields(logrus.Fields{
+		"actor":   rt.actor.GetID(),
+		"session": rt.sessionID,
+		"args":    len(args),
+	}).Info("task: invoke request")
 
-	err := rt.actor.Send(&proto.InvokeStart{
+	if err := rt.actor.Send(&proto.InvokeStart{
 		Info:      rt.actor.GetInfo(),
 		SessionID: rt.sessionID,
-	})
-	if err != nil {
+	}); err != nil {
 		return err
 	}
 
-	return nil
+	req := &clusterpb.InvokeRequest{
+		SessionID: string(rt.sessionID),
+		Args:      args,
+	}
+
+	return rt.actor.Send(req)
 }
 
-func (rt *Runtime) Invoke(ctx context.Context, param string, value *proto.Flow) error {
-
+func (rt *Runtime) AddArg(param string, value *proto.Flow) error {
 	if rt.actor == nil {
 		return errors.New("no candidate actor selected")
 	}
 
-	logrus.WithFields(logrus.Fields{"actor": rt.actor.GetID(), "param": param, "value": value}).Info("task: invoke")
+	logrus.WithFields(logrus.Fields{"actor": rt.actor.GetID(), "param": param}).Info("task: add invoke arg")
 
-	err := rt.actor.Send(&proto.Invoke{
-		SessionID: rt.sessionID,
-		Param:     param,
-		Value:     value,
-	})
-	if err != nil {
-		return err
+	rt.cond.L.Lock()
+	rt.args[param] = value
+	if rt.deps.Remove(param) {
+		if rt.deps.Empty() {
+			rt.cond.Signal()
+		}
 	}
-
-	rt.deps.Remove(param)
-
-	if rt.Ready() {
-		rt.cond.L.Lock()
-		rt.cond.Signal()
-		rt.cond.L.Unlock()
-	}
+	rt.cond.L.Unlock()
 
 	return nil
 }

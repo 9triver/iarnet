@@ -102,6 +102,11 @@ func NewMessage(msg pb.Message) *Message {
 			Type:    MessageType_INVOKE_RESPONSE,
 			Message: &Message_InvokeResponse{InvokeResponse: msg},
 		}
+	case *InvokeRequest:
+		return &Message{
+			Type:    MessageType_INVOKE_REQUEST,
+			Message: &Message_InvokeRequest{InvokeRequest: msg},
+		}
 	case *Function:
 		return &Message{
 			Type:    MessageType_FUNCTION,
@@ -130,6 +135,8 @@ func (msg *Message) Unwrap() pb.Message {
 		return msg.InvokeStart
 	case *Message_InvokeResponse:
 		return msg.InvokeResponse
+	case *Message_InvokeRequest:
+		return msg.InvokeRequest
 	case *Message_Function:
 		return msg.Function
 	default:
