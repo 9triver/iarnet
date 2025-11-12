@@ -57,7 +57,7 @@ func (rt *Runtime) Start(ctx context.Context) error {
 		return errors.New("no candidate actor selected")
 	}
 
-	logrus.Infof("task: start grouped task", "actor", rt.actor.GetID())
+	logrus.WithFields(logrus.Fields{"actor": rt.actor.GetID()}).Info("task: start grouped task")
 
 	rt.actor.Send(&proto.InvokeStart{
 		Info:      rt.actor.GetInfo(),

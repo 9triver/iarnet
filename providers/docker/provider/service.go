@@ -12,7 +12,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const providerType = providerpb.ProviderType_PROVIDER_TYPE_DOCKER
+const providerType = "docker"
 
 type Service struct {
 	providerpb.UnimplementedProviderServiceServer
@@ -99,8 +99,10 @@ func (s *Service) AssignID(ctx context.Context, req *providerpb.AssignIDRequest)
 	logrus.Infof("Provider ID assigned: %s", s.providerID)
 
 	return &providerpb.AssignIDResponse{
-		Success:      true,
-		ProviderType: providerType,
+		Success: true,
+		ProviderType: &providerpb.ProviderType{
+			Name: providerType,
+		},
 	}, nil
 }
 
@@ -140,6 +142,28 @@ func (s *Service) GetCapacity(ctx context.Context, req *providerpb.GetCapacityRe
 
 	return &providerpb.GetCapacityResponse{
 		Capacity: capacity,
+	}, nil
+}
+
+func (s *Service) GetAvailable(ctx context.Context, req *providerpb.GetAvailableRequest) (*providerpb.GetAvailableResponse, error) {
+	capacity, err := s.client.Info(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get Docker info: %w", err)
+	}
+	totalMemory := capacity.MemTotal        // bytes
+	totalCPU := int64(capacity.NCPU) * 1000 // millicores
+
+	total := &resourcepb.Info{
+		Cpu:    totalCPU,
+		Memory: totalMemory,
+		Gpu:    0, // TODO: add GPU
+	}
+	allocated, err := s.GetAllocated(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get allocated: %w", err)
+	}
+	return &providerpb.GetAvailableResponse{
+		Available: &resourcepb.Info{Cpu: total.Cpu - allocated.Cpu, Memory: total.Memory - allocated.Memory, Gpu: total.Gpu - allocated.Gpu},
 	}, nil
 }
 
@@ -224,4 +248,62 @@ func (s *Service) GetProviderID() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.providerID
+}
+
+func (s *Service) DeployComponent(ctx context.Context, req *providerpb.DeployComponentRequest) (*providerpb.DeployComponentResponse, error) {
+	logrus.WithFields(logrus.Fields{
+		"image":            req.Image,
+		"env_vars":         req.EnvVars,
+		"resource_request": req.ResourceRequest,
+	}).Info("docker provider deploy component")
+	// 创建容器配置
+	containerConfig := &container.Config{
+		Image: req.Image,
+		Env: func() []string {
+			var env []string
+			for k, v := range req.EnvVars {
+				env = append(env, k+"="+v)
+			}
+			return env
+		}(),
+	}
+
+	// 创建主机配置
+	hostConfig := &container.HostConfig{
+		Resources: container.Resources{
+			// CPU 单位转换：spec.Requirements.CPU 是毫核心 (millicores)
+			// Docker NanoCPUs: 1 CPU core = 1e9 NanoCPUs
+			// 1 millicore = 1e6 NanoCPUs
+			NanoCPUs: int64(req.ResourceRequest.Cpu * 1e6),
+			Memory:   int64(req.ResourceRequest.Memory),
+			// GPU: Docker GPU support requires nvidia-docker, assume configured.
+		},
+		ExtraHosts: []string{
+			"host.internal:host-gateway",
+		},
+		// PortBindings: portBindings,
+	}
+
+	// 创建容器
+	resp, err := s.client.ContainerCreate(ctx, containerConfig, hostConfig, nil, nil, "")
+	if err != nil {
+		logrus.Errorf("Failed to create container: %v", err)
+		return &providerpb.DeployComponentResponse{
+			Error: err.Error(),
+		}, nil
+	}
+
+	// 启动容器
+	err = s.client.ContainerStart(ctx, resp.ID, container.StartOptions{})
+	if err != nil {
+		logrus.Errorf("Failed to start container: %v", err)
+		return &providerpb.DeployComponentResponse{
+			Error: err.Error(),
+		}, nil
+	}
+
+	logrus.Infof("Container deployed successfully with ID: %s", resp.ID)
+	return &providerpb.DeployComponentResponse{
+		Error: "",
+	}, nil
 }

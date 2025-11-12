@@ -10,7 +10,7 @@ import (
 	"github.com/9triver/iarnet/internal/config"
 	resourcepb "github.com/9triver/iarnet/internal/proto/resource"
 	providerpb "github.com/9triver/iarnet/internal/proto/resource/provider"
-	"github.com/9triver/iarnet/internal/resource"
+	"github.com/9triver/iarnet/internal/resource/types"
 	"github.com/lithammer/shortuuid/v4"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -18,17 +18,17 @@ import (
 
 type Provider interface {
 	Connect(ctx context.Context) error
-	GetCapacity(ctx context.Context) (*resource.Capacity, error)
-	GetAvailable(ctx context.Context) (*resource.Info, error)
-	GetType() resource.ProviderType
+	GetCapacity(ctx context.Context) (*types.Capacity, error)
+	GetAvailable(ctx context.Context) (*types.Info, error)
+	GetType() types.ProviderType
 	GetID() string
 	GetName() string
 	GetHost() string
 	GetPort() int
 	GetLastUpdateTime() time.Time
-	GetStatus() resource.ProviderStatus
+	GetStatus() types.ProviderStatus
 	GetLogs(d string, lines int) ([]string, error)
-	DeployComponent(ctx context.Context, id, image string, resourceRequest *resource.Info) error
+	DeployComponent(ctx context.Context, id, image string, resourceRequest *types.Info) error
 }
 
 type provider struct {
@@ -36,9 +36,9 @@ type provider struct {
 	name           string
 	host           string
 	port           int
-	providerType   resource.ProviderType
+	providerType   types.ProviderType
 	lastUpdateTime time.Time
-	status         resource.ProviderStatus
+	status         types.ProviderStatus
 
 	conn   *grpc.ClientConn
 	client providerpb.ProviderServiceClient
@@ -51,7 +51,7 @@ func NewProvider(name string, host string, port int) Provider {
 		host:           host,
 		port:           port,
 		lastUpdateTime: time.Now(),
-		status:         resource.ProviderStatusDisconnected,
+		status:         types.ProviderStatusDisconnected,
 	}
 }
 
@@ -82,10 +82,10 @@ func (p *provider) Connect(ctx context.Context) error {
 	}
 
 	p.id = providerID
-	p.providerType = resource.ProviderType(resp.ProviderType.Name)
+	p.providerType = types.ProviderType(resp.ProviderType.Name)
 	p.client = client
 	p.conn = conn
-	p.status = resource.ProviderStatusConnected
+	p.status = types.ProviderStatusConnected
 	return nil
 }
 
@@ -105,7 +105,7 @@ func (p *provider) GetPort() int {
 	return p.port
 }
 
-func (p *provider) GetType() resource.ProviderType {
+func (p *provider) GetType() types.ProviderType {
 	return p.providerType
 }
 
@@ -113,11 +113,11 @@ func (p *provider) GetLastUpdateTime() time.Time {
 	return p.lastUpdateTime
 }
 
-func (p *provider) GetStatus() resource.ProviderStatus {
+func (p *provider) GetStatus() types.ProviderStatus {
 	return p.status
 }
 
-func (p *provider) GetCapacity(ctx context.Context) (*resource.Capacity, error) {
+func (p *provider) GetCapacity(ctx context.Context) (*types.Capacity, error) {
 	if p.client == nil {
 		return nil, fmt.Errorf("provider not connected")
 	}
@@ -126,16 +126,23 @@ func (p *provider) GetCapacity(ctx context.Context) (*resource.Capacity, error) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get capacity: %w", err)
 	}
-	return &resource.Capacity{
-		Total:     &resource.Info{CPU: resp.Capacity.Total.Cpu, Memory: resp.Capacity.Total.Memory, GPU: resp.Capacity.Total.Gpu},
-		Used:      &resource.Info{CPU: resp.Capacity.Used.Cpu, Memory: resp.Capacity.Used.Memory, GPU: resp.Capacity.Used.Gpu},
-		Available: &resource.Info{CPU: resp.Capacity.Available.Cpu, Memory: resp.Capacity.Available.Memory, GPU: resp.Capacity.Available.Gpu},
+	return &types.Capacity{
+		Total:     &types.Info{CPU: resp.Capacity.Total.Cpu, Memory: resp.Capacity.Total.Memory, GPU: resp.Capacity.Total.Gpu},
+		Used:      &types.Info{CPU: resp.Capacity.Used.Cpu, Memory: resp.Capacity.Used.Memory, GPU: resp.Capacity.Used.Gpu},
+		Available: &types.Info{CPU: resp.Capacity.Available.Cpu, Memory: resp.Capacity.Available.Memory, GPU: resp.Capacity.Available.Gpu},
 	}, nil
 }
 
-func (p *provider) GetAvailable(ctx context.Context) (*resource.Info, error) {
-	// TODO: 实现获取可用资源的逻辑
-	return nil, fmt.Errorf("not implemented")
+func (p *provider) GetAvailable(ctx context.Context) (*types.Info, error) {
+	if p.client == nil {
+		return nil, fmt.Errorf("provider not connected")
+	}
+	req := &providerpb.GetAvailableRequest{}
+	resp, err := p.client.GetAvailable(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get available: %w", err)
+	}
+	return &types.Info{CPU: resp.Available.Cpu, Memory: resp.Available.Memory, GPU: resp.Available.Gpu}, nil
 }
 
 func (p *provider) GetLogs(d string, lines int) ([]string, error) {
@@ -143,7 +150,7 @@ func (p *provider) GetLogs(d string, lines int) ([]string, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
-func (p *provider) DeployComponent(ctx context.Context, id, image string, resourceRequest *resource.Info) error {
+func (p *provider) DeployComponent(ctx context.Context, id, image string, resourceRequest *types.Info) error {
 	if p.client == nil {
 		return fmt.Errorf("provider not connected")
 	}
@@ -156,7 +163,9 @@ func (p *provider) DeployComponent(ctx context.Context, id, image string, resour
 			Gpu:    resourceRequest.GPU,
 		},
 		EnvVars: map[string]string{
-			"ZMQ_ADDR": net.JoinHostPort(config.GetConfig().Host, strconv.Itoa(config.GetConfig().ZMQ.Port)),
+			"COMPONENT_ID": id,
+			"ZMQ_ADDR":     net.JoinHostPort(config.GetConfig().Host, strconv.Itoa(config.GetConfig().ZMQ.Port)),
+			"STORE_ADDR":   net.JoinHostPort(config.GetConfig().Host, strconv.Itoa(config.GetConfig().Resource.Store.Port)),
 		},
 	}
 	resp, err := p.client.DeployComponent(ctx, req)

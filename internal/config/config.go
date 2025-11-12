@@ -28,6 +28,15 @@ type Config struct {
 	Database          DatabaseConfig    `yaml:"database"`            // Database configuration
 	Logging           LoggingConfig     `yaml:"logging"`             // Logging configuration
 	ZMQ               ZMQConfig         `yaml:"zmq"`                 // ZMQ configuration
+	Resource          ResourceConfig    `yaml:"resource"`            // Resource configuration
+}
+
+type ResourceConfig struct {
+	Store StoreConfig `yaml:"store"` // Store configuration
+}
+
+type StoreConfig struct {
+	Port int `yaml:"port"` // e.g., "50051"
 }
 
 type ZMQConfig struct {
@@ -80,16 +89,16 @@ func LoadConfig(file string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	var cfg Config
-	err = yaml.Unmarshal(data, &cfg)
+	cfg = &Config{}
+	err = yaml.Unmarshal(data, cfg)
 	if err != nil {
 		return nil, err
 	}
 
 	// 设置默认值
-	applyDefaults(&cfg)
+	applyDefaults(cfg)
 
-	return &cfg, nil
+	return cfg, nil
 }
 
 // applyDefaults 为配置项设置默认值

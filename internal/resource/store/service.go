@@ -24,7 +24,14 @@ func NewService(store *Store) Service {
 
 func (s *service) SaveObject(ctx context.Context, request *storepb.SaveObjectRequest) (*storepb.SaveObjectResponse, error) {
 	s.store.SaveObject(request.Object)
-	return nil, nil
+	return &storepb.SaveObjectResponse{
+		ObjectRef: &storepb.ObjectRef{
+			ID:     request.Object.ID,
+			Source: s.store.GetID(),
+		},
+		Success: true,
+		Error:   "",
+	}, nil
 }
 
 func (s *service) GetObject(ctx context.Context, request *storepb.GetObjectRequest) (*storepb.GetObjectResponse, error) {

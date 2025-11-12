@@ -4,42 +4,47 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/9triver/iarnet/internal/resource"
-	"github.com/9triver/iarnet/internal/resource/repository"
+	"github.com/9triver/iarnet/internal/resource/types"
+	// "github.com/9triver/iarnet/internal/resource/repository"
 	"github.com/lithammer/shortuuid/v4"
 	"github.com/sirupsen/logrus"
 )
 
 type ConsumerSupplier interface {
-	GetConsumers() (resource.Consumer, error)
+	GetConsumers() (types.Consumer, error)
 }
 
 type Service interface {
 	RegisterProvider(provider Provider)
-	DeployComponent(ctx context.Context, name string, runtimeEnv resource.RuntimeEnv, resourceRequest *resource.Info) (*Component, error)
+	DeployComponent(ctx context.Context, name string, runtimeEnv types.RuntimeEnv, resourceRequest *types.Info) (*Component, error)
 }
 
 type componentService struct {
-	providers           []Provider
-	manager             Manager
-	componentRepository repository.ComponentRepository
-	images              map[resource.RuntimeEnv]string
+	providers []Provider
+	manager   Manager
+	// componentRepository repository.ComponentRepository
+	images map[types.RuntimeEnv]string
 }
 
-func NewComponentService(componentRepository repository.ComponentRepository, manager Manager) Service {
+func NewService(manager Manager, runnerImages map[string]string) Service {
 	return &componentService{
-		providers:           []Provider{nil},
-		componentRepository: componentRepository,
-		manager:             manager,
-		images:              make(map[resource.RuntimeEnv]string),
+		providers: []Provider{nil},
+		// componentRepository: componentRepository,
+		manager: manager,
+		images:  runnerImages,
 	}
 }
 
 func (c *componentService) RegisterProvider(provider Provider) {
+	err := provider.Connect(context.Background())
+	if err != nil {
+		logrus.Errorf("Failed to connect to provider %s: %v", provider.GetID(), err)
+		return
+	}
 	c.providers = append(c.providers, provider)
 }
 
-func (c *componentService) DeployComponent(ctx context.Context, name string, runtimeEnv resource.RuntimeEnv, resourceRequest *resource.Info) (*Component, error) {
+func (c *componentService) DeployComponent(ctx context.Context, name string, runtimeEnv types.RuntimeEnv, resourceRequest *types.Info) (*Component, error) {
 	if resourceRequest == nil {
 		return nil, fmt.Errorf("resource request is required")
 	}
@@ -61,7 +66,7 @@ func (c *componentService) DeployComponent(ctx context.Context, name string, run
 			continue
 		}
 
-		if provider.GetStatus() != resource.ProviderStatusConnected {
+		if provider.GetStatus() != types.ProviderStatusConnected {
 			logrus.Debugf("Skipping provider %s: status is not connected", provider.GetID())
 			continue
 		}
@@ -71,6 +76,7 @@ func (c *componentService) DeployComponent(ctx context.Context, name string, run
 			logrus.Warnf("Failed to get available resources from provider %s: %v", provider.GetID(), err)
 			continue
 		}
+		logrus.Infof("Available resources from provider %s: %v", provider.GetID(), available)
 
 		if !satisfiesResourceRequest(available, resourceRequest) {
 			logrus.Debugf("Provider %s does not have sufficient resources", provider.GetID())
@@ -92,7 +98,7 @@ func (c *componentService) DeployComponent(ctx context.Context, name string, run
 }
 
 // satisfiesResourceRequest 检查可用资源是否满足资源请求
-func satisfiesResourceRequest(available *resource.Info, request *resource.Info) bool {
+func satisfiesResourceRequest(available *types.Info, request *types.Info) bool {
 	if available == nil || request == nil {
 		return false
 	}

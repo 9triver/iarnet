@@ -26,6 +26,9 @@ database:
   conn_max_lifetime_seconds: 300  # 5 minutes
 zmq:
   port: 5555
+resource:
+  store:
+    port: 50002
 logging:
   enabled: true
   data_dir: "./data/logs"

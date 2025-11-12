@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	clusterpb "github.com/9triver/iarnet/internal/proto/ignis/cluster"
-	"github.com/9triver/iarnet/internal/resource"
+	"github.com/9triver/iarnet/internal/resource/types"
 )
 
 type Sender func(componentID string, msg *clusterpb.Message)
@@ -15,17 +15,18 @@ type Component struct {
 	id            string
 	name          string
 	image         string
-	resourceUsage *resource.Info
+	resourceUsage *types.Info
 	buffer        chan *clusterpb.Message
 	sender        Sender
 }
 
-func NewComponent(id, name, image string, resourceUsage *resource.Info) *Component {
+func NewComponent(id, name, image string, resourceUsage *types.Info) *Component {
 	comp := &Component{
 		id:            id,
 		name:          name,
 		image:         image,
 		resourceUsage: resourceUsage,
+		buffer:        make(chan *clusterpb.Message, 100), // Buffered channel to avoid blocking
 	}
 
 	return comp

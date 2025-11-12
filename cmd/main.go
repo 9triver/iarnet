@@ -3,22 +3,22 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log"
 	"net"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
-	"github.com/9triver/iarnet/integration/ignis/deployer"
-	"github.com/9triver/iarnet/internal/application"
-	"github.com/9triver/iarnet/internal/compute/ignis"
 	"github.com/9triver/iarnet/internal/config"
-	"github.com/9triver/iarnet/internal/discovery"
-	"github.com/9triver/iarnet/internal/logger"
+	"github.com/9triver/iarnet/internal/ignis/controller"
 	"github.com/9triver/iarnet/internal/resource"
-	"github.com/9triver/iarnet/internal/server"
-	"github.com/9triver/ignis/proto/cluster"
-	"github.com/moby/moby/client"
+	"github.com/9triver/iarnet/internal/resource/component"
+	"github.com/9triver/iarnet/internal/resource/store"
+	"github.com/9triver/iarnet/internal/transport/rpc"
+	"github.com/9triver/iarnet/internal/transport/zmq"
+	"github.com/9triver/iarnet/internal/util"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 )
@@ -28,6 +28,7 @@ func main() {
 	flag.Parse()
 
 	cfg, err := config.LoadConfig(*configFile)
+
 	if err != nil {
 		log.Fatalf("Load config: %v", err)
 	}
@@ -35,127 +36,98 @@ func main() {
 		cfg.Mode = config.DetectMode()
 	}
 
-	logrus.SetReportCaller(true)
+	util.InitLogger()
 
-	logrus.Infof("Running in mode: %s", cfg.Mode)
-
-	// 初始化资源管理器
-	rm := resource.NewManager(cfg)
-
-	// 初始化应用管理器
-	am := application.NewManager(cfg, rm)
-	if am == nil {
-		log.Fatal("Failed to create application manager - Docker connection failed")
-	}
-
-	// 初始化日志系统
-	var logSystem logger.System
-	dockerClient, err := client.NewClientWithOpts(client.FromEnv, client.WithVersion("1.51"))
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.Ignis.Port))
 	if err != nil {
-		logrus.Warnf("Failed to create docker client for log system: %v", err)
-	} else {
-		logConfig := logger.ConfigFromAppConfig(cfg)
-		logSystem, err = logger.NewSystem(dockerClient, logConfig)
-		if err != nil {
-			logrus.Errorf("Failed to create log system: %v", err)
-		} else {
-			if err := logSystem.Start(); err != nil {
-				logrus.Errorf("Failed to start log system: %v", err)
-			} else {
-				am.SetLogSystem(logSystem)
-				logrus.Info("Log system initialized and started")
-			}
-		}
+		logrus.Fatalf("failed to listen: %v", err)
 	}
+	server := grpc.NewServer()
 
-	// 启动 actor cluster gRPC 服务器
-	lis, err1 := net.Listen("tcp", "0.0.0.0:25565")
-	logrus.Infof("Actor cluster RPC server listening on %s", lis.Addr().String())
+	channeler := zmq.NewChanneler(cfg.ZMQ.Port)
+	store := store.NewStore()
+	resourceManager := resource.NewManager(channeler, store, cfg.ComponentImages)
+	controllerManager := controller.NewManager(resourceManager)
+	rpc.RegisterIgnisServer(server, controllerManager)
 
-	if err1 != nil {
-		log.Fatalf("RPC server: %v", err1)
-	}
-	svr := grpc.NewServer(
-		grpc.MaxRecvMsgSize(512*1024*1024),
-		grpc.MaxSendMsgSize(512*1024*1024),
-	)
-	defer svr.Stop()
-
+	logrus.Infof("Ignis server listening on %s", lis.Addr().String())
 	go func() {
-		if err := svr.Serve(lis); err != nil {
-			logrus.Errorf("gRPC server failed: %v", err)
+		if err := server.Serve(lis); err != nil {
+			logrus.Fatalf("failed to serve: %v", err)
 		}
 	}()
 
-	cm := deployer.NewConnectionManager()
-	cluster.RegisterServiceServer(svr, cm)
-
-	// 初始化计算引擎（ignis）
-	var computeEngine *ignis.Engine = nil
-	if cfg.Ignis.Port != 0 {
-		computeEngine, err = ignis.NewEngine(context.Background(), cfg, am, rm, cm)
-		if err != nil {
-			log.Fatalf("Failed to create compute engine: %v", err)
-		}
-
-		// 启动计算引擎
-		if err := computeEngine.Start(context.Background()); err != nil {
-			log.Fatalf("Failed to start compute engine: %v", err)
-		}
-		logrus.Info("Compute engine (ignis) started successfully")
+	storeLis, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.Resource.Store.Port))
+	if err != nil {
+		logrus.Fatalf("failed to listen: %v", err)
 	}
+	storeServer := grpc.NewServer()
+	rpc.RegisterStoreServiceServer(storeServer, resourceManager)
 
-	// 设置计算引擎到 application manager
-	if computeEngine != nil {
-		am.SetComputeEngine(computeEngine)
-	}
-
-	// 初始化节点发现管理器
-	pm := discovery.NewPeerManager(cfg.InitialPeers, rm)
-
-	// Start gossip (if needed)
-	// go pm.StartGossip(context.Background())
-
-	// 启动 gRPC 节点服务器
-	grpcSrv := server.NewGRPCServer(rm, pm)
+	logrus.Infof("Store server listening on %s", storeLis.Addr().String())
 	go func() {
-		if err := grpcSrv.Start(cfg.PeerListenAddr); err != nil {
-			log.Fatalf("gRPC peer server: %v", err)
+		if err := storeServer.Serve(storeLis); err != nil {
+			logrus.Fatalf("failed to serve: %v", err)
 		}
 	}()
 
-	// 启动 HTTP API 服务器
-	srv := server.NewServer(rm, am, pm, cfg)
+	controllerService := controller.NewService(controllerManager, resourceManager, resourceManager)
 
-	// 如果日志系统已启用，注入到 server
-	if logSystem != nil {
-		srv.SetLogSystem(logSystem)
+	// Create context with cancellation for graceful shutdown
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Start component manager to receive messages from components
+	if err := resourceManager.StartComponentManager(ctx); err != nil {
+		logrus.Fatalf("failed to start component manager: %v", err)
 	}
-
-	go func() {
-		if err := srv.Start(cfg.ListenAddr); err != nil {
-			log.Fatalf("HTTP server: %v", err)
-		}
-	}()
+	logrus.Info("Component manager started")
 
 	logrus.Info("Iarnet started successfully")
+
+	provider := component.NewProvider("local-docker", "localhost", 50051)
+	resourceManager.RegisterProvider(provider)
+	logrus.Infof("Local docker provider registered")
+	controllerService.CreateController(context.Background(), "1")
+	logrus.Infof("Controller 1 created for test")
 
 	// Graceful shutdown
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	<-sigCh
-
 	logrus.Info("Shutting down...")
-	srv.Stop()
-	grpcSrv.Stop()
-	rm.StopMonitoring()
 
-	// 停止计算引擎
-	if computeEngine != nil {
-		if err := computeEngine.Stop(context.Background()); err != nil {
-			logrus.Errorf("Failed to stop compute engine: %v", err)
-		}
+	// Cancel context to stop component manager and ZMQ receiver
+	cancel()
+
+	// Give goroutines a moment to finish
+	time.Sleep(100 * time.Millisecond)
+
+	// Close ZMQ Channeler to release port and resources
+	if err := channeler.Close(); err != nil {
+		logrus.Errorf("Error closing ZMQ channeler: %v", err)
 	}
+
+	// Stop gRPC servers with timeout
+	done := make(chan struct{})
+	go func() {
+		server.GracefulStop()
+		storeServer.GracefulStop()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		logrus.Info("gRPC servers stopped")
+	case <-time.After(5 * time.Second):
+		logrus.Warn("gRPC servers stop timeout, forcing stop")
+		server.Stop()
+		storeServer.Stop()
+	}
+
+	// Close listeners
+	lis.Close()
+	storeLis.Close()
 
 	logrus.Info("Shutdown complete")
 }

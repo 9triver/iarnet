@@ -4,16 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 
 	"github.com/9triver/iarnet/internal/ignis/task"
 	ignispb "github.com/9triver/iarnet/internal/proto/ignis"
 	clusterpb "github.com/9triver/iarnet/internal/proto/ignis/cluster"
 	ctrlpb "github.com/9triver/iarnet/internal/proto/ignis/controller"
 	storepb "github.com/9triver/iarnet/internal/proto/resource/store"
-	"github.com/9triver/iarnet/internal/resource"
 	"github.com/9triver/iarnet/internal/resource/component"
 	"github.com/9triver/iarnet/internal/resource/store"
+	resourceTypes "github.com/9triver/iarnet/internal/resource/types"
 	"github.com/sirupsen/logrus"
 )
 
@@ -84,7 +83,7 @@ func (c *Controller) HandleClientMessage(ctx context.Context, msg *ctrlpb.Messag
 
 func (c *Controller) handleAppendData(ctx context.Context, m *ctrlpb.AppendData) error {
 	obj := m.Object
-	logrus.Infof("control: append data node", "id", obj.ID, "session", m.SessionID)
+	logrus.WithFields(logrus.Fields{"id": obj.ID, "session": m.SessionID}).Info("control: append data node")
 	go func() {
 		// TODO: 整理 proto 定义，将 EncodedObject 和 Object 合并
 		resp, err := c.storeService.SaveObject(ctx, &storepb.SaveObjectRequest{
@@ -120,10 +119,11 @@ func (c *Controller) handleAppendPyFunc(ctx context.Context, m *ctrlpb.AppendPyF
 	actorGroup := task.NewGroup(m.GetName())
 	replicas := int(m.GetReplicas())
 	for i := 0; i < replicas; i++ {
-		logrus.Infof("Deploying component %d", i)
+		actorName := fmt.Sprintf("%s-%d", m.GetName(), i)
+		logrus.Infof("Deploying component for actor %s", actorName)
 		component, err := c.componentService.DeployComponent(
-			ctx, m.GetName(), resource.RuntimeEnvPython,
-			&resource.Info{
+			ctx, m.GetName(), resourceTypes.RuntimeEnvPython,
+			&resourceTypes.Info{
 				CPU:    int64(m.GetResources().GetCPU()),
 				Memory: int64(m.GetResources().GetMemory()),
 				GPU:    int64(m.GetResources().GetGPU()),
@@ -154,7 +154,7 @@ func (c *Controller) handleAppendPyFunc(ctx context.Context, m *ctrlpb.AppendPyF
 			}
 		}()
 
-		actorGroup.Push(task.NewActor(m.GetName()+"-"+strconv.Itoa(i), component))
+		actorGroup.Push(task.NewActor(actorName, component))
 	}
 
 	c.nodes[m.GetName()] = task.NewNode(m.GetName(), m.GetParams(), actorGroup)
@@ -163,7 +163,7 @@ func (c *Controller) handleAppendPyFunc(ctx context.Context, m *ctrlpb.AppendPyF
 }
 
 func (c *Controller) handleAppendArg(ctx context.Context, m *ctrlpb.AppendArg) error {
-	logrus.Infof("control: append arg", "name", m.Name, "param", m.Param, "session", m.SessionID, "instance", m.InstanceID)
+	logrus.WithFields(logrus.Fields{"name": m.Name, "param": m.Param, "session": m.SessionID, "instance": m.InstanceID}).Info("control: append arg")
 
 	rt, err := c.getOrCreateRuntime(m.Name, m.SessionID, m.InstanceID)
 	if err != nil {
@@ -211,7 +211,7 @@ func (c *Controller) handleAppendArg(ctx context.Context, m *ctrlpb.AppendArg) e
 }
 
 func (c *Controller) handleInvoke(ctx context.Context, m *ctrlpb.Invoke) error {
-	logrus.Infof("control: invoke", "name", m.Name, "session", m.SessionID, "instance", m.InstanceID)
+	logrus.WithFields(logrus.Fields{"name": m.Name, "session": m.SessionID, "instance": m.InstanceID}).Info("control: invoke")
 	rt, err := c.getOrCreateRuntime(m.Name, m.SessionID, m.InstanceID)
 	if err != nil {
 		logrus.Errorf("Failed to get or create runtime: %v", err)
