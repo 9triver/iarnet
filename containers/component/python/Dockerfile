@@ -19,11 +19,14 @@ RUN apk add --no-cache \
 # 设置工作目录
 WORKDIR /app
 
-# 升级 pip
-RUN pip install --upgrade pip
+# 创建虚拟环境
+RUN python -m venv /app/venv
 
-# 安装 Python 依赖
-RUN pip install --no-cache-dir \
+# 激活虚拟环境并升级 pip
+RUN /app/venv/bin/pip install --upgrade pip
+
+# 在虚拟环境中安装 Python 依赖
+RUN /app/venv/bin/pip install --no-cache-dir \
     cloudpickle \
     grpcio \
     grpcio-tools \
@@ -45,7 +48,8 @@ USER appuser
 # 设置环境变量
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
+ENV PATH="/app/venv/bin:$PATH"
 
-# 入口点
-ENTRYPOINT ["python", "main.py"]
+# 入口点 - 使用虚拟环境中的 Python
+ENTRYPOINT ["/app/venv/bin/python", "main.py"]
 

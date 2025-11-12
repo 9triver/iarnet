@@ -88,15 +88,21 @@ func (m *manager) Session(stream grpc.BidiStreamingServer[ctrlpb.Message, ctrlpb
 	toClientCtx, cancelToClient = context.WithCancel(ctx)
 
 	go func() {
-		toClientErrCh <- forwardResponses(toClientCtx, toClientChan, stream)
+		err := forwardResponses(toClientCtx, toClientChan, stream)
+		toClientErrCh <- err
+		close(toClientErrCh)
 	}()
 
 	defer func() {
 		controller.ClearToClientChan()
 		close(toClientChan)
 		cancelToClient()
-		if err := <-toClientErrCh; err != nil && !errors.Is(err, context.Canceled) {
-			logrus.WithError(err).Warn("controller response loop exited with error")
+		if toClientErrCh != nil {
+			for err := range toClientErrCh {
+				if err != nil && !errors.Is(err, context.Canceled) {
+					logrus.WithError(err).Warn("controller response loop exited with error")
+				}
+			}
 		}
 	}()
 
@@ -112,11 +118,14 @@ func (m *manager) Session(stream grpc.BidiStreamingServer[ctrlpb.Message, ctrlpb
 
 		if toClientErrCh != nil {
 			select {
-			case err := <-toClientErrCh:
-				if err != nil && !errors.Is(err, context.Canceled) {
-					logrus.Errorf("response error: %v", err)
-					return err
+			case err, ok := <-toClientErrCh:
+				if ok {
+					if err != nil && !errors.Is(err, context.Canceled) {
+						logrus.Errorf("response error: %v", err)
+						return err
+					}
 				}
+				toClientErrCh = nil
 			default:
 			}
 		}

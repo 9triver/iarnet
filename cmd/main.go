@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -9,7 +10,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/9triver/iarnet/internal/config"
 	"github.com/9triver/iarnet/internal/ignis/controller"
@@ -52,7 +52,7 @@ func main() {
 
 	logrus.Infof("Ignis server listening on %s", lis.Addr().String())
 	go func() {
-		if err := server.Serve(lis); err != nil {
+		if err := server.Serve(lis); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
 			logrus.Fatalf("failed to serve: %v", err)
 		}
 	}()
@@ -66,8 +66,8 @@ func main() {
 
 	logrus.Infof("Store server listening on %s", storeLis.Addr().String())
 	go func() {
-		if err := storeServer.Serve(storeLis); err != nil {
-			logrus.Fatalf("failed to serve: %v", err)
+		if err := storeServer.Serve(storeLis); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
+			logrus.Fatalf("failed to serve store service: %v", err)
 		}
 	}()
 
@@ -100,34 +100,20 @@ func main() {
 	// Cancel context to stop component manager and ZMQ receiver
 	cancel()
 
-	// Give goroutines a moment to finish
-	time.Sleep(100 * time.Millisecond)
-
 	// Close ZMQ Channeler to release port and resources
+	// This must be done before closing listeners to ensure ZMQ socket is properly closed
 	if err := channeler.Close(); err != nil {
 		logrus.Errorf("Error closing ZMQ channeler: %v", err)
 	}
 
-	// Stop gRPC servers with timeout
-	done := make(chan struct{})
-	go func() {
-		server.GracefulStop()
-		storeServer.GracefulStop()
-		close(done)
-	}()
+	server.GracefulStop()
+	storeServer.GracefulStop()
+	logrus.Info("gRPC servers stopped")
 
-	select {
-	case <-done:
-		logrus.Info("gRPC servers stopped")
-	case <-time.After(5 * time.Second):
-		logrus.Warn("gRPC servers stop timeout, forcing stop")
-		server.Stop()
-		storeServer.Stop()
-	}
-
-	// Close listeners
+	// Close listeners to stop accepting new connections
 	lis.Close()
 	storeLis.Close()
+	logrus.Info("Listeners closed")
 
 	logrus.Info("Shutdown complete")
 }

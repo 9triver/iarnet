@@ -1,7 +1,9 @@
 import inspect
 import json
+import logging
 import os
 import queue
+import subprocess
 import sys
 import threading
 import uuid
@@ -17,6 +19,14 @@ from proto.ignis import platform_pb2 as platform
 from proto.resource.store import store_pb2 as store_pb
 from proto.resource.store import store_pb2_grpc as store_grpc
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger(__name__)
+
 
 class RemoteFunction(NamedTuple):
     language: platform.Language
@@ -30,8 +40,10 @@ class StoreClient:
     """gRPC client for store service"""
 
     def __init__(self, store_addr: str):
-        self.channel = grpc.insecure_channel(store_addr)
-        self.stub = store_grpc.ServiceStub(self.channel)
+        # self.channel = grpc.insecure_channel(store_addr)
+        # self.stub = store_grpc.ServiceStub(self.channel)
+
+        self.store_addr = store_addr
 
     def close(self):
         self.channel.close()
@@ -45,7 +57,7 @@ class StoreClient:
             response = self.stub.GetObject(request)
             return response.Object
         except Exception as e:
-            print(f"Failed to get object {object_id}: {e}", file=sys.stderr)
+            logger.error(f"Failed to get object {object_id}: {e}")
             return None
 
     def save_object(
@@ -68,10 +80,10 @@ class StoreClient:
             if response.Success:
                 return response.ObjectRef
             else:
-                print(f"Failed to save object: {response.Error}", file=sys.stderr)
+                logger.error(f"Failed to save object: {response.Error}")
                 return None
         except Exception as e:
-            print(f"Failed to save object: {e}", file=sys.stderr)
+            logger.error(f"Failed to save object: {e}")
             return None
 
 
@@ -137,12 +149,55 @@ class Executor:
         self.invoke_params: dict[str, Any] = {}  # Store params for current invoke session
         self.invoke_start_msg: Optional[platform.InvokeStart] = None  # Store InvokeStart for response
 
+    def _install_requirements(self, requirements: list[str]) -> bool:
+        """Install Python package requirements using pip in virtual environment"""
+        if not requirements:
+            return True
+        
+        logger.info(f"Installing {len(requirements)} dependencies: {requirements}")
+        try:
+            # Use the same Python executable (which should be from venv)
+            # This ensures packages are installed in the virtual environment
+            cmd = [
+                sys.executable, "-m", "pip", "install",
+                "--quiet",  # Reduce output
+                "--no-cache-dir",  # Don't cache packages
+                "--no-warn-script-location"  # Suppress warnings
+            ] + requirements
+            
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=300  # 5 minutes timeout
+            )
+            
+            if result.returncode == 0:
+                logger.info(f"Successfully installed dependencies: {requirements}")
+                if result.stdout:
+                    logger.debug(f"pip output: {result.stdout}")
+                return True
+            else:
+                logger.error(f"Failed to install dependencies. stderr: {result.stderr}, stdout: {result.stdout}")
+                return False
+        except subprocess.TimeoutExpired:
+            logger.error("Dependency installation timed out after 5 minutes")
+            return False
+        except Exception as e:
+            logger.error(f"Error installing dependencies: {e}", exc_info=True)
+            return False
+
     def on_function(self, msg: cluster.Function) -> bool:
         """Handle Function message - register function. Returns True if successful."""
+        # Install dependencies if specified
+        if msg.Requirements:
+            if not self._install_requirements(list(msg.Requirements)):
+                logger.warning(f"Failed to install some dependencies for {msg.Name}, continuing anyway")
+        
         try:
             fn = cloudpickle.loads(msg.PickledObject)
             if not callable(fn):
-                print(f"Function {msg.Name} is not callable", file=sys.stderr)
+                logger.error(f"Function {msg.Name} is not callable")
                 return False
 
             self.function = RemoteFunction(msg.Language, fn)
@@ -150,13 +205,13 @@ class Executor:
             try:
                 sig = inspect.signature(fn)
                 self.expected_params = set(sig.parameters.keys())
-                print(f"Registered function: {msg.Name}{sig}, expected params: {self.expected_params}", file=sys.stderr)
+                logger.info(f"Registered function: {msg.Name}{sig}, expected params: {self.expected_params}")
                 return True
             except Exception as e:
-                print(f"Cannot get signature for {msg.Name}: {e}", file=sys.stderr)
+                logger.error(f"Cannot get signature for {msg.Name}: {e}")
                 return False
         except Exception as e:
-            print(f"Failed to load function {msg.Name}: {e}", file=sys.stderr)
+            logger.error(f"Failed to load function {msg.Name}: {e}")
             return False
 
     def on_invoke_start(self, msg: platform.InvokeStart):
@@ -164,12 +219,12 @@ class Executor:
         self.session_id = msg.SessionID
         self.invoke_params = {}
         self.invoke_start_msg = msg
-        print(f"InvokeStart: session={msg.SessionID}, reply_to={msg.ReplyTo}, function={self.function_name}, expected_params={self.expected_params}", file=sys.stderr)
+        logger.info(f"InvokeStart: session={msg.SessionID}, reply_to={msg.ReplyTo}, function={self.function_name}, expected_params={self.expected_params}")
 
     def on_invoke(self, msg: platform.Invoke):
         """Handle Invoke message - provide parameter value"""
         if not self.session_id or self.session_id != msg.SessionID:
-            print(f"Session ID mismatch: expected {self.session_id}, got {msg.SessionID}", file=sys.stderr)
+            logger.warning(f"Session ID mismatch: expected {self.session_id}, got {msg.SessionID}")
             return
 
         # Get object from store using Flow ref
@@ -177,30 +232,30 @@ class Executor:
         store_obj = self.store_client.get_object(flow.ID, flow.Source.ID if flow.Source else "")
         
         if store_obj is None:
-            print(f"Failed to get object {flow.ID} from store", file=sys.stderr)
+            logger.error(f"Failed to get object {flow.ID} from store")
             return
 
         # Decode object
         try:
             value = EncDec.decode(store_obj)
             self.invoke_params[msg.Param] = value
-            print(f"Invoke: param={msg.Param}, value_type={type(value).__name__}, collected={len(self.invoke_params)}/{len(self.expected_params)}", file=sys.stderr)
+            logger.debug(f"Invoke: param={msg.Param}, value_type={type(value).__name__}, collected={len(self.invoke_params)}/{len(self.expected_params)}")
             
             # Check if all parameters are collected
             if self.expected_params and self.expected_params.issubset(set(self.invoke_params.keys())):
-                print(f"All parameters collected, executing function {self.function_name}", file=sys.stderr)
+                logger.info(f"All parameters collected, executing function {self.function_name}")
                 self._execute_and_respond()
         except Exception as e:
-            print(f"Failed to decode object {flow.ID}: {e}", file=sys.stderr)
+            logger.error(f"Failed to decode object {flow.ID}: {e}")
 
     def _execute_and_respond(self):
         """Execute function and send InvokeResponse"""
         if not self.function:
-            print("Function not registered", file=sys.stderr)
+            logger.error("Function not registered")
             return
 
         if not self.invoke_start_msg:
-            print("No InvokeStart message stored", file=sys.stderr)
+            logger.error("No InvokeStart message stored")
             return
 
         func = self.function
@@ -208,7 +263,7 @@ class Executor:
         result_flow = None
         
         try:
-            print(f"Executing function {self.function_name} with params: {list(self.invoke_params.keys())}", file=sys.stderr)
+            logger.info(f"Executing function {self.function_name} with params: {list(self.invoke_params.keys())}")
             value = func.call(**self.invoke_params)
             
             # Encode result
@@ -219,19 +274,17 @@ class Executor:
             object_ref = self.store_client.save_object(data, store_lang, is_stream=is_stream)
             if object_ref is None:
                 error_msg = "Failed to save result to store"
-                print(error_msg, file=sys.stderr)
+                logger.error(error_msg)
             else:
                 # Create Flow reference
                 result_flow = platform.Flow(
                     ID=object_ref.ID,
                     Source=platform.StoreRef(ID=object_ref.Source)
                 )
-                print(f"Function {self.function_name} completed, result saved as {object_ref.ID}", file=sys.stderr)
+                logger.info(f"Function {self.function_name} completed, result saved as {object_ref.ID}")
         except Exception as e:
             error_msg = f"{e.__class__.__name__}: {e}"
-            print(f"Function {self.function_name} execution failed: {error_msg}", file=sys.stderr)
-            import traceback
-            traceback.print_exc()
+            logger.error(f"Function {self.function_name} execution failed: {error_msg}", exc_info=True)
         
         # Send InvokeResponse
         invoke_response = platform.InvokeResponse(
@@ -253,14 +306,14 @@ class Executor:
 
     def wait_for_function(self, socket: zmq.Socket) -> bool:
         """Wait for and register Function message. Returns True if successful."""
-        print("Waiting for Function message...", file=sys.stderr)
+        logger.info("Waiting for Function message...")
         while True:
             try:
                 msg_bytes = socket.recv()
                 msg = cluster.Message.FromString(msg_bytes)
                 
                 if msg.Type == cluster.FUNCTION:
-                    print(f"Received FUNCTION: {msg.Function.Name}", file=sys.stderr)
+                    logger.info(f"Received FUNCTION: {msg.Function.Name}")
                     if self.on_function(msg.Function):
                         # Send ACK
                         ack_msg = cluster.Message(
@@ -272,14 +325,12 @@ class Executor:
                     else:
                         return False
                 else:
-                    print(f"Unexpected message type while waiting for Function: {msg.Type}", file=sys.stderr)
+                    logger.warning(f"Unexpected message type while waiting for Function: {msg.Type}")
             except zmq.ZMQError as e:
-                print(f"ZMQ error while waiting for function: {e}", file=sys.stderr)
+                logger.error(f"ZMQ error while waiting for function: {e}")
                 return False
             except Exception as e:
-                print(f"Error waiting for function: {e}", file=sys.stderr)
-                import traceback
-                traceback.print_exc()
+                logger.error(f"Error waiting for function: {e}", exc_info=True)
                 return False
 
     def loop(self, socket: zmq.Socket):
@@ -290,27 +341,9 @@ class Executor:
                 msg = cluster.Message.FromString(msg_bytes)
                 
                 match msg.Type:
-                    case cluster.READY:
-                        print("Received READY", file=sys.stderr)
-                        # Send READY back
-                        ready_msg = cluster.Message(
-                            Type=cluster.READY,
-                            Ready=cluster.Ready()
-                        )
-                        self.send_q.put(ready_msg)
-                        
-                    case cluster.FUNCTION:
-                        print(f"Received FUNCTION: {msg.Function.Name}", file=sys.stderr)
-                        self.on_function(msg.Function)
-                        # Send ACK
-                        ack_msg = cluster.Message(
-                            Type=cluster.ACK,
-                            Ack=cluster.Ack()
-                        )
-                        self.send_q.put(ack_msg)
                         
                     case cluster.INVOKE_START:
-                        print(f"Received INVOKE_START", file=sys.stderr)
+                        logger.info("Received INVOKE_START")
                         self.on_invoke_start(msg.InvokeStart)
                         # Send ACK
                         ack_msg = cluster.Message(
@@ -320,7 +353,7 @@ class Executor:
                         self.send_q.put(ack_msg)
                         
                     case cluster.INVOKE:
-                        print(f"Received INVOKE: param={msg.Invoke.Param}", file=sys.stderr)
+                        logger.debug(f"Received INVOKE: param={msg.Invoke.Param}")
                         self.on_invoke(msg.Invoke)
                         # Send ACK
                         ack_msg = cluster.Message(
@@ -330,15 +363,13 @@ class Executor:
                         self.send_q.put(ack_msg)
                         
                     case _:
-                        print(f"Unknown message type: {msg.Type}", file=sys.stderr)
+                        logger.warning(f"Unknown message type: {msg.Type}")
                         
             except zmq.ZMQError as e:
-                print(f"ZMQ error: {e}", file=sys.stderr)
+                logger.error(f"ZMQ error: {e}")
                 break
             except Exception as e:
-                print(f"Error processing message: {e}", file=sys.stderr)
-                import traceback
-                traceback.print_exc()
+                logger.error(f"Error processing message: {e}", exc_info=True)
 
     def _start_send(self, socket: zmq.Socket):
         """Send messages from queue"""
@@ -350,7 +381,7 @@ class Executor:
             try:
                 socket.send(msg.SerializeToString())
             except Exception as e:
-                print(f"Failed to send message: {e}", file=sys.stderr)
+                logger.error(f"Failed to send message: {e}")
 
     def serve(self, zmq_addr: str, component_id: str = ""):
         """Start serving"""
@@ -360,11 +391,11 @@ class Executor:
         # Set socket identity to component ID so Router can identify this component
         if component_id:
             socket.setsockopt_string(zmq.IDENTITY, component_id)
-            print(f"Set ZMQ socket identity to: {component_id}", file=sys.stderr)
+            logger.info(f"Set ZMQ socket identity to: {component_id}")
         
         socket.connect(zmq_addr)
         
-        print(f"Connected to ZMQ: {zmq_addr}", file=sys.stderr)
+        logger.info(f"Connected to ZMQ: {zmq_addr}")
         
         # Send initial READY message immediately after connection
         # This allows Go side to identify this component and send cached Function message
@@ -373,21 +404,13 @@ class Executor:
             Ready=cluster.Ready()
         )
         socket.send(ready_msg.SerializeToString())
-        print("Initial READY message sent to identify component", file=sys.stderr)
+        logger.info("Initial READY message sent to identify component")
         
         try:
             # Now wait for Function message and register it
             if not self.wait_for_function(socket):
-                print("Failed to register function, exiting", file=sys.stderr)
+                logger.error("Failed to register function, exiting")
                 return
-            
-            # Function registered, send READY message again to confirm
-            ready_msg = cluster.Message(
-                Type=cluster.READY,
-                Ready=cluster.Ready()
-            )
-            socket.send(ready_msg.SerializeToString())
-            print("Function registered, READY message sent", file=sys.stderr)
             
             # Start send thread
             send_thread = threading.Thread(target=self._start_send, args=(socket,))
@@ -397,9 +420,7 @@ class Executor:
             # Main loop
             self.loop(socket)
         except Exception as e:
-            print(f"Executor stopped: {e}", file=sys.stderr)
-            import traceback
-            traceback.print_exc()
+            logger.error(f"Executor stopped: {e}", exc_info=True)
         finally:
             self.send_q.put(None)
             socket.close()
@@ -414,20 +435,20 @@ def main():
     component_id = os.getenv("COMPONENT_ID")
     
     if not zmq_addr:
-        print("ZMQ_ADDR environment variable is required", file=sys.stderr)
+        logger.error("ZMQ_ADDR environment variable is required")
         sys.exit(1)
     if not store_addr:
-        print("STORE_ADDR environment variable is required", file=sys.stderr)
+        logger.error("STORE_ADDR environment variable is required")
         sys.exit(1)
     if not component_id:
-        print("COMPONENT_ID environment variable is required", file=sys.stderr)
+        logger.error("COMPONENT_ID environment variable is required")
         sys.exit(1)
     
     # Ensure ZMQ address has protocol prefix
     if not zmq_addr.startswith(("tcp://", "ipc://", "inproc://")):
         zmq_addr = f"tcp://{zmq_addr}"
     
-    print(f"Starting executor: zmq={zmq_addr}, store={store_addr}, component_id={component_id}", file=sys.stderr)
+    logger.info(f"Starting executor: zmq={zmq_addr}, store={store_addr}, component_id={component_id}")
     
     # Create store client
     store_client = StoreClient(store_addr)

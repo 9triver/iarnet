@@ -59,25 +59,33 @@ func (rt *Runtime) Start(ctx context.Context) error {
 
 	logrus.WithFields(logrus.Fields{"actor": rt.actor.GetID()}).Info("task: start grouped task")
 
-	rt.actor.Send(&proto.InvokeStart{
+	err := rt.actor.Send(&proto.InvokeStart{
 		Info:      rt.actor.GetInfo(),
 		SessionID: rt.sessionID,
 	})
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
 
-func (rt *Runtime) Invoke(ctx context.Context, param string, value *proto.Flow) (err error) {
+func (rt *Runtime) Invoke(ctx context.Context, param string, value *proto.Flow) error {
 
 	if rt.actor == nil {
 		return errors.New("no candidate actor selected")
 	}
 
-	rt.actor.Send(&proto.Invoke{
+	logrus.WithFields(logrus.Fields{"actor": rt.actor.GetID(), "param": param, "value": value}).Info("task: invoke")
+
+	err := rt.actor.Send(&proto.Invoke{
 		SessionID: rt.sessionID,
 		Param:     param,
 		Value:     value,
 	})
+	if err != nil {
+		return err
+	}
 
 	rt.deps.Remove(param)
 

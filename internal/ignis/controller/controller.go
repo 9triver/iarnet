@@ -180,6 +180,7 @@ func (c *Controller) handleAppendArg(ctx context.Context, m *ctrlpb.AppendArg) e
 			return err
 		}
 	case *ctrlpb.Data_Encoded:
+		logrus.WithFields(logrus.Fields{"id": v.Encoded.ID, "session": m.SessionID, "instance": m.InstanceID}).Info("control: append encoded arg")
 		go func() {
 			resp, err := c.storeService.SaveObject(ctx, &storepb.SaveObjectRequest{
 				Object: &storepb.EncodedObject{
@@ -191,21 +192,26 @@ func (c *Controller) handleAppendArg(ctx context.Context, m *ctrlpb.AppendArg) e
 			})
 			if err != nil {
 				logrus.Errorf("Failed to save object: %v", err)
-				return
-			}
-			if !resp.Success {
-				logrus.Errorf("Failed to save object: %s", resp.Error)
+				ret := ctrlpb.NewReturnResult(m.SessionID, m.InstanceID, m.Name, nil, err)
+				c.PushToClient(ctx, ret)
 				return
 			}
 			logrus.Infof("Object saved successfully: %s", resp.ObjectRef.ID)
-			ret := ctrlpb.NewReturnResult(m.SessionID, "", resp.ObjectRef.ID, &ignispb.Flow{
+			if err = rt.Invoke(ctx, m.Param, &ignispb.Flow{
 				ID: resp.ObjectRef.ID,
 				Source: &ignispb.StoreRef{
 					ID: resp.ObjectRef.Source,
 				},
-			}, nil)
-			c.PushToClient(ctx, ret)
+			}); err != nil {
+				logrus.Errorf("Failed to invoke runtime: %v", err)
+				ret := ctrlpb.NewReturnResult(m.SessionID, m.InstanceID, m.Name, nil, err)
+				c.PushToClient(ctx, ret)
+				return
+			}
 		}()
+	default:
+		logrus.Errorf("Unsupported data type: %T", v)
+		return fmt.Errorf("unsupported data type: %T", v)
 	}
 	return nil
 }

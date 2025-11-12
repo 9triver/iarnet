@@ -50,9 +50,9 @@ func (m *manager) Run(ctx context.Context) error {
 
 		if message.GetType() == clusterpb.MessageType_READY {
 			// TODO: mark component as connected 暂时不用实现，请忽略
+		} else {
+			component.Push(message)
 		}
-
-		component.Push(message)
 	})
 	return nil
 }
@@ -67,7 +67,6 @@ func (m *manager) AddComponent(ctx context.Context, component *Component) error 
 			logrus.Errorf("failed to marshal message: %v, err: %v", msg, err)
 			return
 		}
-		// Send message directly to ZMQ SendChan
 		m.channeler.Send(componentID, data)
 	})
 	m.mu.Lock()
