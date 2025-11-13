@@ -1,11 +1,5 @@
 package types
 
-import (
-	"context"
-
-	actorpb "github.com/9triver/iarnet/internal/proto/execution_ignis/actor"
-)
-
 type RuntimeEnv = string
 
 type Info struct {
@@ -35,23 +29,6 @@ const (
 	ProviderStatusConnected    ProviderStatus = 1
 	ProviderStatusDisconnected ProviderStatus = 2
 )
-
-type Subscriber interface {
-	Notify(ctx context.Context, message *actorpb.Message) error
-}
-
-type Consumer interface {
-	Consume(ctx context.Context, message *actorpb.Message) error
-}
-
-type ConsumerSupplier interface {
-	GetConsumers() ([]Consumer, error)
-}
-
-type Envelope struct {
-	ComponentID string
-	Message     *actorpb.Message
-}
 
 type ObjectID = string
 

@@ -1,0 +1,20 @@
+syntax = "proto3";
+package component;
+option go_package = "github.com/9triver/iarnet/internal/proto/resource/component";
+
+import "common/messages.proto";
+import "google/protobuf/any.proto";
+
+enum MessageType {
+  UNSPECIFIED = 0;
+  READY = 1;
+  PAYLOAD = 2;
+}
+
+message Message {
+  MessageType Type = 1;
+  oneof Message {
+    common.Ready Ready = 2;
+    google.protobuf.Any Payload = 3; // Any protobuf message (corresponds to proto.Message in Go)
+  }
+}

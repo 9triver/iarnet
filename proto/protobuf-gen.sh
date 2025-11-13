@@ -4,10 +4,12 @@
 # Generates Go and Python code from all proto files in the project
 # 
 # Usage: ./protobuf-gen.sh
-# 
+
+# TODO: refactor
+
 # This script generates protobuf files for:
 # - common: Common types and messages
-# - execution-ignis: Ignis execution engine
+# - ignis: Ignis execution engine
 # - resource: Resource management
 
 set -e  # Exit on error
@@ -63,20 +65,20 @@ for PY_OUTPUT in "${PY_OUTPUTS[@]}"; do
 done
 
 # ============================================================================
-# 2. Generate execution-ignis
+# 2. Generate ignis
 # ============================================================================
 echo ""
-echo ">>> Generating execution-ignis..."
-cd "$BASE_DIR/execution-ignis"
+echo ">>> Generating ignis..."
+cd "$BASE_DIR/ignis"
 
 # Include common proto directory
-# Run from execution-ignis directory, so paths are relative to it
+# Run from ignis directory, so paths are relative to it
 # Use BASE_DIR for -I so that "common/types.proto" imports work correctly
 PROTOC_CMD="$PROTOC -I $BASE_DIR -I ."
 PROTO_SRC="controller/*.proto actor/*.proto"
 
-GO_OUTPUT="$PROJECT_ROOT/internal/proto/execution_ignis"
-PY_OUTPUT_COMPONENT="$PROJECT_ROOT/containers/component/python/proto/execution_ignis"
+GO_OUTPUT="$PROJECT_ROOT/internal/proto/ignis"
+PY_OUTPUT_COMPONENT="$PROJECT_ROOT/containers/component/python/proto/ignis"
 PY_OUTPUT_LUCAS_COMMON="$PROJECT_ROOT/containers/envs/python/libs/lucas/lucas/actorc/protos/common"
 PY_OUTPUT_LUCAS_CONTROLLER="$PROJECT_ROOT/containers/envs/python/libs/lucas/lucas/actorc/protos/controller"
 
@@ -98,6 +100,9 @@ else
   find "$PY_OUTPUT_COMPONENT" -type f -name "*_pb2.pyi" -delete
   find "$PY_OUTPUT_COMPONENT" -type f -name "*_pb2_grpc.py" -delete
 fi
+# Create subdirectories for controller and actor
+mkdir -p "$PY_OUTPUT_COMPONENT/controller"
+mkdir -p "$PY_OUTPUT_COMPONENT/actor"
 # Generate controller and actor separately to avoid conflicts
 # Controller proto files - change to controller directory to avoid nested structure
 cd controller
@@ -136,19 +141,19 @@ cd "$BASE_DIR/resource"
 # Run from resource directory, so paths are relative to it
 # Use BASE_DIR for -I so that "common/types.proto" imports work correctly
 PROTOC_CMD="$PROTOC -I $BASE_DIR -I ."
-PROTO_SRC="*.proto provider/*.proto store/*.proto"
+PROTO_SRC="*.proto provider/*.proto store/*.proto component/*.proto"
 
-GO_OUTPUT="$PROJECT_ROOT/internal/proto/resource"
+IARNET_OUTPUT="$PROJECT_ROOT/internal/proto/resource"
 PY_OUTPUTS=("$PROJECT_ROOT/containers/component/python/proto/resource")
 
 # Go generation
-echo "  Generating Go files: $GO_OUTPUT"
-if [ ! -d "$GO_OUTPUT" ]; then
-  mkdir -p "$GO_OUTPUT"
+echo "  Generating Go files: $IARNET_OUTPUT"
+if [ ! -d "$IARNET_OUTPUT" ]; then
+  mkdir -p "$IARNET_OUTPUT"
 else
-  find "$GO_OUTPUT" -type f -name "*.pb.go" -delete
+  find "$IARNET_OUTPUT" -type f -name "*.pb.go" -delete
 fi
-$PROTOC_CMD --go_out="$GO_OUTPUT" --go_opt=paths=source_relative --go-grpc_out="$GO_OUTPUT" --go-grpc_opt=paths=source_relative $PROTO_SRC
+$PROTOC_CMD --go_out="$IARNET_OUTPUT" --go_opt=paths=source_relative --go-grpc_out="$IARNET_OUTPUT" --go-grpc_opt=paths=source_relative $PROTO_SRC
 
 # Python generation
 for PY_OUTPUT in "${PY_OUTPUTS[@]}"; do

@@ -1,12 +1,14 @@
 package task
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
 	"github.com/9triver/iarnet/internal/ignis/types"
 	"github.com/9triver/iarnet/internal/ignis/utils"
-	actorpb "github.com/9triver/iarnet/internal/proto/execution_ignis/actor"
+	actorpb "github.com/9triver/iarnet/internal/proto/ignis/actor"
+	componentpb "github.com/9triver/iarnet/internal/proto/resource/component"
 	"github.com/9triver/iarnet/internal/resource/component"
 	pb "google.golang.org/protobuf/proto"
 )
@@ -37,8 +39,26 @@ func (a *Actor) Send(msg pb.Message) error {
 	if actorMsg == nil {
 		return fmt.Errorf("failed to create actor message")
 	}
-	a.component.Send(actorMsg)
+	componentMsg, err := componentpb.NewPayload(actorMsg)
+	if err != nil {
+		return err
+	}
+	a.component.Send(componentMsg)
 	return nil
+}
+
+func (a *Actor) Receive(ctx context.Context) *actorpb.Message {
+	msg := a.component.Receive(ctx)
+	if msg == nil {
+		return nil
+	}
+	payload := msg.GetPayloadMessage()
+	switch payload := payload.(type) {
+	case *actorpb.Message:
+		return payload
+	default:
+		return nil
+	}
 }
 
 func (a *Actor) GetInfo() *actorpb.ActorInfo {

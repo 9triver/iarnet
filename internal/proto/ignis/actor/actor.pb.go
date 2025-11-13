@@ -569,7 +569,7 @@ const file_actor_actor_proto_rawDesc = "" +
 	"\x05READY\x10\x02\x12\f\n" +
 	"\bFUNCTION\x10\x03\x12\x12\n" +
 	"\x0eINVOKE_REQUEST\x10\x04\x12\x13\n" +
-	"\x0fINVOKE_RESPONSE\x10\x05B@Z>github.com/9triver/iarnet/internal/proto/execution_ignis/actorb\x06proto3"
+	"\x0fINVOKE_RESPONSE\x10\x05B6Z4github.com/9triver/iarnet/internal/proto/ignis/actorb\x06proto3"
 
 var (
 	file_actor_actor_proto_rawDescOnce sync.Once

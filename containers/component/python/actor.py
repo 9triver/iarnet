@@ -20,9 +20,10 @@ from typing import Any, Optional
 import cloudpickle
 import zmq
 
-from proto.execution_ignis.actor import actor_pb2 as actor
+from proto.ignis.actor import actor_pb2 as actor
 from proto.common import types_pb2 as common
 from proto.common import messages_pb2 as common_messages
+from proto.resource.component import component_pb2 as component
 
 from encdec import EncDec
 from models import RemoteFunction
@@ -61,7 +62,7 @@ class Actor:
         self.expected_params: set[str] = set()              # 函数期望的参数名集合
         
         # 消息通信
-        self.send_queue = queue.Queue[actor.Message | None]()  # 发送消息队列
+        self.send_queue = queue.Queue[actor.Message | component.Message | None]()  # 发送消息队列（支持 actor.Message 和 component.Message）
         self.session_id: Optional[str] = None               # 当前会话 ID
 
     # ========================================================================
@@ -311,6 +312,7 @@ class Actor:
             Info=actor_info,
         )
         
+        # 创建 actor.Message 响应，_send_loop 会自动包装为 component.Message
         response_msg = actor.Message(
             Type=actor.MessageType.INVOKE_RESPONSE,
             InvokeResponse=invoke_response
@@ -321,11 +323,56 @@ class Actor:
     # 消息接收和发送相关方法
     # ========================================================================
     
+    def _unwrap_component_message(self, component_msg: component.Message) -> Optional[actor.Message]:
+        """
+        从 component.Message 中提取 actor.Message
+        
+        Args:
+            component_msg: component 层的包装消息
+            
+        Returns:
+            提取的 actor.Message，如果消息类型不是 PAYLOAD 则返回 None
+        """
+        if component_msg.Type != component.MessageType.PAYLOAD:
+            return None
+        
+        if not component_msg.HasField("Payload"):
+            logger.warning("Component message has PAYLOAD type but Payload field is not set")
+            return None
+        
+        # 从 google.protobuf.Any 中反序列化 actor.Message
+        try:
+            actor_msg = actor.Message()
+            component_msg.Payload.Unpack(actor_msg)
+            return actor_msg
+        except Exception as e:
+            logger.error(f"Failed to unpack Payload: {e}", exc_info=True)
+            return None
+
+    def _wrap_actor_message(self, actor_msg: actor.Message) -> component.Message:
+        """
+        将 actor.Message 包装为 component.Message
+        
+        Args:
+            actor_msg: actor 层的消息
+            
+        Returns:
+            包装后的 component.Message
+        """
+        from google.protobuf import any_pb2
+        any_payload = any_pb2.Any()
+        any_payload.Pack(actor_msg)
+        return component.Message(
+            Type=component.MessageType.PAYLOAD,
+            Payload=any_payload
+        )
+
     def wait_for_function(self, socket: zmq.Socket) -> bool:
         """
         等待并注册 Function 消息（启动时调用）
         
         Actor 启动后，首先需要接收 Function 消息来注册要执行的函数。
+        从 ZMQ 读取的是 component.Message，需要先提取 Payload 中的 actor.Message。
         
         Args:
             socket: ZMQ socket
@@ -337,17 +384,25 @@ class Actor:
         while True:
             try:
                 msg_bytes = socket.recv()
-                msg = actor.Message.FromString(msg_bytes)
+                # 首先解析为 component.Message
+                component_msg = component.Message.FromString(msg_bytes)
+                
+                # 提取 Payload 中的 actor.Message
+                msg = self._unwrap_component_message(component_msg)
+                if msg is None:
+                    logger.warning(f"Received non-PAYLOAD component message: {component_msg.Type}")
+                    continue
                 
                 if msg.Type == actor.MessageType.FUNCTION:
                     logger.info(f"Received FUNCTION: {msg.Function.Name}")
                     if self.handle_function(msg.Function):
-                        # 发送 ACK 确认
-                        ack_msg = actor.Message(
+                        # 发送 ACK 确认（包装为 component.Message）
+                        ack_actor_msg = actor.Message(
                             Type=actor.MessageType.ACK,
                             Ack=common_messages.Ack()
                         )
-                        socket.send(ack_msg.SerializeToString())
+                        ack_component_msg = self._wrap_actor_message(ack_actor_msg)
+                        socket.send(ack_component_msg.SerializeToString())
                         return True
                     else:
                         return False
@@ -365,6 +420,7 @@ class Actor:
         Actor 主消息循环
         
         Actor 持续接收并处理消息，采用事件驱动模式。
+        从 ZMQ 读取的是 component.Message，需要先提取 Payload 中的 actor.Message。
         
         Args:
             socket: ZMQ socket
@@ -372,18 +428,19 @@ class Actor:
         while True:
             try:
                 msg_bytes = socket.recv()
-                msg = actor.Message.FromString(msg_bytes)
+                # 首先解析为 component.Message
+                component_msg = component.Message.FromString(msg_bytes)
+                
+                # 提取 Payload 中的 actor.Message
+                msg = self._unwrap_component_message(component_msg)
+                if msg is None:
+                    logger.warning(f"Received non-PAYLOAD component message: {component_msg.Type}")
+                    continue
                 
                 match msg.Type:
                     case actor.MessageType.INVOKE_REQUEST:
                         logger.info(f"Received INVOKE_REQUEST with {len(msg.InvokeRequest.Args)} args")
                         self.handle_invoke_request(msg.InvokeRequest)
-                        # 发送 ACK 确认
-                        ack_msg = actor.Message(
-                            Type=actor.MessageType.ACK,
-                            Ack=common_messages.Ack()
-                        )
-                        self.send_queue.put(ack_msg)
                      
                     case _:
                         logger.warning(f"Unknown message type: {msg.Type}")
@@ -399,6 +456,7 @@ class Actor:
         发送消息循环（后台线程）
         
         Actor 使用独立的发送线程，避免阻塞消息接收。
+        发送的消息需要是 component.Message 类型。
         
         Args:
             socket: ZMQ socket
@@ -409,7 +467,12 @@ class Actor:
             if msg is None:  # 收到 None 表示退出信号
                 break
             try:
-                socket.send(msg.SerializeToString())
+                # 如果消息是 actor.Message，需要包装为 component.Message
+                if isinstance(msg, actor.Message):
+                    component_msg = self._wrap_actor_message(msg)
+                    socket.send(component_msg.SerializeToString())
+                else:
+                    logger.error(f"Unknown message type: {type(msg)}")
             except Exception as e:
                 logger.error(f"Failed to send message: {e}")
 
@@ -440,9 +503,9 @@ class Actor:
         logger.info(f"Connected to ZMQ: {zmq_addr}")
         
         # 发送初始 READY 消息，让 Go 端识别此 Actor 并发送缓存的 Function 消息
-        ready_msg = actor.Message(
-            Type=actor.MessageType.READY,
-            Ready=common_messages.Ready()
+        ready_msg = component.Message(
+            Type=component.MessageType.READY,
+            Ready=component.Ready()
         )
         socket.send(ready_msg.SerializeToString())
         logger.info("Initial READY message sent to identify actor")

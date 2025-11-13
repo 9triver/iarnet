@@ -2004,7 +2004,7 @@ const file_controller_controller_proto_rawDesc = "" +
 	"\x11FR_REQUEST_OBJECT\x10\x0e\x12\x16\n" +
 	"\x12BK_RESPONSE_OBJECT\x10\x0f2D\n" +
 	"\aService\x129\n" +
-	"\aSession\x12\x13.controller.Message\x1a\x13.controller.Message\"\x00(\x010\x01BEZCgithub.com/9triver/iarnet/internal/proto/execution_ignis/controllerb\x06proto3"
+	"\aSession\x12\x13.controller.Message\x1a\x13.controller.Message\"\x00(\x010\x01B;Z9github.com/9triver/iarnet/internal/proto/ignis/controllerb\x06proto3"
 
 var (
 	file_controller_controller_proto_rawDescOnce sync.Once

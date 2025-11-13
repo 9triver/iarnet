@@ -8,8 +8,8 @@ import (
 
 	"github.com/9triver/iarnet/internal/ignis/task"
 	commonpb "github.com/9triver/iarnet/internal/proto/common"
-	actorpb "github.com/9triver/iarnet/internal/proto/execution_ignis/actor"
-	ctrlpb "github.com/9triver/iarnet/internal/proto/execution_ignis/controller"
+	actorpb "github.com/9triver/iarnet/internal/proto/ignis/actor"
+	ctrlpb "github.com/9triver/iarnet/internal/proto/ignis/controller"
 	storepb "github.com/9triver/iarnet/internal/proto/resource/store"
 	"github.com/9triver/iarnet/internal/resource/component"
 	"github.com/9triver/iarnet/internal/resource/store"
@@ -79,7 +79,7 @@ func (c *Controller) handleInvokeResponse(ctx context.Context, m *actorpb.Invoke
 	return nil
 }
 
-func (c *Controller) HandleComponentMessage(ctx context.Context, msg *actorpb.Message) error {
+func (c *Controller) HandleActorMessage(ctx context.Context, msg *actorpb.Message) error {
 	switch m := msg.GetMessage().(type) {
 	case *actorpb.Message_InvokeResponse:
 		return c.handleInvokeResponse(ctx, m.InvokeResponse)
@@ -155,26 +155,30 @@ func (c *Controller) handleAppendPyFunc(ctx context.Context, m *ctrlpb.AppendPyF
 		}
 		logrus.Infof("Component deployed successfully: %s", component.GetID())
 
-		component.Send(actorpb.NewMessage(&actorpb.Function{
+		actor := task.NewActor(actorName, component)
+		actor.Send(&actorpb.Function{
 			Name:          m.GetName(),
 			Params:        m.GetParams(),
 			Requirements:  m.GetRequirements(),
 			PickledObject: m.GetPickledObject(),
 			Language:      m.GetLanguage(),
-		}))
-		logrus.Infof("Function sent to component: %s", component.GetID())
+		})
+		logrus.Infof("Function sent to actor: %s", actor.GetID())
 
 		go func() {
 			for {
-				msg := component.Receive(ctx)
+				msg := actor.Receive(ctx)
 				if msg == nil {
+					logrus.Errorf("Actor message is nil")
 					return
 				}
-				c.HandleComponentMessage(ctx, msg)
+				if err := c.HandleActorMessage(ctx, msg); err != nil {
+					logrus.Errorf("Failed to handle actor message: %v", err)
+					return
+				}
 			}
 		}()
-
-		actorGroup.Push(task.NewActor(actorName, component))
+		actorGroup.Push(actor)
 	}
 
 	c.nodes[m.GetName()] = task.NewNode(m.GetName(), m.GetParams(), actorGroup)

@@ -11,7 +11,7 @@ import (
 	"github.com/9triver/iarnet/internal/ignis/utils"
 	"github.com/9triver/iarnet/internal/ignis/utils/errors"
 	commonpb "github.com/9triver/iarnet/internal/proto/common"
-	actorpb "github.com/9triver/iarnet/internal/proto/execution_ignis/actor"
+	actorpb "github.com/9triver/iarnet/internal/proto/ignis/actor"
 )
 
 type Node struct {

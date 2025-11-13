@@ -10,10 +10,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type ConsumerSupplier interface {
-	GetConsumers() (types.Consumer, error)
-}
-
 type Service interface {
 	RegisterProvider(provider Provider)
 	DeployComponent(ctx context.Context, name string, runtimeEnv types.RuntimeEnv, resourceRequest *types.Info) (*Component, error)
