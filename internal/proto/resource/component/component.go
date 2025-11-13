@@ -1,6 +1,7 @@
 package component
 
 import (
+	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
 	anypb "google.golang.org/protobuf/types/known/anypb"
 )
@@ -30,6 +31,7 @@ func (m *Message) GetPayloadMessage() proto.Message {
 	}
 	msg, err := payload.UnmarshalNew()
 	if err != nil {
+		logrus.Errorf("failed to unmarshal payload: %v", err)
 		return nil
 	}
 	return msg

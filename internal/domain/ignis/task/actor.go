@@ -10,6 +10,7 @@ import (
 	"github.com/9triver/iarnet/internal/domain/resource/component"
 	actorpb "github.com/9triver/iarnet/internal/proto/ignis/actor"
 	componentpb "github.com/9triver/iarnet/internal/proto/resource/component"
+	"github.com/sirupsen/logrus"
 	pb "google.golang.org/protobuf/proto"
 )
 
@@ -52,11 +53,16 @@ func (a *Actor) Receive(ctx context.Context) *actorpb.Message {
 	if msg == nil {
 		return nil
 	}
+	if msg.Type != componentpb.MessageType_PAYLOAD {
+		logrus.Errorf("unexpected message type: %T", msg)
+		return nil
+	}
 	payload := msg.GetPayloadMessage()
 	switch payload := payload.(type) {
 	case *actorpb.Message:
 		return payload
 	default:
+		logrus.Errorf("unexpected message type: %T", payload)
 		return nil
 	}
 }

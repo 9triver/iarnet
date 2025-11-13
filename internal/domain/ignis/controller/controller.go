@@ -162,7 +162,11 @@ func (c *Controller) handleAppendPyFunc(ctx context.Context, m *ctrlpb.AppendPyF
 			for {
 				msg := actor.Receive(ctx)
 				if msg == nil {
-					logrus.Errorf("Actor message is nil")
+					if ctx.Err() == context.Canceled {
+						logrus.Info("actor receive canceled by context")
+					} else {
+						logrus.Error("actor receive returned nil message")
+					}
 					return
 				}
 				if err := c.HandleActorMessage(ctx, msg); err != nil {
