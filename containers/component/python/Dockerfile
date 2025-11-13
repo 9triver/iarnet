@@ -35,8 +35,8 @@ RUN /app/venv/bin/pip install --no-cache-dir \
 # 复制 proto 文件
 COPY proto /app/proto
 
-# 复制主程序
-COPY main.py /app/main.py
+# 复制所有 Python 模块文件
+COPY *.py /app/
 
 # 创建非 root 用户
 RUN addgroup -S appuser && adduser -S -G appuser appuser

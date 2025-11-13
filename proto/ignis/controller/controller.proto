@@ -166,7 +166,7 @@ message MarkDAGNodeDone {
 
 message RequestObject {
   string ID = 1;
-  string Target = 2;
+  string Source = 2;
 }
 
 message ResponseObject {

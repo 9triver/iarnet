@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/sirupsen/logrus"
 
@@ -27,6 +28,9 @@ func (node *Node) Runtime(sessionID types.SessionID) *Runtime {
 		cond:      sync.NewCond(&sync.Mutex{}),
 		params:    append([]string(nil), node.inputs...),
 		args:      make(map[string]*proto.Flow),
+		onComplete: func(ctx context.Context, actor *Actor) {
+			node.group.Push(actor)
+		},
 	}
 }
 
@@ -39,12 +43,15 @@ func NewNode(id string, inputs []string, group *ActorGroup) *Node {
 }
 
 type Runtime struct {
-	sessionID types.SessionID
-	actor     *Actor
-	deps      utils.Set[string]
-	cond      *sync.Cond
-	params    []string
-	args      map[string]*proto.Flow
+	sessionID  types.SessionID
+	complete   chan struct{}
+	actor      *Actor
+	deps       utils.Set[string]
+	cond       *sync.Cond
+	params     []string
+	args       map[string]*proto.Flow
+	onComplete func(ctx context.Context, actor *Actor)
+	invokeTime time.Time // 记录调用发送时间，用于计算链路延迟
 }
 
 func (rt *Runtime) Ready() bool {
@@ -95,6 +102,9 @@ func (rt *Runtime) Invoke(ctx context.Context) error {
 		"args":    len(args),
 	}).Info("task: invoke request")
 
+	// 记录调用发送时间，用于计算链路延迟
+	rt.invokeTime = time.Now()
+
 	req := &clusterpb.InvokeRequest{
 		SessionID: string(rt.sessionID),
 		Args:      args,
@@ -120,4 +130,45 @@ func (rt *Runtime) AddArg(param string, value *proto.Flow) error {
 	rt.cond.L.Unlock()
 
 	return nil
+}
+
+func (rt *Runtime) Complete(ctx context.Context, actorInfo *proto.ActorInfo) {
+	// 计算延迟并更新 Actor 信息
+	if actorInfo != nil {
+		// 计算总延迟（从发送请求到收到响应的时间，单位：毫秒）
+		totalLatency := time.Since(rt.invokeTime).Milliseconds()
+
+		// 从响应中获取计算延迟（Python 端提供）
+		calcLatency := actorInfo.CalcLatency
+
+		// 计算链路延迟 = 总延迟 - 计算延迟
+		linkLatency := totalLatency - calcLatency
+		if linkLatency < 0 {
+			linkLatency = 0
+		}
+
+		// 使用移动平均更新延迟信息（新值 + 旧值）/ 2
+		oldCalcLatency := rt.actor.info.CalcLatency
+		oldLinkLatency := rt.actor.info.LinkLatency
+
+		if oldCalcLatency == 0 {
+			// 第一次调用，直接使用新值
+			rt.actor.info.CalcLatency = calcLatency
+			rt.actor.info.LinkLatency = linkLatency
+		} else {
+			// 使用移动平均
+			rt.actor.info.CalcLatency = (oldCalcLatency + calcLatency) / 2
+			rt.actor.info.LinkLatency = (oldLinkLatency + linkLatency) / 2
+		}
+
+		logrus.WithFields(logrus.Fields{
+			"actor":         rt.actor.GetID(),
+			"session":       rt.sessionID,
+			"calc_latency":  rt.actor.info.CalcLatency,
+			"link_latency":  rt.actor.info.LinkLatency,
+			"total_latency": totalLatency,
+		}).Debug("task: updated actor latency")
+	}
+
+	rt.onComplete(ctx, rt.actor)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/9triver/iarnet/internal/ignis/task"
 	ignispb "github.com/9triver/iarnet/internal/proto/ignis"
@@ -54,8 +55,37 @@ func (c *Controller) GetToClientChan() chan *ctrlpb.Message {
 
 func (c *Controller) AppID() string { return c.appID }
 
-func (c *Controller) HandleComponentMessage(ctx context.Context, msg *clusterpb.Message) error {
+func (c *Controller) handleInvokeResponse(ctx context.Context, m *ignispb.InvokeResponse) error {
+	logrus.WithFields(logrus.Fields{"session": m.SessionID}).Info("control: invoke response")
+	runtimeId := m.SessionID
+	rt, ok := c.runtimes[runtimeId]
+	if !ok {
+		logrus.Errorf("Runtime not found: %s", runtimeId)
+		return fmt.Errorf("runtime not found: %s", runtimeId)
+	}
+	splits := strings.SplitN(m.SessionID, "::", 3)
+	name, sessionId, instanceId := splits[0], splits[1], splits[2]
+	if m.Error != "" {
+		logrus.WithFields(logrus.Fields{"name": name, "session": sessionId, "instance": instanceId, "error": m.Error}).Info("control: invoke failed")
+		ret := ctrlpb.NewReturnResult(sessionId, instanceId, name, nil, errors.New(m.Error))
+		c.PushToClient(ctx, ret)
+		return nil
+	}
+	rt.Complete(ctx, m.Info)
+	delete(c.runtimes, runtimeId)
+
+	ret := ctrlpb.NewReturnResult(sessionId, instanceId, name, m.Result, nil)
+	c.PushToClient(ctx, ret)
 	return nil
+}
+
+func (c *Controller) HandleComponentMessage(ctx context.Context, msg *clusterpb.Message) error {
+	switch m := msg.GetMessage().(type) {
+	case *clusterpb.Message_InvokeResponse:
+		return c.handleInvokeResponse(ctx, m.InvokeResponse)
+	default:
+		return nil
+	}
 }
 
 func (c *Controller) HandleClientMessage(ctx context.Context, msg *ctrlpb.Message) error {
@@ -238,6 +268,29 @@ func (c *Controller) handleMarkDAGNodeDone(ctx context.Context, m *ctrlpb.MarkDA
 	return nil
 }
 func (c *Controller) handleRequestObject(ctx context.Context, m *ctrlpb.RequestObject) error {
+	logrus.WithFields(logrus.Fields{"id": m.ID, "source": m.Source}).Info("control: request object")
+	source := m.Source
+	object, err := c.storeService.GetObject(ctx, &storepb.GetObjectRequest{
+		ObjectRef: &storepb.ObjectRef{
+			ID:     m.ID,
+			Source: source,
+		},
+	})
+	if err != nil {
+		logrus.Errorf("Failed to get object: %v", err)
+		return err
+	}
+	if object == nil {
+		logrus.Errorf("Object not found: %s", source)
+		return fmt.Errorf("object not found: %s", source)
+	}
+	ret := ctrlpb.NewResponseObject(m.ID, &ignispb.EncodedObject{
+		ID:       object.Object.ID,
+		Language: ignispb.Language(object.Object.Language),
+		Data:     object.Object.Data,
+		Stream:   object.Object.IsStream,
+	}, nil)
+	c.PushToClient(ctx, ret)
 	return nil
 }
 

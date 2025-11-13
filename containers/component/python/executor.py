@@ -9,6 +9,7 @@ import queue
 import subprocess
 import sys
 import threading
+import time
 from typing import Any, Optional
 
 import cloudpickle
@@ -233,11 +234,18 @@ class Executor:
         func = self.function
         error_msg = None
         result_flow = None
+        calc_latency_ms = 0  # 计算延迟（毫秒）
         
         try:
+            # 记录函数执行开始时间
+            start_time = time.time()
+            
             # 执行函数
             logger.info(f"Executing function {self.function_name} with params: {list(invoke_params.keys())}")
             value = func.call(**invoke_params)
+            
+            # 计算函数执行时间（毫秒）
+            calc_latency_ms = int((time.time() - start_time) * 1000)
             
             # 编码结果
             store_lang = EncDec.platform_to_store_language(func.language)
@@ -254,16 +262,28 @@ class Executor:
                     ID=object_ref.ID,
                     Source=platform.StoreRef(ID=object_ref.Source)
                 )
-                logger.info(f"Function {self.function_name} completed, result saved as {object_ref.ID}")
+                logger.info(
+                    f"Function {self.function_name} completed, result saved as {object_ref.ID}, "
+                    f"calc_latency={calc_latency_ms}ms"
+                )
         except Exception as e:
             error_msg = f"{e.__class__.__name__}: {e}"
             logger.error(f"Function {self.function_name} execution failed: {error_msg}", exc_info=True)
+        
+        # 创建 ActorInfo，包含计算延迟
+        # 注意：这里不设置 ActorRef，因为 Python 端不知道 Actor 的引用信息
+        # Go 端会在 Complete 方法中更新 Actor 的延迟信息
+        actor_info = platform.ActorInfo(
+            CalcLatency=calc_latency_ms,
+            LinkLatency=0,  # 链路延迟由 Go 端计算
+        )
         
         # 发送 InvokeResponse
         invoke_response = platform.InvokeResponse(
             SessionID=session_id,
             Result=result_flow if result_flow else None,
-            Error=error_msg if error_msg else ""
+            Error=error_msg if error_msg else "",
+            Info=actor_info,
         )
         
         response_msg = cluster.Message(

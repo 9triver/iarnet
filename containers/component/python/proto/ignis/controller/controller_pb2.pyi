@@ -278,12 +278,12 @@ class MarkDAGNodeDone(_message.Message):
     def __init__(self, NodeId: _Optional[str] = ..., SessionId: _Optional[str] = ...) -> None: ...
 
 class RequestObject(_message.Message):
-    __slots__ = ("ID", "Target")
+    __slots__ = ("ID", "Source")
     ID_FIELD_NUMBER: _ClassVar[int]
-    TARGET_FIELD_NUMBER: _ClassVar[int]
+    SOURCE_FIELD_NUMBER: _ClassVar[int]
     ID: str
-    Target: str
-    def __init__(self, ID: _Optional[str] = ..., Target: _Optional[str] = ...) -> None: ...
+    Source: str
+    def __init__(self, ID: _Optional[str] = ..., Source: _Optional[str] = ...) -> None: ...
 
 class ResponseObject(_message.Message):
     __slots__ = ("ID", "Value", "Error")

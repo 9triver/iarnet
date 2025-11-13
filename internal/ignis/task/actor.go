@@ -71,9 +71,9 @@ func (g *ActorGroup) Select() *Actor {
 	return g.pq.Pop()
 }
 
-func (g *ActorGroup) Push(info *Actor) {
+func (g *ActorGroup) Push(actor *Actor) {
 	g.cond.L.Lock()
-	g.pq.Push(info)
+	g.pq.Push(actor)
 	g.cond.L.Unlock()
 
 	g.cond.Signal()

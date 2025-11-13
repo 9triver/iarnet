@@ -8,7 +8,9 @@ import os
 import sys
 
 # 添加当前目录到 Python 路径，以便导入模块
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+_current_dir = os.path.dirname(os.path.abspath(__file__))
+if _current_dir not in sys.path:
+    sys.path.insert(0, _current_dir)
 
 from executor import Executor
 from store_client import StoreClient

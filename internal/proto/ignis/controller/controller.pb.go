@@ -1456,7 +1456,7 @@ func (x *MarkDAGNodeDone) GetSessionId() string {
 type RequestObject struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ID            string                 `protobuf:"bytes,1,opt,name=ID,proto3" json:"ID,omitempty"`
-	Target        string                 `protobuf:"bytes,2,opt,name=Target,proto3" json:"Target,omitempty"`
+	Source        string                 `protobuf:"bytes,2,opt,name=Source,proto3" json:"Source,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1498,9 +1498,9 @@ func (x *RequestObject) GetID() string {
 	return ""
 }
 
-func (x *RequestObject) GetTarget() string {
+func (x *RequestObject) GetSource() string {
 	if x != nil {
-		return x.Target
+		return x.Source
 	}
 	return ""
 }
@@ -2049,7 +2049,7 @@ const file_controller_controller_proto_rawDesc = "" +
 	"\tSessionId\x18\x02 \x01(\tR\tSessionId\"7\n" +
 	"\rRequestObject\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12\x16\n" +
-	"\x06Target\x18\x02 \x01(\tR\x06Target\"b\n" +
+	"\x06Source\x18\x02 \x01(\tR\x06Source\"b\n" +
 	"\x0eResponseObject\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12*\n" +
 	"\x05Value\x18\x02 \x01(\v2\x14.proto.EncodedObjectR\x05Value\x12\x14\n" +
