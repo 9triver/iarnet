@@ -1,6 +1,10 @@
 """
-Python Component Executor
-用于执行远程函数的 Python 组件，通过 ZMQ 与 Go 服务端通信，通过 gRPC 与 Store 服务通信
+Python Component Main Entry
+每个组件中运行着一个 Actor，负责接收消息、执行函数、返回响应。
+
+组件通过以下方式与系统通信：
+- ZMQ: 与控制器通信，接收 Function 和 InvokeRequest 消息，发送响应
+- gRPC: 与 Store 服务通信，获取参数和保存结果
 """
 
 import logging
@@ -12,7 +16,7 @@ _current_dir = os.path.dirname(os.path.abspath(__file__))
 if _current_dir not in sys.path:
     sys.path.insert(0, _current_dir)
 
-from executor import Executor
+from actor import Actor
 from store_client import StoreClient
 
 # ============================================================================
@@ -52,14 +56,14 @@ def main():
     if not zmq_addr.startswith(("tcp://", "ipc://", "inproc://")):
         zmq_addr = f"tcp://{zmq_addr}"
 
-    logger.info(f"Starting executor: zmq={zmq_addr}, store={store_addr}, component_id={component_id}")
+    logger.info(f"Starting actor: zmq={zmq_addr}, store={store_addr}, component_id={component_id}")
     
-    # 创建 Store 客户端和执行器
+    # 创建 Store 客户端和 Actor
     store_client = StoreClient(store_addr)
-    executor = Executor(store_client)
+    actor = Actor(store_client)
     
-    # 启动服务
-    executor.serve(zmq_addr, component_id)
+    # 启动 Actor，开始接收和处理消息
+    actor.run(zmq_addr, component_id)
 
 
 if __name__ == "__main__":

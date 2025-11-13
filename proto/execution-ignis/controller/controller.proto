@@ -1,8 +1,10 @@
 syntax = "proto3";
 package controller;
-option go_package = "github.com/9triver/iarnet/internal/proto/ignis/controller";
+option go_package = "github.com/9triver/iarnet/internal/proto/execution_ignis/controller";
 
-import "platform.proto";
+import "common/types.proto";
+import "common/messages.proto";
+import "../types.proto";
 
 enum CommandType {
   UNSPECIFIED = 0; // unknown command type
@@ -23,11 +25,7 @@ enum CommandType {
   BK_RESPONSE_OBJECT=15; // backend: response object to request object
 }
 
-message Ack {
-  string Error = 1;
-}
-
-message Ready {}
+// Ack and Ready are now in common/messages.proto
 
 message Data {
   enum ObjectType {
@@ -39,20 +37,15 @@ message Data {
 
   ObjectType Type = 1;
   oneof Object {
-    proto.Flow Ref = 2;
-    proto.EncodedObject Encoded = 3;
+    common.ObjectRef Ref = 2;
+    common.EncodedObject Object = 3;
   }
-}
-
-message AppendData {
-  string SessionID = 1; // current execution session, empty if shared by all sessions
-  proto.EncodedObject Object = 2; // encoded object
 }
 
 message AppendActor {
   string Name = 1; // actor name
   repeated string Params = 2; // function params
-  proto.ActorRef Ref = 3; // Ref to actor
+  // execution_ignis.ActorRef Ref = 3; // Ref to actor
 }
 
 message Resources {
@@ -66,9 +59,9 @@ message AppendPyFunc {
   repeated string Params = 2; //function params
   string Venv = 3; // function virtual environment
   repeated string Requirements = 4; // function dependencies
-  bytes PickledObject = 5; // encoded function impl
-  proto.Language Language = 6; // return type of function
-  Resources Resources = 7; // resources required by function
+    bytes PickledObject = 5; // encoded function impl
+    common.Language Language = 6; // return type of function
+    Resources Resources = 7; // resources required by function
   int32 Replicas = 8; // number of replicas
 }
 
@@ -83,7 +76,7 @@ message AppendPyClass {
   string Venv = 3; // function virtual environment
   repeated string Requirements = 4; // function dependencies
   bytes PickledObject = 5; // encoded function impl
-  proto.Language Language = 6; // return type of function
+  common.Language Language = 6; // return type of function
   Resources Resources = 7; // resources required by class
   int32 Replicas = 8;
 }
@@ -171,7 +164,7 @@ message RequestObject {
 
 message ResponseObject {
   string ID = 1;
-  proto.EncodedObject Value = 2;
+  common.EncodedObject Value = 2;
   string Error = 3;
 }
 
@@ -179,8 +172,8 @@ message Message {
   CommandType Type = 1;
   string AppID = 2;
   oneof Command {
-    Ack Ack = 3;
-    Ready Ready = 4;
+    common.Ack Ack = 3;
+    common.Ready Ready = 4;
     AppendData AppendData = 5;
     AppendActor AppendActor = 6;
     AppendPyFunc AppendPyFunc = 7;

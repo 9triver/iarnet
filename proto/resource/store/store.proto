@@ -2,50 +2,36 @@ syntax = "proto3";
 package store;
 option go_package = "github.com/9triver/iarnet/internal/proto/resource/store";
 
-message ObjectRef {
-  string ID = 1;
-  string Source = 2;
-}
+import "common/types.proto";
 
-enum Language {
-  LANGUAGE_UNKNOWN = 0;
-  LANGUAGE_JSON = 1;
-  LANGUAGE_GO = 2;
-  LANGUAGE_PYTHON = 3;
-}
-
-// EncodedObject stores a byte encoded object
-message EncodedObject {
-  string ID = 1; // if returned from ipc call, id won't be set
-  bytes Data = 2; // serialized object data, or nil if current object is a stream
-  Language Language = 3; // if is JSON, it can be decoded to either Go, Python, or else it can only be decoded to corresponding language.
-  bool IsStream = 4; // mark if the object is a stream
-}
+// ObjectRef is now in common/types.proto
+// Language is now in common/types.proto
+// EncodedObject is now in common/types.proto
 
 message StreamChunk {
   string ObjectID = 1;
   string Offset = 2;
   bool EoS = 3;
-  EncodedObject Value = 4;
+  common.EncodedObject Value = 4;
   string Error = 5;
 }
 
 message SaveObjectRequest {
-  EncodedObject Object = 1;
+  common.EncodedObject Object = 1;
 }
 
 message SaveObjectResponse {
-  ObjectRef ObjectRef = 1;
+  common.ObjectRef ObjectRef = 1;
   bool Success = 2;
   string Error = 3;
 }
 
 message GetObjectRequest {
-  ObjectRef ObjectRef = 1;
+  common.ObjectRef ObjectRef = 1;
 }
 
 message GetObjectResponse {
-  EncodedObject Object = 1;
+  common.EncodedObject Object = 1;
 }
 
 message GetStreamChunkRequest {

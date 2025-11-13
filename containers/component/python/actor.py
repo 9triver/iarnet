@@ -1,6 +1,11 @@
 """
-函数执行器
-负责接收并注册远程函数、处理调用请求、执行函数并返回结果
+Actor 实现
+每个组件中运行着一个 Actor，负责：
+1. 接收消息（通过 ZMQ）
+2. 执行函数
+3. 返回响应
+
+Actor 是组件中的核心执行单元，采用消息驱动的异步处理模式。
 """
 
 import inspect
@@ -25,29 +30,37 @@ from store_client import StoreClient
 logger = logging.getLogger(__name__)
 
 
-class Executor:
+class Actor:
     """
-    函数执行器，负责：
-    1. 接收并注册远程函数
-    2. 接收批量调用请求
-    3. 从 Store 获取参数
-    4. 执行函数
-    5. 将结果保存到 Store
-    6. 发送响应消息
+    Actor 实现类
+    
+    Actor 是组件中的核心执行单元，采用消息驱动模式：
+    - 接收消息：通过 ZMQ 接收来自控制器的消息（Function、InvokeRequest 等）
+    - 执行函数：根据接收到的函数定义和参数执行计算任务
+    - 返回响应：将执行结果通过 ZMQ 发送回控制器
+    
+    Actor 生命周期：
+    1. 启动时发送 READY 消息，标识自身可用
+    2. 接收并注册 Function 消息，准备执行函数
+    3. 接收 InvokeRequest 消息，执行函数并返回结果
     """
     
     def __init__(self, store_client: StoreClient):
         """
-        初始化执行器
+        初始化 Actor
         
         Args:
-            store_client: Store 客户端实例
+            store_client: Store 服务客户端，用于获取参数和保存结果
         """
         self.store_client = store_client
+        
+        # Actor 状态
         self.function: Optional[RemoteFunction] = None      # 当前注册的函数
         self.function_name: Optional[str] = None            # 函数名称
         self.expected_params: set[str] = set()              # 函数期望的参数名集合
-        self.send_q = queue.Queue[cluster.Message | None]() # 发送消息队列
+        
+        # 消息通信
+        self.send_queue = queue.Queue[cluster.Message | None]()  # 发送消息队列
         self.session_id: Optional[str] = None               # 当前会话 ID
 
     # ========================================================================
@@ -99,9 +112,14 @@ class Executor:
             logger.error(f"Error installing dependencies: {e}", exc_info=True)
             return False
 
-    def on_function(self, msg: cluster.Function) -> bool:
+    def handle_function(self, msg: cluster.Function) -> bool:
         """
         处理 Function 消息，注册函数
+        
+        Actor 接收到 Function 消息后，会：
+        1. 安装依赖（如果有）
+        2. 反序列化函数对象
+        3. 注册函数，准备执行
         
         Args:
             msg: Function 消息
@@ -142,11 +160,11 @@ class Executor:
     # 函数调用相关方法
     # ========================================================================
     
-    def on_invoke_request(self, msg: cluster.InvokeRequest):
+    def handle_invoke_request(self, msg: cluster.InvokeRequest):
         """
-        处理批量调用请求（InvokeRequest）
+        处理 InvokeRequest 消息
         
-        在新线程中执行，避免阻塞主消息循环
+        Actor 接收到批量调用请求后，会在新线程中执行，避免阻塞主消息循环。
         
         Args:
             msg: InvokeRequest 消息，包含会话 ID 和参数列表
@@ -161,15 +179,15 @@ class Executor:
 
         # 在新线程中执行，避免阻塞主消息循环
         thread = threading.Thread(
-            target=self._handle_invoke_request,
+            target=self._process_invoke_request,
             args=(msg,),
             daemon=True
         )
         thread.start()
 
-    def _handle_invoke_request(self, msg: cluster.InvokeRequest):
+    def _process_invoke_request(self, msg: cluster.InvokeRequest):
         """
-        在新线程中处理批量调用请求
+        处理批量调用请求（在新线程中执行）
         
         流程：
         1. 从 Store 获取所有参数值
@@ -222,6 +240,12 @@ class Executor:
     def _execute_and_respond(self, invoke_params: dict[str, Any], session_id: str):
         """
         执行函数并发送响应
+        
+        Actor 执行函数的核心逻辑：
+        1. 执行函数
+        2. 编码结果
+        3. 保存结果到 Store
+        4. 发送 InvokeResponse 消息
         
         Args:
             invoke_params: 函数参数字典
@@ -278,7 +302,7 @@ class Executor:
             LinkLatency=0,  # 链路延迟由 Go 端计算
         )
         
-        # 发送 InvokeResponse
+        # 发送 InvokeResponse 消息
         invoke_response = platform.InvokeResponse(
             SessionID=session_id,
             Result=result_flow if result_flow else None,
@@ -290,15 +314,17 @@ class Executor:
             Type=cluster.INVOKE_RESPONSE,
             InvokeResponse=invoke_response
         )
-        self.send_q.put(response_msg)
+        self.send_queue.put(response_msg)
 
     # ========================================================================
-    # ZMQ 通信相关方法
+    # 消息接收和发送相关方法
     # ========================================================================
     
     def wait_for_function(self, socket: zmq.Socket) -> bool:
         """
         等待并注册 Function 消息（启动时调用）
+        
+        Actor 启动后，首先需要接收 Function 消息来注册要执行的函数。
         
         Args:
             socket: ZMQ socket
@@ -314,7 +340,7 @@ class Executor:
                 
                 if msg.Type == cluster.FUNCTION:
                     logger.info(f"Received FUNCTION: {msg.Function.Name}")
-                    if self.on_function(msg.Function):
+                    if self.handle_function(msg.Function):
                         # 发送 ACK 确认
                         ack_msg = cluster.Message(
                             Type=cluster.ACK,
@@ -333,9 +359,11 @@ class Executor:
                 logger.error(f"Error waiting for function: {e}", exc_info=True)
                 return False
 
-    def loop(self, socket: zmq.Socket):
+    def message_loop(self, socket: zmq.Socket):
         """
-        主消息循环，持续接收并处理消息
+        Actor 主消息循环
+        
+        Actor 持续接收并处理消息，采用事件驱动模式。
         
         Args:
             socket: ZMQ socket
@@ -348,13 +376,13 @@ class Executor:
                 match msg.Type:
                     case cluster.INVOKE_REQUEST:
                         logger.info(f"Received INVOKE_REQUEST with {len(msg.InvokeRequest.Args)} args")
-                        self.on_invoke_request(msg.InvokeRequest)
+                        self.handle_invoke_request(msg.InvokeRequest)
                         # 发送 ACK 确认
                         ack_msg = cluster.Message(
                             Type=cluster.ACK,
                             Ack=cluster.Ack()
                         )
-                        self.send_q.put(ack_msg)
+                        self.send_queue.put(ack_msg)
                      
                     case _:
                         logger.warning(f"Unknown message type: {msg.Type}")
@@ -365,16 +393,18 @@ class Executor:
             except Exception as e:
                 logger.error(f"Error processing message: {e}", exc_info=True)
 
-    def _start_send(self, socket: zmq.Socket):
+    def _send_loop(self, socket: zmq.Socket):
         """
-        发送消息线程（后台运行）
+        发送消息循环（后台线程）
+        
+        Actor 使用独立的发送线程，避免阻塞消息接收。
         
         Args:
             socket: ZMQ socket
         """
         while True:
-            msg = self.send_q.get()
-            self.send_q.task_done()
+            msg = self.send_queue.get()
+            self.send_queue.task_done()
             if msg is None:  # 收到 None 表示退出信号
                 break
             try:
@@ -382,9 +412,16 @@ class Executor:
             except Exception as e:
                 logger.error(f"Failed to send message: {e}")
 
-    def serve(self, zmq_addr: str, component_id: str = ""):
+    def run(self, zmq_addr: str, component_id: str = ""):
         """
-        启动服务，建立 ZMQ 连接并开始处理消息
+        启动 Actor，建立 ZMQ 连接并开始处理消息
+        
+        Actor 启动流程：
+        1. 建立 ZMQ 连接
+        2. 设置身份标识
+        3. 发送 READY 消息
+        4. 等待并注册 Function
+        5. 启动消息循环
         
         Args:
             zmq_addr: ZMQ 服务器地址
@@ -393,7 +430,7 @@ class Executor:
         ctx = zmq.Context()
         socket = ctx.socket(zmq.DEALER)
         
-        # 设置 socket 身份标识，以便 Router 能够识别此组件
+        # 设置 socket 身份标识，以便 Router 能够识别此 Actor
         if component_id:
             socket.setsockopt_string(zmq.IDENTITY, component_id)
             logger.info(f"Set ZMQ socket identity to: {component_id}")
@@ -401,13 +438,13 @@ class Executor:
         socket.connect(zmq_addr)
         logger.info(f"Connected to ZMQ: {zmq_addr}")
         
-        # 发送初始 READY 消息，让 Go 端识别此组件并发送缓存的 Function 消息
+        # 发送初始 READY 消息，让 Go 端识别此 Actor 并发送缓存的 Function 消息
         ready_msg = cluster.Message(
             Type=cluster.READY,
             Ready=cluster.Ready()
         )
         socket.send(ready_msg.SerializeToString())
-        logger.info("Initial READY message sent to identify component")
+        logger.info("Initial READY message sent to identify actor")
         
         try:
             # 等待 Function 消息并注册函数
@@ -416,17 +453,17 @@ class Executor:
                 return
             
             # 启动发送线程
-            send_thread = threading.Thread(target=self._start_send, args=(socket,))
+            send_thread = threading.Thread(target=self._send_loop, args=(socket,))
             send_thread.daemon = True
             send_thread.start()
             
             # 进入主消息循环
-            self.loop(socket)
+            self.message_loop(socket)
         except Exception as e:
-            logger.error(f"Executor stopped: {e}", exc_info=True)
+            logger.error(f"Actor stopped: {e}", exc_info=True)
         finally:
             # 清理资源
-            self.send_q.put(None)  # 通知发送线程退出
+            self.send_queue.put(None)  # 通知发送线程退出
             socket.close()
             ctx.term()
             self.store_client.close()

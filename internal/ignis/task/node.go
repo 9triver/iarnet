@@ -167,7 +167,7 @@ func (rt *Runtime) Complete(ctx context.Context, actorInfo *proto.ActorInfo) {
 			"calc_latency":  rt.actor.info.CalcLatency,
 			"link_latency":  rt.actor.info.LinkLatency,
 			"total_latency": totalLatency,
-		}).Debug("task: updated actor latency")
+		}).Info("task: updated actor latency")
 	}
 
 	rt.onComplete(ctx, rt.actor)
