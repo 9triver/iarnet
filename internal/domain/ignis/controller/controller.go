@@ -13,7 +13,6 @@ import (
 	commonpb "github.com/9triver/iarnet/internal/proto/common"
 	actorpb "github.com/9triver/iarnet/internal/proto/ignis/actor"
 	ctrlpb "github.com/9triver/iarnet/internal/proto/ignis/controller"
-	storepb "github.com/9triver/iarnet/internal/proto/resource/store"
 	"github.com/sirupsen/logrus"
 )
 
@@ -116,19 +115,13 @@ func (c *Controller) handleAppendData(ctx context.Context, m *ctrlpb.AppendData)
 	logrus.WithFields(logrus.Fields{"id": obj.ID, "session": m.SessionID}).Info("control: append data node")
 	go func() {
 		// TODO: 整理 proto 定义，将 EncodedObject 和 Object 合并
-		resp, err := c.storeService.SaveObject(ctx, &storepb.SaveObjectRequest{
-			Object: m.Object,
-		})
+		resp, err := c.storeService.SaveObject(ctx, m.Object)
 		if err != nil {
 			logrus.Errorf("Failed to save object: %v", err)
 			return
 		}
-		if !resp.Success {
-			logrus.Errorf("Failed to save object: %s", resp.Error)
-			return
-		}
-		logrus.Infof("Object saved successfully: %s", resp.ObjectRef.ID)
-		ret := ctrlpb.NewReturnResult(m.SessionID, "", resp.ObjectRef.ID, resp.ObjectRef, nil)
+		logrus.Infof("Object saved successfully: %s", resp.ID)
+		ret := ctrlpb.NewReturnResult(m.SessionID, "", resp.ID, resp, nil)
 		c.PushToClient(ctx, ret)
 	}()
 
@@ -206,17 +199,15 @@ func (c *Controller) handleAppendArg(ctx context.Context, m *ctrlpb.AppendArg) e
 	case *ctrlpb.Data_Encoded:
 		logrus.WithFields(logrus.Fields{"id": v.Encoded.ID, "session": m.SessionID, "instance": m.InstanceID}).Info("control: append encoded arg")
 		go func() {
-			resp, err := c.storeService.SaveObject(ctx, &storepb.SaveObjectRequest{
-				Object: v.Encoded,
-			})
+			resp, err := c.storeService.SaveObject(ctx, v.Encoded)
 			if err != nil {
 				logrus.Errorf("Failed to save object: %v", err)
 				ret := ctrlpb.NewReturnResult(m.SessionID, m.InstanceID, m.Name, nil, err)
 				c.PushToClient(ctx, ret)
 				return
 			}
-			logrus.Infof("Object saved successfully: %s", resp.ObjectRef.ID)
-			if err = rt.AddArg(m.Param, resp.ObjectRef); err != nil {
+			logrus.Infof("Object saved successfully: %s", resp.ID)
+			if err = rt.AddArg(m.Param, resp); err != nil {
 				logrus.Errorf("Failed to add runtime argument: %v", err)
 				ret := ctrlpb.NewReturnResult(m.SessionID, m.InstanceID, m.Name, nil, err)
 				c.PushToClient(ctx, ret)
@@ -253,24 +244,16 @@ func (c *Controller) handleMarkDAGNodeDone(ctx context.Context, m *ctrlpb.MarkDA
 }
 func (c *Controller) handleRequestObject(ctx context.Context, m *ctrlpb.RequestObject) error {
 	logrus.WithFields(logrus.Fields{"id": m.ID, "source": m.Source}).Info("control: request object")
-	resp, err := c.storeService.GetObject(ctx, &storepb.GetObjectRequest{
-		ObjectRef: &commonpb.ObjectRef{
-			ID:     m.ID,
-			Source: m.Source,
-		},
+	object, err := c.storeService.GetObject(ctx, &commonpb.ObjectRef{
+		ID:     m.ID,
+		Source: m.Source,
 	})
 	if err != nil {
 		logrus.Errorf("Failed to get object: %v", err)
 		return err
 	}
-	object := resp.Object
-	if object == nil {
-		logrus.WithFields(logrus.Fields{"id": m.ID, "source": m.Source}).Errorf("Object not found")
-		return fmt.Errorf("object not found: %s, source: %s", m.ID, m.Source)
-	}
 	ret := ctrlpb.NewResponseObject(m.ID, object, nil)
-	c.PushToClient(ctx, ret)
-	return nil
+	return c.PushToClient(ctx, ret)
 }
 
 func (c *Controller) emit(ctx context.Context, event Event) {

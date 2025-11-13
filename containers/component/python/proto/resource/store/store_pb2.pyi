@@ -6,20 +6,6 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
-class StreamChunk(_message.Message):
-    __slots__ = ("ObjectID", "Offset", "EoS", "Value", "Error")
-    OBJECTID_FIELD_NUMBER: _ClassVar[int]
-    OFFSET_FIELD_NUMBER: _ClassVar[int]
-    EOS_FIELD_NUMBER: _ClassVar[int]
-    VALUE_FIELD_NUMBER: _ClassVar[int]
-    ERROR_FIELD_NUMBER: _ClassVar[int]
-    ObjectID: str
-    Offset: str
-    EoS: bool
-    Value: _types_pb2.EncodedObject
-    Error: str
-    def __init__(self, ObjectID: _Optional[str] = ..., Offset: _Optional[str] = ..., EoS: bool = ..., Value: _Optional[_Union[_types_pb2.EncodedObject, _Mapping]] = ..., Error: _Optional[str] = ...) -> None: ...
-
 class SaveObjectRequest(_message.Message):
     __slots__ = ("Object",)
     OBJECT_FIELD_NUMBER: _ClassVar[int]
@@ -59,5 +45,5 @@ class GetStreamChunkRequest(_message.Message):
 class GetStreamChunkResponse(_message.Message):
     __slots__ = ("Chunk",)
     CHUNK_FIELD_NUMBER: _ClassVar[int]
-    Chunk: StreamChunk
-    def __init__(self, Chunk: _Optional[_Union[StreamChunk, _Mapping]] = ...) -> None: ...
+    Chunk: _types_pb2.StreamChunk
+    def __init__(self, Chunk: _Optional[_Union[_types_pb2.StreamChunk, _Mapping]] = ...) -> None: ...

@@ -8,19 +8,15 @@ import (
 	"github.com/9triver/iarnet/internal/domain/resource/component"
 	ctrlpb "github.com/9triver/iarnet/internal/proto/ignis/controller"
 	"github.com/sirupsen/logrus"
-	"google.golang.org/grpc"
 )
 
 type Manager interface {
-	ctrlpb.UnsafeServiceServer
-	Session(stream grpc.BidiStreamingServer[ctrlpb.Message, ctrlpb.Message]) error
 	AddController(controller *Controller) error
 	On(eventType EventType, handler EventHandler)
+	HandleSession(ctx context.Context, recv func() (*ctrlpb.Message, error), send func(*ctrlpb.Message) error) error
 }
 
 type manager struct {
-	ctrlpb.UnimplementedServiceServer
-
 	mu               sync.RWMutex
 	componentService component.Service
 	controllers      map[string]*Controller
@@ -50,14 +46,13 @@ func (m *manager) On(eventType EventType, handler EventHandler) {
 	m.events.Subscribe(eventType, handler)
 }
 
-func (m *manager) Session(stream grpc.BidiStreamingServer[ctrlpb.Message, ctrlpb.Message]) error {
-	ctx := stream.Context()
+func (m *manager) HandleSession(ctx context.Context, recv func() (*ctrlpb.Message, error), send func(*ctrlpb.Message) error) error {
 	var controller *Controller
 	var expectedAppID string
 	var toClientErrCh chan error
 	var cancelToClient context.CancelFunc
 
-	firstMsg, err := stream.Recv()
+	firstMsg, err := recv()
 	if err != nil {
 		logrus.Errorf("failed to receive first message: %v", err)
 		return err
@@ -69,7 +64,9 @@ func (m *manager) Session(stream grpc.BidiStreamingServer[ctrlpb.Message, ctrlpb
 		return errors.New("application id is empty")
 	}
 
+	m.mu.RLock()
 	controller = m.controllers[expectedAppID]
+	m.mu.RUnlock()
 	if controller == nil {
 		logrus.Errorf("controller not found")
 		return errors.New("controller not found")
@@ -88,7 +85,7 @@ func (m *manager) Session(stream grpc.BidiStreamingServer[ctrlpb.Message, ctrlpb
 	toClientCtx, cancelToClient = context.WithCancel(ctx)
 
 	go func() {
-		err := forwardResponses(toClientCtx, toClientChan, stream)
+		err := forwardResponses(toClientCtx, toClientChan, send)
 		toClientErrCh <- err
 		close(toClientErrCh)
 	}()
@@ -130,7 +127,7 @@ func (m *manager) Session(stream grpc.BidiStreamingServer[ctrlpb.Message, ctrlpb
 			}
 		}
 
-		msg, err := stream.Recv()
+		msg, err := recv()
 		if err != nil {
 			logrus.Errorf("failed to receive message: %v", err)
 			if toClientErrCh != nil {
@@ -153,16 +150,13 @@ func (m *manager) Session(stream grpc.BidiStreamingServer[ctrlpb.Message, ctrlpb
 			return errors.New("controller app id mismatch")
 		}
 
-		// TODO: 保证同一个 session 流只对应一个应用
-		// TODO: 添加鉴权机制，保证发起请求的客户端有权限访问该应用
-
 		if err := controller.HandleClientMessage(ctx, msg); err != nil {
 			return err
 		}
 	}
 }
 
-func forwardResponses(ctx context.Context, toClientChan <-chan *ctrlpb.Message, stream grpc.BidiStreamingServer[ctrlpb.Message, ctrlpb.Message]) error {
+func forwardResponses(ctx context.Context, toClientChan <-chan *ctrlpb.Message, send func(*ctrlpb.Message) error) error {
 	for {
 		select {
 		case <-ctx.Done():
@@ -174,7 +168,7 @@ func forwardResponses(ctx context.Context, toClientChan <-chan *ctrlpb.Message, 
 			if msg == nil {
 				continue
 			}
-			if err := stream.Send(msg); err != nil {
+			if err := send(msg); err != nil {
 				return err
 			}
 		}

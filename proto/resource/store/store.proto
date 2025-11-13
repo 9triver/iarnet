@@ -8,13 +8,7 @@ import "common/types.proto";
 // Language is now in common/types.proto
 // EncodedObject is now in common/types.proto
 
-message StreamChunk {
-  string ObjectID = 1;
-  string Offset = 2;
-  bool EoS = 3;
-  common.EncodedObject Value = 4;
-  string Error = 5;
-}
+
 
 message SaveObjectRequest {
   common.EncodedObject Object = 1;
@@ -40,7 +34,7 @@ message GetStreamChunkRequest {
 }
 
 message GetStreamChunkResponse {
-  StreamChunk Chunk = 1;
+  common.StreamChunk Chunk = 1;
 }
 
 service Service {

@@ -3,10 +3,11 @@ package resource
 import (
 	"context"
 
+	"github.com/9triver/iarnet/internal/domain/resource/component"
+	"github.com/9triver/iarnet/internal/domain/resource/store"
+	"github.com/9triver/iarnet/internal/domain/resource/types"
+	commonpb "github.com/9triver/iarnet/internal/proto/common"
 	storepb "github.com/9triver/iarnet/internal/proto/resource/store"
-	"github.com/9triver/iarnet/internal/resource/component"
-	"github.com/9triver/iarnet/internal/resource/store"
-	"github.com/9triver/iarnet/internal/resource/types"
 	"github.com/9triver/iarnet/internal/transport/zmq"
 )
 
@@ -44,16 +45,16 @@ func (m *Manager) RegisterProvider(provider component.Provider) {
 	m.componentService.RegisterProvider(provider)
 }
 
-func (m *Manager) SaveObject(ctx context.Context, request *storepb.SaveObjectRequest) (*storepb.SaveObjectResponse, error) {
-	return m.storeService.SaveObject(ctx, request)
+func (m *Manager) SaveObject(ctx context.Context, obj *commonpb.EncodedObject) (*commonpb.ObjectRef, error) {
+	return m.storeService.SaveObject(ctx, obj)
 }
 
-func (m *Manager) GetObject(ctx context.Context, request *storepb.GetObjectRequest) (*storepb.GetObjectResponse, error) {
-	return m.storeService.GetObject(ctx, request)
+func (m *Manager) GetObject(ctx context.Context, ref *commonpb.ObjectRef) (*commonpb.EncodedObject, error) {
+	return m.storeService.GetObject(ctx, ref)
 }
 
-func (m *Manager) GetStreamChunk(ctx context.Context, request *storepb.GetStreamChunkRequest) (*storepb.GetStreamChunkResponse, error) {
-	return m.storeService.GetStreamChunk(ctx, request)
+func (m *Manager) GetStreamChunk(ctx context.Context, id string, offset string) (*commonpb.StreamChunk, error) {
+	return m.storeService.GetStreamChunk(ctx, id, offset)
 }
 
 // TODO: implement resource manager

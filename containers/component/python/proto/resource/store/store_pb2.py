@@ -25,7 +25,7 @@ _sym_db = _symbol_database.Default()
 from common import types_pb2 as common_dot_types__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x11store/store.proto\x12\x05store\x1a\x12\x63ommon/types.proto\"q\n\x0bStreamChunk\x12\x10\n\x08ObjectID\x18\x01 \x01(\t\x12\x0e\n\x06Offset\x18\x02 \x01(\t\x12\x0b\n\x03\x45oS\x18\x03 \x01(\x08\x12$\n\x05Value\x18\x04 \x01(\x0b\x32\x15.common.EncodedObject\x12\r\n\x05\x45rror\x18\x05 \x01(\t\":\n\x11SaveObjectRequest\x12%\n\x06Object\x18\x01 \x01(\x0b\x32\x15.common.EncodedObject\"Z\n\x12SaveObjectResponse\x12$\n\tObjectRef\x18\x01 \x01(\x0b\x32\x11.common.ObjectRef\x12\x0f\n\x07Success\x18\x02 \x01(\x08\x12\r\n\x05\x45rror\x18\x03 \x01(\t\"8\n\x10GetObjectRequest\x12$\n\tObjectRef\x18\x01 \x01(\x0b\x32\x11.common.ObjectRef\":\n\x11GetObjectResponse\x12%\n\x06Object\x18\x01 \x01(\x0b\x32\x15.common.EncodedObject\"9\n\x15GetStreamChunkRequest\x12\x10\n\x08ObjectID\x18\x01 \x01(\t\x12\x0e\n\x06Offset\x18\x02 \x01(\t\";\n\x16GetStreamChunkResponse\x12!\n\x05\x43hunk\x18\x01 \x01(\x0b\x32\x12.store.StreamChunk2\xdb\x01\n\x07Service\x12\x41\n\nSaveObject\x12\x18.store.SaveObjectRequest\x1a\x19.store.SaveObjectResponse\x12>\n\tGetObject\x12\x17.store.GetObjectRequest\x1a\x18.store.GetObjectResponse\x12M\n\x0eGetStreamChunk\x12\x1c.store.GetStreamChunkRequest\x1a\x1d.store.GetStreamChunkResponseB9Z7github.com/9triver/iarnet/internal/proto/resource/storeb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x11store/store.proto\x12\x05store\x1a\x12\x63ommon/types.proto\":\n\x11SaveObjectRequest\x12%\n\x06Object\x18\x01 \x01(\x0b\x32\x15.common.EncodedObject\"Z\n\x12SaveObjectResponse\x12$\n\tObjectRef\x18\x01 \x01(\x0b\x32\x11.common.ObjectRef\x12\x0f\n\x07Success\x18\x02 \x01(\x08\x12\r\n\x05\x45rror\x18\x03 \x01(\t\"8\n\x10GetObjectRequest\x12$\n\tObjectRef\x18\x01 \x01(\x0b\x32\x11.common.ObjectRef\":\n\x11GetObjectResponse\x12%\n\x06Object\x18\x01 \x01(\x0b\x32\x15.common.EncodedObject\"9\n\x15GetStreamChunkRequest\x12\x10\n\x08ObjectID\x18\x01 \x01(\t\x12\x0e\n\x06Offset\x18\x02 \x01(\t\"<\n\x16GetStreamChunkResponse\x12\"\n\x05\x43hunk\x18\x01 \x01(\x0b\x32\x13.common.StreamChunk2\xdb\x01\n\x07Service\x12\x41\n\nSaveObject\x12\x18.store.SaveObjectRequest\x1a\x19.store.SaveObjectResponse\x12>\n\tGetObject\x12\x17.store.GetObjectRequest\x1a\x18.store.GetObjectResponse\x12M\n\x0eGetStreamChunk\x12\x1c.store.GetStreamChunkRequest\x1a\x1d.store.GetStreamChunkResponseB9Z7github.com/9triver/iarnet/internal/proto/resource/storeb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -33,20 +33,18 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'store.store_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'Z7github.com/9triver/iarnet/internal/proto/resource/store'
-  _globals['_STREAMCHUNK']._serialized_start=48
-  _globals['_STREAMCHUNK']._serialized_end=161
-  _globals['_SAVEOBJECTREQUEST']._serialized_start=163
-  _globals['_SAVEOBJECTREQUEST']._serialized_end=221
-  _globals['_SAVEOBJECTRESPONSE']._serialized_start=223
-  _globals['_SAVEOBJECTRESPONSE']._serialized_end=313
-  _globals['_GETOBJECTREQUEST']._serialized_start=315
-  _globals['_GETOBJECTREQUEST']._serialized_end=371
-  _globals['_GETOBJECTRESPONSE']._serialized_start=373
-  _globals['_GETOBJECTRESPONSE']._serialized_end=431
-  _globals['_GETSTREAMCHUNKREQUEST']._serialized_start=433
-  _globals['_GETSTREAMCHUNKREQUEST']._serialized_end=490
-  _globals['_GETSTREAMCHUNKRESPONSE']._serialized_start=492
-  _globals['_GETSTREAMCHUNKRESPONSE']._serialized_end=551
-  _globals['_SERVICE']._serialized_start=554
-  _globals['_SERVICE']._serialized_end=773
+  _globals['_SAVEOBJECTREQUEST']._serialized_start=48
+  _globals['_SAVEOBJECTREQUEST']._serialized_end=106
+  _globals['_SAVEOBJECTRESPONSE']._serialized_start=108
+  _globals['_SAVEOBJECTRESPONSE']._serialized_end=198
+  _globals['_GETOBJECTREQUEST']._serialized_start=200
+  _globals['_GETOBJECTREQUEST']._serialized_end=256
+  _globals['_GETOBJECTRESPONSE']._serialized_start=258
+  _globals['_GETOBJECTRESPONSE']._serialized_end=316
+  _globals['_GETSTREAMCHUNKREQUEST']._serialized_start=318
+  _globals['_GETSTREAMCHUNKREQUEST']._serialized_end=375
+  _globals['_GETSTREAMCHUNKRESPONSE']._serialized_start=377
+  _globals['_GETSTREAMCHUNKRESPONSE']._serialized_end=437
+  _globals['_SERVICE']._serialized_start=440
+  _globals['_SERVICE']._serialized_end=659
 # @@protoc_insertion_point(module_scope)

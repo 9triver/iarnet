@@ -205,15 +205,13 @@ func (x *EncodedObject) GetIsStream() bool {
 	return false
 }
 
-// StreamChunk 是流数据块
-// 用于传输流式数据
 type StreamChunk struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	StreamID      string                 `protobuf:"bytes,1,opt,name=StreamID,proto3" json:"StreamID,omitempty"` // 流 ID
-	Target        string                 `protobuf:"bytes,2,opt,name=Target,proto3" json:"Target,omitempty"`     // 目标 Actor ID
-	EoS           bool                   `protobuf:"varint,3,opt,name=EoS,proto3" json:"EoS,omitempty"`          // 是否流结束
-	Value         *EncodedObject         `protobuf:"bytes,4,opt,name=Value,proto3" json:"Value,omitempty"`       // 数据块内容
-	Error         string                 `protobuf:"bytes,5,opt,name=Error,proto3" json:"Error,omitempty"`       // 错误信息（如果有）
+	ObjectID      string                 `protobuf:"bytes,1,opt,name=ObjectID,proto3" json:"ObjectID,omitempty"`
+	Offset        string                 `protobuf:"bytes,2,opt,name=Offset,proto3" json:"Offset,omitempty"`
+	EoS           bool                   `protobuf:"varint,3,opt,name=EoS,proto3" json:"EoS,omitempty"`
+	Value         *EncodedObject         `protobuf:"bytes,4,opt,name=Value,proto3" json:"Value,omitempty"`
+	Error         string                 `protobuf:"bytes,5,opt,name=Error,proto3" json:"Error,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -248,16 +246,16 @@ func (*StreamChunk) Descriptor() ([]byte, []int) {
 	return file_common_types_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *StreamChunk) GetStreamID() string {
+func (x *StreamChunk) GetObjectID() string {
 	if x != nil {
-		return x.StreamID
+		return x.ObjectID
 	}
 	return ""
 }
 
-func (x *StreamChunk) GetTarget() string {
+func (x *StreamChunk) GetOffset() string {
 	if x != nil {
-		return x.Target
+		return x.Offset
 	}
 	return ""
 }
@@ -298,8 +296,8 @@ const file_common_types_proto_rawDesc = "" +
 	"\bLanguage\x18\x04 \x01(\x0e2\x10.common.LanguageR\bLanguage\x12\x1a\n" +
 	"\bIsStream\x18\x05 \x01(\bR\bIsStream\"\x96\x01\n" +
 	"\vStreamChunk\x12\x1a\n" +
-	"\bStreamID\x18\x01 \x01(\tR\bStreamID\x12\x16\n" +
-	"\x06Target\x18\x02 \x01(\tR\x06Target\x12\x10\n" +
+	"\bObjectID\x18\x01 \x01(\tR\bObjectID\x12\x16\n" +
+	"\x06Offset\x18\x02 \x01(\tR\x06Offset\x12\x10\n" +
 	"\x03EoS\x18\x03 \x01(\bR\x03EoS\x12+\n" +
 	"\x05Value\x18\x04 \x01(\v2\x15.common.EncodedObjectR\x05Value\x12\x14\n" +
 	"\x05Error\x18\x05 \x01(\tR\x05Error*I\n" +

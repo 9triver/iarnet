@@ -12,10 +12,10 @@ import (
 	"syscall"
 
 	"github.com/9triver/iarnet/internal/config"
-	"github.com/9triver/iarnet/internal/ignis/controller"
-	"github.com/9triver/iarnet/internal/resource"
-	"github.com/9triver/iarnet/internal/resource/component"
-	"github.com/9triver/iarnet/internal/resource/store"
+	domaincontroller "github.com/9triver/iarnet/internal/domain/ignis/controller"
+	domainresource "github.com/9triver/iarnet/internal/domain/resource"
+	domaincomponent "github.com/9triver/iarnet/internal/domain/resource/component"
+	domainstore "github.com/9triver/iarnet/internal/domain/resource/store"
 	"github.com/9triver/iarnet/internal/transport/rpc"
 	"github.com/9triver/iarnet/internal/transport/zmq"
 	"github.com/9triver/iarnet/internal/util"
@@ -45,9 +45,9 @@ func main() {
 	server := grpc.NewServer()
 
 	channeler := zmq.NewChanneler(cfg.ZMQ.Port)
-	store := store.NewStore()
-	resourceManager := resource.NewManager(channeler, store, cfg.ComponentImages)
-	controllerManager := controller.NewManager(resourceManager)
+	store := domainstore.NewStore()
+	resourceManager := domainresource.NewManager(channeler, store, cfg.ComponentImages)
+	controllerManager := domaincontroller.NewManager(resourceManager)
 	rpc.RegisterIgnisServer(server, controllerManager)
 
 	logrus.Infof("Ignis server listening on %s", lis.Addr().String())
@@ -71,7 +71,7 @@ func main() {
 		}
 	}()
 
-	controllerService := controller.NewService(controllerManager, resourceManager, resourceManager)
+	controllerService := domaincontroller.NewService(controllerManager, resourceManager, resourceManager)
 
 	// Create context with cancellation for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
@@ -85,7 +85,7 @@ func main() {
 
 	logrus.Info("Iarnet started successfully")
 
-	provider := component.NewProvider("local-docker", "localhost", 50051)
+	provider := domaincomponent.NewProvider("local-docker", "localhost", 50051)
 	resourceManager.RegisterProvider(provider)
 	logrus.Infof("Local docker provider registered")
 	controllerService.CreateController(context.Background(), "1")

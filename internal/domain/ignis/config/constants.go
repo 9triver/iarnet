@@ -5,7 +5,7 @@ import (
 	"path"
 	"time"
 
-	"github.com/9triver/iarnet/internal/ignis/utils/errors"
+	"github.com/9triver/iarnet/internal/domain/ignis/utils/errors"
 )
 
 const (

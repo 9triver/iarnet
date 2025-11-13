@@ -4,16 +4,16 @@ import (
 	"context"
 
 	commonpb "github.com/9triver/iarnet/internal/proto/common"
-	storepb "github.com/9triver/iarnet/internal/proto/resource/store"
 )
 
-// TODO: rpc service 与 内部 service 分离
+// Service defines store operations without binding to any transport implementation.
 type Service interface {
-	storepb.ServiceServer
+	SaveObject(ctx context.Context, obj *commonpb.EncodedObject) (*commonpb.ObjectRef, error)
+	GetObject(ctx context.Context, ref *commonpb.ObjectRef) (*commonpb.EncodedObject, error)
+	GetStreamChunk(ctx context.Context, id string, offset string) (*commonpb.StreamChunk, error)
 }
 
 type service struct {
-	storepb.UnimplementedServiceServer
 	store *Store
 }
 
@@ -23,20 +23,16 @@ func NewService(store *Store) Service {
 	}
 }
 
-func (s *service) SaveObject(ctx context.Context, request *storepb.SaveObjectRequest) (*storepb.SaveObjectResponse, error) {
-	s.store.SaveObject(request.Object)
-	return &storepb.SaveObjectResponse{
-		ObjectRef: &commonpb.ObjectRef{
-			ID:     request.Object.ID,
-			Source: s.store.GetID(),
-		},
-		Success: true,
-		Error:   "",
+func (s *service) SaveObject(ctx context.Context, obj *commonpb.EncodedObject) (*commonpb.ObjectRef, error) {
+	s.store.SaveObject(obj)
+	return &commonpb.ObjectRef{
+		ID:     obj.ID,
+		Source: s.store.GetID(),
 	}, nil
 }
 
-func (s *service) GetObject(ctx context.Context, request *storepb.GetObjectRequest) (*storepb.GetObjectResponse, error) {
-	obj, err := s.store.GetObject(request.ObjectRef.ID)
+func (s *service) GetObject(ctx context.Context, ref *commonpb.ObjectRef) (*commonpb.EncodedObject, error) {
+	obj, err := s.store.GetObject(ref.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -44,11 +40,9 @@ func (s *service) GetObject(ctx context.Context, request *storepb.GetObjectReque
 	if err != nil {
 		return nil, err
 	}
-	return &storepb.GetObjectResponse{
-		Object: encodedObj,
-	}, nil
+	return encodedObj, nil
 }
 
-func (s *service) GetStreamChunk(ctx context.Context, request *storepb.GetStreamChunkRequest) (*storepb.GetStreamChunkResponse, error) {
-	return nil, nil
+func (s *service) GetStreamChunk(ctx context.Context, id string, offset string) (*commonpb.StreamChunk, error) {
+	panic("not implemented")
 }
