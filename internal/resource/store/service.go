@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 
+	commonpb "github.com/9triver/iarnet/internal/proto/common"
 	storepb "github.com/9triver/iarnet/internal/proto/resource/store"
 )
 
@@ -25,7 +26,7 @@ func NewService(store *Store) Service {
 func (s *service) SaveObject(ctx context.Context, request *storepb.SaveObjectRequest) (*storepb.SaveObjectResponse, error) {
 	s.store.SaveObject(request.Object)
 	return &storepb.SaveObjectResponse{
-		ObjectRef: &storepb.ObjectRef{
+		ObjectRef: &commonpb.ObjectRef{
 			ID:     request.Object.ID,
 			Source: s.store.GetID(),
 		},

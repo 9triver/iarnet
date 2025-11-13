@@ -2,7 +2,7 @@ package ignis
 
 import (
 	"github.com/9triver/iarnet/internal/ignis/controller"
-	ctrlpb "github.com/9triver/iarnet/internal/proto/ignis/controller"
+	ctrlpb "github.com/9triver/iarnet/internal/proto/execution_ignis/controller"
 	"github.com/9triver/iarnet/internal/resource/component"
 	"github.com/9triver/iarnet/internal/resource/store"
 	"google.golang.org/grpc"

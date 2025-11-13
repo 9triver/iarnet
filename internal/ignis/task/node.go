@@ -10,8 +10,8 @@ import (
 	"github.com/9triver/iarnet/internal/ignis/types"
 	"github.com/9triver/iarnet/internal/ignis/utils"
 	"github.com/9triver/iarnet/internal/ignis/utils/errors"
-	proto "github.com/9triver/iarnet/internal/proto/ignis"
-	clusterpb "github.com/9triver/iarnet/internal/proto/ignis/cluster"
+	commonpb "github.com/9triver/iarnet/internal/proto/common"
+	actorpb "github.com/9triver/iarnet/internal/proto/execution_ignis/actor"
 )
 
 type Node struct {
@@ -27,7 +27,7 @@ func (node *Node) Runtime(sessionID types.SessionID) *Runtime {
 		deps:      utils.MakeSetFromSlice(node.inputs),
 		cond:      sync.NewCond(&sync.Mutex{}),
 		params:    append([]string(nil), node.inputs...),
-		args:      make(map[string]*proto.Flow),
+		args:      make(map[string]*commonpb.ObjectRef),
 		onComplete: func(ctx context.Context, actor *Actor) {
 			node.group.Push(actor)
 		},
@@ -49,7 +49,7 @@ type Runtime struct {
 	deps       utils.Set[string]
 	cond       *sync.Cond
 	params     []string
-	args       map[string]*proto.Flow
+	args       map[string]*commonpb.ObjectRef
 	onComplete func(ctx context.Context, actor *Actor)
 	invokeTime time.Time // 记录调用发送时间，用于计算链路延迟
 }
@@ -64,10 +64,10 @@ func (rt *Runtime) Invoke(ctx context.Context) error {
 		rt.cond.Wait()
 	}
 
-	args := make([]*clusterpb.InvokeArg, 0, len(rt.args))
+	args := make([]*actorpb.InvokeArg, 0, len(rt.args))
 	for _, param := range rt.params {
 		if value, ok := rt.args[param]; ok {
-			args = append(args, &clusterpb.InvokeArg{
+			args = append(args, &actorpb.InvokeArg{
 				Param: param,
 				Value: value,
 			})
@@ -83,7 +83,7 @@ func (rt *Runtime) Invoke(ctx context.Context) error {
 				}
 			}
 			if !found {
-				args = append(args, &clusterpb.InvokeArg{
+				args = append(args, &actorpb.InvokeArg{
 					Param: param,
 					Value: value,
 				})
@@ -105,7 +105,7 @@ func (rt *Runtime) Invoke(ctx context.Context) error {
 	// 记录调用发送时间，用于计算链路延迟
 	rt.invokeTime = time.Now()
 
-	req := &clusterpb.InvokeRequest{
+	req := &actorpb.InvokeRequest{
 		SessionID: string(rt.sessionID),
 		Args:      args,
 	}
@@ -113,7 +113,7 @@ func (rt *Runtime) Invoke(ctx context.Context) error {
 	return rt.actor.Send(req)
 }
 
-func (rt *Runtime) AddArg(param string, value *proto.Flow) error {
+func (rt *Runtime) AddArg(param string, value *commonpb.ObjectRef) error {
 	if rt.actor == nil {
 		return errors.New("no candidate actor selected")
 	}
@@ -132,7 +132,7 @@ func (rt *Runtime) AddArg(param string, value *proto.Flow) error {
 	return nil
 }
 
-func (rt *Runtime) Complete(ctx context.Context, actorInfo *proto.ActorInfo) {
+func (rt *Runtime) Complete(ctx context.Context, actorInfo *actorpb.ActorInfo) {
 	// 计算延迟并更新 Actor 信息
 	if actorInfo != nil {
 		// 计算总延迟（从发送请求到收到响应的时间，单位：毫秒）

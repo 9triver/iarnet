@@ -2,7 +2,7 @@ package rpc
 
 import (
 	"github.com/9triver/iarnet/internal/ignis/controller"
-	ctrlpb "github.com/9triver/iarnet/internal/proto/ignis/controller"
+	ctrlpb "github.com/9triver/iarnet/internal/proto/execution_ignis/controller"
 	storepb "github.com/9triver/iarnet/internal/proto/resource/store"
 	"github.com/9triver/iarnet/internal/resource/store"
 	"google.golang.org/grpc"

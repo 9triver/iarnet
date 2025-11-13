@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	"github.com/9triver/iarnet/internal/ignis/task"
-	ignispb "github.com/9triver/iarnet/internal/proto/ignis"
-	clusterpb "github.com/9triver/iarnet/internal/proto/ignis/cluster"
-	ctrlpb "github.com/9triver/iarnet/internal/proto/ignis/controller"
+	commonpb "github.com/9triver/iarnet/internal/proto/common"
+	actorpb "github.com/9triver/iarnet/internal/proto/execution_ignis/actor"
+	ctrlpb "github.com/9triver/iarnet/internal/proto/execution_ignis/controller"
 	storepb "github.com/9triver/iarnet/internal/proto/resource/store"
 	"github.com/9triver/iarnet/internal/resource/component"
 	"github.com/9triver/iarnet/internal/resource/store"
@@ -55,7 +55,7 @@ func (c *Controller) GetToClientChan() chan *ctrlpb.Message {
 
 func (c *Controller) AppID() string { return c.appID }
 
-func (c *Controller) handleInvokeResponse(ctx context.Context, m *ignispb.InvokeResponse) error {
+func (c *Controller) handleInvokeResponse(ctx context.Context, m *actorpb.InvokeResponse) error {
 	logrus.WithFields(logrus.Fields{"session": m.SessionID}).Info("control: invoke response")
 	runtimeId := m.SessionID
 	rt, ok := c.runtimes[runtimeId]
@@ -79,9 +79,9 @@ func (c *Controller) handleInvokeResponse(ctx context.Context, m *ignispb.Invoke
 	return nil
 }
 
-func (c *Controller) HandleComponentMessage(ctx context.Context, msg *clusterpb.Message) error {
+func (c *Controller) HandleComponentMessage(ctx context.Context, msg *actorpb.Message) error {
 	switch m := msg.GetMessage().(type) {
-	case *clusterpb.Message_InvokeResponse:
+	case *actorpb.Message_InvokeResponse:
 		return c.handleInvokeResponse(ctx, m.InvokeResponse)
 	default:
 		return nil
@@ -117,12 +117,7 @@ func (c *Controller) handleAppendData(ctx context.Context, m *ctrlpb.AppendData)
 	go func() {
 		// TODO: 整理 proto 定义，将 EncodedObject 和 Object 合并
 		resp, err := c.storeService.SaveObject(ctx, &storepb.SaveObjectRequest{
-			Object: &storepb.EncodedObject{
-				ID:       obj.ID,
-				Language: storepb.Language(obj.Language),
-				Data:     obj.Data,
-				IsStream: obj.Stream,
-			},
+			Object: m.Object,
 		})
 		if err != nil {
 			logrus.Errorf("Failed to save object: %v", err)
@@ -133,12 +128,7 @@ func (c *Controller) handleAppendData(ctx context.Context, m *ctrlpb.AppendData)
 			return
 		}
 		logrus.Infof("Object saved successfully: %s", resp.ObjectRef.ID)
-		ret := ctrlpb.NewReturnResult(m.SessionID, "", resp.ObjectRef.ID, &ignispb.Flow{
-			ID: resp.ObjectRef.ID,
-			Source: &ignispb.StoreRef{
-				ID: resp.ObjectRef.Source,
-			},
-		}, nil)
+		ret := ctrlpb.NewReturnResult(m.SessionID, "", resp.ObjectRef.ID, resp.ObjectRef, nil)
 		c.PushToClient(ctx, ret)
 	}()
 
@@ -165,7 +155,7 @@ func (c *Controller) handleAppendPyFunc(ctx context.Context, m *ctrlpb.AppendPyF
 		}
 		logrus.Infof("Component deployed successfully: %s", component.GetID())
 
-		component.Send(clusterpb.NewMessage(&clusterpb.Function{
+		component.Send(actorpb.NewMessage(&actorpb.Function{
 			Name:          m.GetName(),
 			Params:        m.GetParams(),
 			Requirements:  m.GetRequirements(),
@@ -213,12 +203,7 @@ func (c *Controller) handleAppendArg(ctx context.Context, m *ctrlpb.AppendArg) e
 		logrus.WithFields(logrus.Fields{"id": v.Encoded.ID, "session": m.SessionID, "instance": m.InstanceID}).Info("control: append encoded arg")
 		go func() {
 			resp, err := c.storeService.SaveObject(ctx, &storepb.SaveObjectRequest{
-				Object: &storepb.EncodedObject{
-					ID:       v.Encoded.ID,
-					Language: storepb.Language(v.Encoded.Language),
-					Data:     v.Encoded.Data,
-					IsStream: v.Encoded.Stream,
-				},
+				Object: v.Encoded,
 			})
 			if err != nil {
 				logrus.Errorf("Failed to save object: %v", err)
@@ -227,12 +212,7 @@ func (c *Controller) handleAppendArg(ctx context.Context, m *ctrlpb.AppendArg) e
 				return
 			}
 			logrus.Infof("Object saved successfully: %s", resp.ObjectRef.ID)
-			if err = rt.AddArg(m.Param, &ignispb.Flow{
-				ID: resp.ObjectRef.ID,
-				Source: &ignispb.StoreRef{
-					ID: resp.ObjectRef.Source,
-				},
-			}); err != nil {
+			if err = rt.AddArg(m.Param, resp.ObjectRef); err != nil {
 				logrus.Errorf("Failed to add runtime argument: %v", err)
 				ret := ctrlpb.NewReturnResult(m.SessionID, m.InstanceID, m.Name, nil, err)
 				c.PushToClient(ctx, ret)
@@ -269,27 +249,22 @@ func (c *Controller) handleMarkDAGNodeDone(ctx context.Context, m *ctrlpb.MarkDA
 }
 func (c *Controller) handleRequestObject(ctx context.Context, m *ctrlpb.RequestObject) error {
 	logrus.WithFields(logrus.Fields{"id": m.ID, "source": m.Source}).Info("control: request object")
-	source := m.Source
-	object, err := c.storeService.GetObject(ctx, &storepb.GetObjectRequest{
-		ObjectRef: &storepb.ObjectRef{
+	resp, err := c.storeService.GetObject(ctx, &storepb.GetObjectRequest{
+		ObjectRef: &commonpb.ObjectRef{
 			ID:     m.ID,
-			Source: source,
+			Source: m.Source,
 		},
 	})
 	if err != nil {
 		logrus.Errorf("Failed to get object: %v", err)
 		return err
 	}
+	object := resp.Object
 	if object == nil {
-		logrus.Errorf("Object not found: %s", source)
-		return fmt.Errorf("object not found: %s", source)
+		logrus.WithFields(logrus.Fields{"id": m.ID, "source": m.Source}).Errorf("Object not found")
+		return fmt.Errorf("object not found: %s, source: %s", m.ID, m.Source)
 	}
-	ret := ctrlpb.NewResponseObject(m.ID, &ignispb.EncodedObject{
-		ID:       object.Object.ID,
-		Language: ignispb.Language(object.Object.Language),
-		Data:     object.Object.Data,
-		Stream:   object.Object.IsStream,
-	}, nil)
+	ret := ctrlpb.NewResponseObject(m.ID, object, nil)
 	c.PushToClient(ctx, ret)
 	return nil
 }

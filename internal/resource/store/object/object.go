@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	storepb "github.com/9triver/iarnet/internal/proto/resource/store"
+	commonpb "github.com/9triver/iarnet/internal/proto/common"
 	"github.com/9triver/iarnet/internal/util"
 )
 
@@ -27,15 +27,15 @@ var (
 )
 
 type (
-	Remote   = storepb.EncodedObject
-	Language = storepb.Language
+	Remote   = commonpb.EncodedObject
+	Language = commonpb.Language
 )
 
 const (
-	LangUnknown = storepb.Language_LANGUAGE_UNKNOWN
-	LangJson    = storepb.Language_LANGUAGE_JSON
-	LangGo      = storepb.Language_LANGUAGE_GO
-	LangPython  = storepb.Language_LANGUAGE_PYTHON
+	LangUnknown = commonpb.Language_LANG_UNKNOWN
+	LangJson    = commonpb.Language_LANG_JSON
+	LangGo      = commonpb.Language_LANG_GO
+	LangPython  = commonpb.Language_LANG_PYTHON
 )
 
 type Local struct {

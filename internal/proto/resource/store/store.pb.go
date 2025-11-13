@@ -7,6 +7,7 @@
 package store
 
 import (
+	common "github.com/9triver/iarnet/internal/proto/common"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -21,185 +22,12 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type Language int32
-
-const (
-	Language_LANGUAGE_UNKNOWN Language = 0
-	Language_LANGUAGE_JSON    Language = 1
-	Language_LANGUAGE_GO      Language = 2
-	Language_LANGUAGE_PYTHON  Language = 3
-)
-
-// Enum value maps for Language.
-var (
-	Language_name = map[int32]string{
-		0: "LANGUAGE_UNKNOWN",
-		1: "LANGUAGE_JSON",
-		2: "LANGUAGE_GO",
-		3: "LANGUAGE_PYTHON",
-	}
-	Language_value = map[string]int32{
-		"LANGUAGE_UNKNOWN": 0,
-		"LANGUAGE_JSON":    1,
-		"LANGUAGE_GO":      2,
-		"LANGUAGE_PYTHON":  3,
-	}
-)
-
-func (x Language) Enum() *Language {
-	p := new(Language)
-	*p = x
-	return p
-}
-
-func (x Language) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (Language) Descriptor() protoreflect.EnumDescriptor {
-	return file_store_store_proto_enumTypes[0].Descriptor()
-}
-
-func (Language) Type() protoreflect.EnumType {
-	return &file_store_store_proto_enumTypes[0]
-}
-
-func (x Language) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use Language.Descriptor instead.
-func (Language) EnumDescriptor() ([]byte, []int) {
-	return file_store_store_proto_rawDescGZIP(), []int{0}
-}
-
-type ObjectRef struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ID            string                 `protobuf:"bytes,1,opt,name=ID,proto3" json:"ID,omitempty"`
-	Source        string                 `protobuf:"bytes,2,opt,name=Source,proto3" json:"Source,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ObjectRef) Reset() {
-	*x = ObjectRef{}
-	mi := &file_store_store_proto_msgTypes[0]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ObjectRef) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ObjectRef) ProtoMessage() {}
-
-func (x *ObjectRef) ProtoReflect() protoreflect.Message {
-	mi := &file_store_store_proto_msgTypes[0]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ObjectRef.ProtoReflect.Descriptor instead.
-func (*ObjectRef) Descriptor() ([]byte, []int) {
-	return file_store_store_proto_rawDescGZIP(), []int{0}
-}
-
-func (x *ObjectRef) GetID() string {
-	if x != nil {
-		return x.ID
-	}
-	return ""
-}
-
-func (x *ObjectRef) GetSource() string {
-	if x != nil {
-		return x.Source
-	}
-	return ""
-}
-
-// EncodedObject stores a byte encoded object
-type EncodedObject struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ID            string                 `protobuf:"bytes,1,opt,name=ID,proto3" json:"ID,omitempty"`                                  // if returned from ipc call, id won't be set
-	Data          []byte                 `protobuf:"bytes,2,opt,name=Data,proto3" json:"Data,omitempty"`                              // serialized object data, or nil if current object is a stream
-	Language      Language               `protobuf:"varint,3,opt,name=Language,proto3,enum=store.Language" json:"Language,omitempty"` // if is JSON, it can be decoded to either Go, Python, or else it can only be decoded to corresponding language.
-	IsStream      bool                   `protobuf:"varint,4,opt,name=IsStream,proto3" json:"IsStream,omitempty"`                     // mark if the object is a stream
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *EncodedObject) Reset() {
-	*x = EncodedObject{}
-	mi := &file_store_store_proto_msgTypes[1]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *EncodedObject) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*EncodedObject) ProtoMessage() {}
-
-func (x *EncodedObject) ProtoReflect() protoreflect.Message {
-	mi := &file_store_store_proto_msgTypes[1]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use EncodedObject.ProtoReflect.Descriptor instead.
-func (*EncodedObject) Descriptor() ([]byte, []int) {
-	return file_store_store_proto_rawDescGZIP(), []int{1}
-}
-
-func (x *EncodedObject) GetID() string {
-	if x != nil {
-		return x.ID
-	}
-	return ""
-}
-
-func (x *EncodedObject) GetData() []byte {
-	if x != nil {
-		return x.Data
-	}
-	return nil
-}
-
-func (x *EncodedObject) GetLanguage() Language {
-	if x != nil {
-		return x.Language
-	}
-	return Language_LANGUAGE_UNKNOWN
-}
-
-func (x *EncodedObject) GetIsStream() bool {
-	if x != nil {
-		return x.IsStream
-	}
-	return false
-}
-
 type StreamChunk struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ObjectID      string                 `protobuf:"bytes,1,opt,name=ObjectID,proto3" json:"ObjectID,omitempty"`
 	Offset        string                 `protobuf:"bytes,2,opt,name=Offset,proto3" json:"Offset,omitempty"`
 	EoS           bool                   `protobuf:"varint,3,opt,name=EoS,proto3" json:"EoS,omitempty"`
-	Value         *EncodedObject         `protobuf:"bytes,4,opt,name=Value,proto3" json:"Value,omitempty"`
+	Value         *common.EncodedObject  `protobuf:"bytes,4,opt,name=Value,proto3" json:"Value,omitempty"`
 	Error         string                 `protobuf:"bytes,5,opt,name=Error,proto3" json:"Error,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -207,7 +35,7 @@ type StreamChunk struct {
 
 func (x *StreamChunk) Reset() {
 	*x = StreamChunk{}
-	mi := &file_store_store_proto_msgTypes[2]
+	mi := &file_store_store_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -219,7 +47,7 @@ func (x *StreamChunk) String() string {
 func (*StreamChunk) ProtoMessage() {}
 
 func (x *StreamChunk) ProtoReflect() protoreflect.Message {
-	mi := &file_store_store_proto_msgTypes[2]
+	mi := &file_store_store_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -232,7 +60,7 @@ func (x *StreamChunk) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StreamChunk.ProtoReflect.Descriptor instead.
 func (*StreamChunk) Descriptor() ([]byte, []int) {
-	return file_store_store_proto_rawDescGZIP(), []int{2}
+	return file_store_store_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *StreamChunk) GetObjectID() string {
@@ -256,7 +84,7 @@ func (x *StreamChunk) GetEoS() bool {
 	return false
 }
 
-func (x *StreamChunk) GetValue() *EncodedObject {
+func (x *StreamChunk) GetValue() *common.EncodedObject {
 	if x != nil {
 		return x.Value
 	}
@@ -272,14 +100,14 @@ func (x *StreamChunk) GetError() string {
 
 type SaveObjectRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Object        *EncodedObject         `protobuf:"bytes,1,opt,name=Object,proto3" json:"Object,omitempty"`
+	Object        *common.EncodedObject  `protobuf:"bytes,1,opt,name=Object,proto3" json:"Object,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SaveObjectRequest) Reset() {
 	*x = SaveObjectRequest{}
-	mi := &file_store_store_proto_msgTypes[3]
+	mi := &file_store_store_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -291,7 +119,7 @@ func (x *SaveObjectRequest) String() string {
 func (*SaveObjectRequest) ProtoMessage() {}
 
 func (x *SaveObjectRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_store_store_proto_msgTypes[3]
+	mi := &file_store_store_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -304,10 +132,10 @@ func (x *SaveObjectRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SaveObjectRequest.ProtoReflect.Descriptor instead.
 func (*SaveObjectRequest) Descriptor() ([]byte, []int) {
-	return file_store_store_proto_rawDescGZIP(), []int{3}
+	return file_store_store_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *SaveObjectRequest) GetObject() *EncodedObject {
+func (x *SaveObjectRequest) GetObject() *common.EncodedObject {
 	if x != nil {
 		return x.Object
 	}
@@ -316,7 +144,7 @@ func (x *SaveObjectRequest) GetObject() *EncodedObject {
 
 type SaveObjectResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	ObjectRef     *ObjectRef             `protobuf:"bytes,1,opt,name=ObjectRef,proto3" json:"ObjectRef,omitempty"`
+	ObjectRef     *common.ObjectRef      `protobuf:"bytes,1,opt,name=ObjectRef,proto3" json:"ObjectRef,omitempty"`
 	Success       bool                   `protobuf:"varint,2,opt,name=Success,proto3" json:"Success,omitempty"`
 	Error         string                 `protobuf:"bytes,3,opt,name=Error,proto3" json:"Error,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -325,7 +153,7 @@ type SaveObjectResponse struct {
 
 func (x *SaveObjectResponse) Reset() {
 	*x = SaveObjectResponse{}
-	mi := &file_store_store_proto_msgTypes[4]
+	mi := &file_store_store_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -337,7 +165,7 @@ func (x *SaveObjectResponse) String() string {
 func (*SaveObjectResponse) ProtoMessage() {}
 
 func (x *SaveObjectResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_store_store_proto_msgTypes[4]
+	mi := &file_store_store_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -350,10 +178,10 @@ func (x *SaveObjectResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SaveObjectResponse.ProtoReflect.Descriptor instead.
 func (*SaveObjectResponse) Descriptor() ([]byte, []int) {
-	return file_store_store_proto_rawDescGZIP(), []int{4}
+	return file_store_store_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *SaveObjectResponse) GetObjectRef() *ObjectRef {
+func (x *SaveObjectResponse) GetObjectRef() *common.ObjectRef {
 	if x != nil {
 		return x.ObjectRef
 	}
@@ -376,14 +204,14 @@ func (x *SaveObjectResponse) GetError() string {
 
 type GetObjectRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	ObjectRef     *ObjectRef             `protobuf:"bytes,1,opt,name=ObjectRef,proto3" json:"ObjectRef,omitempty"`
+	ObjectRef     *common.ObjectRef      `protobuf:"bytes,1,opt,name=ObjectRef,proto3" json:"ObjectRef,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *GetObjectRequest) Reset() {
 	*x = GetObjectRequest{}
-	mi := &file_store_store_proto_msgTypes[5]
+	mi := &file_store_store_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -395,7 +223,7 @@ func (x *GetObjectRequest) String() string {
 func (*GetObjectRequest) ProtoMessage() {}
 
 func (x *GetObjectRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_store_store_proto_msgTypes[5]
+	mi := &file_store_store_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -408,10 +236,10 @@ func (x *GetObjectRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetObjectRequest.ProtoReflect.Descriptor instead.
 func (*GetObjectRequest) Descriptor() ([]byte, []int) {
-	return file_store_store_proto_rawDescGZIP(), []int{5}
+	return file_store_store_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *GetObjectRequest) GetObjectRef() *ObjectRef {
+func (x *GetObjectRequest) GetObjectRef() *common.ObjectRef {
 	if x != nil {
 		return x.ObjectRef
 	}
@@ -420,14 +248,14 @@ func (x *GetObjectRequest) GetObjectRef() *ObjectRef {
 
 type GetObjectResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Object        *EncodedObject         `protobuf:"bytes,1,opt,name=Object,proto3" json:"Object,omitempty"`
+	Object        *common.EncodedObject  `protobuf:"bytes,1,opt,name=Object,proto3" json:"Object,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *GetObjectResponse) Reset() {
 	*x = GetObjectResponse{}
-	mi := &file_store_store_proto_msgTypes[6]
+	mi := &file_store_store_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -439,7 +267,7 @@ func (x *GetObjectResponse) String() string {
 func (*GetObjectResponse) ProtoMessage() {}
 
 func (x *GetObjectResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_store_store_proto_msgTypes[6]
+	mi := &file_store_store_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -452,10 +280,10 @@ func (x *GetObjectResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetObjectResponse.ProtoReflect.Descriptor instead.
 func (*GetObjectResponse) Descriptor() ([]byte, []int) {
-	return file_store_store_proto_rawDescGZIP(), []int{6}
+	return file_store_store_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *GetObjectResponse) GetObject() *EncodedObject {
+func (x *GetObjectResponse) GetObject() *common.EncodedObject {
 	if x != nil {
 		return x.Object
 	}
@@ -472,7 +300,7 @@ type GetStreamChunkRequest struct {
 
 func (x *GetStreamChunkRequest) Reset() {
 	*x = GetStreamChunkRequest{}
-	mi := &file_store_store_proto_msgTypes[7]
+	mi := &file_store_store_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -484,7 +312,7 @@ func (x *GetStreamChunkRequest) String() string {
 func (*GetStreamChunkRequest) ProtoMessage() {}
 
 func (x *GetStreamChunkRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_store_store_proto_msgTypes[7]
+	mi := &file_store_store_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -497,7 +325,7 @@ func (x *GetStreamChunkRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetStreamChunkRequest.ProtoReflect.Descriptor instead.
 func (*GetStreamChunkRequest) Descriptor() ([]byte, []int) {
-	return file_store_store_proto_rawDescGZIP(), []int{7}
+	return file_store_store_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *GetStreamChunkRequest) GetObjectID() string {
@@ -523,7 +351,7 @@ type GetStreamChunkResponse struct {
 
 func (x *GetStreamChunkResponse) Reset() {
 	*x = GetStreamChunkResponse{}
-	mi := &file_store_store_proto_msgTypes[8]
+	mi := &file_store_store_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -535,7 +363,7 @@ func (x *GetStreamChunkResponse) String() string {
 func (*GetStreamChunkResponse) ProtoMessage() {}
 
 func (x *GetStreamChunkResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_store_store_proto_msgTypes[8]
+	mi := &file_store_store_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -548,7 +376,7 @@ func (x *GetStreamChunkResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetStreamChunkResponse.ProtoReflect.Descriptor instead.
 func (*GetStreamChunkResponse) Descriptor() ([]byte, []int) {
-	return file_store_store_proto_rawDescGZIP(), []int{8}
+	return file_store_store_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *GetStreamChunkResponse) GetChunk() *StreamChunk {
@@ -562,41 +390,28 @@ var File_store_store_proto protoreflect.FileDescriptor
 
 const file_store_store_proto_rawDesc = "" +
 	"\n" +
-	"\x11store/store.proto\x12\x05store\"3\n" +
-	"\tObjectRef\x12\x0e\n" +
-	"\x02ID\x18\x01 \x01(\tR\x02ID\x12\x16\n" +
-	"\x06Source\x18\x02 \x01(\tR\x06Source\"|\n" +
-	"\rEncodedObject\x12\x0e\n" +
-	"\x02ID\x18\x01 \x01(\tR\x02ID\x12\x12\n" +
-	"\x04Data\x18\x02 \x01(\fR\x04Data\x12+\n" +
-	"\bLanguage\x18\x03 \x01(\x0e2\x0f.store.LanguageR\bLanguage\x12\x1a\n" +
-	"\bIsStream\x18\x04 \x01(\bR\bIsStream\"\x95\x01\n" +
+	"\x11store/store.proto\x12\x05store\x1a\x12common/types.proto\"\x96\x01\n" +
 	"\vStreamChunk\x12\x1a\n" +
 	"\bObjectID\x18\x01 \x01(\tR\bObjectID\x12\x16\n" +
 	"\x06Offset\x18\x02 \x01(\tR\x06Offset\x12\x10\n" +
-	"\x03EoS\x18\x03 \x01(\bR\x03EoS\x12*\n" +
-	"\x05Value\x18\x04 \x01(\v2\x14.store.EncodedObjectR\x05Value\x12\x14\n" +
-	"\x05Error\x18\x05 \x01(\tR\x05Error\"A\n" +
-	"\x11SaveObjectRequest\x12,\n" +
-	"\x06Object\x18\x01 \x01(\v2\x14.store.EncodedObjectR\x06Object\"t\n" +
-	"\x12SaveObjectResponse\x12.\n" +
-	"\tObjectRef\x18\x01 \x01(\v2\x10.store.ObjectRefR\tObjectRef\x12\x18\n" +
+	"\x03EoS\x18\x03 \x01(\bR\x03EoS\x12+\n" +
+	"\x05Value\x18\x04 \x01(\v2\x15.common.EncodedObjectR\x05Value\x12\x14\n" +
+	"\x05Error\x18\x05 \x01(\tR\x05Error\"B\n" +
+	"\x11SaveObjectRequest\x12-\n" +
+	"\x06Object\x18\x01 \x01(\v2\x15.common.EncodedObjectR\x06Object\"u\n" +
+	"\x12SaveObjectResponse\x12/\n" +
+	"\tObjectRef\x18\x01 \x01(\v2\x11.common.ObjectRefR\tObjectRef\x12\x18\n" +
 	"\aSuccess\x18\x02 \x01(\bR\aSuccess\x12\x14\n" +
-	"\x05Error\x18\x03 \x01(\tR\x05Error\"B\n" +
-	"\x10GetObjectRequest\x12.\n" +
-	"\tObjectRef\x18\x01 \x01(\v2\x10.store.ObjectRefR\tObjectRef\"A\n" +
-	"\x11GetObjectResponse\x12,\n" +
-	"\x06Object\x18\x01 \x01(\v2\x14.store.EncodedObjectR\x06Object\"K\n" +
+	"\x05Error\x18\x03 \x01(\tR\x05Error\"C\n" +
+	"\x10GetObjectRequest\x12/\n" +
+	"\tObjectRef\x18\x01 \x01(\v2\x11.common.ObjectRefR\tObjectRef\"B\n" +
+	"\x11GetObjectResponse\x12-\n" +
+	"\x06Object\x18\x01 \x01(\v2\x15.common.EncodedObjectR\x06Object\"K\n" +
 	"\x15GetStreamChunkRequest\x12\x1a\n" +
 	"\bObjectID\x18\x01 \x01(\tR\bObjectID\x12\x16\n" +
 	"\x06Offset\x18\x02 \x01(\tR\x06Offset\"B\n" +
 	"\x16GetStreamChunkResponse\x12(\n" +
-	"\x05Chunk\x18\x01 \x01(\v2\x12.store.StreamChunkR\x05Chunk*Y\n" +
-	"\bLanguage\x12\x14\n" +
-	"\x10LANGUAGE_UNKNOWN\x10\x00\x12\x11\n" +
-	"\rLANGUAGE_JSON\x10\x01\x12\x0f\n" +
-	"\vLANGUAGE_GO\x10\x02\x12\x13\n" +
-	"\x0fLANGUAGE_PYTHON\x10\x032\xdb\x01\n" +
+	"\x05Chunk\x18\x01 \x01(\v2\x12.store.StreamChunkR\x05Chunk2\xdb\x01\n" +
 	"\aService\x12A\n" +
 	"\n" +
 	"SaveObject\x12\x18.store.SaveObjectRequest\x1a\x19.store.SaveObjectResponse\x12>\n" +
@@ -615,39 +430,36 @@ func file_store_store_proto_rawDescGZIP() []byte {
 	return file_store_store_proto_rawDescData
 }
 
-var file_store_store_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_store_store_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_store_store_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_store_store_proto_goTypes = []any{
-	(Language)(0),                  // 0: store.Language
-	(*ObjectRef)(nil),              // 1: store.ObjectRef
-	(*EncodedObject)(nil),          // 2: store.EncodedObject
-	(*StreamChunk)(nil),            // 3: store.StreamChunk
-	(*SaveObjectRequest)(nil),      // 4: store.SaveObjectRequest
-	(*SaveObjectResponse)(nil),     // 5: store.SaveObjectResponse
-	(*GetObjectRequest)(nil),       // 6: store.GetObjectRequest
-	(*GetObjectResponse)(nil),      // 7: store.GetObjectResponse
-	(*GetStreamChunkRequest)(nil),  // 8: store.GetStreamChunkRequest
-	(*GetStreamChunkResponse)(nil), // 9: store.GetStreamChunkResponse
+	(*StreamChunk)(nil),            // 0: store.StreamChunk
+	(*SaveObjectRequest)(nil),      // 1: store.SaveObjectRequest
+	(*SaveObjectResponse)(nil),     // 2: store.SaveObjectResponse
+	(*GetObjectRequest)(nil),       // 3: store.GetObjectRequest
+	(*GetObjectResponse)(nil),      // 4: store.GetObjectResponse
+	(*GetStreamChunkRequest)(nil),  // 5: store.GetStreamChunkRequest
+	(*GetStreamChunkResponse)(nil), // 6: store.GetStreamChunkResponse
+	(*common.EncodedObject)(nil),   // 7: common.EncodedObject
+	(*common.ObjectRef)(nil),       // 8: common.ObjectRef
 }
 var file_store_store_proto_depIdxs = []int32{
-	0,  // 0: store.EncodedObject.Language:type_name -> store.Language
-	2,  // 1: store.StreamChunk.Value:type_name -> store.EncodedObject
-	2,  // 2: store.SaveObjectRequest.Object:type_name -> store.EncodedObject
-	1,  // 3: store.SaveObjectResponse.ObjectRef:type_name -> store.ObjectRef
-	1,  // 4: store.GetObjectRequest.ObjectRef:type_name -> store.ObjectRef
-	2,  // 5: store.GetObjectResponse.Object:type_name -> store.EncodedObject
-	3,  // 6: store.GetStreamChunkResponse.Chunk:type_name -> store.StreamChunk
-	4,  // 7: store.Service.SaveObject:input_type -> store.SaveObjectRequest
-	6,  // 8: store.Service.GetObject:input_type -> store.GetObjectRequest
-	8,  // 9: store.Service.GetStreamChunk:input_type -> store.GetStreamChunkRequest
-	5,  // 10: store.Service.SaveObject:output_type -> store.SaveObjectResponse
-	7,  // 11: store.Service.GetObject:output_type -> store.GetObjectResponse
-	9,  // 12: store.Service.GetStreamChunk:output_type -> store.GetStreamChunkResponse
-	10, // [10:13] is the sub-list for method output_type
-	7,  // [7:10] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	7, // 0: store.StreamChunk.Value:type_name -> common.EncodedObject
+	7, // 1: store.SaveObjectRequest.Object:type_name -> common.EncodedObject
+	8, // 2: store.SaveObjectResponse.ObjectRef:type_name -> common.ObjectRef
+	8, // 3: store.GetObjectRequest.ObjectRef:type_name -> common.ObjectRef
+	7, // 4: store.GetObjectResponse.Object:type_name -> common.EncodedObject
+	0, // 5: store.GetStreamChunkResponse.Chunk:type_name -> store.StreamChunk
+	1, // 6: store.Service.SaveObject:input_type -> store.SaveObjectRequest
+	3, // 7: store.Service.GetObject:input_type -> store.GetObjectRequest
+	5, // 8: store.Service.GetStreamChunk:input_type -> store.GetStreamChunkRequest
+	2, // 9: store.Service.SaveObject:output_type -> store.SaveObjectResponse
+	4, // 10: store.Service.GetObject:output_type -> store.GetObjectResponse
+	6, // 11: store.Service.GetStreamChunk:output_type -> store.GetStreamChunkResponse
+	9, // [9:12] is the sub-list for method output_type
+	6, // [6:9] is the sub-list for method input_type
+	6, // [6:6] is the sub-list for extension type_name
+	6, // [6:6] is the sub-list for extension extendee
+	0, // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_store_store_proto_init() }
@@ -660,14 +472,13 @@ func file_store_store_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_store_store_proto_rawDesc), len(file_store_store_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   9,
+			NumEnums:      0,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_store_store_proto_goTypes,
 		DependencyIndexes: file_store_store_proto_depIdxs,
-		EnumInfos:         file_store_store_proto_enumTypes,
 		MessageInfos:      file_store_store_proto_msgTypes,
 	}.Build()
 	File_store_store_proto = out.File

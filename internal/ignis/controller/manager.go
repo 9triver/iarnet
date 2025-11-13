@@ -5,7 +5,7 @@ import (
 	"errors"
 	"sync"
 
-	ctrlpb "github.com/9triver/iarnet/internal/proto/ignis/controller"
+	ctrlpb "github.com/9triver/iarnet/internal/proto/execution_ignis/controller"
 	"github.com/9triver/iarnet/internal/resource/component"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"

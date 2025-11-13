@@ -23,6 +23,7 @@ fi
 
 # Base directory (proto root)
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$BASE_DIR/.." && pwd)"
 cd "$BASE_DIR"
 
 echo "=========================================="
@@ -37,11 +38,15 @@ echo ""
 echo ">>> Generating common types..."
 cd "$BASE_DIR/common"
 
-PROTOC_CMD="$PROTOC -I ."
+if [ -n "$ACTOR_SRC" ]; then
+  PROTOC_CMD="$PROTOC -I $ACTOR_SRC -I ."
+else
+  PROTOC_CMD="$PROTOC -I ."
+fi
 PROTO_SRC="*.proto"
 
-GO_OUTPUT="../../internal/proto/common"
-PY_OUTPUTS=("../../containers/envs/python/libs/lucas/lucas/actorc/protos" "../../containers/component/python/proto/common")
+GO_OUTPUT="$PROJECT_ROOT/internal/proto/common"
+PY_OUTPUTS=("$PROJECT_ROOT/containers/envs/python/libs/lucas/lucas/actorc/protos/common" "$PROJECT_ROOT/containers/component/python/proto/common")
 
 # Go generation
 echo "  Generating Go files: $GO_OUTPUT"
@@ -73,15 +78,17 @@ echo ">>> Generating execution-ignis..."
 cd "$BASE_DIR/execution-ignis"
 
 # Include common proto directory and actor proto
+# Run from execution-ignis directory, so paths are relative to it
+# Use BASE_DIR for -I so that "common/types.proto" imports work correctly
 if [ -n "$ACTOR_SRC" ]; then
-  PROTOC_CMD="$PROTOC -I $ACTOR_SRC -I ../common -I ."
+  PROTOC_CMD="$PROTOC -I $ACTOR_SRC -I $BASE_DIR -I ."
 else
-  PROTOC_CMD="$PROTOC -I ../common -I ."
+  PROTOC_CMD="$PROTOC -I $BASE_DIR -I ."
 fi
-PROTO_SRC="types.proto ./controller/*.proto ./actor/*.proto"
+PROTO_SRC="controller/*.proto actor/*.proto"
 
-GO_OUTPUT="../../internal/proto/execution_ignis"
-PY_OUTPUTS=("../../containers/envs/python/libs/lucas/lucas/actorc/protos" "../../containers/component/python/proto/execution_ignis")
+GO_OUTPUT="$PROJECT_ROOT/internal/proto/execution_ignis"
+PY_OUTPUTS=("$PROJECT_ROOT/containers/envs/python/libs/lucas/lucas/actorc/protos/execution_ignis" "$PROJECT_ROOT/containers/component/python/proto/execution_ignis")
 
 # Go generation
 echo "  Generating Go files: $GO_OUTPUT"
@@ -116,11 +123,17 @@ echo ""
 echo ">>> Generating resource..."
 cd "$BASE_DIR/resource"
 
-PROTOC_CMD="$PROTOC -I ../common -I ."
-PROTO_SRC="*.proto ./provider/*.proto ./store/*.proto"
+# Run from resource directory, so paths are relative to it
+# Use BASE_DIR for -I so that "common/types.proto" imports work correctly
+if [ -n "$ACTOR_SRC" ]; then
+  PROTOC_CMD="$PROTOC -I $ACTOR_SRC -I $BASE_DIR -I ."
+else
+  PROTOC_CMD="$PROTOC -I $BASE_DIR -I ."
+fi
+PROTO_SRC="*.proto provider/*.proto store/*.proto"
 
-GO_OUTPUT="../../internal/proto/resource"
-PY_OUTPUTS=("../../containers/component/python/proto/resource")
+GO_OUTPUT="$PROJECT_ROOT/internal/proto/resource"
+PY_OUTPUTS=("$PROJECT_ROOT/containers/component/python/proto/resource")
 
 # Go generation
 echo "  Generating Go files: $GO_OUTPUT"
@@ -152,11 +165,15 @@ if [ -d "$BASE_DIR/logger" ] && [ -n "$(find "$BASE_DIR/logger" -name "*.proto" 
   echo ">>> Generating logger..."
   cd "$BASE_DIR/logger"
   
-  PROTOC_CMD="$PROTOC -I ."
+  if [ -n "$ACTOR_SRC" ]; then
+    PROTOC_CMD="$PROTOC -I $ACTOR_SRC -I ."
+  else
+    PROTOC_CMD="$PROTOC -I ."
+  fi
   PROTO_SRC="*.proto"
   
-  GO_OUTPUT="../../internal/proto/logger"
-  PY_OUTPUTS=("../../containers/component/python/proto/logger")
+  GO_OUTPUT="$PROJECT_ROOT/internal/proto/logger"
+  PY_OUTPUTS=("$PROJECT_ROOT/containers/component/python/proto/logger")
   
   # Go generation
   echo "  Generating Go files: $GO_OUTPUT"
@@ -189,11 +206,15 @@ if [ -f "$BASE_DIR/peer.proto" ]; then
   echo ">>> Generating peer..."
   cd "$BASE_DIR"
   
-  PROTOC_CMD="$PROTOC -I ."
+  if [ -n "$ACTOR_SRC" ]; then
+    PROTOC_CMD="$PROTOC -I $ACTOR_SRC -I ."
+  else
+    PROTOC_CMD="$PROTOC -I ."
+  fi
   PROTO_SRC="peer.proto"
   
-  GO_OUTPUT="../internal/proto"
-  PY_OUTPUTS=("../containers/component/python/proto")
+  GO_OUTPUT="$PROJECT_ROOT/internal/proto"
+  PY_OUTPUTS=("$PROJECT_ROOT/containers/component/python/proto")
   
   # Go generation
   echo "  Generating Go files: $GO_OUTPUT"

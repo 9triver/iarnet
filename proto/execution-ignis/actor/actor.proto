@@ -4,7 +4,6 @@ option go_package = "github.com/9triver/iarnet/internal/proto/execution_ignis/ac
 
 import "common/types.proto";
 import "common/messages.proto";
-import "../types.proto";
 
 // Actor 消息类型
 // Actor 是执行单元，负责接收消息、执行函数、返回响应

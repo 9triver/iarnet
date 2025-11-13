@@ -4,7 +4,6 @@ option go_package = "github.com/9triver/iarnet/internal/proto/execution_ignis/co
 
 import "common/types.proto";
 import "common/messages.proto";
-import "../types.proto";
 
 enum CommandType {
   UNSPECIFIED = 0; // unknown command type
@@ -38,7 +37,7 @@ message Data {
   ObjectType Type = 1;
   oneof Object {
     common.ObjectRef Ref = 2;
-    common.EncodedObject Object = 3;
+    common.EncodedObject Encoded = 3;
   }
 }
 
@@ -79,6 +78,11 @@ message AppendPyClass {
   common.Language Language = 6; // return type of function
   Resources Resources = 7; // resources required by class
   int32 Replicas = 8;
+}
+
+message AppendData {
+  string SessionID = 1; // current execution session, empty if shared by all sessions
+  common.EncodedObject Object = 2; // encoded object
 }
 
 message AppendArg {

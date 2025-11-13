@@ -4,11 +4,11 @@ import (
 	"context"
 	"sync"
 
-	clusterpb "github.com/9triver/iarnet/internal/proto/ignis/cluster"
+	actorpb "github.com/9triver/iarnet/internal/proto/execution_ignis/actor"
 	"github.com/9triver/iarnet/internal/resource/types"
 )
 
-type Sender func(componentID string, msg *clusterpb.Message)
+type Sender func(componentID string, msg *actorpb.Message)
 
 type Component struct {
 	mu            sync.RWMutex
@@ -16,7 +16,7 @@ type Component struct {
 	name          string
 	image         string
 	resourceUsage *types.Info
-	buffer        chan *clusterpb.Message
+	buffer        chan *actorpb.Message
 	sender        Sender
 }
 
@@ -26,7 +26,7 @@ func NewComponent(id, name, image string, resourceUsage *types.Info) *Component 
 		name:          name,
 		image:         image,
 		resourceUsage: resourceUsage,
-		buffer:        make(chan *clusterpb.Message, 100), // Buffered channel to avoid blocking
+		buffer:        make(chan *actorpb.Message, 100), // Buffered channel to avoid blocking
 	}
 
 	return comp
@@ -48,11 +48,11 @@ func (c *Component) SetSender(sender Sender) {
 	c.sender = sender
 }
 
-func (c *Component) Send(msg *clusterpb.Message) {
+func (c *Component) Send(msg *actorpb.Message) {
 	c.sender(c.id, msg)
 }
 
-func (c *Component) Receive(ctx context.Context) *clusterpb.Message {
+func (c *Component) Receive(ctx context.Context) *actorpb.Message {
 	select {
 	case <-ctx.Done():
 		return nil
@@ -61,6 +61,6 @@ func (c *Component) Receive(ctx context.Context) *clusterpb.Message {
 	}
 }
 
-func (c *Component) Push(msg *clusterpb.Message) {
+func (c *Component) Push(msg *actorpb.Message) {
 	c.buffer <- msg
 }

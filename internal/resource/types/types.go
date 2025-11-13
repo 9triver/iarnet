@@ -3,7 +3,7 @@ package types
 import (
 	"context"
 
-	clusterpb "github.com/9triver/iarnet/internal/proto/ignis/cluster"
+	actorpb "github.com/9triver/iarnet/internal/proto/execution_ignis/actor"
 )
 
 type RuntimeEnv = string
@@ -37,11 +37,11 @@ const (
 )
 
 type Subscriber interface {
-	Notify(ctx context.Context, message *clusterpb.Message) error
+	Notify(ctx context.Context, message *actorpb.Message) error
 }
 
 type Consumer interface {
-	Consume(ctx context.Context, message *clusterpb.Message) error
+	Consume(ctx context.Context, message *actorpb.Message) error
 }
 
 type ConsumerSupplier interface {
@@ -50,7 +50,7 @@ type ConsumerSupplier interface {
 
 type Envelope struct {
 	ComponentID string
-	Message     *clusterpb.Message
+	Message     *actorpb.Message
 }
 
 type ObjectID = string

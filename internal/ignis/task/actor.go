@@ -6,14 +6,13 @@ import (
 
 	"github.com/9triver/iarnet/internal/ignis/types"
 	"github.com/9triver/iarnet/internal/ignis/utils"
-	proto "github.com/9triver/iarnet/internal/proto/ignis"
-	clusterpb "github.com/9triver/iarnet/internal/proto/ignis/cluster"
+	actorpb "github.com/9triver/iarnet/internal/proto/execution_ignis/actor"
 	"github.com/9triver/iarnet/internal/resource/component"
 	pb "google.golang.org/protobuf/proto"
 )
 
 type Actor struct {
-	info      *proto.ActorInfo
+	info      *actorpb.ActorInfo
 	id        types.ActorID
 	component *component.Component
 }
@@ -22,7 +21,7 @@ func NewActor(id types.ActorID, component *component.Component) *Actor {
 	return &Actor{
 		id:        id,
 		component: component,
-		info: &proto.ActorInfo{
+		info: &actorpb.ActorInfo{
 			CalcLatency: 0,
 			LinkLatency: 0,
 		},
@@ -34,15 +33,15 @@ func (a *Actor) GetID() types.ActorID {
 }
 
 func (a *Actor) Send(msg pb.Message) error {
-	clusterMsg := clusterpb.NewMessage(msg)
-	if clusterMsg == nil {
-		return fmt.Errorf("failed to create cluster message")
+	actorMsg := actorpb.NewMessage(msg)
+	if actorMsg == nil {
+		return fmt.Errorf("failed to create actor message")
 	}
-	a.component.Send(clusterMsg)
+	a.component.Send(actorMsg)
 	return nil
 }
 
-func (a *Actor) GetInfo() *proto.ActorInfo {
+func (a *Actor) GetInfo() *actorpb.ActorInfo {
 	return a.info
 }
 
