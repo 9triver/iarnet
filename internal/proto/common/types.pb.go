@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.10
 // 	protoc        v6.31.1
-// source: types.proto
+// source: common/types.proto
 
 package common
 
@@ -58,11 +58,11 @@ func (x Language) String() string {
 }
 
 func (Language) Descriptor() protoreflect.EnumDescriptor {
-	return file_types_proto_enumTypes[0].Descriptor()
+	return file_common_types_proto_enumTypes[0].Descriptor()
 }
 
 func (Language) Type() protoreflect.EnumType {
-	return &file_types_proto_enumTypes[0]
+	return &file_common_types_proto_enumTypes[0]
 }
 
 func (x Language) Number() protoreflect.EnumNumber {
@@ -71,7 +71,7 @@ func (x Language) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Language.Descriptor instead.
 func (Language) EnumDescriptor() ([]byte, []int) {
-	return file_types_proto_rawDescGZIP(), []int{0}
+	return file_common_types_proto_rawDescGZIP(), []int{0}
 }
 
 // ObjectRef is a reference to an object in the store
@@ -85,7 +85,7 @@ type ObjectRef struct {
 
 func (x *ObjectRef) Reset() {
 	*x = ObjectRef{}
-	mi := &file_types_proto_msgTypes[0]
+	mi := &file_common_types_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -97,7 +97,7 @@ func (x *ObjectRef) String() string {
 func (*ObjectRef) ProtoMessage() {}
 
 func (x *ObjectRef) ProtoReflect() protoreflect.Message {
-	mi := &file_types_proto_msgTypes[0]
+	mi := &file_common_types_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -110,7 +110,7 @@ func (x *ObjectRef) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ObjectRef.ProtoReflect.Descriptor instead.
 func (*ObjectRef) Descriptor() ([]byte, []int) {
-	return file_types_proto_rawDescGZIP(), []int{0}
+	return file_common_types_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *ObjectRef) GetID() string {
@@ -142,7 +142,7 @@ type EncodedObject struct {
 
 func (x *EncodedObject) Reset() {
 	*x = EncodedObject{}
-	mi := &file_types_proto_msgTypes[1]
+	mi := &file_common_types_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -154,7 +154,7 @@ func (x *EncodedObject) String() string {
 func (*EncodedObject) ProtoMessage() {}
 
 func (x *EncodedObject) ProtoReflect() protoreflect.Message {
-	mi := &file_types_proto_msgTypes[1]
+	mi := &file_common_types_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -167,7 +167,7 @@ func (x *EncodedObject) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EncodedObject.ProtoReflect.Descriptor instead.
 func (*EncodedObject) Descriptor() ([]byte, []int) {
-	return file_types_proto_rawDescGZIP(), []int{1}
+	return file_common_types_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *EncodedObject) GetID() string {
@@ -220,7 +220,7 @@ type StreamChunk struct {
 
 func (x *StreamChunk) Reset() {
 	*x = StreamChunk{}
-	mi := &file_types_proto_msgTypes[2]
+	mi := &file_common_types_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -232,7 +232,7 @@ func (x *StreamChunk) String() string {
 func (*StreamChunk) ProtoMessage() {}
 
 func (x *StreamChunk) ProtoReflect() protoreflect.Message {
-	mi := &file_types_proto_msgTypes[2]
+	mi := &file_common_types_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -245,7 +245,7 @@ func (x *StreamChunk) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StreamChunk.ProtoReflect.Descriptor instead.
 func (*StreamChunk) Descriptor() ([]byte, []int) {
-	return file_types_proto_rawDescGZIP(), []int{2}
+	return file_common_types_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *StreamChunk) GetStreamID() string {
@@ -283,11 +283,11 @@ func (x *StreamChunk) GetError() string {
 	return ""
 }
 
-var File_types_proto protoreflect.FileDescriptor
+var File_common_types_proto protoreflect.FileDescriptor
 
-const file_types_proto_rawDesc = "" +
+const file_common_types_proto_rawDesc = "" +
 	"\n" +
-	"\vtypes.proto\x12\x06common\"3\n" +
+	"\x12common/types.proto\x12\x06common\"3\n" +
 	"\tObjectRef\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12\x16\n" +
 	"\x06Source\x18\x02 \x01(\tR\x06Source\"\x95\x01\n" +
@@ -310,26 +310,26 @@ const file_types_proto_rawDesc = "" +
 	"\vLANG_PYTHON\x10\x03B1Z/github.com/9triver/iarnet/internal/proto/commonb\x06proto3"
 
 var (
-	file_types_proto_rawDescOnce sync.Once
-	file_types_proto_rawDescData []byte
+	file_common_types_proto_rawDescOnce sync.Once
+	file_common_types_proto_rawDescData []byte
 )
 
-func file_types_proto_rawDescGZIP() []byte {
-	file_types_proto_rawDescOnce.Do(func() {
-		file_types_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_types_proto_rawDesc), len(file_types_proto_rawDesc)))
+func file_common_types_proto_rawDescGZIP() []byte {
+	file_common_types_proto_rawDescOnce.Do(func() {
+		file_common_types_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_common_types_proto_rawDesc), len(file_common_types_proto_rawDesc)))
 	})
-	return file_types_proto_rawDescData
+	return file_common_types_proto_rawDescData
 }
 
-var file_types_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_types_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
-var file_types_proto_goTypes = []any{
+var file_common_types_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_common_types_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_common_types_proto_goTypes = []any{
 	(Language)(0),         // 0: common.Language
 	(*ObjectRef)(nil),     // 1: common.ObjectRef
 	(*EncodedObject)(nil), // 2: common.EncodedObject
 	(*StreamChunk)(nil),   // 3: common.StreamChunk
 }
-var file_types_proto_depIdxs = []int32{
+var file_common_types_proto_depIdxs = []int32{
 	0, // 0: common.EncodedObject.Language:type_name -> common.Language
 	2, // 1: common.StreamChunk.Value:type_name -> common.EncodedObject
 	2, // [2:2] is the sub-list for method output_type
@@ -339,27 +339,27 @@ var file_types_proto_depIdxs = []int32{
 	0, // [0:2] is the sub-list for field type_name
 }
 
-func init() { file_types_proto_init() }
-func file_types_proto_init() {
-	if File_types_proto != nil {
+func init() { file_common_types_proto_init() }
+func file_common_types_proto_init() {
+	if File_common_types_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_types_proto_rawDesc), len(file_types_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_common_types_proto_rawDesc), len(file_common_types_proto_rawDesc)),
 			NumEnums:      1,
 			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_types_proto_goTypes,
-		DependencyIndexes: file_types_proto_depIdxs,
-		EnumInfos:         file_types_proto_enumTypes,
-		MessageInfos:      file_types_proto_msgTypes,
+		GoTypes:           file_common_types_proto_goTypes,
+		DependencyIndexes: file_common_types_proto_depIdxs,
+		EnumInfos:         file_common_types_proto_enumTypes,
+		MessageInfos:      file_common_types_proto_msgTypes,
 	}.Build()
-	File_types_proto = out.File
-	file_types_proto_goTypes = nil
-	file_types_proto_depIdxs = nil
+	File_common_types_proto = out.File
+	file_common_types_proto_goTypes = nil
+	file_common_types_proto_depIdxs = nil
 }

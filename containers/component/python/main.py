@@ -40,7 +40,7 @@ def main():
     zmq_addr = os.getenv("ZMQ_ADDR")
     store_addr = os.getenv("STORE_ADDR")
     component_id = os.getenv("COMPONENT_ID")
-    
+            
     # 验证必需的环境变量
     if not zmq_addr:
         logger.error("ZMQ_ADDR environment variable is required")

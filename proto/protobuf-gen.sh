@@ -30,13 +30,15 @@ echo "=========================================="
 # ============================================================================
 echo ""
 echo ">>> Generating common types..."
-cd "$BASE_DIR/common"
+# Run from BASE_DIR so that proto files are registered with full path (common/types.proto)
+# This ensures that when controller.proto imports "common/types.proto", the descriptor pool
+# can find the correct file
 
-PROTOC_CMD="$PROTOC -I ."
-PROTO_SRC="*.proto"
+PROTOC_CMD="$PROTOC -I $BASE_DIR"
+PROTO_SRC="common/*.proto"
 
-GO_OUTPUT="$PROJECT_ROOT/internal/proto/common"
-PY_OUTPUTS=("$PROJECT_ROOT/containers/envs/python/libs/lucas/lucas/actorc/protos/common" "$PROJECT_ROOT/containers/component/python/proto/common")
+GO_OUTPUT="$PROJECT_ROOT/internal/proto/"
+PY_OUTPUTS=("$PROJECT_ROOT/containers/envs/python/libs/lucas/lucas/actorc/protos/" "$PROJECT_ROOT/containers/component/python/proto/")
 
 # Go generation
 echo "  Generating Go files: $GO_OUTPUT"
