@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"sync"
 
-	"github.com/9triver/iarnet/internal/resource/config"
+	"github.com/9triver/iarnet/internal/domain/resource/config"
 	"github.com/9triver/iarnet/internal/util"
 )
 

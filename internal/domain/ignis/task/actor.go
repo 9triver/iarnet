@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/9triver/iarnet/internal/ignis/types"
-	"github.com/9triver/iarnet/internal/ignis/utils"
+	"github.com/9triver/iarnet/internal/domain/ignis/types"
+	"github.com/9triver/iarnet/internal/domain/ignis/utils"
+	"github.com/9triver/iarnet/internal/domain/resource/component"
 	actorpb "github.com/9triver/iarnet/internal/proto/ignis/actor"
 	componentpb "github.com/9triver/iarnet/internal/proto/resource/component"
-	"github.com/9triver/iarnet/internal/resource/component"
 	pb "google.golang.org/protobuf/proto"
 )
 

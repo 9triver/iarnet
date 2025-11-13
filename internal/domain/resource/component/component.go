@@ -4,8 +4,8 @@ import (
 	"context"
 	"sync"
 
+	"github.com/9triver/iarnet/internal/domain/resource/types"
 	componentpb "github.com/9triver/iarnet/internal/proto/resource/component"
-	"github.com/9triver/iarnet/internal/resource/types"
 )
 
 type Sender func(componentID string, msg *componentpb.Message)

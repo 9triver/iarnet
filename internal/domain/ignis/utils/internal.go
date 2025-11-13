@@ -4,7 +4,7 @@ import (
 	"encoding/base64"
 	"reflect"
 
-	"github.com/9triver/iarnet/internal/ignis/utils/errors"
+	"github.com/9triver/iarnet/internal/domain/ignis/utils/errors"
 )
 
 func fieldsOf[T any]() (fields []string) {

@@ -6,14 +6,14 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/9triver/iarnet/internal/ignis/task"
+	"github.com/9triver/iarnet/internal/domain/ignis/task"
+	"github.com/9triver/iarnet/internal/domain/resource/component"
+	"github.com/9triver/iarnet/internal/domain/resource/store"
+	resourceTypes "github.com/9triver/iarnet/internal/domain/resource/types"
 	commonpb "github.com/9triver/iarnet/internal/proto/common"
 	actorpb "github.com/9triver/iarnet/internal/proto/ignis/actor"
 	ctrlpb "github.com/9triver/iarnet/internal/proto/ignis/controller"
 	storepb "github.com/9triver/iarnet/internal/proto/resource/store"
-	"github.com/9triver/iarnet/internal/resource/component"
-	"github.com/9triver/iarnet/internal/resource/store"
-	resourceTypes "github.com/9triver/iarnet/internal/resource/types"
 	"github.com/sirupsen/logrus"
 )
 

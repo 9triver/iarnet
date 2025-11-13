@@ -3,8 +3,8 @@ package controller
 import (
 	"context"
 
-	"github.com/9triver/iarnet/internal/resource/component"
-	"github.com/9triver/iarnet/internal/resource/store"
+	"github.com/9triver/iarnet/internal/domain/resource/component"
+	"github.com/9triver/iarnet/internal/domain/resource/store"
 )
 
 type Service interface {

@@ -5,8 +5,8 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/9triver/iarnet/internal/domain/resource/component"
 	ctrlpb "github.com/9triver/iarnet/internal/proto/ignis/controller"
-	"github.com/9triver/iarnet/internal/resource/component"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 )

@@ -3,8 +3,8 @@ package store
 import (
 	"fmt"
 
-	"github.com/9triver/iarnet/internal/resource/store/object"
-	"github.com/9triver/iarnet/internal/resource/types"
+	"github.com/9triver/iarnet/internal/domain/resource/store/object"
+	"github.com/9triver/iarnet/internal/domain/resource/types"
 	"github.com/9triver/iarnet/internal/util"
 )
 

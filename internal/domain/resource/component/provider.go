@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/9triver/iarnet/internal/config"
+	"github.com/9triver/iarnet/internal/domain/resource/types"
 	resourcepb "github.com/9triver/iarnet/internal/proto/resource"
 	providerpb "github.com/9triver/iarnet/internal/proto/resource/provider"
-	"github.com/9triver/iarnet/internal/resource/types"
 	"github.com/lithammer/shortuuid/v4"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"

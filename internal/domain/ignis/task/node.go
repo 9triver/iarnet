@@ -7,9 +7,9 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/9triver/iarnet/internal/ignis/types"
-	"github.com/9triver/iarnet/internal/ignis/utils"
-	"github.com/9triver/iarnet/internal/ignis/utils/errors"
+	"github.com/9triver/iarnet/internal/domain/ignis/types"
+	"github.com/9triver/iarnet/internal/domain/ignis/utils"
+	"github.com/9triver/iarnet/internal/domain/ignis/utils/errors"
 	commonpb "github.com/9triver/iarnet/internal/proto/common"
 	actorpb "github.com/9triver/iarnet/internal/proto/ignis/actor"
 )

@@ -1,10 +1,10 @@
 package ignis
 
 import (
-	"github.com/9triver/iarnet/internal/ignis/controller"
+	"github.com/9triver/iarnet/internal/domain/ignis/controller"
+	"github.com/9triver/iarnet/internal/domain/resource/component"
+	"github.com/9triver/iarnet/internal/domain/resource/store"
 	ctrlpb "github.com/9triver/iarnet/internal/proto/ignis/controller"
-	"github.com/9triver/iarnet/internal/resource/component"
-	"github.com/9triver/iarnet/internal/resource/store"
 	"google.golang.org/grpc"
 )
 

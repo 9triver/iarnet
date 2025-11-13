@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/9triver/iarnet/internal/resource/types"
+	"github.com/9triver/iarnet/internal/domain/resource/types"
 	// "github.com/9triver/iarnet/internal/resource/repository"
 	"github.com/lithammer/shortuuid/v4"
 	"github.com/sirupsen/logrus"
