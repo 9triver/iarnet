@@ -10,6 +10,7 @@ from typing import Optional
 
 import grpc
 
+from proto.common import types_pb2 as common
 from proto.resource.store import store_pb2 as store_pb
 from proto.resource.store import store_pb2_grpc as store_grpc
 
@@ -119,7 +120,7 @@ class StoreClient:
         if hasattr(self, 'channel'):
             self.channel.close()
 
-    def get_object(self, object_id: str, source: str = "") -> Optional[store_pb.EncodedObject]:
+    def get_object(self, object_id: str, source: str = "") -> Optional[common.EncodedObject]:
         """
         从 Store 获取对象
         
@@ -128,11 +129,11 @@ class StoreClient:
             source: 对象来源（可选）
             
         Returns:
-            编码后的对象，如果获取失败返回 None
+            编码后的对象（common.EncodedObject），如果获取失败返回 None
         """
         try:
             request = store_pb.GetObjectRequest(
-                ObjectRef=store_pb.ObjectRef(ID=object_id, Source=source)
+                ObjectRef=common.ObjectRef(ID=object_id, Source=source)
             )
             response = self.stub.GetObject(request)
             return response.Object
@@ -143,28 +144,28 @@ class StoreClient:
     def save_object(
         self, 
         data: bytes, 
-        language: store_pb.Language, 
+        language: common.Language, 
         object_id: str = "", 
         is_stream: bool = False
-    ) -> Optional[store_pb.ObjectRef]:
+    ) -> Optional[common.ObjectRef]:
         """
         保存对象到 Store
         
         Args:
             data: 对象的字节数据
-            language: 对象的语言类型
+            language: 对象的语言类型（common.Language）
             object_id: 对象 ID（如果为空则自动生成）
             is_stream: 是否为流对象
             
         Returns:
-            对象引用，如果保存失败返回 None
+            对象引用（common.ObjectRef），如果保存失败返回 None
         """
         try:
             if not object_id:
                 object_id = f"obj.{uuid.uuid4()}"
             
             request = store_pb.SaveObjectRequest(
-                Object=store_pb.EncodedObject(
+                Object=common.EncodedObject(
                     ID=object_id,
                     Data=data,
                     Language=language,
