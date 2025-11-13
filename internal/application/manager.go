@@ -2,35 +2,33 @@ package application
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"sync"
 	"time"
 
-	"github.com/9triver/iarnet/internal/compute"
 	"github.com/9triver/iarnet/internal/config"
 	"github.com/9triver/iarnet/internal/resource"
 	"github.com/9triver/iarnet/internal/server/request"
+	"github.com/9triver/iarnet/internal/util"
 	"github.com/9triver/iarnet/internal/websocket"
 	"github.com/moby/moby/client"
 	"github.com/sirupsen/logrus"
 )
 
 type Manager struct {
-	store     Store
 	nextAppID int
 	mu        sync.RWMutex
 	config    *config.Config
 
 	// 服务依赖
-	workspace     WorkspaceService
-	runtime       RuntimeService
-	logger        LoggerService
-	computeEngine compute.Engine
-	logSystem     LogSystem // 新日志系统
+	workspace WorkspaceService
+	runtime   RuntimeService
+	logger    LoggerService
+	logSystem LogSystem // 新日志系统
+
+	apps map[string]*AppRef
 
 	// 遗留字段（待逐步移除）
 	rm    *resource.Manager
@@ -72,30 +70,15 @@ func NewManager(config *config.Config, resourceManager *resource.Manager) *Manag
 	logger := NewLogger(cli)
 
 	// 初始化持久化存储
-	store, err := NewStore(config.Database.ApplicationDBPath)
-	if err != nil {
-		logrus.Errorf("Failed to initialize application store: %v", err)
-		return nil
-	}
-
-	// 获取下一个应用ID
-	nextAppID, err := store.GetNextAppID()
-	if err != nil {
-		logrus.Warnf("Failed to get next app ID: %v, using default 1", err)
-		nextAppID = 1
-	}
 
 	m := &Manager{
-		store:     store,
-		nextAppID: nextAppID,
-		config:    config,
+		config: config,
 
 		// 服务
-		workspace:     workspace,
-		runtime:       runtime,
-		logger:        logger,
-		computeEngine: nil,
-		logSystem:     nil, // 将由外部注入
+		workspace: workspace,
+		runtime:   runtime,
+		logger:    logger,
+		logSystem: nil, // 将由外部注入
 
 		// 遗留字段
 		rm:    resourceManager,
@@ -116,34 +99,11 @@ func (m *Manager) GetLogSystem() LogSystem {
 	return m.logSystem
 }
 
-// SetComputeEngine 设置计算引擎
-func (m *Manager) SetComputeEngine(engine compute.Engine) {
-	m.computeEngine = engine
-	logrus.Info("Compute engine set in application manager")
-}
-
-// GetComputeEngine 获取计算引擎
-func (m *Manager) GetComputeEngine() compute.Engine {
-	return m.computeEngine
-}
-
-func (m *Manager) RegisterComponent(appID string, name string, cf *resource.ContainerRef) error {
-	// 委托给 runtime 服务
-	return m.runtime.RegisterComponent(appID, name, cf)
-}
-
 func (m *Manager) Stop() {
 	// 停止日志系统
 	if m.logSystem != nil {
 		if err := m.logSystem.Stop(); err != nil {
 			logrus.Errorf("Failed to stop log system: %v", err)
-		}
-	}
-
-	// 关闭存储
-	if m.store != nil {
-		if err := m.store.Close(); err != nil {
-			logrus.Errorf("Failed to close application store: %v", err)
 		}
 	}
 
@@ -162,9 +122,9 @@ func (m *Manager) UpdateApplication(ctx context.Context, appID string, app *requ
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	appRef, err := m.store.GetApplication(appID)
-	if err != nil {
-		return fmt.Errorf("application %s not found: %w", appID, err)
+	appRef, ok := m.apps[appID]
+	if !ok {
+		return fmt.Errorf("application %s not found", appID)
 	}
 
 	if app.Name != nil {
@@ -196,7 +156,8 @@ func (m *Manager) UpdateApplication(ctx context.Context, appID string, app *requ
 	}
 
 	// 保存到数据库
-	return m.store.UpdateApplication(appRef)
+	m.apps[appID] = appRef
+	return nil
 }
 
 // RunApplication 运行应用容器
@@ -240,12 +201,6 @@ func (m *Manager) RunApplication(appID string) error {
 	}
 
 	app.ContainerID = &containerID
-
-	// 更新数据库
-	if err := m.store.UpdateApplication(app); err != nil {
-		logrus.Errorf("Failed to update application container ID in store: %v", err)
-		// 不返回错误，因为容器已经启动成功
-	}
 
 	// 开始收集日志
 	if m.logSystem != nil {
@@ -324,15 +279,7 @@ func (m *Manager) CreateApplication(createReq *request.CreateApplicationRequest)
 	defer m.mu.Unlock()
 
 	// 从数据库获取下一个应用ID
-	nextID, err := m.store.GetNextAppID()
-	if err != nil {
-		logrus.Warnf("Failed to get next app ID from store: %v, using local counter", err)
-		m.nextAppID++
-	} else {
-		m.nextAppID = nextID
-	}
-
-	appID := strconv.Itoa(m.nextAppID)
+	appID := util.GenIDWith("app.")
 
 	// 创建应用专用的工作目录
 	workspaceBaseDir := m.config.WorkspaceDir
@@ -364,10 +311,7 @@ func (m *Manager) CreateApplication(createReq *request.CreateApplicationRequest)
 		CodeDir:     &workDir,
 	}
 
-	// 保存到数据库
-	if err := m.store.CreateApplication(app); err != nil {
-		return nil, fmt.Errorf("failed to save application to store: %w", err)
-	}
+	m.apps[appID] = app
 
 	logrus.Infof("Application created in manager: ID=%s, Name=%s, Status=%s", appID, createReq.Name, app.Status)
 
@@ -377,18 +321,17 @@ func (m *Manager) CreateApplication(createReq *request.CreateApplicationRequest)
 func (m *Manager) GetApplication(appID string) (*AppRef, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.store.GetApplication(appID)
+	app, ok := m.apps[appID]
+	if !ok {
+		return nil, fmt.Errorf("application %s not found", appID)
+	}
+	return app, nil
 }
 
-func (m *Manager) GetAllApplications() []*AppRef {
+func (m *Manager) GetAllApplications() map[string]*AppRef {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	apps, err := m.store.GetAllApplications()
-	if err != nil {
-		logrus.Errorf("Failed to get all applications: %v", err)
-		return []*AppRef{}
-	}
-	return apps
+	return m.apps
 }
 
 // DeleteApplication 删除应用
@@ -397,10 +340,10 @@ func (m *Manager) DeleteApplication(appID string) error {
 	defer m.mu.Unlock()
 
 	// 检查应用是否存在
-	app, err := m.store.GetApplication(appID)
-	if err != nil {
+	app, ok := m.apps[appID]
+	if !ok {
 		logrus.Warnf("Attempted to delete non-existent application: %s", appID)
-		return errors.New("application not found")
+		return fmt.Errorf("application %s not found", appID)
 	}
 
 	// 如果应用正在运行，先停止它
@@ -418,9 +361,7 @@ func (m *Manager) DeleteApplication(appID string) error {
 	}
 
 	// 从数据库删除应用
-	if err := m.store.DeleteApplication(appID); err != nil {
-		return fmt.Errorf("failed to delete application from store: %w", err)
-	}
+	delete(m.apps, appID)
 
 	logrus.Infof("Application deleted successfully: ID=%s, Name=%s", appID, app.Name)
 
@@ -433,19 +374,17 @@ func (m *Manager) UpdateApplicationStatus(appID string, status Status) error {
 	defer m.mu.Unlock()
 
 	// 获取应用以记录旧状态
-	app, err := m.store.GetApplication(appID)
-	if err != nil {
+	app, ok := m.apps[appID]
+	if !ok {
 		logrus.Warnf("Attempted to update status for non-existent application: %s", appID)
-		return errors.New("application not found")
+		return fmt.Errorf("application %s not found", appID)
 	}
 
 	oldStatus := app.Status
 
 	// 更新数据库
-	if err := m.store.UpdateApplicationStatus(appID, status); err != nil {
-		return fmt.Errorf("failed to update application status: %w", err)
-	}
-
+	app.Status = status
+	m.apps[appID] = app
 	logrus.Infof("Application status updated: ID=%s, OldStatus=%s, NewStatus=%s", appID, oldStatus, status)
 	return nil
 }
@@ -465,13 +404,8 @@ func (m *Manager) GetApplicationStats() ApplicationStats {
 	defer m.mu.RUnlock()
 	stats := ApplicationStats{}
 
-	apps, err := m.store.GetAllApplications()
-	if err != nil {
-		logrus.Errorf("Failed to get all applications for stats: %v", err)
-		return stats
-	}
+	for _, app := range m.apps {
 
-	for _, app := range apps {
 		stats.Total++
 		switch app.Status {
 		case StatusRunning:
@@ -503,25 +437,14 @@ func (m *Manager) GetFileContent(appID, filePath string) (string, string, error)
 	return m.workspace.GetFileContent(appID, filePath)
 }
 
-// GetApplicationDAG 获取应用的DAG图
-func (m *Manager) GetApplicationDAG(appID string) (*compute.DAG, error) {
-	if m.computeEngine == nil {
-		logrus.Warnf("Compute engine not available for app %s", appID)
-		return nil, fmt.Errorf("compute engine not available")
-	}
-
-	// 直接通过计算引擎获取 DAG
-	return m.computeEngine.GetApplicationDAG(context.Background(), appID)
-}
-
 // GetApplicationLogs 获取应用的Docker容器日志
 func (m *Manager) GetApplicationLogs(appID string, lines int) ([]string, error) {
 	m.mu.RLock()
-	app, err := m.store.GetApplication(appID)
+	app, ok := m.apps[appID]
 	m.mu.RUnlock()
 
-	if err != nil {
-		return nil, fmt.Errorf("application %s not found: %w", appID, err)
+	if !ok {
+		return nil, fmt.Errorf("application %s not found", appID)
 	}
 
 	// 如果应用没有容器ID，返回空日志
@@ -539,11 +462,11 @@ func (m *Manager) GetApplicationLogs(appID string, lines int) ([]string, error) 
 // GetApplicationLogsParsed 获取应用的解析后的Docker容器日志
 func (m *Manager) GetApplicationLogsParsed(appID string, lines int) ([]*LogEntry, error) {
 	m.mu.RLock()
-	app, err := m.store.GetApplication(appID)
+	app, ok := m.apps[appID]
 	m.mu.RUnlock()
 
-	if err != nil {
-		return nil, fmt.Errorf("application %s not found: %w", appID, err)
+	if !ok {
+		return nil, fmt.Errorf("application %s not found", appID)
 	}
 
 	// 如果应用没有容器ID，返回默认消息

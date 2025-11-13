@@ -35,7 +35,17 @@ func (s *service) SaveObject(ctx context.Context, request *storepb.SaveObjectReq
 }
 
 func (s *service) GetObject(ctx context.Context, request *storepb.GetObjectRequest) (*storepb.GetObjectResponse, error) {
-	return nil, nil
+	obj, err := s.store.GetObject(request.ObjectRef.ID)
+	if err != nil {
+		return nil, err
+	}
+	encodedObj, err := obj.Encode()
+	if err != nil {
+		return nil, err
+	}
+	return &storepb.GetObjectResponse{
+		Object: encodedObj,
+	}, nil
 }
 
 func (s *service) GetStreamChunk(ctx context.Context, request *storepb.GetStreamChunkRequest) (*storepb.GetStreamChunkResponse, error) {

@@ -38,7 +38,7 @@ func main() {
 
 	util.InitLogger()
 
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.Ignis.Port))
+	lis, err := net.Listen("tcp4", fmt.Sprintf("0.0.0.0:%d", cfg.Ignis.Port))
 	if err != nil {
 		logrus.Fatalf("failed to listen: %v", err)
 	}
@@ -57,7 +57,7 @@ func main() {
 		}
 	}()
 
-	storeLis, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.Resource.Store.Port))
+	storeLis, err := net.Listen("tcp4", fmt.Sprintf("0.0.0.0:%d", cfg.Resource.Store.Port))
 	if err != nil {
 		logrus.Fatalf("failed to listen: %v", err)
 	}

@@ -2,8 +2,6 @@ package application
 
 import (
 	"time"
-
-	"github.com/9triver/iarnet/internal/resource"
 )
 
 type Status string
@@ -41,13 +39,12 @@ func (a *AppRef) GetRunningOn() []string {
 
 // Component 表示应用的一个组件 - 可分布式部署的actor执行单元
 type Component struct {
-	Name         string          `json:"name"`
-	Image        string          `json:"image"`
-	Status       ComponentStatus `json:"status"`
-	DeployedAt   time.Time       `json:"deployed_at,omitempty"` // 部署时间
-	CreatedAt    time.Time       `json:"created_at"`
-	UpdatedAt    time.Time       `json:"updated_at"`
-	ContainerRef *resource.ContainerRef
+	Name       string          `json:"name"`
+	Image      string          `json:"image"`
+	Status     ComponentStatus `json:"status"`
+	DeployedAt time.Time       `json:"deployed_at,omitempty"` // 部署时间
+	CreatedAt  time.Time       `json:"created_at"`
+	UpdatedAt  time.Time       `json:"updated_at"`
 }
 
 // ComponentStatus 组件状态

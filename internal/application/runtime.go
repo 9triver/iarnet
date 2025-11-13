@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/9triver/iarnet/internal/resource"
 	"github.com/docker/go-connections/nat"
@@ -34,9 +33,6 @@ type RuntimeService interface {
 
 	// RemoveContainer 删除容器
 	RemoveContainer(ctx context.Context, containerID string) error
-
-	// RegisterComponent 注册组件
-	RegisterComponent(appID, name string, ref *resource.ContainerRef) error
 
 	// GetComponents 获取应用的所有组件
 	GetComponents(appID string) map[string]*Component
@@ -245,29 +241,6 @@ func (r *runtime) RemoveContainer(ctx context.Context, containerID string) error
 	}
 
 	logrus.Infof("Removed container: %s", containerID)
-	return nil
-}
-
-// RegisterComponent 注册组件
-func (r *runtime) RegisterComponent(appID, name string, ref *resource.ContainerRef) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	if r.components[appID] == nil {
-		r.components[appID] = make(map[string]*Component)
-	}
-
-	r.components[appID][name] = &Component{
-		Name:         name,
-		Image:        ref.Spec.Image,
-		Status:       ComponentStatusRunning,
-		CreatedAt:    time.Now(),
-		DeployedAt:   time.Now(),
-		UpdatedAt:    time.Now(),
-		ContainerRef: ref,
-	}
-
-	logrus.Infof("Registered component %s for app %s", name, appID)
 	return nil
 }
 

@@ -95,13 +95,6 @@ func (rt *Runtime) Invoke(ctx context.Context) error {
 		"args":    len(args),
 	}).Info("task: invoke request")
 
-	if err := rt.actor.Send(&proto.InvokeStart{
-		Info:      rt.actor.GetInfo(),
-		SessionID: rt.sessionID,
-	}); err != nil {
-		return err
-	}
-
 	req := &clusterpb.InvokeRequest{
 		SessionID: string(rt.sessionID),
 		Args:      args,
