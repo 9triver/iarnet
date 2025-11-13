@@ -20,8 +20,9 @@ from typing import Any, Optional
 import cloudpickle
 import zmq
 
-from proto.ignis.cluster import cluster_pb2 as cluster
-from proto.ignis import platform_pb2 as platform
+from proto.execution_ignis.actor import actor_pb2 as actor
+from proto.common import types_pb2 as common
+from proto.common import messages_pb2 as common_messages
 
 from encdec import EncDec
 from models import RemoteFunction
@@ -60,7 +61,7 @@ class Actor:
         self.expected_params: set[str] = set()              # 函数期望的参数名集合
         
         # 消息通信
-        self.send_queue = queue.Queue[cluster.Message | None]()  # 发送消息队列
+        self.send_queue = queue.Queue[actor.Message | None]()  # 发送消息队列
         self.session_id: Optional[str] = None               # 当前会话 ID
 
     # ========================================================================
@@ -112,7 +113,7 @@ class Actor:
             logger.error(f"Error installing dependencies: {e}", exc_info=True)
             return False
 
-    def handle_function(self, msg: cluster.Function) -> bool:
+    def handle_function(self, msg: actor.Function) -> bool:
         """
         处理 Function 消息，注册函数
         
@@ -160,7 +161,7 @@ class Actor:
     # 函数调用相关方法
     # ========================================================================
     
-    def handle_invoke_request(self, msg: cluster.InvokeRequest):
+    def handle_invoke_request(self, msg: actor.InvokeRequest):
         """
         处理 InvokeRequest 消息
         
@@ -185,7 +186,7 @@ class Actor:
         )
         thread.start()
 
-    def _process_invoke_request(self, msg: cluster.InvokeRequest):
+    def _process_invoke_request(self, msg: actor.InvokeRequest):
         """
         处理批量调用请求（在新线程中执行）
         
@@ -204,15 +205,15 @@ class Actor:
         invoke_params = {}
         
         for arg in msg.Args:
-            # 验证 Flow 引用
+            # 验证 ObjectRef 引用
             if not arg.Value or not arg.Value.ID:
-                logger.error(f"Invalid flow for param {arg.Param}")
+                logger.error(f"Invalid ObjectRef for param {arg.Param}")
                 continue
                 
             # 从 Store 获取对象
             store_obj = self.store_client.get_object(
                 arg.Value.ID, 
-                arg.Value.Source.ID if arg.Value.Source else ""
+                arg.Value.Source if arg.Value.Source else ""
             )
             if store_obj is None:
                 logger.error(f"Failed to get object {arg.Value.ID} from store")
@@ -257,7 +258,7 @@ class Actor:
 
         func = self.function
         error_msg = None
-        result_flow = None
+        result_ref = None
         calc_latency_ms = 0  # 计算延迟（毫秒）
         
         try:
@@ -281,10 +282,10 @@ class Actor:
                 error_msg = "Failed to save result to store"
                 logger.error(error_msg)
             else:
-                # 创建 Flow 引用
-                result_flow = platform.Flow(
+                # 创建 ObjectRef 引用（不再需要 Flow 和 StoreRef）
+                result_ref = common.ObjectRef(
                     ID=object_ref.ID,
-                    Source=platform.StoreRef(ID=object_ref.Source)
+                    Source=object_ref.Source if object_ref.Source else ""
                 )
                 logger.info(
                     f"Function {self.function_name} completed, result saved as {object_ref.ID}, "
@@ -297,21 +298,21 @@ class Actor:
         # 创建 ActorInfo，包含计算延迟
         # 注意：这里不设置 ActorRef，因为 Python 端不知道 Actor 的引用信息
         # Go 端会在 Complete 方法中更新 Actor 的延迟信息
-        actor_info = platform.ActorInfo(
+        actor_info = actor.ActorInfo(
             CalcLatency=calc_latency_ms,
             LinkLatency=0,  # 链路延迟由 Go 端计算
         )
         
         # 发送 InvokeResponse 消息
-        invoke_response = platform.InvokeResponse(
+        invoke_response = actor.InvokeResponse(
             SessionID=session_id,
-            Result=result_flow if result_flow else None,
+            Result=result_ref if result_ref else None,
             Error=error_msg if error_msg else "",
             Info=actor_info,
         )
         
-        response_msg = cluster.Message(
-            Type=cluster.INVOKE_RESPONSE,
+        response_msg = actor.Message(
+            Type=actor.MessageType.INVOKE_RESPONSE,
             InvokeResponse=invoke_response
         )
         self.send_queue.put(response_msg)
@@ -336,15 +337,15 @@ class Actor:
         while True:
             try:
                 msg_bytes = socket.recv()
-                msg = cluster.Message.FromString(msg_bytes)
+                msg = actor.Message.FromString(msg_bytes)
                 
-                if msg.Type == cluster.FUNCTION:
+                if msg.Type == actor.MessageType.FUNCTION:
                     logger.info(f"Received FUNCTION: {msg.Function.Name}")
                     if self.handle_function(msg.Function):
                         # 发送 ACK 确认
-                        ack_msg = cluster.Message(
-                            Type=cluster.ACK,
-                            Ack=cluster.Ack()
+                        ack_msg = actor.Message(
+                            Type=actor.MessageType.ACK,
+                            Ack=common_messages.Ack()
                         )
                         socket.send(ack_msg.SerializeToString())
                         return True
@@ -371,16 +372,16 @@ class Actor:
         while True:
             try:
                 msg_bytes = socket.recv()
-                msg = cluster.Message.FromString(msg_bytes)
+                msg = actor.Message.FromString(msg_bytes)
                 
                 match msg.Type:
-                    case cluster.INVOKE_REQUEST:
+                    case actor.MessageType.INVOKE_REQUEST:
                         logger.info(f"Received INVOKE_REQUEST with {len(msg.InvokeRequest.Args)} args")
                         self.handle_invoke_request(msg.InvokeRequest)
                         # 发送 ACK 确认
-                        ack_msg = cluster.Message(
-                            Type=cluster.ACK,
-                            Ack=cluster.Ack()
+                        ack_msg = actor.Message(
+                            Type=actor.MessageType.ACK,
+                            Ack=common_messages.Ack()
                         )
                         self.send_queue.put(ack_msg)
                      
@@ -439,9 +440,9 @@ class Actor:
         logger.info(f"Connected to ZMQ: {zmq_addr}")
         
         # 发送初始 READY 消息，让 Go 端识别此 Actor 并发送缓存的 Function 消息
-        ready_msg = cluster.Message(
-            Type=cluster.READY,
-            Ready=cluster.Ready()
+        ready_msg = actor.Message(
+            Type=actor.MessageType.READY,
+            Ready=common_messages.Ready()
         )
         socket.send(ready_msg.SerializeToString())
         logger.info("Initial READY message sent to identify actor")

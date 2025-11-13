@@ -15,12 +15,6 @@ set -e  # Exit on error
 PROTOC="python -m grpc_tools.protoc"
 export PATH="$PATH:$HOME/go/bin"
 
-ACTOR_SRC=$(go list -f {{.Dir}} github.com/asynkron/protoactor-go/actor 2>/dev/null || echo "")
-ACTOR_PROTO=""
-if [ -n "$ACTOR_SRC" ]; then
-  ACTOR_PROTO="$ACTOR_SRC/actor.proto"
-fi
-
 # Base directory (proto root)
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$BASE_DIR/.." && pwd)"
@@ -38,11 +32,7 @@ echo ""
 echo ">>> Generating common types..."
 cd "$BASE_DIR/common"
 
-if [ -n "$ACTOR_SRC" ]; then
-  PROTOC_CMD="$PROTOC -I $ACTOR_SRC -I ."
-else
-  PROTOC_CMD="$PROTOC -I ."
-fi
+PROTOC_CMD="$PROTOC -I ."
 PROTO_SRC="*.proto"
 
 GO_OUTPUT="$PROJECT_ROOT/internal/proto/common"
@@ -77,18 +67,16 @@ echo ""
 echo ">>> Generating execution-ignis..."
 cd "$BASE_DIR/execution-ignis"
 
-# Include common proto directory and actor proto
+# Include common proto directory
 # Run from execution-ignis directory, so paths are relative to it
 # Use BASE_DIR for -I so that "common/types.proto" imports work correctly
-if [ -n "$ACTOR_SRC" ]; then
-  PROTOC_CMD="$PROTOC -I $ACTOR_SRC -I $BASE_DIR -I ."
-else
-  PROTOC_CMD="$PROTOC -I $BASE_DIR -I ."
-fi
+PROTOC_CMD="$PROTOC -I $BASE_DIR -I ."
 PROTO_SRC="controller/*.proto actor/*.proto"
 
 GO_OUTPUT="$PROJECT_ROOT/internal/proto/execution_ignis"
-PY_OUTPUTS=("$PROJECT_ROOT/containers/envs/python/libs/lucas/lucas/actorc/protos/execution_ignis" "$PROJECT_ROOT/containers/component/python/proto/execution_ignis")
+PY_OUTPUT_COMPONENT="$PROJECT_ROOT/containers/component/python/proto/execution_ignis"
+PY_OUTPUT_LUCAS_COMMON="$PROJECT_ROOT/containers/envs/python/libs/lucas/lucas/actorc/protos/common"
+PY_OUTPUT_LUCAS_CONTROLLER="$PROJECT_ROOT/containers/envs/python/libs/lucas/lucas/actorc/protos/controller"
 
 # Go generation
 echo "  Generating Go files: $GO_OUTPUT"
@@ -99,22 +87,42 @@ else
 fi
 $PROTOC_CMD --go_out="$GO_OUTPUT" --go_opt=paths=source_relative --go-grpc_out="$GO_OUTPUT" --go-grpc_opt=paths=source_relative $PROTO_SRC
 
-# Python generation
-for PY_OUTPUT in "${PY_OUTPUTS[@]}"; do
-  echo "  Generating Python files: $PY_OUTPUT"
-  if [ ! -d "$PY_OUTPUT" ]; then
-    mkdir -p "$PY_OUTPUT"
-  else
-    find "$PY_OUTPUT" -type f -name "*_pb2.py" -delete
-    find "$PY_OUTPUT" -type f -name "*_pb2.pyi" -delete
-    find "$PY_OUTPUT" -type f -name "*_pb2_grpc.py" -delete
-  fi
-  if [ -n "$ACTOR_PROTO" ]; then
-    $PROTOC_CMD --python_out="$PY_OUTPUT" --pyi_out="$PY_OUTPUT" --grpc_python_out="$PY_OUTPUT" $PROTO_SRC "$ACTOR_PROTO"
-  else
-    $PROTOC_CMD --python_out="$PY_OUTPUT" --pyi_out="$PY_OUTPUT" --grpc_python_out="$PY_OUTPUT" $PROTO_SRC
-  fi
-done
+# Python generation for component
+echo "  Generating Python files: $PY_OUTPUT_COMPONENT"
+if [ ! -d "$PY_OUTPUT_COMPONENT" ]; then
+  mkdir -p "$PY_OUTPUT_COMPONENT"
+else
+  find "$PY_OUTPUT_COMPONENT" -type f -name "*_pb2.py" -delete
+  find "$PY_OUTPUT_COMPONENT" -type f -name "*_pb2.pyi" -delete
+  find "$PY_OUTPUT_COMPONENT" -type f -name "*_pb2_grpc.py" -delete
+fi
+# Generate controller and actor separately to avoid conflicts
+# Controller proto files - change to controller directory to avoid nested structure
+cd controller
+PROTOC_CMD_CONTROLLER="$PROTOC -I . -I $BASE_DIR"
+$PROTOC_CMD_CONTROLLER --python_out="$PY_OUTPUT_COMPONENT/controller" --pyi_out="$PY_OUTPUT_COMPONENT/controller" --grpc_python_out="$PY_OUTPUT_COMPONENT/controller" *.proto
+cd ..
+# Actor proto files - change to actor directory
+cd actor
+PROTOC_CMD_ACTOR="$PROTOC -I . -I $BASE_DIR"
+$PROTOC_CMD_ACTOR --python_out="$PY_OUTPUT_COMPONENT/actor" --pyi_out="$PY_OUTPUT_COMPONENT/actor" --grpc_python_out="$PY_OUTPUT_COMPONENT/actor" *.proto
+cd ..
+
+# Python generation for lucas (only controller, common is already generated)
+echo "  Generating Python files for lucas: $PY_OUTPUT_LUCAS_CONTROLLER"
+if [ ! -d "$PY_OUTPUT_LUCAS_CONTROLLER" ]; then
+  mkdir -p "$PY_OUTPUT_LUCAS_CONTROLLER"
+else
+  find "$PY_OUTPUT_LUCAS_CONTROLLER" -type f -name "*_pb2.py" -delete
+  find "$PY_OUTPUT_LUCAS_CONTROLLER" -type f -name "*_pb2.pyi" -delete
+  find "$PY_OUTPUT_LUCAS_CONTROLLER" -type f -name "*_pb2_grpc.py" -delete
+fi
+# Only generate controller for lucas, use module option to avoid nested directory
+# Change to controller directory to generate files directly in target directory
+cd controller
+PROTOC_CMD_LUCAS="$PROTOC -I . -I $BASE_DIR"
+$PROTOC_CMD_LUCAS --python_out="$PY_OUTPUT_LUCAS_CONTROLLER" --pyi_out="$PY_OUTPUT_LUCAS_CONTROLLER" --grpc_python_out="$PY_OUTPUT_LUCAS_CONTROLLER" *.proto
+cd ..
 
 # ============================================================================
 # 3. Generate resource
@@ -125,11 +133,7 @@ cd "$BASE_DIR/resource"
 
 # Run from resource directory, so paths are relative to it
 # Use BASE_DIR for -I so that "common/types.proto" imports work correctly
-if [ -n "$ACTOR_SRC" ]; then
-  PROTOC_CMD="$PROTOC -I $ACTOR_SRC -I $BASE_DIR -I ."
-else
-  PROTOC_CMD="$PROTOC -I $BASE_DIR -I ."
-fi
+PROTOC_CMD="$PROTOC -I $BASE_DIR -I ."
 PROTO_SRC="*.proto provider/*.proto store/*.proto"
 
 GO_OUTPUT="$PROJECT_ROOT/internal/proto/resource"
@@ -165,11 +169,7 @@ if [ -d "$BASE_DIR/logger" ] && [ -n "$(find "$BASE_DIR/logger" -name "*.proto" 
   echo ">>> Generating logger..."
   cd "$BASE_DIR/logger"
   
-  if [ -n "$ACTOR_SRC" ]; then
-    PROTOC_CMD="$PROTOC -I $ACTOR_SRC -I ."
-  else
-    PROTOC_CMD="$PROTOC -I ."
-  fi
+  PROTOC_CMD="$PROTOC -I ."
   PROTO_SRC="*.proto"
   
   GO_OUTPUT="$PROJECT_ROOT/internal/proto/logger"
@@ -206,11 +206,7 @@ if [ -f "$BASE_DIR/peer.proto" ]; then
   echo ">>> Generating peer..."
   cd "$BASE_DIR"
   
-  if [ -n "$ACTOR_SRC" ]; then
-    PROTOC_CMD="$PROTOC -I $ACTOR_SRC -I ."
-  else
-    PROTOC_CMD="$PROTOC -I ."
-  fi
+  PROTOC_CMD="$PROTOC -I ."
   PROTO_SRC="peer.proto"
   
   GO_OUTPUT="$PROJECT_ROOT/internal/proto"

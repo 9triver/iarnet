@@ -9,7 +9,7 @@ from typing import Any
 
 import cloudpickle
 
-from proto.ignis import platform_pb2 as platform
+from proto.common import types_pb2 as common
 from proto.resource.store import store_pb2 as store_pb
 
 
@@ -73,22 +73,22 @@ class EncDec:
         return data, False
 
     @staticmethod
-    def platform_to_store_language(lang: platform.Language) -> store_pb.Language:
+    def platform_to_store_language(lang: common.Language) -> store_pb.Language:
         """
         将平台语言类型转换为 Store 语言类型
         
         Args:
-            lang: 平台语言类型
+            lang: 平台语言类型（common.Language）
             
         Returns:
             Store 语言类型
         """
         match lang:
-            case platform.LANG_JSON:
+            case common.LANG_JSON:
                 return store_pb.LANGUAGE_JSON
-            case platform.LANG_PYTHON:
+            case common.LANG_PYTHON:
                 return store_pb.LANGUAGE_PYTHON
-            case platform.LANG_GO:
+            case common.LANG_GO:
                 return store_pb.LANGUAGE_GO
             case _:
                 return store_pb.LANGUAGE_UNKNOWN
