@@ -20,6 +20,9 @@ from typing import Any, Optional
 import cloudpickle
 import zmq
 
+# 确保 proto 模块被导入，以便 __init__.py 中的路径设置生效
+import proto  # noqa: F401
+
 from proto.ignis.actor import actor_pb2 as actor
 from proto.common import types_pb2 as common
 from proto.common import messages_pb2 as common_messages

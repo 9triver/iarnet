@@ -1,0 +1,4 @@
+"""
+Resource management protobuf types
+"""
+
