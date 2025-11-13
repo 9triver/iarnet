@@ -508,7 +508,7 @@ class Actor:
         # 发送初始 READY 消息，让 Go 端识别此 Actor 并发送缓存的 Function 消息
         ready_msg = component.Message(
             Type=component.MessageType.READY,
-            Ready=component.Ready()
+            Ready=common_messages.Ready()
         )
         socket.send(ready_msg.SerializeToString())
         logger.info("Initial READY message sent to identify actor")
