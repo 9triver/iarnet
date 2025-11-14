@@ -144,13 +144,23 @@ func (cc *ComponentChanneler) MarkConnected(componentID string) {
 // StartReceiver starts a goroutine that processes received messages from components
 func (cc *ComponentChanneler) StartReceiver(ctx context.Context, onMessage func(componentID string, data []byte)) {
 	go func() {
+		// 检查 Channeler 是否已初始化
+		cc.mu.RLock()
+		channeler := cc.Channeler
+		cc.mu.RUnlock()
+
+		if channeler == nil {
+			logrus.Error("ZMQ Channeler is nil, cannot start receiver")
+			return
+		}
+
 		logrus.Info("ZMQ receiver started, waiting for component connections...")
 		for {
 			select {
 			case <-ctx.Done():
 				logrus.Info("ZMQ receiver stopped")
 				return
-			case msg, ok := <-cc.Channeler.RecvChan:
+			case msg, ok := <-channeler.RecvChan:
 				if !ok {
 					logrus.Info("ZMQ RecvChan closed")
 					return

@@ -6,7 +6,6 @@ import (
 	"sync"
 
 	componentpb "github.com/9triver/iarnet/internal/proto/resource/component"
-	"github.com/9triver/iarnet/internal/transport/zmq"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
 )
@@ -14,15 +13,16 @@ import (
 type Manager interface {
 	AddComponent(ctx context.Context, component *Component) error
 	Start(ctx context.Context) error
+	SetChanneler(channeler Channeler) // 用于后续注入真正的 channeler
 }
 
 type manager struct {
 	mu         sync.RWMutex
-	channeler  *zmq.ComponentChanneler
+	channeler  Channeler // 使用接口而不是具体实现
 	components map[string]*Component
 }
 
-func NewManager(channeler *zmq.ComponentChanneler) Manager {
+func NewManager(channeler Channeler) Manager {
 	return &manager{
 		mu:         sync.RWMutex{},
 		components: make(map[string]*Component),
@@ -74,4 +74,10 @@ func (m *manager) AddComponent(ctx context.Context, component *Component) error 
 	m.components[component.GetID()] = component
 
 	return nil
+}
+
+func (m *manager) SetChanneler(channeler Channeler) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.channeler = channeler
 }

@@ -10,8 +10,16 @@ import (
 
 // BootstrapTransport 初始化 Transport 层（RPC、HTTP 等）
 func bootstrapTransport(iarnet *Iarnet) error {
-
+	// 创建 ZMQ Channeler（现在可以在 Resource 之后初始化）
 	channeler := zmq.NewChanneler(iarnet.Config.Resource.ZMQ.Port)
+
+	// 将真正的 channeler 注入到 ResourceManager
+	if iarnet.ResourceManager != nil {
+		iarnet.ResourceManager.SetChanneler(channeler)
+		logrus.Info("ZMQ Channeler injected into ResourceManager")
+	}
+
+	// 保存 channeler 引用（用于后续关闭）
 	iarnet.Channeler = channeler
 
 	// 构建 RPC 服务器地址

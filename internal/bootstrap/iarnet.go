@@ -8,8 +8,8 @@ import (
 	"github.com/9triver/iarnet/internal/domain/application"
 	"github.com/9triver/iarnet/internal/domain/ignis/controller"
 	"github.com/9triver/iarnet/internal/domain/resource"
+	"github.com/9triver/iarnet/internal/domain/resource/component"
 	"github.com/9triver/iarnet/internal/transport/rpc"
-	"github.com/9triver/iarnet/internal/transport/zmq"
 	"github.com/moby/moby/client"
 	"github.com/sirupsen/logrus"
 )
@@ -20,7 +20,7 @@ type Iarnet struct {
 
 	// 基础设施
 	DockerClient *client.Client
-	Channeler    *zmq.ComponentChanneler
+	Channeler    component.Channeler // 使用接口类型，不依赖具体实现
 	RPCManager   *rpc.Manager
 
 	// Resource 模块

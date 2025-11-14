@@ -8,7 +8,6 @@ import (
 	"github.com/9triver/iarnet/internal/domain/resource/types"
 	commonpb "github.com/9triver/iarnet/internal/proto/common"
 	storepb "github.com/9triver/iarnet/internal/proto/resource/store"
-	"github.com/9triver/iarnet/internal/transport/zmq"
 )
 
 var (
@@ -23,13 +22,19 @@ type Manager struct {
 	componentManager component.Manager
 }
 
-func NewManager(channeler *zmq.ComponentChanneler, s *store.Store, runnerImages map[string]string) *Manager {
+func NewManager(channeler component.Channeler, s *store.Store, runnerImages map[string]string) *Manager {
 	componentManager := component.NewManager(channeler)
 	return &Manager{
 		componentService: component.NewService(componentManager, runnerImages),
 		storeService:     store.NewService(s),
 		componentManager: componentManager,
 	}
+}
+
+// SetChanneler 更新 component manager 的 channeler
+// 用于在 Transport 层初始化后注入真正的 channeler
+func (m *Manager) SetChanneler(channeler component.Channeler) {
+	m.componentManager.SetChanneler(channeler)
 }
 
 // Start starts the component manager to receive messages from components

@@ -51,8 +51,7 @@ func Initialize(cfg *config.Config) (*Iarnet, error) {
 
 // bootstrapInfrastructure 初始化基础设施（ZMQ、Docker 等）
 func bootstrapInfrastructure(iarnet *Iarnet) error {
-	// 初始化 ZMQ Channeler
-
+	// 基础设施初始化（ZMQ 将在 Transport 层初始化）
 	logrus.Info("Infrastructure initialized")
 	return nil
 }
