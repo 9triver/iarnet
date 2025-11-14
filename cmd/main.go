@@ -40,11 +40,10 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// 启动服务（包括组件管理器）
+	// 启动所有服务
 	if err := iarnet.Start(ctx); err != nil {
 		logrus.Fatalf("Failed to start services: %v", err)
 	}
-	logrus.Info("Component manager started")
 
 	// 测试代码：注册 provider 和创建 controller
 	provider := component.NewProvider("local-docker", "localhost", 50051)
