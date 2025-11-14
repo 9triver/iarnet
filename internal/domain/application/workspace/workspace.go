@@ -1,4 +1,4 @@
-package application
+package workspace
 
 import (
 	"errors"
@@ -7,86 +7,49 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync"
 
+	"github.com/9triver/iarnet/internal/domain/application/types"
 	"github.com/sirupsen/logrus"
 )
 
-// WorkspaceService 工作空间服务接口
-type WorkspaceService interface {
-	// Git 仓库管理
-	CloneRepository(appID, gitURL, branch, workDir string) error
-	PullRepository(appID string) error
-
-	// 文件操作
-	GetFileTree(appID, path string) ([]FileInfo, error)
-	GetFileContent(appID, filePath string) (string, string, error)
-	SaveFileContent(appID, filePath, content string) error
-	CreateFile(appID, filePath string) error
-	DeleteFile(appID, filePath string) error
-
-	// 目录操作
-	CreateDirectory(appID, dirPath string) error
-	DeleteDirectory(appID, dirPath string) error
-
-	// 工作目录管理
-	GetWorkDir(appID string) string
-	SetWorkDir(appID, workDir string)
-	CleanWorkDir(appID string) error
+// Workspace 工作空间领域对象
+// 封装了工作空间的文件操作、目录操作和 Git 操作
+type Workspace struct {
+	dir string
 }
 
-// workspace 工作空间服务实现
-type workspace struct {
-	baseDir  string
-	workDirs map[string]string // appID -> workDir
-	mu       sync.RWMutex
-}
-
-// NewWorkspace 创建工作空间服务
-func NewWorkspace(baseDir string) WorkspaceService {
-	if baseDir == "" {
-		baseDir = "./workspaces"
-	}
-
-	// 确保基础目录存在
-	os.MkdirAll(baseDir, 0755)
-
-	return &workspace{
-		baseDir:  baseDir,
-		workDirs: make(map[string]string),
+// NewWorkspace 创建工作空间领域对象
+func NewWorkspace(dir string) *Workspace {
+	return &Workspace{
+		dir: dir,
 	}
 }
 
-// CloneRepository 克隆 Git 仓库
-func (w *workspace) CloneRepository(appID, gitURL, branch, workDir string) error {
-	// 记录工作目录
-	w.mu.Lock()
-	w.workDirs[appID] = workDir
-	w.mu.Unlock()
+// GetDir 获取工作空间目录路径
+func (w *Workspace) GetDir() string {
+	return w.dir
+}
 
+// CloneRepository 克隆 Git 仓库到工作空间
+func (w *Workspace) CloneRepository(gitURL, branch string) error {
 	// 执行 git clone
-	cmd := exec.Command("git", "clone", "-b", branch, "--single-branch", gitURL, workDir)
+	cmd := exec.Command("git", "clone", "-b", branch, "--single-branch", gitURL, w.dir)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
-		os.RemoveAll(workDir)
+		os.RemoveAll(w.dir)
 		return fmt.Errorf("failed to clone repository: %v", err)
 	}
 
-	logrus.Infof("Successfully cloned repository to %s", workDir)
+	logrus.Infof("Successfully cloned repository to %s", w.dir)
 	return nil
 }
 
 // PullRepository 拉取仓库更新
-func (w *workspace) PullRepository(appID string) error {
-	workDir := w.GetWorkDir(appID)
-	if workDir == "" {
-		return fmt.Errorf("work directory not found for app %s", appID)
-	}
-
+func (w *Workspace) PullRepository() error {
 	cmd := exec.Command("git", "pull")
-	cmd.Dir = workDir
+	cmd.Dir = w.dir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
@@ -98,16 +61,11 @@ func (w *workspace) PullRepository(appID string) error {
 }
 
 // GetFileTree 获取文件树
-func (w *workspace) GetFileTree(appID, path string) ([]FileInfo, error) {
-	workDir := w.GetWorkDir(appID)
-	if workDir == "" {
-		return nil, fmt.Errorf("work directory not found for app %s", appID)
-	}
+func (w *Workspace) GetFileTree(path string) ([]types.FileInfo, error) {
+	requestPath := filepath.Join(w.dir, path)
 
-	requestPath := filepath.Join(workDir, path)
-
-	// 安全检查
-	if !strings.HasPrefix(requestPath, workDir) {
+	// 安全检查：确保路径在工作空间内
+	if !strings.HasPrefix(requestPath, w.dir) {
 		return nil, errors.New("invalid path: outside workspace")
 	}
 
@@ -123,7 +81,7 @@ func (w *workspace) GetFileTree(appID, path string) ([]FileInfo, error) {
 	}
 
 	// 构建文件信息列表
-	var fileInfos []FileInfo
+	var fileInfos []types.FileInfo
 	for _, file := range files {
 		if file.Name() == ".git" {
 			continue
@@ -145,7 +103,7 @@ func (w *workspace) GetFileTree(appID, path string) ([]FileInfo, error) {
 			modTime = info.ModTime().Format("2006-01-02 15:04:05")
 		}
 
-		fileInfo := FileInfo{
+		fileInfo := types.FileInfo{
 			Name:    file.Name(),
 			Path:    relativePath,
 			IsDir:   file.IsDir(),
@@ -159,16 +117,11 @@ func (w *workspace) GetFileTree(appID, path string) ([]FileInfo, error) {
 }
 
 // GetFileContent 获取文件内容
-func (w *workspace) GetFileContent(appID, filePath string) (string, string, error) {
-	workDir := w.GetWorkDir(appID)
-	if workDir == "" {
-		return "", "", fmt.Errorf("work directory not found for app %s", appID)
-	}
+func (w *Workspace) GetFileContent(filePath string) (string, string, error) {
+	requestPath := filepath.Join(w.dir, filePath)
 
-	requestPath := filepath.Join(workDir, filePath)
-
-	// 安全检查
-	if !strings.HasPrefix(requestPath, workDir) {
+	// 安全检查：确保路径在工作空间内
+	if !strings.HasPrefix(requestPath, w.dir) {
 		return "", "", errors.New("invalid path: outside workspace")
 	}
 
@@ -200,13 +153,13 @@ func (w *workspace) GetFileContent(appID, filePath string) (string, string, erro
 }
 
 // SaveFileContent 保存文件内容
-func (w *workspace) SaveFileContent(appID, filePath, content string) error {
-	workDir := w.GetWorkDir(appID)
-	if workDir == "" {
-		return fmt.Errorf("work directory not found for app %s", appID)
-	}
+func (w *Workspace) SaveFileContent(filePath, content string) error {
+	fullPath := filepath.Join(w.dir, filePath)
 
-	fullPath := filepath.Join(workDir, filePath)
+	// 安全检查：确保路径在工作空间内
+	if !strings.HasPrefix(fullPath, w.dir) {
+		return errors.New("invalid path: outside workspace")
+	}
 
 	// 确保目录存在
 	dir := filepath.Dir(fullPath)
@@ -219,18 +172,18 @@ func (w *workspace) SaveFileContent(appID, filePath, content string) error {
 		return fmt.Errorf("failed to save file: %v", err)
 	}
 
-	logrus.Infof("Saved file: %s for application %s", filePath, appID)
+	logrus.Infof("Saved file: %s", filePath)
 	return nil
 }
 
 // CreateFile 创建新文件
-func (w *workspace) CreateFile(appID, filePath string) error {
-	workDir := w.GetWorkDir(appID)
-	if workDir == "" {
-		return fmt.Errorf("work directory not found for app %s", appID)
-	}
+func (w *Workspace) CreateFile(filePath string) error {
+	fullPath := filepath.Join(w.dir, filePath)
 
-	fullPath := filepath.Join(workDir, filePath)
+	// 安全检查：确保路径在工作空间内
+	if !strings.HasPrefix(fullPath, w.dir) {
+		return errors.New("invalid path: outside workspace")
+	}
 
 	// 检查文件是否已存在
 	if _, err := os.Stat(fullPath); err == nil {
@@ -250,18 +203,18 @@ func (w *workspace) CreateFile(appID, filePath string) error {
 	}
 	file.Close()
 
-	logrus.Infof("Created file: %s for application %s", filePath, appID)
+	logrus.Infof("Created file: %s", filePath)
 	return nil
 }
 
 // DeleteFile 删除文件
-func (w *workspace) DeleteFile(appID, filePath string) error {
-	workDir := w.GetWorkDir(appID)
-	if workDir == "" {
-		return fmt.Errorf("work directory not found for app %s", appID)
-	}
+func (w *Workspace) DeleteFile(filePath string) error {
+	fullPath := filepath.Join(w.dir, filePath)
 
-	fullPath := filepath.Join(workDir, filePath)
+	// 安全检查：确保路径在工作空间内
+	if !strings.HasPrefix(fullPath, w.dir) {
+		return errors.New("invalid path: outside workspace")
+	}
 
 	// 检查文件是否存在
 	info, err := os.Stat(fullPath)
@@ -279,18 +232,18 @@ func (w *workspace) DeleteFile(appID, filePath string) error {
 		return fmt.Errorf("failed to delete file: %v", err)
 	}
 
-	logrus.Infof("Deleted file: %s for application %s", filePath, appID)
+	logrus.Infof("Deleted file: %s", filePath)
 	return nil
 }
 
 // CreateDirectory 创建目录
-func (w *workspace) CreateDirectory(appID, dirPath string) error {
-	workDir := w.GetWorkDir(appID)
-	if workDir == "" {
-		return fmt.Errorf("work directory not found for app %s", appID)
-	}
+func (w *Workspace) CreateDirectory(dirPath string) error {
+	fullPath := filepath.Join(w.dir, dirPath)
 
-	fullPath := filepath.Join(workDir, dirPath)
+	// 安全检查：确保路径在工作空间内
+	if !strings.HasPrefix(fullPath, w.dir) {
+		return errors.New("invalid path: outside workspace")
+	}
 
 	// 检查目录是否已存在
 	if _, err := os.Stat(fullPath); err == nil {
@@ -302,18 +255,18 @@ func (w *workspace) CreateDirectory(appID, dirPath string) error {
 		return fmt.Errorf("failed to create directory: %v", err)
 	}
 
-	logrus.Infof("Created directory: %s for application %s", dirPath, appID)
+	logrus.Infof("Created directory: %s", dirPath)
 	return nil
 }
 
 // DeleteDirectory 删除目录
-func (w *workspace) DeleteDirectory(appID, dirPath string) error {
-	workDir := w.GetWorkDir(appID)
-	if workDir == "" {
-		return fmt.Errorf("work directory not found for app %s", appID)
-	}
+func (w *Workspace) DeleteDirectory(dirPath string) error {
+	fullPath := filepath.Join(w.dir, dirPath)
 
-	fullPath := filepath.Join(workDir, dirPath)
+	// 安全检查：确保路径在工作空间内
+	if !strings.HasPrefix(fullPath, w.dir) {
+		return errors.New("invalid path: outside workspace")
+	}
 
 	// 检查目录是否存在
 	info, err := os.Stat(fullPath)
@@ -331,50 +284,18 @@ func (w *workspace) DeleteDirectory(appID, dirPath string) error {
 		return fmt.Errorf("failed to delete directory: %v", err)
 	}
 
-	logrus.Infof("Deleted directory: %s for application %s", dirPath, appID)
+	logrus.Infof("Deleted directory: %s", dirPath)
 	return nil
 }
 
-// GetWorkDir 获取工作目录
-func (w *workspace) GetWorkDir(appID string) string {
-	w.mu.RLock()
-	defer w.mu.RUnlock()
-	return w.workDirs[appID]
-}
-
-// SetWorkDir 设置工作目录
-func (w *workspace) SetWorkDir(appID, workDir string) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	w.workDirs[appID] = workDir
-}
-
-// CleanWorkDir 清理工作目录
-func (w *workspace) CleanWorkDir(appID string) error {
-	workDir := w.GetWorkDir(appID)
-	if workDir == "" {
-		return nil // 已经清理或不存在
-	}
-
-	if err := os.RemoveAll(workDir); err != nil {
+// Clean 清理工作目录
+func (w *Workspace) Clean() error {
+	if err := os.RemoveAll(w.dir); err != nil {
 		return fmt.Errorf("failed to remove workspace directory: %v", err)
 	}
 
-	w.mu.Lock()
-	delete(w.workDirs, appID)
-	w.mu.Unlock()
-
-	logrus.Infof("Cleaned workspace for app %s", appID)
+	logrus.Infof("Cleaned workspace: %s", w.dir)
 	return nil
-}
-
-// FileInfo 文件信息
-type FileInfo struct {
-	Name    string `json:"name"`
-	Path    string `json:"path"`
-	IsDir   bool   `json:"is_dir"`
-	Size    int64  `json:"size"`
-	ModTime string `json:"mod_time"`
 }
 
 // detectLanguage 根据文件扩展名检测语言类型
