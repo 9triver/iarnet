@@ -16,8 +16,8 @@ func Initialize(cfg *config.Config) (*Iarnet, error) {
 		Channeler:          nil,
 		ResourceManager:    nil,
 		ApplicationManager: nil,
-		ControllerManager:  nil,
-		ControllerService:  nil,
+		IgnisPlatform:      nil,
+		HTTPServer:         nil,
 	}
 
 	// 1. 初始化 Resource 模块

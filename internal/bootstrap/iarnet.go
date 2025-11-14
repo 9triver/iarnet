@@ -6,9 +6,10 @@ import (
 
 	"github.com/9triver/iarnet/internal/config"
 	"github.com/9triver/iarnet/internal/domain/application"
-	"github.com/9triver/iarnet/internal/domain/ignis/controller"
+	"github.com/9triver/iarnet/internal/domain/ignis"
 	"github.com/9triver/iarnet/internal/domain/resource"
 	"github.com/9triver/iarnet/internal/domain/resource/component"
+	"github.com/9triver/iarnet/internal/transport/http"
 	"github.com/9triver/iarnet/internal/transport/rpc"
 	"github.com/moby/moby/client"
 	"github.com/sirupsen/logrus"
@@ -22,6 +23,7 @@ type Iarnet struct {
 	DockerClient *client.Client
 	Channeler    component.Channeler // 使用接口类型，不依赖具体实现
 	RPCManager   *rpc.Manager
+	HTTPServer   *http.Server
 
 	// Resource 模块
 	ResourceManager *resource.Manager
@@ -30,8 +32,7 @@ type Iarnet struct {
 	ApplicationManager *application.Manager
 
 	// Ignis 模块
-	ControllerManager controller.Manager
-	ControllerService controller.Service
+	IgnisPlatform *ignis.Platform
 }
 
 // Start 启动所有服务

@@ -7,14 +7,14 @@ import (
 
 type Server struct {
 	ctrlpb.UnimplementedServiceServer
-	manager controller.Manager
+	controllerService controller.Service
 }
 
-func NewServer(manager controller.Manager) *Server {
-	return &Server{manager: manager}
+func NewServer(controllerService controller.Service) *Server {
+	return &Server{controllerService: controllerService}
 }
 
 func (s *Server) Session(stream ctrlpb.Service_SessionServer) error {
 	ctx := stream.Context()
-	return s.manager.HandleSession(ctx, stream.Recv, stream.Send)
+	return s.controllerService.HandleSession(ctx, stream.Recv, stream.Send)
 }

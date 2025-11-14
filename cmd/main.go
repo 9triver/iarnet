@@ -49,7 +49,7 @@ func main() {
 		logrus.Infof("Local docker provider registered")
 	}
 
-	if _, err := iarnet.ControllerService.CreateController(context.Background(), "1"); err != nil {
+	if _, err := iarnet.IgnisPlatform.CreateController(context.Background(), "1"); err != nil {
 		logrus.Warnf("Failed to create test controller: %v", err)
 	} else {
 		logrus.Infof("Controller 1 created for test")

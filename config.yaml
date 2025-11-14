@@ -1,5 +1,4 @@
 host: "host.internal" # Host for external connection. TODO: 通信问题待解决
-listen_addr: ":8083"
 peer_listen_addr: ":50051"
 initial_peers:
   - "peer2.example.com:50051"
@@ -26,6 +25,8 @@ database:
   conn_max_lifetime_seconds: 300  # 5 minutes
 
 transport:
+  http:
+    port: 8083
   zmq:
     port: 5555
   rpc:

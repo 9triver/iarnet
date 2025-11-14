@@ -32,8 +32,13 @@ type ResourceConfig struct {
 }
 
 type TransportConfig struct {
-	ZMQ ZMQConfig `yaml:"zmq"`
-	RPC RPCConfig `yaml:"rpc"`
+	ZMQ  ZMQConfig  `yaml:"zmq"`
+	RPC  RPCConfig  `yaml:"rpc"`
+	HTTP HTTPConfig `yaml:"http"`
+}
+
+type HTTPConfig struct {
+	Port int `yaml:"port"` // e.g., 8080 - HTTP server port
 }
 
 // RPCConfig RPC 配置

@@ -5,10 +5,13 @@ import (
 
 	"github.com/9triver/iarnet/internal/domain/resource/component"
 	"github.com/9triver/iarnet/internal/domain/resource/store"
+	ctrlpb "github.com/9triver/iarnet/internal/proto/ignis/controller"
 )
 
 type Service interface {
 	CreateController(ctx context.Context, appID string) (*Controller, error)
+	Subscribe(eventType EventType, handler EventHandler)
+	HandleSession(ctx context.Context, recv func() (*ctrlpb.Message, error), send func(*ctrlpb.Message) error) error
 }
 
 type service struct {
@@ -31,4 +34,12 @@ func (s *service) CreateController(ctx context.Context, appID string) (*Controll
 		return nil, err
 	}
 	return controller, nil
+}
+
+func (s *service) Subscribe(eventType EventType, handler EventHandler) {
+	s.manager.On(eventType, handler)
+}
+
+func (s *service) HandleSession(ctx context.Context, recv func() (*ctrlpb.Message, error), send func(*ctrlpb.Message) error) error {
+	return s.manager.HandleSession(ctx, recv, send)
 }

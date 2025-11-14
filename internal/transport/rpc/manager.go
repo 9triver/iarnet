@@ -48,12 +48,12 @@ func (rs *server) Stop() {
 
 // Options enumerates all required fields to start RPC servers.
 type Options struct {
-	IgnisAddr       string
-	StoreAddr       string
-	ControllerMgr   controller.Manager
-	StoreService    store.Service
-	IgnisServerOpts []grpc.ServerOption
-	StoreServerOpts []grpc.ServerOption
+	IgnisAddr         string
+	StoreAddr         string
+	ControllerService controller.Service
+	StoreService      store.Service
+	IgnisServerOpts   []grpc.ServerOption
+	StoreServerOpts   []grpc.ServerOption
 }
 
 // Manager manages the lifecycle of RPC servers.
@@ -78,7 +78,7 @@ func NewManager(opts Options) *Manager {
 
 // Start launches the Ignis and Store RPC servers.
 func (m *Manager) Start() error {
-	if m.Options.ControllerMgr == nil {
+	if m.Options.ControllerService == nil {
 		return errors.New("controller manager is required")
 	}
 	if m.Options.StoreService == nil {
@@ -93,7 +93,7 @@ func (m *Manager) Start() error {
 
 	m.startOnce.Do(func() {
 		ignis, err := startServer(m.Options.IgnisAddr, m.Options.IgnisServerOpts, func(s *grpc.Server) {
-			ctrlpb.RegisterServiceServer(s, controllerrpc.NewServer(m.Options.ControllerMgr))
+			ctrlpb.RegisterServiceServer(s, controllerrpc.NewServer(m.Options.ControllerService))
 		})
 		if err != nil {
 			logrus.WithError(err).Error("failed to start ignis server")
