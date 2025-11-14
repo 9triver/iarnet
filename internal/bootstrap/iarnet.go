@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/9triver/iarnet/internal/config"
 	"github.com/9triver/iarnet/internal/domain/application"
@@ -33,8 +34,37 @@ type Iarnet struct {
 	ControllerService controller.Service
 }
 
+// Start 启动所有服务
 func (iarnet *Iarnet) Start(ctx context.Context) error {
-	iarnet.ResourceManager.StartComponentManager(ctx)
+	// 1. 启动 RPC 服务器
+	if iarnet.RPCManager != nil {
+		if err := iarnet.RPCManager.Start(); err != nil {
+			return fmt.Errorf("failed to start rpc servers: %w", err)
+		}
+		ignisAddr := fmt.Sprintf("0.0.0.0:%d", iarnet.Config.Ignis.Port)
+		storeAddr := fmt.Sprintf("0.0.0.0:%d", iarnet.Config.Resource.Store.Port)
+		logrus.Infof("Ignis server listening on %s", ignisAddr)
+		logrus.Infof("Store server listening on %s", storeAddr)
+	} else {
+		return fmt.Errorf("rpc manager is not initialized")
+	}
+
+	// 2. 启动组件管理器
+	if iarnet.ResourceManager != nil {
+		iarnet.ResourceManager.Start(ctx)
+		logrus.Info("Component manager started")
+	} else {
+		return fmt.Errorf("resource manager is not initialized")
+	}
+
+	// 3. 启动 Application 管理器
+	if iarnet.ApplicationManager != nil {
+		iarnet.ApplicationManager.Start(ctx)
+		logrus.Info("Application manager started")
+	} else {
+		return fmt.Errorf("application manager is not initialized")
+	}
+
 	return nil
 }
 

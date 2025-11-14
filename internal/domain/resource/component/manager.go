@@ -13,7 +13,7 @@ import (
 
 type Manager interface {
 	AddComponent(ctx context.Context, component *Component) error
-	Run(ctx context.Context) error
+	Start(ctx context.Context) error
 }
 
 type manager struct {
@@ -30,7 +30,7 @@ func NewManager(channeler *zmq.ComponentChanneler) Manager {
 	}
 }
 
-func (m *manager) Run(ctx context.Context) error {
+func (m *manager) Start(ctx context.Context) error {
 	// Start receiver that marks components as connected and processes messages
 	m.channeler.StartReceiver(ctx, func(componentID string, data []byte) {
 		m.mu.RLock()

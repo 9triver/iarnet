@@ -32,9 +32,9 @@ func NewManager(channeler *zmq.ComponentChanneler, s *store.Store, runnerImages 
 	}
 }
 
-// StartComponentManager starts the component manager to receive messages from components
-func (m *Manager) StartComponentManager(ctx context.Context) error {
-	return m.componentManager.Run(ctx)
+// Start starts the component manager to receive messages from components
+func (m *Manager) Start(ctx context.Context) error {
+	return m.componentManager.Start(ctx)
 }
 
 func (m *Manager) DeployComponent(ctx context.Context, name string, runtimeEnv types.RuntimeEnv, resourceRequest *types.Info) (*component.Component, error) {

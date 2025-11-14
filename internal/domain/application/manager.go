@@ -25,6 +25,12 @@ func NewManager(runnerSvc runner.Service, workspaceSvc workspace.Service, metada
 	return &Manager{runnerSvc: runnerSvc, workspaceSvc: workspaceSvc, metadataSvc: metadataSvc}
 }
 
+// Start starts the application manager
+func (m *Manager) Start(ctx context.Context) error {
+
+	return nil
+}
+
 // Runner methods
 func (m *Manager) CreateRunner(ctx context.Context, appID string, codeDir string, env runner.RunnerEnv) error {
 	return m.runnerSvc.CreateRunner(ctx, appID, codeDir, env)
