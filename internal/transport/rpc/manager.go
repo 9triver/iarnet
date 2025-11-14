@@ -46,7 +46,7 @@ func (rs *server) Stop() {
 	}
 }
 
-// Options enumerates all required fields to bootstrap RPC servers.
+// Options enumerates all required fields to start RPC servers.
 type Options struct {
 	IgnisAddr       string
 	StoreAddr       string
@@ -56,63 +56,71 @@ type Options struct {
 	StoreServerOpts []grpc.ServerOption
 }
 
-// Servers bundles the running RPC servers for easy lifecycle management.
-type servers struct {
-	Ignis *server
-	Store *server
-}
-
-var (
-	svrs      *servers
+// Manager manages the lifecycle of RPC servers.
+type Manager struct {
+	Ignis     *server
+	Store     *server
+	Options   Options
 	startOnce sync.Once
 	stopOnce  sync.Once
-)
+}
 
-// Start launches the Ignis and Store RPC servers using the provided options.
-func Start(opts Options) error {
-	if opts.ControllerMgr == nil {
+// NewManager creates a new RPC server manager.
+func NewManager(opts Options) *Manager {
+	return &Manager{
+		Ignis:     nil,
+		Store:     nil,
+		Options:   opts,
+		startOnce: sync.Once{},
+		stopOnce:  sync.Once{},
+	}
+}
+
+// Start launches the Ignis and Store RPC servers.
+func (m *Manager) Start() error {
+	if m.Options.ControllerMgr == nil {
 		return errors.New("controller manager is required")
 	}
-	if opts.StoreService == nil {
+	if m.Options.StoreService == nil {
 		return errors.New("store service is required")
 	}
-	if opts.IgnisAddr == "" {
+	if m.Options.IgnisAddr == "" {
 		return errors.New("ignis listen address is required")
 	}
-	if opts.StoreAddr == "" {
+	if m.Options.StoreAddr == "" {
 		return errors.New("store listen address is required")
 	}
 
-	startOnce.Do(func() {
-		ignis, err := startServer(opts.IgnisAddr, opts.IgnisServerOpts, func(s *grpc.Server) {
-			ctrlpb.RegisterServiceServer(s, controllerrpc.NewServer(opts.ControllerMgr))
+	m.startOnce.Do(func() {
+		ignis, err := startServer(m.Options.IgnisAddr, m.Options.IgnisServerOpts, func(s *grpc.Server) {
+			ctrlpb.RegisterServiceServer(s, controllerrpc.NewServer(m.Options.ControllerMgr))
 		})
 		if err != nil {
 			logrus.WithError(err).Error("failed to start ignis server")
 		}
 
-		store, err := startServer(opts.StoreAddr, opts.StoreServerOpts, func(s *grpc.Server) {
-			storepb.RegisterServiceServer(s, storerpc.NewServer(opts.StoreService))
+		store, err := startServer(m.Options.StoreAddr, m.Options.StoreServerOpts, func(s *grpc.Server) {
+			storepb.RegisterServiceServer(s, storerpc.NewServer(m.Options.StoreService))
 		})
 		if err != nil {
-			ignis.Stop()
+			if ignis != nil {
+				ignis.Stop()
+			}
 			logrus.WithError(err).Error("failed to start store server")
 		}
 
-		svrs = &servers{Ignis: ignis, Store: store}
+		m.Ignis = ignis
+		m.Store = store
 	})
 
 	return nil
 }
 
-func Stop() {
-	if svrs == nil {
-		return
-	}
-	stopOnce.Do(func() {
-		shutdownWithTimeout(svrs.Ignis, 30*time.Second)
-		shutdownWithTimeout(svrs.Store, 30*time.Second)
-		svrs = nil
+// Stop stops all RPC servers gracefully.
+func (m *Manager) Stop() {
+	m.stopOnce.Do(func() {
+		shutdownWithTimeout(m.Ignis, 30*time.Second)
+		shutdownWithTimeout(m.Store, 30*time.Second)
 	})
 }
 

@@ -3,19 +3,14 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"github.com/9triver/iarnet/internal/bootstrap"
 	"github.com/9triver/iarnet/internal/config"
-	"github.com/9triver/iarnet/internal/domain/ignis/controller"
-	"github.com/9triver/iarnet/internal/domain/resource"
 	"github.com/9triver/iarnet/internal/domain/resource/component"
-	"github.com/9triver/iarnet/internal/domain/resource/store"
-	"github.com/9triver/iarnet/internal/transport/rpc"
-	"github.com/9triver/iarnet/internal/transport/zmq"
 	"github.com/9triver/iarnet/internal/util"
 	"github.com/sirupsen/logrus"
 )
@@ -34,61 +29,44 @@ func main() {
 
 	util.InitLogger()
 
-	channeler := zmq.NewChanneler(cfg.ZMQ.Port)
-	store := store.NewStore()
-	resourceManager := resource.NewManager(channeler, store, cfg.ComponentImages)
-	controllerManager := controller.NewManager(resourceManager)
-
-	ripcAddr := fmt.Sprintf("0.0.0.0:%d", cfg.Ignis.Port)
-	storeAddr := fmt.Sprintf("0.0.0.0:%d", cfg.Resource.Store.Port)
-	if err := rpc.Start(rpc.Options{
-		IgnisAddr:     ripcAddr,
-		StoreAddr:     storeAddr,
-		ControllerMgr: controllerManager,
-		StoreService:  resourceManager,
-	}); err != nil {
-		logrus.Fatalf("failed to start rpc servers: %v", err)
+	// 使用 Bootstrap 初始化所有模块
+	iarnet, err := bootstrap.Initialize(cfg)
+	if err != nil {
+		logrus.Fatalf("Failed to initialize: %v", err)
 	}
-	logrus.Infof("Ignis server listening on %s", ripcAddr)
-	logrus.Infof("Store server listening on %s", storeAddr)
+	defer iarnet.Stop()
 
-	controllerService := controller.NewService(controllerManager, resourceManager, resourceManager)
-
-	// Create context with cancellation for graceful shutdown
+	// 创建上下文用于优雅关闭
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Start component manager to receive messages from components
-	if err := resourceManager.StartComponentManager(ctx); err != nil {
-		logrus.Fatalf("failed to start component manager: %v", err)
+	// 启动服务（包括组件管理器）
+	if err := iarnet.Start(ctx); err != nil {
+		logrus.Fatalf("Failed to start services: %v", err)
 	}
 	logrus.Info("Component manager started")
 
+	// 测试代码：注册 provider 和创建 controller
+	provider := component.NewProvider("local-docker", "localhost", 50051)
+	iarnet.ResourceManager.RegisterProvider(provider)
+	logrus.Infof("Local docker provider registered")
+
+	if _, err := iarnet.ControllerService.CreateController(context.Background(), "1"); err != nil {
+		logrus.Warnf("Failed to create test controller: %v", err)
+	} else {
+		logrus.Infof("Controller 1 created for test")
+	}
+
 	logrus.Info("Iarnet started successfully")
 
-	provider := component.NewProvider("local-docker", "localhost", 50051)
-	resourceManager.RegisterProvider(provider)
-	logrus.Infof("Local docker provider registered")
-	controllerService.CreateController(context.Background(), "1")
-	logrus.Infof("Controller 1 created for test")
-
-	// Graceful shutdown
+	// 优雅关闭
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	<-sigCh
 	logrus.Info("Shutting down...")
 
-	// Cancel context to stop component manager and ZMQ receiver
+	// 取消上下文以停止组件管理器和 ZMQ 接收器
 	cancel()
-
-	// Close ZMQ Channeler to release port and resources
-	// This must be done before closing listeners to ensure ZMQ socket is properly closed
-	if err := channeler.Close(); err != nil {
-		logrus.Errorf("Error closing ZMQ channeler: %v", err)
-	}
-
-	rpc.Stop()
-	logrus.Info("gRPC servers stopped")
 
 	logrus.Info("Shutdown complete")
 }
