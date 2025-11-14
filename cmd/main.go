@@ -10,7 +10,7 @@ import (
 
 	"github.com/9triver/iarnet/internal/bootstrap"
 	"github.com/9triver/iarnet/internal/config"
-	"github.com/9triver/iarnet/internal/domain/resource/component"
+	"github.com/9triver/iarnet/internal/domain/resource/provider"
 	"github.com/9triver/iarnet/internal/util"
 	"github.com/sirupsen/logrus"
 )
@@ -23,10 +23,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("Load config: %v", err)
 	}
-	if cfg.Mode == "" {
-		cfg.Mode = config.DetectMode()
-	}
-
 	util.InitLogger()
 
 	// 使用 Bootstrap 初始化所有模块
@@ -46,9 +42,12 @@ func main() {
 	}
 
 	// 测试代码：注册 provider 和创建 controller
-	provider := component.NewProvider("local-docker", "localhost", 50051, cfg)
-	iarnet.ResourceManager.RegisterProvider(provider)
-	logrus.Infof("Local docker provider registered")
+	p := provider.NewProvider("local-docker", "localhost", 50051, cfg)
+	if err := iarnet.ResourceManager.RegisterProvider(p); err != nil {
+		logrus.Warnf("Failed to register provider: %v", err)
+	} else {
+		logrus.Infof("Local docker provider registered")
+	}
 
 	if _, err := iarnet.ControllerService.CreateController(context.Background(), "1"); err != nil {
 		logrus.Warnf("Failed to create test controller: %v", err)

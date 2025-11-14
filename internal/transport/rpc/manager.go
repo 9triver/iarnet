@@ -98,6 +98,7 @@ func (m *Manager) Start() error {
 		if err != nil {
 			logrus.WithError(err).Error("failed to start ignis server")
 		}
+		logrus.Infof("Ignis server listening on %s", m.Options.IgnisAddr)
 
 		store, err := startServer(m.Options.StoreAddr, m.Options.StoreServerOpts, func(s *grpc.Server) {
 			storepb.RegisterServiceServer(s, storerpc.NewServer(m.Options.StoreService))
@@ -108,6 +109,7 @@ func (m *Manager) Start() error {
 			}
 			logrus.WithError(err).Error("failed to start store server")
 		}
+		logrus.Infof("Store server listening on %s", m.Options.StoreAddr)
 
 		m.Ignis = ignis
 		m.Store = store

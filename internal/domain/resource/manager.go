@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/9triver/iarnet/internal/domain/resource/component"
+	"github.com/9triver/iarnet/internal/domain/resource/provider"
 	"github.com/9triver/iarnet/internal/domain/resource/store"
 	"github.com/9triver/iarnet/internal/domain/resource/types"
 	commonpb "github.com/9triver/iarnet/internal/proto/common"
@@ -19,14 +20,21 @@ type Manager struct {
 	storepb.UnimplementedServiceServer
 	componentService component.Service
 	storeService     store.Service
+	providerService  provider.Service
 	componentManager component.Manager
 }
 
-func NewManager(channeler component.Channeler, s *store.Store, runnerImages map[string]string) *Manager {
+func NewManager(channeler component.Channeler, s *store.Store, componentImages map[string]string) *Manager {
 	componentManager := component.NewManager(channeler)
+
+	// 初始化 Provider 模块
+	providerManager := provider.NewManager()
+	providerService := provider.NewService(providerManager)
+
 	return &Manager{
-		componentService: component.NewService(componentManager, runnerImages),
+		componentService: component.NewService(componentManager, providerService, componentImages),
 		storeService:     store.NewService(s),
+		providerService:  providerService,
 		componentManager: componentManager,
 	}
 }
@@ -46,8 +54,8 @@ func (m *Manager) DeployComponent(ctx context.Context, name string, runtimeEnv t
 	return m.componentService.DeployComponent(ctx, name, runtimeEnv, resourceRequest)
 }
 
-func (m *Manager) RegisterProvider(provider component.Provider) {
-	m.componentService.RegisterProvider(provider)
+func (m *Manager) RegisterProvider(p provider.Provider) error {
+	return m.providerService.RegisterProvider(context.Background(), p)
 }
 
 func (m *Manager) SaveObject(ctx context.Context, obj *commonpb.EncodedObject) (*commonpb.ObjectRef, error) {

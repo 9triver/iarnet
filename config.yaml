@@ -1,34 +1,39 @@
-mode: ""  # Auto-detect, or set to "standalone" or "k8s"
 host: "host.internal" # Host for external connection. TODO: 通信问题待解决
 listen_addr: ":8083"
 peer_listen_addr: ":50051"
 initial_peers:
   - "peer2.example.com:50051"
   - "peer3.example.com:50051"
-resource_limits:
-  cpu: "8"      # Total cores
-  memory: "16Gi" # Total GiB
-  gpu: "4"      # Total GPUs
-workspace_dir: "../workspaces"  # Directory for storing cloned git repositories
+
 data_dir: "./data"  # Directory for SQLite databases
-ignis:
-  port: 50001
-runner_images:
-  "python:3.11-latest": "iarnet/runner:python_3.11-latest"
-component_images:
-  "python": "iarnet/component:python_3.11-latest"
+
+application:
+  workspace_dir: "../workspaces"
+  runner_images:
+    "python:3.11-latest": "iarnet/runner:python_3.11-latest"
+
+resource:
+  component_images:
+    "python": "iarnet/component:python_3.11-latest"
+
 enable_local_docker: true
+
 database:
   application_db_path: "./data/applications.db"
   resource_provider_db_path: "./data/resource_providers.db"
   max_open_conns: 10
   max_idle_conns: 5
   conn_max_lifetime_seconds: 300  # 5 minutes
-zmq:
-  port: 5555
-resource:
-  store:
-    port: 50002
+
+transport:
+  zmq:
+    port: 5555
+  rpc:
+    ignis:
+      port: 50001
+    store:
+      port: 50002
+
 logging:
   enabled: true
   data_dir: "./data/logs"

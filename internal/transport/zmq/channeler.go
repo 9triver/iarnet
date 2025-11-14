@@ -21,7 +21,9 @@ type ComponentChanneler struct {
 }
 
 func NewChanneler(port int) *ComponentChanneler {
-	base := goczmq.NewRouterChanneler(fmt.Sprintf("tcp://*:%d", port))
+	addr := fmt.Sprintf("tcp://*:%d", port)
+	base := goczmq.NewRouterChanneler(addr)
+	logrus.Infof("ZMQ Channeler initializing on address %s", addr)
 	return &ComponentChanneler{
 		Channeler:       base,
 		pendingMessages: make(map[string][][]byte),

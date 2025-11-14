@@ -31,15 +31,4 @@ func ApplyDefaults(cfg *Config) {
 		cfg.DataDir = "./data"
 	}
 
-	// 应用模式默认值
-	if cfg.Mode == "" {
-		cfg.Mode = DetectMode()
-	}
-
-	// 应用基础设施配置的默认值
-	cfg.Database.ApplyDefaults(cfg.DataDir)
-	cfg.Logging.ApplyDefaults(cfg.DataDir)
-
-	// 应用领域模块配置的默认值（如果需要）
-	// 目前各模块配置没有默认值逻辑，保持原样
 }

@@ -41,10 +41,6 @@ func (iarnet *Iarnet) Start(ctx context.Context) error {
 		if err := iarnet.RPCManager.Start(); err != nil {
 			return fmt.Errorf("failed to start rpc servers: %w", err)
 		}
-		ignisAddr := fmt.Sprintf("0.0.0.0:%d", iarnet.Config.Ignis.Port)
-		storeAddr := fmt.Sprintf("0.0.0.0:%d", iarnet.Config.Resource.Store.Port)
-		logrus.Infof("Ignis server listening on %s", ignisAddr)
-		logrus.Infof("Store server listening on %s", storeAddr)
 	} else {
 		return fmt.Errorf("rpc manager is not initialized")
 	}

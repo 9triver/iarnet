@@ -45,7 +45,7 @@ func bootstrapApplication(iarnet *Iarnet) error {
 	runnerService := runner.NewService(
 		runnerManager,
 		iarnet.DockerClient,
-		int(iarnet.Config.Ignis.Port),
+		iarnet.Config.Transport.RPC.Ignis.Port,
 		runnerImages,
 	)
 
