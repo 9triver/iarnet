@@ -42,12 +42,14 @@ type provider struct {
 
 	conn   *grpc.ClientConn
 	client providerpb.ProviderServiceClient
+	cfg    *config.Config // 配置引用
 }
 
 // NewProvider 创建新的 provider，如果未提供 ID，将通过 RPC 服务注册并获取分配的 ID
-func NewProvider(name string, host string, port int) Provider {
+func NewProvider(name string, host string, port int, cfg *config.Config) Provider {
 	return &provider{
 		name:           name,
+		cfg:            cfg,
 		host:           host,
 		port:           port,
 		lastUpdateTime: time.Now(),
@@ -164,8 +166,8 @@ func (p *provider) DeployComponent(ctx context.Context, id, image string, resour
 		},
 		EnvVars: map[string]string{
 			"COMPONENT_ID": id,
-			"ZMQ_ADDR":     net.JoinHostPort(config.GetConfig().Host, strconv.Itoa(config.GetConfig().ZMQ.Port)),
-			"STORE_ADDR":   net.JoinHostPort(config.GetConfig().Host, strconv.Itoa(config.GetConfig().Resource.Store.Port)),
+			"ZMQ_ADDR":     net.JoinHostPort(p.cfg.Host, strconv.Itoa(p.cfg.Resource.ZMQ.Port)),
+			"STORE_ADDR":   net.JoinHostPort(p.cfg.Host, strconv.Itoa(p.cfg.Resource.Store.Port)),
 		},
 	}
 	resp, err := p.client.DeployComponent(ctx, req)

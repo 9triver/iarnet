@@ -46,7 +46,7 @@ func main() {
 	}
 
 	// 测试代码：注册 provider 和创建 controller
-	provider := component.NewProvider("local-docker", "localhost", 50051)
+	provider := component.NewProvider("local-docker", "localhost", 50051, cfg)
 	iarnet.ResourceManager.RegisterProvider(provider)
 	logrus.Infof("Local docker provider registered")
 

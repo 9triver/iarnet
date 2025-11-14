@@ -33,13 +33,13 @@ func bootstrapApplication(iarnet *Iarnet) error {
 
 	// 初始化 Workspace 模块
 	workspaceManager := workspace.NewManager()
-	workspaceService := workspace.NewService(workspaceManager, iarnet.Config.WorkspaceDir)
+	workspaceService := workspace.NewService(workspaceManager, iarnet.Config.Application.WorkspaceDir)
 
 	// 初始化 Runner 模块
 	runnerManager := runner.NewManager()
 	// 转换 RunnerImages 类型（map[string]string -> map[RunnerEnv]string）
 	runnerImages := make(map[runner.RunnerEnv]string)
-	for k, v := range iarnet.Config.RunnerImages {
+	for k, v := range iarnet.Config.Application.RunnerImages {
 		runnerImages[runner.RunnerEnv(k)] = v
 	}
 	runnerService := runner.NewService(

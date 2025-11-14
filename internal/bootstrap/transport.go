@@ -11,7 +11,7 @@ import (
 // BootstrapTransport 初始化 Transport 层（RPC、HTTP 等）
 func bootstrapTransport(iarnet *Iarnet) error {
 
-	channeler := zmq.NewChanneler(iarnet.Config.ZMQ.Port)
+	channeler := zmq.NewChanneler(iarnet.Config.Resource.ZMQ.Port)
 	iarnet.Channeler = channeler
 
 	// 构建 RPC 服务器地址

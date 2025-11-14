@@ -15,7 +15,7 @@ func bootstrapResource(iarnet *Iarnet) error {
 	resourceManager := resource.NewManager(
 		iarnet.Channeler,
 		storeInstance,
-		iarnet.Config.ComponentImages,
+		iarnet.Config.Resource.ComponentImages,
 	)
 	iarnet.ResourceManager = resourceManager
 
