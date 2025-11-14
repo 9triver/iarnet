@@ -4,13 +4,15 @@ import (
 	"context"
 
 	"github.com/9triver/iarnet/internal/domain/application/types"
+	"github.com/9triver/iarnet/internal/util"
 )
 
 type Service interface {
+	GetAllAppMetadata(ctx context.Context) ([]types.AppMetadata, error)
 	GetAppMetadata(ctx context.Context, appID string) (types.AppMetadata, error)
 	UpdateAppMetadata(ctx context.Context, appID string, metadata types.AppMetadata) error
 	UpdateAppStatus(ctx context.Context, appID string, status types.AppStatus) error
-	CreateAppMetadata(ctx context.Context, appID string, metadata types.AppMetadata) error
+	CreateAppMetadata(ctx context.Context, metadata types.AppMetadata) (types.AppID, error)
 	RemoveAppMetadata(ctx context.Context, appID string) error
 }
 
@@ -24,9 +26,15 @@ func NewService(cache *Cache) Service {
 	}
 }
 
-func (s *service) CreateAppMetadata(ctx context.Context, appID string, metadata types.AppMetadata) error {
+func (s *service) GetAllAppMetadata(ctx context.Context) ([]types.AppMetadata, error) {
+	return s.cache.GetAll()
+}
+
+func (s *service) CreateAppMetadata(ctx context.Context, metadata types.AppMetadata) (types.AppID, error) {
+	appID := types.AppID(util.GenIDWith("app."))
+	metadata.ID = appID
 	s.cache.Set(appID, metadata)
-	return nil
+	return appID, nil
 }
 
 func (s *service) GetAppMetadata(ctx context.Context, appID string) (types.AppMetadata, error) {

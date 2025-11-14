@@ -22,7 +22,7 @@ const (
 )
 
 type AppMetadata struct {
-	ID           string
+	ID           AppID
 	Name         string
 	Status       AppStatus
 	GitUrl       string
@@ -53,3 +53,5 @@ const (
 	RunnerStatusFailed   RunnerStatus = "failed"
 	RunnerStatusStopped  RunnerStatus = "stopped"
 )
+
+type AppID = string

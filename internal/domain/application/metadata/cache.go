@@ -17,6 +17,16 @@ func NewCache() *Cache {
 	}
 }
 
+func (c *Cache) GetAll() ([]types.AppMetadata, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	values := make([]types.AppMetadata, 0, len(c.cache))
+	for _, metadata := range c.cache {
+		values = append(values, metadata)
+	}
+	return values, nil
+}
+
 func (c *Cache) Get(appID string) (types.AppMetadata, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()

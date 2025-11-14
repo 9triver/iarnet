@@ -37,7 +37,24 @@ type Iarnet struct {
 
 // Start 启动所有服务
 func (iarnet *Iarnet) Start(ctx context.Context) error {
-	// 1. 启动 RPC 服务器
+
+	// 1. 启动组件管理器
+	if iarnet.ResourceManager != nil {
+		iarnet.ResourceManager.Start(ctx)
+		logrus.Info("Component manager started")
+	} else {
+		return fmt.Errorf("resource manager is not initialized")
+	}
+
+	// 2. 启动 Application 管理器
+	if iarnet.ApplicationManager != nil {
+		iarnet.ApplicationManager.Start(ctx)
+		logrus.Info("Application manager started")
+	} else {
+		return fmt.Errorf("application manager is not initialized")
+	}
+
+	// 3. 启动 RPC 服务器
 	if iarnet.RPCManager != nil {
 		if err := iarnet.RPCManager.Start(); err != nil {
 			return fmt.Errorf("failed to start rpc servers: %w", err)
@@ -46,20 +63,12 @@ func (iarnet *Iarnet) Start(ctx context.Context) error {
 		return fmt.Errorf("rpc manager is not initialized")
 	}
 
-	// 2. 启动组件管理器
-	if iarnet.ResourceManager != nil {
-		iarnet.ResourceManager.Start(ctx)
-		logrus.Info("Component manager started")
+	// 4. 启动 HTTP 服务器
+	if iarnet.HTTPServer != nil {
+		iarnet.HTTPServer.Start()
+		logrus.Info("HTTP server started")
 	} else {
-		return fmt.Errorf("resource manager is not initialized")
-	}
-
-	// 3. 启动 Application 管理器
-	if iarnet.ApplicationManager != nil {
-		iarnet.ApplicationManager.Start(ctx)
-		logrus.Info("Application manager started")
-	} else {
-		return fmt.Errorf("application manager is not initialized")
+		return fmt.Errorf("http server is not initialized")
 	}
 
 	return nil

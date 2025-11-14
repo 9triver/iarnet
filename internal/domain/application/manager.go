@@ -90,8 +90,12 @@ func (m *Manager) CleanWorkDir(ctx context.Context, appID string) error {
 }
 
 // Metadata methods
-func (m *Manager) CreateAppMetadata(ctx context.Context, appID string, metadata types.AppMetadata) error {
-	return m.metadataSvc.CreateAppMetadata(ctx, appID, metadata)
+func (m *Manager) GetAllAppMetadata(ctx context.Context) ([]types.AppMetadata, error) {
+	return m.metadataSvc.GetAllAppMetadata(ctx)
+}
+
+func (m *Manager) CreateAppMetadata(ctx context.Context, metadata types.AppMetadata) (types.AppID, error) {
+	return m.metadataSvc.CreateAppMetadata(ctx, metadata)
 }
 
 func (m *Manager) GetAppMetadata(ctx context.Context, appID string) (types.AppMetadata, error) {
