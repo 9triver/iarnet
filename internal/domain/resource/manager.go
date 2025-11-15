@@ -58,6 +58,11 @@ func (m *Manager) RegisterProvider(p provider.Provider) error {
 	return m.providerService.RegisterProvider(context.Background(), p)
 }
 
+// GetAllProviders 获取所有注册的 Provider
+func (m *Manager) GetAllProviders() []provider.Provider {
+	return m.providerService.GetAllProviders()
+}
+
 func (m *Manager) SaveObject(ctx context.Context, obj *commonpb.EncodedObject) (*commonpb.ObjectRef, error) {
 	return m.storeService.SaveObject(ctx, obj)
 }

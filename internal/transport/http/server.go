@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/9triver/iarnet/internal/config"
 	"github.com/9triver/iarnet/internal/domain/application"
 	"github.com/9triver/iarnet/internal/domain/ignis"
 	"github.com/9triver/iarnet/internal/domain/resource"
@@ -18,6 +19,7 @@ import (
 
 type Options struct {
 	Port     int
+	Config   *config.Config
 	AppMgr   *application.Manager
 	ResMgr   *resource.Manager
 	Platform *ignis.Platform
@@ -31,10 +33,10 @@ type Server struct {
 func NewServer(opts Options) *Server {
 	router := mux.NewRouter()
 	applicationAPI.RegisterRoutes(router, opts.AppMgr)
-	resourceAPI.RegisterRoutes(router, opts.ResMgr)
+	resourceAPI.RegisterRoutes(router, opts.ResMgr, opts.Config)
 	ignisAPI.RegisterRoutes(router, opts.Platform)
 
-	return &Server{Server: &http.Server{Addr: fmt.Sprintf("0.0.0.0:%d", opts.Port)}, Router: router}
+	return &Server{Server: &http.Server{Addr: fmt.Sprintf("0.0.0.0:%d", opts.Port), Handler: router}, Router: router}
 }
 
 func (s *Server) Start() {

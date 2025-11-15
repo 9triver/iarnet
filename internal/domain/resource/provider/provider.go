@@ -31,6 +31,12 @@ type Provider interface {
 	Deploy(ctx context.Context, id, image string, resourceRequest *types.Info) error
 }
 
+type EnvVariables struct {
+	IarnetHost string
+	ZMQPort    int
+	StorePort  int
+}
+
 type provider struct {
 	id             string
 	name           string
@@ -42,7 +48,8 @@ type provider struct {
 
 	conn   *grpc.ClientConn
 	client providerpb.ProviderServiceClient
-	cfg    *config.Config // 配置引用
+
+	cfg *config.Config
 }
 
 // NewProvider 创建新的 provider，如果未提供 ID，将通过 RPC 服务注册并获取分配的 ID
