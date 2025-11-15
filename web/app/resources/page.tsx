@@ -3,6 +3,12 @@
 import { useState, useEffect } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { resourcesAPI } from "@/lib/api"
+import type {
+  GetResourceCapacityResponse,
+  GetResourceProvidersResponse,
+  ProviderItem,
+  RegisterResourceProviderRequest,
+} from "@/lib/model"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -25,30 +31,9 @@ import { Plus, Server, Cpu, HardDrive, Activity, Trash2, Edit, RefreshCw, Memory
 import { formatMemory, formatNumber } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
 
-// 后端API响应类型定义
-interface ResourceProvider {
-  id: string
-  name: string
-  type: string
-  host: string
-  port: number
-  status: string
-  cpu_usage: {
-    total: number
-    used: number
-  }
-  memory_usage: {
-    total: number
-    used: number
-  }
-  last_update_time: string
-}
-
-interface GetResourceProvidersResponse {
-  local_providers: ResourceProvider[]
-  remote_providers: ResourceProvider[]
-}
-
+// 本地使用的资源类型（包含 CPU 和内存使用情况）
+// 注意：后端 ProviderItem 不包含 cpu_usage 和 memory_usage
+// 这些数据需要从其他地方获取或计算
 interface Resource {
   id: string
   name: string
@@ -65,12 +50,9 @@ interface Resource {
     total: number
     used: number
   }
-  // storage: {
-  //   total: number
-  //   used: number
-  // }
   lastUpdated: string
 }
+
 
 interface ResourceFormData {
   name: string
@@ -143,7 +125,26 @@ export default function ResourcesPage() {
   const fetchCapacity = async () => {
     try {
       const data = await resourcesAPI.getCapacity()
-      setCapacity(data as Capacity)
+      // 后端返回的CPU单位是毫核（millicores），需要除以1000转换为核（cores）
+      // 内存单位是 bytes，需要转换为合适的单位（在显示时转换）
+      const capacity: Capacity = {
+        total: {
+          cpu: data.total.cpu / 1000, // 转换为核
+          memory: data.total.memory,    // 保持 bytes，显示时转换
+          gpu: data.total.gpu,
+        },
+        used: {
+          cpu: data.used.cpu / 1000,
+          memory: data.used.memory,
+          gpu: data.used.gpu,
+        },
+        available: {
+          cpu: data.available.cpu / 1000,
+          memory: data.available.memory,
+          gpu: data.available.gpu,
+        },
+      }
+      setCapacity(capacity)
     } catch (error) {
       console.error('Failed to fetch capacity:', error)
     }
@@ -164,35 +165,36 @@ export default function ResourcesPage() {
   // 获取资源提供者数据
   const fetchProviders = async () => {
     try {
-      const response = (await resourcesAPI.getProviders()) as GetResourceProvidersResponse
+      const response = await resourcesAPI.getProviders()
       
       // 转换API数据格式为前端需要的格式
-      const convertProvider = (provider: ResourceProvider, category: "local_providers" | "remote_providers"): Resource => ({
+      // 注意：后端 ProviderItem 不包含 cpu_usage 和 memory_usage
+      // 这些数据需要从其他地方获取，目前先设置为 0
+      const convertProvider = (provider: ProviderItem): Resource => ({
         id: provider.id,
         name: provider.name,
         type: provider.type.toLowerCase() as "kubernetes" | "docker" | "vm",
         host: provider.host,
         port: provider.port,
-        category: category, // 添加分类标识
+        category: "local_providers", // 全部作为本地资源处理
         status: convertStatus(provider.status),
         cpu: {
-          total: provider.cpu_usage.total,
-          used: provider.cpu_usage.used
+          // TODO: 从 provider 的 GetCapacity 接口获取实际使用情况
+          // 目前先设置为 0，需要后续实现
+          total: 0,
+          used: 0,
         },
         memory: {
-          total: provider.memory_usage.total,
-          used: provider.memory_usage.used
+          total: 0,
+          used: 0,
         },
-        lastUpdated: provider.last_update_time
+        lastUpdated: provider.last_update_time,
       })
       
-      // 合并两类 provider
-      const allResources = [
-        ...response.local_providers.map(p => convertProvider(p, 'local_providers')),
-        ...response.remote_providers.map(p => convertProvider(p, 'remote_providers'))
-      ]
+      // 只处理本地资源，远程资源暂不接入数据
+      const localResources = (response.providers || []).map(convertProvider)
       
-      setResources(allResources)
+      setResources(localResources)
     } catch (error) {
       console.error('Failed to fetch providers:', error)
       // 如果API调用失败，保持使用模拟数据
@@ -206,6 +208,7 @@ export default function ResourcesPage() {
   const onSubmit = async (data: ResourceFormData) => {
     if (editingResource) {
       // 编辑现有资源
+      // TODO: 后端暂不支持编辑，先在前端更新
       setResources((prev) =>
         prev.map((resource) =>
           resource.id === editingResource.id
@@ -216,23 +219,13 @@ export default function ResourcesPage() {
     } else {
       // 添加新资源 - 调用后端API
       try {
-        // 构造后端期望的请求格式
-        const providerRequest = {
-          name: data.name, // 添加资源名称
-          type: data.type === "kubernetes" ? "k8s" : data.type, // 转换类型名称
-          config: data.type === "docker" ? {
-            host: `tcp://${data.host}:${data.port}`,
-            tlsVerify: data.token ? true : false,
-            tlsCertPath: data.token || undefined,
-            apiVersion: "1.41"
-          } : {
-            kubeConfigContent: data.token, // 对于k8s，token字段存储kubeconfig内容
-            namespace: "default",
-            context: ""
-          }
+        const request: RegisterResourceProviderRequest = {
+          name: data.name,
+          host: data.host,
+          port: data.port,
         }
         
-        const response = await resourcesAPI.create(providerRequest)
+        const response = await resourcesAPI.registerProvider(request)
         console.log('Provider registered successfully:', response)
         
         // 重新获取资源列表以显示最新数据
@@ -257,8 +250,17 @@ export default function ResourcesPage() {
     setIsDialogOpen(true)
   }
 
-  const handleDelete = (id: string) => {
-    setResources((prev) => prev.filter((resource) => resource.id !== id))
+  const handleDelete = async (id: string) => {
+    try {
+      await resourcesAPI.unregisterProvider(id)
+      console.log('Provider unregistered successfully:', id)
+      
+      // 重新获取资源列表以显示最新数据
+      await fetchProviders()
+    } catch (error) {
+      console.error('Failed to unregister provider:', error)
+      // 可以在这里添加错误提示
+    }
   }
 
   const getStatusBadge = (status: Resource["status"]) => {
