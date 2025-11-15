@@ -1,24 +1,53 @@
-export interface ResourceProvider {
-  id: string
-  name: string
-  host: string
-  port: number
-  type: string
-  status: number
-  cpu_usage: {
-    used: number
-    total: number
-  }
-  memory_usage: {
-    used: number
-    total: number
-  }
-  last_update_time: string
+// ========== 资源管理相关类型 ==========
+
+// ResourceInfo 资源信息（CPU单位：millicores，内存单位：bytes）
+export interface ResourceInfo {
+  cpu: number    // CPU（millicores）
+  memory: number // 内存（bytes）
+  gpu: number    // GPU 数量
 }
 
+// GetResourceCapacityResponse 获取资源容量响应
+export interface GetResourceCapacityResponse {
+  total: ResourceInfo     // 总资源
+  used: ResourceInfo     // 已使用资源
+  available: ResourceInfo // 可用资源
+}
+
+// ProviderItem 资源提供者列表项
+export interface ProviderItem {
+  id: string    // 提供者 ID
+  name: string  // 提供者名称
+  type: string  // 提供者类型
+  host: string  // 主机地址
+  port: number  // 端口
+  status: string // 状态 (connected/disconnected/unknown)
+  last_update_time: string // 最后更新时间（ISO 8601 格式）
+}
+
+// GetResourceProvidersResponse 获取资源提供者列表响应
 export interface GetResourceProvidersResponse {
-  local_providers: ResourceProvider[]
-  remote_providers: ResourceProvider[]
+  providers: ProviderItem[] // 提供者列表
+  total: number             // 总数
+}
+
+// RegisterResourceProviderRequest 注册资源提供者请求
+export interface RegisterResourceProviderRequest {
+  name: string // 提供者名称
+  host: string // 主机地址
+  port: number // 端口
+}
+
+// RegisterResourceProviderResponse 注册资源提供者响应
+export interface RegisterResourceProviderResponse {
+  id: string   // 提供者 ID
+  name: string // 提供者名称
+}
+
+// UnregisterResourceProviderResponse 注销资源提供者响应
+export interface UnregisterResourceProviderResponse {
+  id: string      // 提供者 ID
+  message: string // 响应消息
 }
 
 export interface Application {

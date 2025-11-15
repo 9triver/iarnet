@@ -1,0 +1,51 @@
+syntax = "proto3";
+package provider;
+option go_package = "github.com/9triver/iarnet/internal/proto/resource/provider";
+
+import "resource.proto";
+
+message ProviderType {
+  string name = 1;
+}
+
+message AssignIDRequest {
+  string provider_id = 1;
+}
+
+message AssignIDResponse {
+  bool success = 1;
+  string error = 2;
+  ProviderType provider_type = 3;
+}
+
+message GetCapacityRequest {
+}
+
+message GetCapacityResponse {
+  resource.Capacity capacity = 1;
+}
+
+message GetAvailableRequest {
+}
+
+message GetAvailableResponse {
+  resource.Info available = 1;
+}
+
+message DeployComponentRequest {
+  string component_id = 1;
+  string image = 2;
+  resource.Info resource_request = 3;
+  map<string, string> env_vars = 4;
+}
+
+message DeployComponentResponse {
+  string error = 1;
+}
+
+service ProviderService {
+  rpc AssignID(AssignIDRequest) returns (AssignIDResponse);
+  rpc GetCapacity(GetCapacityRequest) returns (GetCapacityResponse);
+  rpc GetAvailable(GetAvailableRequest) returns (GetAvailableResponse);
+  rpc DeployComponent(DeployComponentRequest) returns (DeployComponentResponse);
+}

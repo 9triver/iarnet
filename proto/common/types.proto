@@ -1,0 +1,35 @@
+syntax = "proto3";
+package common;
+option go_package = "github.com/9triver/iarnet/internal/proto/common";
+
+// Language of supported object
+enum Language {
+  LANG_UNKNOWN = 0;
+  LANG_JSON = 1; // Values that can be represented as JSON string, can be encoded/decoded
+  LANG_GO = 2; // Values that are only compatible with Go actors.
+  LANG_PYTHON = 3; // Values that are only compatible with Python actors.
+}
+
+// ObjectRef is a reference to an object in the store
+message ObjectRef {
+  string ID = 1; // Object ID
+  string Source = 2; // Source store ID (optional)
+}
+
+// EncodedObject stores a byte encoded object
+// This is a unified version used across the system
+message EncodedObject {
+  string ID = 1; // if returned from ipc call, id won't be set
+  bytes Data = 2; // serialized object data, or nil if current object is a stream
+  string Source = 3; // source store ID (optional, for store service)
+  Language Language = 4; // if is JSON, it can be decoded to either Go, Python, or else it can only be decoded to corresponding language.
+  bool IsStream = 5; // mark if the object is a stream (unified field name)
+}
+
+message StreamChunk {
+  string ObjectID = 1;
+  string Offset = 2;
+  bool EoS = 3;
+  EncodedObject Value = 4;
+  string Error = 5;
+}

@@ -1,0 +1,12 @@
+syntax = "proto3";
+package common;
+option go_package = "github.com/9triver/iarnet/internal/proto/common";
+
+// Ack is an acknowledgment message
+message Ack {
+  string Error = 1; // optional error message
+}
+
+// Ready indicates that the component is ready to receive messages
+message Ready {}
+

@@ -1,0 +1,66 @@
+package component
+
+import (
+	"context"
+	"sync"
+
+	"github.com/9triver/iarnet/internal/domain/resource/types"
+	componentpb "github.com/9triver/iarnet/internal/proto/resource/component"
+)
+
+type Sender func(componentID string, msg *componentpb.Message)
+
+type Component struct {
+	mu            sync.RWMutex
+	id            string
+	name          string
+	image         string
+	resourceUsage *types.Info
+	buffer        chan *componentpb.Message
+	sender        Sender
+}
+
+func NewComponent(id, name, image string, resourceUsage *types.Info) *Component {
+	comp := &Component{
+		id:            id,
+		name:          name,
+		image:         image,
+		resourceUsage: resourceUsage,
+		buffer:        make(chan *componentpb.Message, 100), // Buffered channel to avoid blocking
+	}
+
+	return comp
+}
+
+func (c *Component) GetID() string {
+	return c.id
+}
+
+func (c *Component) GetName() string {
+	return c.name
+}
+
+func (c *Component) GetImage() string {
+	return c.image
+}
+
+func (c *Component) SetSender(sender Sender) {
+	c.sender = sender
+}
+
+func (c *Component) Send(msg *componentpb.Message) {
+	c.sender(c.id, msg)
+}
+
+func (c *Component) Receive(ctx context.Context) *componentpb.Message {
+	select {
+	case <-ctx.Done():
+		return nil
+	case msg := <-c.buffer:
+		return msg
+	}
+}
+
+func (c *Component) Push(msg *componentpb.Message) {
+	c.buffer <- msg
+}

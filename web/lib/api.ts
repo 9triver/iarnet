@@ -48,22 +48,31 @@ async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promi
 }
 
 // 资源管理 API
+import type {
+  GetResourceCapacityResponse,
+  GetResourceProvidersResponse,
+  RegisterResourceProviderRequest,
+  RegisterResourceProviderResponse,
+  UnregisterResourceProviderResponse,
+} from "./model"
+
 export const resourcesAPI = {
-  getAll: () => apiRequest("/resources"),
-  getCapacity: () => apiRequest("/resource/capacity"),
-  getProviders: () => apiRequest("/resource/providers"),
-  create: (resource: any) =>
-    apiRequest("/resource/providers", {
+  // 获取资源容量
+  getCapacity: () => apiRequest<GetResourceCapacityResponse>("/resource/capacity"),
+
+  // 获取资源提供者列表
+  getProviders: () => apiRequest<GetResourceProvidersResponse>("/resource/provider"),
+
+  // 注册资源提供者
+  registerProvider: (request: RegisterResourceProviderRequest) =>
+    apiRequest<RegisterResourceProviderResponse>("/resource/provider", {
       method: "POST",
-      body: JSON.stringify(resource),
+      body: JSON.stringify(request),
     }),
-  update: (id: string, resource: any) =>
-    apiRequest(`/resources/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(resource),
-    }),
-  delete: (id: string) =>
-    apiRequest(`/resources/${id}`, {
+
+  // 注销资源提供者
+  unregisterProvider: (id: string) =>
+    apiRequest<UnregisterResourceProviderResponse>(`/resource/provider/${id}`, {
       method: "DELETE",
     }),
 }

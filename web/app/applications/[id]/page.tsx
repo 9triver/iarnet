@@ -520,7 +520,15 @@ export default function ApplicationDetailPage() {
     setIsLoadingComponentsList(true)
     try {
       const response = await applicationsAPI.getComponents(applicationId) as { components: Component[] }
-      setComponents(response.components || [])
+      // 转换组件数据：后端返回的CPU单位是毫核（millicores），需要除以1000转换为核（cores）
+      const components = (response.components || []).map(component => ({
+        ...component,
+        resource_usage: {
+          ...component.resource_usage,
+          cpu: component.resource_usage.cpu / 1000
+        }
+      }))
+      setComponents(components)
     } catch (error) {
       console.error('Failed to load components:', error)
       setComponents([])

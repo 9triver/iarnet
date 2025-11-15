@@ -1,0 +1,44 @@
+syntax = "proto3";
+package store;
+option go_package = "github.com/9triver/iarnet/internal/proto/resource/store";
+
+import "common/types.proto";
+
+// ObjectRef is now in common/types.proto
+// Language is now in common/types.proto
+// EncodedObject is now in common/types.proto
+
+
+
+message SaveObjectRequest {
+  common.EncodedObject Object = 1;
+}
+
+message SaveObjectResponse {
+  common.ObjectRef ObjectRef = 1;
+  bool Success = 2;
+  string Error = 3;
+}
+
+message GetObjectRequest {
+  common.ObjectRef ObjectRef = 1;
+}
+
+message GetObjectResponse {
+  common.EncodedObject Object = 1;
+}
+
+message GetStreamChunkRequest {
+  string ObjectID = 1;
+  string Offset = 2;
+}
+
+message GetStreamChunkResponse {
+  common.StreamChunk Chunk = 1;
+}
+
+service Service {
+  rpc SaveObject(SaveObjectRequest) returns (SaveObjectResponse);
+  rpc GetObject(GetObjectRequest) returns (GetObjectResponse);
+  rpc GetStreamChunk(GetStreamChunkRequest) returns (GetStreamChunkResponse);
+}

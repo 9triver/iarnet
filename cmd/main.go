@@ -4,21 +4,15 @@ import (
 	"context"
 	"flag"
 	"log"
-	"net"
 	"os"
 	"os/signal"
 	"syscall"
 
-	"github.com/9triver/iarnet/integration/ignis/deployer"
-	"github.com/9triver/iarnet/internal/application"
-	"github.com/9triver/iarnet/internal/compute/ignis"
+	"github.com/9triver/iarnet/internal/bootstrap"
 	"github.com/9triver/iarnet/internal/config"
-	"github.com/9triver/iarnet/internal/discovery"
-	"github.com/9triver/iarnet/internal/resource"
-	"github.com/9triver/iarnet/internal/server"
-	"github.com/9triver/ignis/proto/cluster"
+	"github.com/9triver/iarnet/internal/domain/resource/provider"
+	"github.com/9triver/iarnet/internal/util"
 	"github.com/sirupsen/logrus"
-	"google.golang.org/grpc"
 )
 
 func main() {
@@ -29,102 +23,48 @@ func main() {
 	if err != nil {
 		log.Fatalf("Load config: %v", err)
 	}
-	if cfg.Mode == "" {
-		cfg.Mode = config.DetectMode()
+	util.InitLogger()
+
+	// 使用 Bootstrap 初始化所有模块
+	iarnet, err := bootstrap.Initialize(cfg)
+	if err != nil {
+		logrus.Fatalf("Failed to initialize: %v", err)
 	}
-	logrus.Infof("Running in mode: %s", cfg.Mode)
+	defer iarnet.Stop()
 
-	// 初始化资源管理器
-	rm := resource.NewManager(cfg)
+	// 创建上下文用于优雅关闭
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	// 初始化应用管理器
-	am := application.NewManager(cfg, rm)
-	if am == nil {
-		log.Fatal("Failed to create application manager - Docker connection failed")
-	}
-
-	// 启动 actor cluster gRPC 服务器
-	lis, err1 := net.Listen("tcp", "0.0.0.0:25565")
-	logrus.Infof("Actor cluster RPC server listening on %s", lis.Addr().String())
-
-	if err1 != nil {
-		log.Fatalf("RPC server: %v", err1)
-	}
-	svr := grpc.NewServer(
-		grpc.MaxRecvMsgSize(512*1024*1024),
-		grpc.MaxSendMsgSize(512*1024*1024),
-	)
-	defer svr.Stop()
-
-	go func() {
-		if err := svr.Serve(lis); err != nil {
-			logrus.Errorf("gRPC server failed: %v", err)
-		}
-	}()
-
-	cm := deployer.NewConnectionManager()
-	cluster.RegisterServiceServer(svr, cm)
-
-	// 初始化计算引擎（ignis）
-	var computeEngine *ignis.Engine = nil
-	if cfg.Ignis.Port != 0 {
-		computeEngine, err = ignis.NewEngine(context.Background(), cfg, am, rm, cm)
-		if err != nil {
-			log.Fatalf("Failed to create compute engine: %v", err)
-		}
-
-		// 启动计算引擎
-		if err := computeEngine.Start(context.Background()); err != nil {
-			log.Fatalf("Failed to start compute engine: %v", err)
-		}
-		logrus.Info("Compute engine (ignis) started successfully")
+	// 启动所有服务
+	if err := iarnet.Start(ctx); err != nil {
+		logrus.Fatalf("Failed to start services: %v", err)
 	}
 
-	// 设置计算引擎到 application manager
-	if computeEngine != nil {
-		am.SetComputeEngine(computeEngine)
+	// 测试代码：注册 provider 和创建 controller
+	p := provider.NewProvider("local-docker", "localhost", 50051, cfg)
+	if err := iarnet.ResourceManager.RegisterProvider(p); err != nil {
+		logrus.Warnf("Failed to register provider: %v", err)
+	} else {
+		logrus.Infof("Local docker provider registered")
 	}
 
-	// 初始化节点发现管理器
-	pm := discovery.NewPeerManager(cfg.InitialPeers, rm)
-
-	// Start gossip (if needed)
-	// go pm.StartGossip(context.Background())
-
-	// 启动 gRPC 节点服务器
-	grpcSrv := server.NewGRPCServer(rm, pm)
-	go func() {
-		if err := grpcSrv.Start(cfg.PeerListenAddr); err != nil {
-			log.Fatalf("gRPC peer server: %v", err)
-		}
-	}()
-
-	// 启动 HTTP API 服务器
-	srv := server.NewServer(rm, am, pm, cfg)
-	go func() {
-		if err := srv.Start(cfg.ListenAddr); err != nil {
-			log.Fatalf("HTTP server: %v", err)
-		}
-	}()
+	// if _, err := iarnet.IgnisPlatform.CreateController(context.Background(), "1"); err != nil {
+	// 	logrus.Warnf("Failed to create test controller: %v", err)
+	// } else {
+	// 	logrus.Infof("Controller 1 created for test")
+	// }
 
 	logrus.Info("Iarnet started successfully")
 
-	// Graceful shutdown
+	// 优雅关闭
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	<-sigCh
-
 	logrus.Info("Shutting down...")
-	srv.Stop()
-	grpcSrv.Stop()
-	rm.StopMonitoring()
 
-	// 停止计算引擎
-	if computeEngine != nil {
-		if err := computeEngine.Stop(context.Background()); err != nil {
-			logrus.Errorf("Failed to stop compute engine: %v", err)
-		}
-	}
+	// 取消上下文以停止组件管理器和 ZMQ 接收器
+	cancel()
 
 	logrus.Info("Shutdown complete")
 }
