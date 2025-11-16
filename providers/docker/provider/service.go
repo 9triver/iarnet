@@ -17,10 +17,9 @@ const providerType = "docker"
 
 type Service struct {
 	providerpb.UnimplementedServiceServer
-	mu         sync.RWMutex
-	providerID string
-	client     *client.Client
-	manager    *Manager // 健康检查状态管理器
+	mu      sync.RWMutex
+	client  *client.Client
+	manager *Manager // 健康检查状态管理器
 }
 
 func NewService(host, tlsCertPath string, tlsVerify bool, apiVersion string) (*Service, error) {
@@ -113,20 +112,19 @@ func (s *Service) Connect(ctx context.Context, req *providerpb.ConnectRequest) (
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.providerID != "" && s.providerID != req.ProviderId {
-		logrus.Errorf("provider already connected: %s", s.providerID)
+	if s.manager.GetProviderID() != "" && s.manager.GetProviderID() != req.ProviderId {
+		logrus.Errorf("provider already connected: %s", s.manager.GetProviderID())
 		return &providerpb.ConnectResponse{
 			Success: false,
-			Error:   fmt.Sprintf("provider already connected: %s", s.providerID),
+			Error:   fmt.Sprintf("provider already connected: %s", s.manager.GetProviderID()),
 		}, nil
 	}
 
-	s.providerID = req.ProviderId
 	// 通过 manager 设置 provider ID（会同时记录健康检测时间）
 	if s.manager != nil {
 		s.manager.SetProviderID(req.ProviderId)
 	}
-	logrus.Infof("Provider ID assigned: %s", s.providerID)
+	logrus.Infof("Provider ID assigned: %s", s.manager.GetProviderID())
 
 	return &providerpb.ConnectResponse{
 		Success: true,
@@ -291,7 +289,7 @@ func (s *Service) GetProviderID() string {
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.providerID
+	return s.manager.GetProviderID()
 }
 
 // checkAuth 检查鉴权
@@ -302,7 +300,7 @@ func (s *Service) checkAuth(requestProviderID string, allowUnconnected bool) err
 	defer s.mu.RUnlock()
 
 	// 如果 provider 还没有被连接
-	if s.providerID == "" {
+	if s.manager.GetProviderID() == "" {
 		if allowUnconnected {
 			// 允许未连接的 provider 访问（用于 GetCapacity 和 GetAvailable）
 			return nil
@@ -316,8 +314,8 @@ func (s *Service) checkAuth(requestProviderID string, allowUnconnected bool) err
 		return fmt.Errorf("provider_id is required for authenticated requests")
 	}
 
-	if requestProviderID != s.providerID {
-		return fmt.Errorf("unauthorized: provider_id mismatch, expected %s, got %s", s.providerID, requestProviderID)
+	if requestProviderID != s.manager.GetProviderID() {
+		return fmt.Errorf("unauthorized: provider_id mismatch, expected %s, got %s", s.manager.GetProviderID(), requestProviderID)
 	}
 
 	return nil
@@ -411,7 +409,6 @@ func (s *Service) Disconnect(ctx context.Context, req *providerpb.DisconnectRequ
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.providerID = ""
 	// 通过 manager 清除 provider ID
 	if s.manager != nil {
 		s.manager.ClearProviderID()

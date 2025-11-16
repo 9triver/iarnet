@@ -81,6 +81,8 @@ import type {
   UnregisterResourceProviderResponse,
   TestResourceProviderRequest,
   TestResourceProviderResponse,
+  UpdateResourceProviderRequest,
+  UpdateResourceProviderResponse,
 } from "./model"
 
 export const resourcesAPI = {
@@ -109,6 +111,13 @@ export const resourcesAPI = {
   unregisterProvider: (id: string) =>
     apiRequest<UnregisterResourceProviderResponse>(`/resource/provider/${id}`, {
       method: "DELETE",
+    }),
+
+  // 更新资源提供者
+  updateProvider: (id: string, request: UpdateResourceProviderRequest) =>
+    apiRequest<UpdateResourceProviderResponse>(`/resource/provider/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(request),
     }),
 
   // 测试资源提供者连接

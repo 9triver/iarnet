@@ -11,6 +11,7 @@ import (
 	resourcepb "github.com/9triver/iarnet/internal/proto/resource"
 	providerpb "github.com/9triver/iarnet/internal/proto/resource/provider"
 	"github.com/9triver/iarnet/internal/util"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -138,8 +139,18 @@ func (p *Provider) SetStatus(status types.ProviderStatus) {
 // Disconnect 断开连接但不清除 ID，仅更新状态
 // 用于健康检测失败时，让 provider 感知到 iarnet 的管理状态
 func (p *Provider) Disconnect() {
+	if p.status != types.ProviderStatusConnected {
+		return
+	}
 	p.status = types.ProviderStatusDisconnected
+	_, err := p.client.Disconnect(context.Background(), &providerpb.DisconnectRequest{
+		ProviderId: p.id,
+	})
+	if err != nil {
+		logrus.Warnf("Failed to disconnect from provider %s: %v", p.id, err)
+	}
 	if p.conn != nil {
+
 		p.conn.Close()
 		p.conn = nil
 	}

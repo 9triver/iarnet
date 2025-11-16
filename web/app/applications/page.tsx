@@ -37,6 +37,7 @@ import {
   Cpu,
   Database,
   RefreshCw,
+  Inbox,
 } from "lucide-react"
 import { Application, RunnerEnvironment } from "@/lib/model"
 
@@ -719,118 +720,130 @@ export default function ApplicationsPage() {
           </div>
 
           {/* Applications Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {applications.map((app) => {
-              const lastDeployedDisplay = new Date().toLocaleString()
+          {applications.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-16">
+                <Inbox className="h-16 w-16 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-semibold text-foreground mb-2">暂无应用</h3>
+                <p className="text-sm text-muted-foreground text-center max-w-md">
+                  您还没有导入任何应用。点击右上角的"导入应用"按钮开始导入您的第一个应用。
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {applications.map((app) => {
+                const lastDeployedDisplay = new Date().toLocaleString()
 
-              return (
-                <Card
-                key={app.id}
-                className="hover:shadow-lg transition-shadow cursor-pointer"
-                onClick={() => router.push(`/applications/${app.id}`)}
-              >
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center space-x-2">
-                      {getTypeIcon(app.type)}
-                      <div>
-                        <CardTitle className="text-lg">{app.name}</CardTitle>
-                        <CardDescription className="flex items-center space-x-2 mt-1">
-                          <Badge variant="outline">{getTypeLabel(app.type)}</Badge>
-                          {getStatusBadge(app.status)}
-                        </CardDescription>
-                      </div>
-                    </div>
-                  </div>
-                </CardHeader>
-
-                <CardContent className="space-y-4">
-                  <p className="text-sm text-muted-foreground line-clamp-2">{app.description}</p>
-
-                  <div className="space-y-2">
-                    {app.gitUrl && (
-                      <div className="flex items-center space-x-2 text-sm">
-                        <Package className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-muted-foreground">仓库:</span>
-                        <span className="font-mono text-xs truncate flex-1">{app.gitUrl}</span>
-                      </div>
-                    )}
-                    {app.branch && (
-                      <div className="flex items-center space-x-2 text-sm">
-                        <GitBranch className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-muted-foreground">分支:</span>
-                        <span className="font-mono">{app.branch}</span>
-                      </div>
-                    )}
-
-                    {app.ports && app.ports.length > 0 && (
-                      <div className="flex items-center space-x-2 text-sm">
-                        <Activity className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-muted-foreground">端口:</span>
-                        <div className="flex flex-wrap gap-1">
-                          {app.ports.map((port, index) => (
-                            <Badge key={index} variant="outline" className="text-xs font-mono">
-                              {port}
-                            </Badge>
-                          ))}
+                return (
+                  <Card
+                  key={app.id}
+                  className="hover:shadow-lg transition-shadow cursor-pointer"
+                  onClick={() => router.push(`/applications/${app.id}`)}
+                >
+                  <CardHeader>
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center space-x-2">
+                        {getTypeIcon(app.type)}
+                        <div>
+                          <CardTitle className="text-lg">{app.name}</CardTitle>
+                          <CardDescription className="flex items-center space-x-2 mt-1">
+                            <Badge variant="outline">{getTypeLabel(app.type)}</Badge>
+                            {getStatusBadge(app.status)}
+                          </CardDescription>
                         </div>
                       </div>
-                    )}
+                    </div>
+                  </CardHeader>
 
-                    <div className="flex items-center space-x-2 text-sm">
-                      <Clock className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-muted-foreground">最后部署:</span>
-                      <span className="text-xs">{lastDeployedDisplay}</span>
+                  <CardContent className="space-y-4">
+                    <p className="text-sm text-muted-foreground line-clamp-2">{app.description}</p>
+
+                    <div className="space-y-2">
+                      {app.gitUrl && (
+                        <div className="flex items-center space-x-2 text-sm">
+                          <Package className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-muted-foreground">仓库:</span>
+                          <span className="font-mono text-xs truncate flex-1">{app.gitUrl}</span>
+                        </div>
+                      )}
+                      {app.branch && (
+                        <div className="flex items-center space-x-2 text-sm">
+                          <GitBranch className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-muted-foreground">分支:</span>
+                          <span className="font-mono">{app.branch}</span>
+                        </div>
+                      )}
+
+                      {app.ports && app.ports.length > 0 && (
+                        <div className="flex items-center space-x-2 text-sm">
+                          <Activity className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-muted-foreground">端口:</span>
+                          <div className="flex flex-wrap gap-1">
+                            {app.ports.map((port, index) => (
+                              <Badge key={index} variant="outline" className="text-xs font-mono">
+                                {port}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex items-center space-x-2 text-sm">
+                        <Clock className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-muted-foreground">最后部署:</span>
+                        <span className="text-xs">{lastDeployedDisplay}</span>
+                      </div>
+
+                      {app.runningOn && app.runningOn.length > 0 && (
+                        <div className="space-y-1">
+                          <div className="text-sm text-muted-foreground">运行在:</div>
+                          <div className="flex flex-wrap gap-1">
+                            {app.runningOn.map((resource, index) => (
+                              <Badge key={index} variant="secondary" className="text-xs">
+                                {resource}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
-                    {app.runningOn && app.runningOn.length > 0 && (
-                      <div className="space-y-1">
-                        <div className="text-sm text-muted-foreground">运行在:</div>
-                        <div className="flex flex-wrap gap-1">
-                          {app.runningOn.map((resource, index) => (
-                            <Badge key={index} variant="secondary" className="text-xs">
-                              {resource}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                    <div className="flex items-center space-x-2 pt-2 border-t">
+                      {app.status === "running" ? (
+                        <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); handleStop(app.id); }}>
+                          <Square className="h-4 w-4" />
+                          停止
+                        </Button>
+                      ) : (
+                        <Button size="sm" onClick={(e) => { e.stopPropagation(); handleRun(app.id); }} disabled={app.status === "deploying"}>
+                          <Play className="h-4 w-4" />
+                          {app.status === "deploying" ? "部署中..." : "运行"}
+                        </Button>
+                      )}
 
-                  <div className="flex items-center space-x-2 pt-2 border-t">
-                    {app.status === "running" ? (
-                      <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); handleStop(app.id); }}>
-                        <Square className="h-4 w-4" />
-                        停止
+
+
+                      <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); handleEdit(app); }}>
+                        <Settings className="h-4 w-4" />
                       </Button>
-                    ) : (
-                      <Button size="sm" onClick={(e) => { e.stopPropagation(); handleRun(app.id); }} disabled={app.status === "deploying"}>
-                        <Play className="h-4 w-4" />
-                        {app.status === "deploying" ? "部署中..." : "运行"}
+
+                      <Button size="sm" variant="ghost" asChild>
+                        <a href={app.gitUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+                          <ExternalLink className="h-4 w-4" />
+                        </a>
                       </Button>
-                    )}
 
-
-
-                    <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); handleEdit(app); }}>
-                      <Settings className="h-4 w-4" />
-                    </Button>
-
-                    <Button size="sm" variant="ghost" asChild>
-                      <a href={app.gitUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
-                        <ExternalLink className="h-4 w-4" />
-                      </a>
-                    </Button>
-
-                    <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); handleDelete(app.id); }}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardContent>
-                </Card>
-              )
-            })}
-          </div>
+                      <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); handleDelete(app.id); }}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+          )}
         </div>
       </main>
     </div>

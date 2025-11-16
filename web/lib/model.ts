@@ -83,6 +83,18 @@ export interface TestResourceProviderResponse {
   message: string       // 响应消息或错误信息
 }
 
+// UpdateResourceProviderRequest 更新资源提供者请求
+export interface UpdateResourceProviderRequest {
+  name?: string // 提供者名称（可选，目前唯一支持的字段）
+}
+
+// UpdateResourceProviderResponse 更新资源提供者响应
+export interface UpdateResourceProviderResponse {
+  id: string      // 提供者 ID
+  name: string    // 更新后的名称
+  message: string // 响应消息
+}
+
 export interface Application {
   id: string
   name: string

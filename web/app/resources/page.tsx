@@ -259,22 +259,23 @@ export default function ResourcesPage() {
 
   const onSubmit = async (data: ResourceFormData) => {
     try {
-      // 解析 URL
-      const { host, port } = parseURL(data.url)
-      
       if (editingResource) {
-        // 编辑现有资源
-        // TODO: 后端暂不支持编辑，先在前端更新
-        // 编辑模式下只更新名称和 URL（host:port）
-        setResources((prev) =>
-          prev.map((resource) =>
-            resource.id === editingResource.id
-              ? { ...resource, name: data.name, host, port }
-              : resource,
-          ),
-        )
+        // 编辑现有资源 - 调用后端API
+        // 目前只支持更新名称，连接地址不可编辑
+        const request = {
+          name: data.name,
+        }
+        
+        const response = await resourcesAPI.updateProvider(editingResource.id, request)
+        console.log('Provider updated successfully:', response)
+        
+        // 重新获取资源列表以显示最新数据
+        await fetchProviders()
       } else {
         // 添加新资源 - 调用后端API
+        // 解析 URL
+        const { host, port } = parseURL(data.url)
+        
         const request: RegisterResourceProviderRequest = {
           name: data.name,
           host,
@@ -292,12 +293,20 @@ export default function ResourcesPage() {
       // 状态清除由 onOpenChange 处理，避免重复操作
     } catch (error) {
       console.error('Failed to process form:', error)
-      // 将错误信息设置到 url 字段
-      const errorMessage = error instanceof Error ? error.message : 'URL 格式错误'
-      form.setError('url', {
-        type: 'manual',
-        message: errorMessage,
-      })
+      // 如果是编辑模式，错误信息设置到 name 字段
+      // 如果是添加模式，错误信息设置到 url 字段
+      const errorMessage = error instanceof Error ? error.message : '操作失败'
+      if (editingResource) {
+        form.setError('name', {
+          type: 'manual',
+          message: errorMessage,
+        })
+      } else {
+        form.setError('url', {
+          type: 'manual',
+          message: errorMessage,
+        })
+      }
     }
   }
 
@@ -631,128 +640,132 @@ export default function ResourcesPage() {
                               <Input 
                                 placeholder="例如: localhost:50051 或 192.168.1.100:6443" 
                                 {...field}
+                                disabled={!!editingResource}
+                                readOnly={!!editingResource}
                               />
                             </FormControl>
                             <FormDescription>
                               格式: host:port，例如: localhost:50051
                             </FormDescription>
                             <FormMessage />
-                            <div className="flex items-center gap-2 mt-2">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                disabled={testingConnection || !field.value}
-                                onClick={async () => {
-                                  try {
-                                    setTestingConnection(true)
-                                    setTestResult(null)
-                                    
-                                    const { host, port } = parseURL(field.value)
-                                    const name = form.getValues("name") || "test"
-                                    
-                                    const result = await resourcesAPI.testProvider({
-                                      name,
-                                      host,
-                                      port,
-                                    })
-                                    
-                                    // 如果后端返回 success: false，也需要处理错误消息
-                                    if (!result.success && result.message) {
-                                      let errorMessage = result.message
-                                      const errorMsg = errorMessage.toLowerCase()
+                            {!editingResource && (
+                              <div className="flex items-center gap-2 mt-2">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={testingConnection || !field.value}
+                                  onClick={async () => {
+                                    try {
+                                      setTestingConnection(true)
+                                      setTestResult(null)
                                       
-                                      // 检查是否是认证相关的错误
-                                      if (errorMsg.includes('authentication') || 
-                                          errorMsg.includes('provider_id is required') ||
-                                          errorMsg.includes('authenticated requests')) {
-                                        errorMessage = '认证失败，当前 provider 已被其他节点注册'
-                                      } else if (errorMsg.includes('连接失败')) {
-                                        // 提取原始错误信息，去掉 "连接失败: " 前缀
-                                        const originalMsg = result.message.replace(/^连接失败:\s*/i, '')
-                                        const originalMsgLower = originalMsg.toLowerCase()
+                                      const { host, port } = parseURL(field.value)
+                                      const name = form.getValues("name") || "test"
+                                      
+                                      const result = await resourcesAPI.testProvider({
+                                        name,
+                                        host,
+                                        port,
+                                      })
+                                      
+                                      // 如果后端返回 success: false，也需要处理错误消息
+                                      if (!result.success && result.message) {
+                                        let errorMessage = result.message
+                                        const errorMsg = errorMessage.toLowerCase()
                                         
-                                        // 再次检查是否是认证错误
-                                        if (originalMsgLower.includes('authentication') || 
-                                            originalMsgLower.includes('provider_id is required') ||
-                                            originalMsgLower.includes('authenticated requests')) {
+                                        // 检查是否是认证相关的错误
+                                        if (errorMsg.includes('authentication') || 
+                                            errorMsg.includes('provider_id is required') ||
+                                            errorMsg.includes('authenticated requests')) {
                                           errorMessage = '认证失败，当前 provider 已被其他节点注册'
+                                        } else if (errorMsg.includes('连接失败')) {
+                                          // 提取原始错误信息，去掉 "连接失败: " 前缀
+                                          const originalMsg = result.message.replace(/^连接失败:\s*/i, '')
+                                          const originalMsgLower = originalMsg.toLowerCase()
+                                          
+                                          // 再次检查是否是认证错误
+                                          if (originalMsgLower.includes('authentication') || 
+                                              originalMsgLower.includes('provider_id is required') ||
+                                              originalMsgLower.includes('authenticated requests')) {
+                                            errorMessage = '认证失败，当前 provider 已被其他节点注册'
+                                          }
+                                        }
+                                        
+                                        setTestResult({
+                                          ...result,
+                                          message: errorMessage,
+                                        })
+                                      } else {
+                                        setTestResult(result)
+                                      }
+                                    } catch (error) {
+                                      let errorMessage = '测试连接失败'
+                                      
+                                      if (error instanceof Error) {
+                                        const errorMsg = error.message.toLowerCase()
+                                        // 检查是否是认证相关的错误（后端返回的错误消息可能包含 "连接失败: " 前缀）
+                                        if (errorMsg.includes('authentication') || 
+                                            errorMsg.includes('provider_id is required') ||
+                                            errorMsg.includes('authenticated requests') ||
+                                            errorMsg.includes('已被其他节点注册')) {
+                                          errorMessage = '认证失败，当前 provider 已被其他节点注册'
+                                        } else if (errorMsg.includes('connection') || 
+                                                   errorMsg.includes('connect') ||
+                                                   errorMsg.includes('连接失败')) {
+                                          // 提取原始错误信息，去掉 "连接失败: " 前缀
+                                          const originalMsg = error.message.replace(/^连接失败:\s*/i, '')
+                                          const originalMsgLower = originalMsg.toLowerCase()
+                                          
+                                          // 再次检查是否是认证错误
+                                          if (originalMsgLower.includes('authentication') || 
+                                              originalMsgLower.includes('provider_id is required') ||
+                                              originalMsgLower.includes('authenticated requests')) {
+                                            errorMessage = '认证失败，当前 provider 已被其他节点注册'
+                                          } else {
+                                            errorMessage = '连接失败，请检查地址和端口是否正确'
+                                          }
+                                        } else {
+                                          errorMessage = error.message
                                         }
                                       }
                                       
                                       setTestResult({
-                                        ...result,
+                                        success: false,
+                                        type: "",
                                         message: errorMessage,
                                       })
-                                    } else {
-                                      setTestResult(result)
+                                    } finally {
+                                      setTestingConnection(false)
                                     }
-                                  } catch (error) {
-                                    let errorMessage = '测试连接失败'
-                                    
-                                    if (error instanceof Error) {
-                                      const errorMsg = error.message.toLowerCase()
-                                      // 检查是否是认证相关的错误（后端返回的错误消息可能包含 "连接失败: " 前缀）
-                                      if (errorMsg.includes('authentication') || 
-                                          errorMsg.includes('provider_id is required') ||
-                                          errorMsg.includes('authenticated requests') ||
-                                          errorMsg.includes('已被其他节点注册')) {
-                                        errorMessage = '认证失败，当前 provider 已被其他节点注册'
-                                      } else if (errorMsg.includes('connection') || 
-                                                 errorMsg.includes('connect') ||
-                                                 errorMsg.includes('连接失败')) {
-                                        // 提取原始错误信息，去掉 "连接失败: " 前缀
-                                        const originalMsg = error.message.replace(/^连接失败:\s*/i, '')
-                                        const originalMsgLower = originalMsg.toLowerCase()
-                                        
-                                        // 再次检查是否是认证错误
-                                        if (originalMsgLower.includes('authentication') || 
-                                            originalMsgLower.includes('provider_id is required') ||
-                                            originalMsgLower.includes('authenticated requests')) {
-                                          errorMessage = '认证失败，当前 provider 已被其他节点注册'
-                                        } else {
-                                          errorMessage = '连接失败，请检查地址和端口是否正确'
-                                        }
-                                      } else {
-                                        errorMessage = error.message
-                                      }
-                                    }
-                                    
-                                    setTestResult({
-                                      success: false,
-                                      type: "",
-                                      message: errorMessage,
-                                    })
-                                  } finally {
-                                    setTestingConnection(false)
-                                  }
-                                }}
-                              >
-                                {testingConnection ? (
-                                  <>
-                                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                                    测试中...
-                                  </>
-                                ) : (
-                                  "测试连接"
-                                )}
-                              </Button>
-                              {testResult && (
-                                <div className={`text-sm ${testResult.success ? 'text-green-600' : 'text-red-600'}`}>
-                                  {testResult.success ? (
-                                    <div className="flex items-center gap-2">
-                                      <span>✓ 连接成功</span>
-                                      {testResult.type && (
-                                        <Badge variant="outline">{testResult.type}</Badge>
-                                      )}
-                                    </div>
+                                  }}
+                                >
+                                  {testingConnection ? (
+                                    <>
+                                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                                      测试中...
+                                    </>
                                   ) : (
-                                    <span>✗ {testResult.message}</span>
+                                    "测试连接"
                                   )}
-                                </div>
-                              )}
-                            </div>
-                            {testResult?.success && testResult.capacity && (
+                                </Button>
+                                {testResult && (
+                                  <div className={`text-sm ${testResult.success ? 'text-green-600' : 'text-red-600'}`}>
+                                    {testResult.success ? (
+                                      <div className="flex items-center gap-2">
+                                        <span>✓ 连接成功</span>
+                                        {testResult.type && (
+                                          <Badge variant="outline">{testResult.type}</Badge>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <span>✗ {testResult.message}</span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            {!editingResource && testResult?.success && testResult.capacity && (
                               <div className="mt-2 p-3 bg-green-50 dark:bg-green-900/20 rounded-md border border-green-200 dark:border-green-800">
                                 <div className="text-sm font-medium text-green-900 dark:text-green-100 mb-2">
                                   资源容量
