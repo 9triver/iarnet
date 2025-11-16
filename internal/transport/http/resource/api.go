@@ -22,6 +22,7 @@ func RegisterRoutes(router *mux.Router, resMgr *resource.Manager, cfg *config.Co
 	router.HandleFunc("/resource/provider/{id}/capacity", api.handleGetResourceProviderCapacity).Methods("GET")
 	router.HandleFunc("/resource/provider/test", api.handleTestResourceProvider).Methods("POST")
 	router.HandleFunc("/resource/provider", api.handleRegisterResourceProvider).Methods("POST")
+	router.HandleFunc("/resource/provider/{id}", api.handleUpdateResourceProvider).Methods("PUT")
 	router.HandleFunc("/resource/provider/{id}", api.handleUnregisterResourceProvider).Methods("DELETE")
 }
 
@@ -67,11 +68,10 @@ func (api *API) handleRegisterResourceProvider(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// 创建 provider 实例
-	p := provider.NewProvider(req.Name, req.Host, req.Port, api.cfg)
-
 	// 注册 provider
-	if err := api.resMgr.RegisterProvider(p); err != nil {
+	p, err := api.resMgr.RegisterProvider(req.Name, req.Host, req.Port)
+	if err != nil {
+		logrus.Errorf("Failed to register provider: %v", err)
 		response.InternalError("failed to register provider: " + err.Error()).WriteJSON(w)
 		return
 	}
@@ -83,6 +83,69 @@ func (api *API) handleRegisterResourceProvider(w http.ResponseWriter, r *http.Re
 	response.Created(resp).WriteJSON(w)
 }
 
+func (api *API) handleUpdateResourceProvider(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	providerID := vars["id"]
+	if providerID == "" {
+		response.BadRequest("provider id is required").WriteJSON(w)
+		return
+	}
+
+	// 解析请求体
+	req := UpdateResourceProviderRequest{}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.BadRequest("invalid request body: " + err.Error()).WriteJSON(w)
+		return
+	}
+
+	// 获取 provider
+	provider := api.resMgr.GetProvider(providerID)
+	if provider == nil {
+		response.NotFound("provider not found").WriteJSON(w)
+		return
+	}
+
+	// 检查是否有需要更新的字段
+	hasUpdates := false
+	updatedName := provider.GetName()
+
+	// 更新名称（目前唯一支持的字段）
+	if req.Name != nil {
+		if *req.Name == "" {
+			response.BadRequest("provider name cannot be empty").WriteJSON(w)
+			return
+		}
+		provider.SetName(*req.Name)
+		updatedName = *req.Name
+		hasUpdates = true
+	}
+
+	// 未来可以在这里添加其他字段的更新逻辑
+	// if req.Host != nil {
+	//     provider.UpdateHost(*req.Host)
+	//     hasUpdates = true
+	// }
+	// if req.Port != nil {
+	//     provider.UpdatePort(*req.Port)
+	//     hasUpdates = true
+	// }
+
+	// 如果没有提供任何更新字段，返回错误
+	if !hasUpdates {
+		response.BadRequest("at least one field must be provided for update").WriteJSON(w)
+		return
+	}
+
+	// 构建响应
+	resp := UpdateResourceProviderResponse{
+		ID:      providerID,
+		Name:    updatedName,
+		Message: "Provider updated successfully",
+	}
+
+	response.Success(resp).WriteJSON(w)
+}
+
 func (api *API) handleUnregisterResourceProvider(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	providerID := vars["id"]
@@ -91,9 +154,12 @@ func (api *API) handleUnregisterResourceProvider(w http.ResponseWriter, r *http.
 		return
 	}
 
-	// TODO: 实现 UnregisterProvider 方法
-	// 目前 resource manager 没有 UnregisterProvider 方法
-	// 需要先添加到 provider service  and manager
+	// 注销 provider
+	if err := api.resMgr.UnregisterProvider(providerID); err != nil {
+		logrus.Errorf("Failed to unregister provider %s: %v", providerID, err)
+		response.NotFound("provider not found: " + err.Error()).WriteJSON(w)
+		return
+	}
 
 	resp := UnregisterResourceProviderResponse{
 		ID:      providerID,
@@ -154,7 +220,11 @@ func (api *API) handleTestResourceProvider(w http.ResponseWriter, r *http.Reques
 	}
 
 	// 创建临时 provider 实例用于测试连接（不调用 Connect，避免 AssignID）
-	testProvider := provider.NewProvider(req.Name, req.Host, req.Port, api.cfg)
+	testProvider := provider.NewProvider(req.Name, req.Host, req.Port, &provider.EnvVariables{
+		IarnetHost: api.cfg.Host,
+		ZMQPort:    api.cfg.Transport.ZMQ.Port,
+		StorePort:  api.cfg.Transport.RPC.Store.Port,
+	})
 
 	ctx := r.Context()
 

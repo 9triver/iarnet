@@ -8,11 +8,11 @@ message ProviderType {
   string name = 1;
 }
 
-message AssignIDRequest {
+message ConnectRequest {
   string provider_id = 1;
 }
 
-message AssignIDResponse {
+message ConnectResponse {
   bool success = 1;
   string error = 2;
   ProviderType provider_type = 3;
@@ -34,21 +34,36 @@ message GetAvailableResponse {
   resource.Info available = 1;
 }
 
-message DeployComponentRequest {
-  string component_id = 1;
-  string image = 2;
-  resource.Info resource_request = 3;
-  map<string, string> env_vars = 4;
-  string provider_id = 5; // 可选的 provider_id，用于鉴权
+message DeployRequest {
+  string image = 1;
+  resource.Info resource_request = 2;
+  map<string, string> env_vars = 3;
+  string provider_id = 4; // 可选的 provider_id，用于鉴权
 }
 
-message DeployComponentResponse {
+message DeployResponse {
   string error = 1;
 }
 
-service ProviderService {
-  rpc AssignID(AssignIDRequest) returns (AssignIDResponse);
+message HealthCheckRequest {
+  string provider_id = 1; // 可选的 provider_id，用于鉴权
+}
+
+message HealthCheckResponse {
+}
+
+message DisconnectRequest {
+  string provider_id = 1;
+}
+
+message DisconnectResponse {
+}
+
+service Service {
+  rpc Connect(ConnectRequest) returns (ConnectResponse);
+  rpc Disconnect(DisconnectRequest) returns (DisconnectResponse);
   rpc GetCapacity(GetCapacityRequest) returns (GetCapacityResponse);
   rpc GetAvailable(GetAvailableRequest) returns (GetAvailableResponse);
-  rpc DeployComponent(DeployComponentRequest) returns (DeployComponentResponse);
+  rpc Deploy(DeployRequest) returns (DeployResponse);
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
 }

@@ -105,6 +105,22 @@ type RegisterResourceProviderRequest struct {
 	Port int    `json:"port" binding:"required"` // 端口
 }
 
+// UpdateResourceProviderRequest 更新资源提供者请求
+// 目前只支持更新名称，日后可能会支持其他字段（如 host, port 等）
+type UpdateResourceProviderRequest struct {
+	Name *string `json:"name,omitempty"` // 提供者名称（可选，目前唯一支持的字段）
+	// 未来可能添加的字段：
+	// Host *string `json:"host,omitempty"` // 主机地址
+	// Port *int    `json:"port,omitempty"` // 端口
+}
+
+// UpdateResourceProviderResponse 更新资源提供者响应
+type UpdateResourceProviderResponse struct {
+	ID      string `json:"id"`      // 提供者 ID
+	Name    string `json:"name"`    // 更新后的名称
+	Message string `json:"message"` // 响应消息
+}
+
 // RegisterResourceProviderResponse 注册资源提供者响应
 type RegisterResourceProviderResponse struct {
 	ID   string `json:"id"`   // 提供者 ID

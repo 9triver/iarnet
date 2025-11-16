@@ -31,4 +31,20 @@ func ApplyDefaults(cfg *Config) {
 		cfg.DataDir = "./data"
 	}
 
+	// 数据库配置默认值
+	if cfg.Database.ApplicationDBPath == "" {
+		cfg.Database.ApplicationDBPath = "./data/applications.db"
+	}
+	if cfg.Database.ResourceProviderDBPath == "" {
+		cfg.Database.ResourceProviderDBPath = "./data/resource_providers.db"
+	}
+	if cfg.Database.MaxOpenConns == 0 {
+		cfg.Database.MaxOpenConns = 10
+	}
+	if cfg.Database.MaxIdleConns == 0 {
+		cfg.Database.MaxIdleConns = 5
+	}
+	if cfg.Database.ConnMaxLifetimeSeconds == 0 {
+		cfg.Database.ConnMaxLifetimeSeconds = 300
+	}
 }

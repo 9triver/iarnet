@@ -25,7 +25,7 @@ _sym_db = _symbol_database.Default()
 import resource_pb2 as resource__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x17provider/provider.proto\x12\x08provider\x1a\x0eresource.proto\"\x1c\n\x0cProviderType\x12\x0c\n\x04name\x18\x01 \x01(\t\"&\n\x0f\x41ssignIDRequest\x12\x13\n\x0bprovider_id\x18\x01 \x01(\t\"a\n\x10\x41ssignIDResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\r\n\x05\x65rror\x18\x02 \x01(\t\x12-\n\rprovider_type\x18\x03 \x01(\x0b\x32\x16.provider.ProviderType\")\n\x12GetCapacityRequest\x12\x13\n\x0bprovider_id\x18\x01 \x01(\t\";\n\x13GetCapacityResponse\x12$\n\x08\x63\x61pacity\x18\x01 \x01(\x0b\x32\x12.resource.Capacity\"*\n\x13GetAvailableRequest\x12\x13\n\x0bprovider_id\x18\x01 \x01(\t\"9\n\x14GetAvailableResponse\x12!\n\tavailable\x18\x01 \x01(\x0b\x32\x0e.resource.Info\"\xed\x01\n\x16\x44\x65ployComponentRequest\x12\x14\n\x0c\x63omponent_id\x18\x01 \x01(\t\x12\r\n\x05image\x18\x02 \x01(\t\x12(\n\x10resource_request\x18\x03 \x01(\x0b\x32\x0e.resource.Info\x12?\n\x08\x65nv_vars\x18\x04 \x03(\x0b\x32-.provider.DeployComponentRequest.EnvVarsEntry\x12\x13\n\x0bprovider_id\x18\x05 \x01(\t\x1a.\n\x0c\x45nvVarsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"(\n\x17\x44\x65ployComponentResponse\x12\r\n\x05\x65rror\x18\x01 \x01(\t2\xc7\x02\n\x0fProviderService\x12\x41\n\x08\x41ssignID\x12\x19.provider.AssignIDRequest\x1a\x1a.provider.AssignIDResponse\x12J\n\x0bGetCapacity\x12\x1c.provider.GetCapacityRequest\x1a\x1d.provider.GetCapacityResponse\x12M\n\x0cGetAvailable\x12\x1d.provider.GetAvailableRequest\x1a\x1e.provider.GetAvailableResponse\x12V\n\x0f\x44\x65ployComponent\x12 .provider.DeployComponentRequest\x1a!.provider.DeployComponentResponseB<Z:github.com/9triver/iarnet/internal/proto/resource/providerb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x17provider/provider.proto\x12\x08provider\x1a\x0eresource.proto\"\x1c\n\x0cProviderType\x12\x0c\n\x04name\x18\x01 \x01(\t\"%\n\x0e\x43onnectRequest\x12\x13\n\x0bprovider_id\x18\x01 \x01(\t\"`\n\x0f\x43onnectResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\r\n\x05\x65rror\x18\x02 \x01(\t\x12-\n\rprovider_type\x18\x03 \x01(\x0b\x32\x16.provider.ProviderType\")\n\x12GetCapacityRequest\x12\x13\n\x0bprovider_id\x18\x01 \x01(\t\";\n\x13GetCapacityResponse\x12$\n\x08\x63\x61pacity\x18\x01 \x01(\x0b\x32\x12.resource.Capacity\"*\n\x13GetAvailableRequest\x12\x13\n\x0bprovider_id\x18\x01 \x01(\t\"9\n\x14GetAvailableResponse\x12!\n\tavailable\x18\x01 \x01(\x0b\x32\x0e.resource.Info\"\xc5\x01\n\rDeployRequest\x12\r\n\x05image\x18\x01 \x01(\t\x12(\n\x10resource_request\x18\x02 \x01(\x0b\x32\x0e.resource.Info\x12\x36\n\x08\x65nv_vars\x18\x03 \x03(\x0b\x32$.provider.DeployRequest.EnvVarsEntry\x12\x13\n\x0bprovider_id\x18\x04 \x01(\t\x1a.\n\x0c\x45nvVarsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\x1f\n\x0e\x44\x65ployResponse\x12\r\n\x05\x65rror\x18\x01 \x01(\t\")\n\x12HealthCheckRequest\x12\x13\n\x0bprovider_id\x18\x01 \x01(\t\"\x15\n\x13HealthCheckResponse\"(\n\x11\x44isconnectRequest\x12\x13\n\x0bprovider_id\x18\x01 \x01(\t\"\x14\n\x12\x44isconnectResponse2\xb6\x03\n\x07Service\x12>\n\x07\x43onnect\x12\x18.provider.ConnectRequest\x1a\x19.provider.ConnectResponse\x12G\n\nDisconnect\x12\x1b.provider.DisconnectRequest\x1a\x1c.provider.DisconnectResponse\x12J\n\x0bGetCapacity\x12\x1c.provider.GetCapacityRequest\x1a\x1d.provider.GetCapacityResponse\x12M\n\x0cGetAvailable\x12\x1d.provider.GetAvailableRequest\x1a\x1e.provider.GetAvailableResponse\x12;\n\x06\x44\x65ploy\x12\x17.provider.DeployRequest\x1a\x18.provider.DeployResponse\x12J\n\x0bHealthCheck\x12\x1c.provider.HealthCheckRequest\x1a\x1d.provider.HealthCheckResponseB<Z:github.com/9triver/iarnet/internal/proto/resource/providerb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -33,28 +33,36 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'provider.provider_pb2', _gl
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'Z:github.com/9triver/iarnet/internal/proto/resource/provider'
-  _globals['_DEPLOYCOMPONENTREQUEST_ENVVARSENTRY']._loaded_options = None
-  _globals['_DEPLOYCOMPONENTREQUEST_ENVVARSENTRY']._serialized_options = b'8\001'
+  _globals['_DEPLOYREQUEST_ENVVARSENTRY']._loaded_options = None
+  _globals['_DEPLOYREQUEST_ENVVARSENTRY']._serialized_options = b'8\001'
   _globals['_PROVIDERTYPE']._serialized_start=53
   _globals['_PROVIDERTYPE']._serialized_end=81
-  _globals['_ASSIGNIDREQUEST']._serialized_start=83
-  _globals['_ASSIGNIDREQUEST']._serialized_end=121
-  _globals['_ASSIGNIDRESPONSE']._serialized_start=123
-  _globals['_ASSIGNIDRESPONSE']._serialized_end=220
-  _globals['_GETCAPACITYREQUEST']._serialized_start=222
-  _globals['_GETCAPACITYREQUEST']._serialized_end=263
-  _globals['_GETCAPACITYRESPONSE']._serialized_start=265
-  _globals['_GETCAPACITYRESPONSE']._serialized_end=324
-  _globals['_GETAVAILABLEREQUEST']._serialized_start=326
-  _globals['_GETAVAILABLEREQUEST']._serialized_end=368
-  _globals['_GETAVAILABLERESPONSE']._serialized_start=370
-  _globals['_GETAVAILABLERESPONSE']._serialized_end=427
-  _globals['_DEPLOYCOMPONENTREQUEST']._serialized_start=430
-  _globals['_DEPLOYCOMPONENTREQUEST']._serialized_end=667
-  _globals['_DEPLOYCOMPONENTREQUEST_ENVVARSENTRY']._serialized_start=621
-  _globals['_DEPLOYCOMPONENTREQUEST_ENVVARSENTRY']._serialized_end=667
-  _globals['_DEPLOYCOMPONENTRESPONSE']._serialized_start=669
-  _globals['_DEPLOYCOMPONENTRESPONSE']._serialized_end=709
-  _globals['_PROVIDERSERVICE']._serialized_start=712
-  _globals['_PROVIDERSERVICE']._serialized_end=1039
+  _globals['_CONNECTREQUEST']._serialized_start=83
+  _globals['_CONNECTREQUEST']._serialized_end=120
+  _globals['_CONNECTRESPONSE']._serialized_start=122
+  _globals['_CONNECTRESPONSE']._serialized_end=218
+  _globals['_GETCAPACITYREQUEST']._serialized_start=220
+  _globals['_GETCAPACITYREQUEST']._serialized_end=261
+  _globals['_GETCAPACITYRESPONSE']._serialized_start=263
+  _globals['_GETCAPACITYRESPONSE']._serialized_end=322
+  _globals['_GETAVAILABLEREQUEST']._serialized_start=324
+  _globals['_GETAVAILABLEREQUEST']._serialized_end=366
+  _globals['_GETAVAILABLERESPONSE']._serialized_start=368
+  _globals['_GETAVAILABLERESPONSE']._serialized_end=425
+  _globals['_DEPLOYREQUEST']._serialized_start=428
+  _globals['_DEPLOYREQUEST']._serialized_end=625
+  _globals['_DEPLOYREQUEST_ENVVARSENTRY']._serialized_start=579
+  _globals['_DEPLOYREQUEST_ENVVARSENTRY']._serialized_end=625
+  _globals['_DEPLOYRESPONSE']._serialized_start=627
+  _globals['_DEPLOYRESPONSE']._serialized_end=658
+  _globals['_HEALTHCHECKREQUEST']._serialized_start=660
+  _globals['_HEALTHCHECKREQUEST']._serialized_end=701
+  _globals['_HEALTHCHECKRESPONSE']._serialized_start=703
+  _globals['_HEALTHCHECKRESPONSE']._serialized_end=724
+  _globals['_DISCONNECTREQUEST']._serialized_start=726
+  _globals['_DISCONNECTREQUEST']._serialized_end=766
+  _globals['_DISCONNECTRESPONSE']._serialized_start=768
+  _globals['_DISCONNECTRESPONSE']._serialized_end=788
+  _globals['_SERVICE']._serialized_start=791
+  _globals['_SERVICE']._serialized_end=1229
 # @@protoc_insertion_point(module_scope)

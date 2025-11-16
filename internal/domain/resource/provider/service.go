@@ -3,58 +3,146 @@ package provider
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/9triver/iarnet/internal/domain/resource/types"
+	providerrepo "github.com/9triver/iarnet/internal/infra/repository/resource"
 	"github.com/sirupsen/logrus"
 )
 
 // Service Provider 服务接口
 // 提供无状态的 Provider 操作服务
 type Service interface {
+	// LoadProviders 从 repository 加载所有 provider 并加入 manager
+	LoadProviders(ctx context.Context) error
+
 	// RegisterProvider 注册 Provider 并建立连接
-	RegisterProvider(ctx context.Context, provider Provider) error
+	RegisterProvider(ctx context.Context, name string, host string, port int) (*Provider, error)
+
+	// UnregisterProvider 注销 Provider 并断开连接
+	UnregisterProvider(ctx context.Context, id string) error
 
 	// FindAvailableProvider 查找满足资源要求的可用 Provider
-	FindAvailableProvider(ctx context.Context, resourceRequest *types.Info) (Provider, error)
+	FindAvailableProvider(ctx context.Context, resourceRequest *types.Info) (*Provider, error)
 
 	// GetProvider 获取指定 ID 的 Provider
-	GetProvider(id string) Provider
+	GetProvider(id string) *Provider
 
 	// GetAllProviders 获取所有 Provider
-	GetAllProviders() []Provider
+	GetAllProviders() []*Provider
 }
 
 type service struct {
-	manager *Manager
+	manager      *Manager
+	repo         providerrepo.ProviderRepo
+	envVariables *EnvVariables
 }
 
 // NewService 创建 Provider 服务
-func NewService(manager *Manager) Service {
-	return &service{
-		manager: manager,
+func NewService(manager *Manager, repo providerrepo.ProviderRepo, envVariables *EnvVariables) Service {
+	s := &service{
+		manager:      manager,
+		repo:         repo,
+		envVariables: envVariables,
 	}
+	return s
+}
+
+// LoadProviders 从 repository 加载所有 provider 并加入 manager
+// 在启动时调用，用于恢复持久化的 provider
+func (s *service) LoadProviders(ctx context.Context) error {
+	if s.repo == nil {
+		logrus.Debug("Provider repository is nil, skipping load")
+		return nil
+	}
+
+	daos, err := s.repo.GetAll(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to load providers from repository: %w", err)
+	}
+
+	logrus.Infof("Loading %d providers from repository", len(daos))
+
+	for _, dao := range daos {
+		provider := NewProviderWithID(dao.ID, dao.Name, dao.Host, dao.Port, s.envVariables)
+		if err := provider.Connect(ctx); err != nil {
+			logrus.Warnf("Failed to connect to provider %s: %v", dao.ID, err)
+			continue
+		}
+		s.manager.Add(provider)
+	}
+
+	logrus.Infof("Successfully loaded %d providers from repository", len(daos))
+	return nil
 }
 
 // RegisterProvider 注册 Provider 并建立连接
-func (s *service) RegisterProvider(ctx context.Context, provider Provider) error {
-	if provider == nil {
-		return fmt.Errorf("provider is nil")
+func (s *service) RegisterProvider(ctx context.Context, name string, host string, port int) (*Provider, error) {
+	// 创建 provider 实例
+	provider := NewProvider(name, host, port, s.envVariables)
+
+	// 持久化到数据库
+	if s.repo != nil {
+		dao := &providerrepo.ProviderDAO{
+			ID:        provider.GetID(),
+			Name:      provider.GetName(),
+			Host:      provider.GetHost(),
+			Port:      provider.GetPort(),
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		}
+		if err := s.repo.Create(ctx, dao); err != nil {
+			logrus.Warnf("Failed to persist provider %s to database: %v", provider.GetID(), err)
+			// 不返回错误，因为内存中已经注册成功
+		}
 	}
 
 	// 建立连接
 	if err := provider.Connect(ctx); err != nil {
-		return fmt.Errorf("failed to connect to provider %s: %w", provider.GetID(), err)
+		return nil, fmt.Errorf("failed to connect to provider %s: %w", provider.GetID(), err)
 	}
 
-	// 添加到管理器
 	s.manager.Add(provider)
-	logrus.Infof("Provider %s registered and connected", provider.GetID())
 
+	logrus.Infof("Provider %s registered and connected", provider.GetID())
+	return provider, nil
+}
+
+// UnregisterProvider 注销 Provider 并断开连接
+func (s *service) UnregisterProvider(ctx context.Context, id string) error {
+	if id == "" {
+		return fmt.Errorf("provider id is required")
+	}
+
+	// 获取 provider
+	provider := s.manager.Get(id)
+	if provider == nil {
+		return fmt.Errorf("provider %s not found", id)
+	}
+
+	// 断开连接（如果已连接）
+	if provider.GetStatus() == types.ProviderStatusConnected {
+		provider.Disconnect()
+		logrus.Infof("Provider %s disconnected", id)
+	}
+
+	// 从管理器中移除
+	s.manager.Remove(id)
+
+	// 从数据库删除
+	if s.repo != nil {
+		if err := s.repo.Delete(ctx, id); err != nil {
+			logrus.Warnf("Failed to delete provider %s from database: %v", id, err)
+			// 不返回错误，因为内存中已经移除
+		}
+	}
+
+	logrus.Infof("Provider %s unregistered", id)
 	return nil
 }
 
 // FindAvailableProvider 查找满足资源要求的可用 Provider
-func (s *service) FindAvailableProvider(ctx context.Context, resourceRequest *types.Info) (Provider, error) {
+func (s *service) FindAvailableProvider(ctx context.Context, resourceRequest *types.Info) (*Provider, error) {
 	if resourceRequest == nil {
 		return nil, fmt.Errorf("resource request is required")
 	}
@@ -90,12 +178,12 @@ func (s *service) FindAvailableProvider(ctx context.Context, resourceRequest *ty
 }
 
 // GetProvider 获取指定 ID 的 Provider
-func (s *service) GetProvider(id string) Provider {
+func (s *service) GetProvider(id string) *Provider {
 	return s.manager.Get(id)
 }
 
 // GetAllProviders 获取所有 Provider
-func (s *service) GetAllProviders() []Provider {
+func (s *service) GetAllProviders() []*Provider {
 	return s.manager.GetAll()
 }
 

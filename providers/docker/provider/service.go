@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	resourcepb "github.com/9triver/iarnet/internal/proto/resource"
 	providerpb "github.com/9triver/iarnet/internal/proto/resource/provider"
@@ -15,10 +16,11 @@ import (
 const providerType = "docker"
 
 type Service struct {
-	providerpb.UnimplementedProviderServiceServer
+	providerpb.UnimplementedServiceServer
 	mu         sync.RWMutex
 	providerID string
 	client     *client.Client
+	manager    *Manager // 健康检查状态管理器
 }
 
 func NewService(host, tlsCertPath string, tlsVerify bool, apiVersion string) (*Service, error) {
@@ -57,29 +59,52 @@ func NewService(host, tlsCertPath string, tlsVerify bool, apiVersion string) (*S
 
 	logrus.Infof("Successfully connected to Docker daemon at %s", host)
 
-	return &Service{
-		client: cli,
-	}, nil
+	// 创建健康检查管理器
+	// 健康检测超时时间：90 秒（假设 iarnet 每 30 秒检测一次，允许 3 次失败）
+	// 检查间隔：10 秒
+	manager := NewManager(
+		90*time.Second,
+		10*time.Second,
+		func() {
+			// 超时回调：清除 provider ID 的逻辑已经在 manager 中处理
+			logrus.Debug("Provider ID cleared due to health check timeout")
+		},
+	)
+
+	service := &Service{
+		client:  cli,
+		manager: manager,
+	}
+
+	// 启动健康检测超时监控
+	manager.Start()
+
+	return service, nil
 }
 
 // Close 关闭 Docker 客户端连接
 func (s *Service) Close() error {
+	// 停止健康检测监控
+	if s.manager != nil {
+		s.manager.Stop()
+	}
+
 	if s.client != nil {
 		return s.client.Close()
 	}
 	return nil
 }
 
-func (s *Service) AssignID(ctx context.Context, req *providerpb.AssignIDRequest) (*providerpb.AssignIDResponse, error) {
+func (s *Service) Connect(ctx context.Context, req *providerpb.ConnectRequest) (*providerpb.ConnectResponse, error) {
 	if req == nil {
-		return &providerpb.AssignIDResponse{
+		return &providerpb.ConnectResponse{
 			Success: false,
 			Error:   "request is nil",
 		}, nil
 	}
 
 	if req.ProviderId == "" {
-		return &providerpb.AssignIDResponse{
+		return &providerpb.ConnectResponse{
 			Success: false,
 			Error:   "provider ID is required",
 		}, nil
@@ -88,17 +113,22 @@ func (s *Service) AssignID(ctx context.Context, req *providerpb.AssignIDRequest)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.providerID != "" {
-		return &providerpb.AssignIDResponse{
+	if s.providerID != "" && s.providerID != req.ProviderId {
+		logrus.Errorf("provider already connected: %s", s.providerID)
+		return &providerpb.ConnectResponse{
 			Success: false,
-			Error:   fmt.Sprintf("provider ID already assigned: %s", s.providerID),
+			Error:   fmt.Sprintf("provider already connected: %s", s.providerID),
 		}, nil
 	}
 
 	s.providerID = req.ProviderId
+	// 通过 manager 设置 provider ID（会同时记录健康检测时间）
+	if s.manager != nil {
+		s.manager.SetProviderID(req.ProviderId)
+	}
 	logrus.Infof("Provider ID assigned: %s", s.providerID)
 
-	return &providerpb.AssignIDResponse{
+	return &providerpb.ConnectResponse{
 		Success: true,
 		ProviderType: &providerpb.ProviderType{
 			Name: providerType,
@@ -255,6 +285,10 @@ func (s *Service) GetAllocated(ctx context.Context) (*resourcepb.Info, error) {
 
 // GetProviderID 获取当前分配的 provider ID
 func (s *Service) GetProviderID() string {
+	// 优先从 manager 获取（因为 manager 可能已经清除了 ID）
+	if s.manager != nil {
+		return s.manager.GetProviderID()
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.providerID
@@ -289,10 +323,10 @@ func (s *Service) checkAuth(requestProviderID string, allowUnconnected bool) err
 	return nil
 }
 
-func (s *Service) DeployComponent(ctx context.Context, req *providerpb.DeployComponentRequest) (*providerpb.DeployComponentResponse, error) {
+func (s *Service) Deploy(ctx context.Context, req *providerpb.DeployRequest) (*providerpb.DeployResponse, error) {
 	// 鉴权：DeployComponent 必须验证 provider_id，不允许未连接的 provider 部署
 	if err := s.checkAuth(req.ProviderId, false); err != nil {
-		return &providerpb.DeployComponentResponse{
+		return &providerpb.DeployResponse{
 			Error: fmt.Sprintf("authentication failed: %v", err),
 		}, nil
 	}
@@ -334,7 +368,7 @@ func (s *Service) DeployComponent(ctx context.Context, req *providerpb.DeployCom
 	resp, err := s.client.ContainerCreate(ctx, containerConfig, hostConfig, nil, nil, "")
 	if err != nil {
 		logrus.Errorf("Failed to create container: %v", err)
-		return &providerpb.DeployComponentResponse{
+		return &providerpb.DeployResponse{
 			Error: err.Error(),
 		}, nil
 	}
@@ -343,13 +377,46 @@ func (s *Service) DeployComponent(ctx context.Context, req *providerpb.DeployCom
 	err = s.client.ContainerStart(ctx, resp.ID, container.StartOptions{})
 	if err != nil {
 		logrus.Errorf("Failed to start container: %v", err)
-		return &providerpb.DeployComponentResponse{
+		return &providerpb.DeployResponse{
 			Error: err.Error(),
 		}, nil
 	}
 
 	logrus.Infof("Container deployed successfully with ID: %s", resp.ID)
-	return &providerpb.DeployComponentResponse{
+	return &providerpb.DeployResponse{
 		Error: "",
 	}, nil
+}
+
+func (s *Service) HealthCheck(ctx context.Context, req *providerpb.HealthCheckRequest) (*providerpb.HealthCheckResponse, error) {
+	// 鉴权：HealthCheck 必须验证 provider_id，不允许未连接的 provider 健康检查
+	if err := s.checkAuth(req.ProviderId, false); err != nil {
+		return nil, fmt.Errorf("authentication failed: %w", err)
+	}
+
+	// 通过 manager 更新最后收到健康检测的时间
+	if s.manager != nil {
+		s.manager.UpdateHealthCheck()
+	}
+
+	return &providerpb.HealthCheckResponse{}, nil
+}
+
+func (s *Service) Disconnect(ctx context.Context, req *providerpb.DisconnectRequest) (*providerpb.DisconnectResponse, error) {
+	// 鉴权：Disconnect 必须验证 provider_id，不允许未连接的 provider 断开连接
+	if err := s.checkAuth(req.ProviderId, false); err != nil {
+		return nil, fmt.Errorf("authentication failed: %w", err)
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.providerID = ""
+	// 通过 manager 清除 provider ID
+	if s.manager != nil {
+		s.manager.ClearProviderID()
+	}
+	logrus.Infof("Provider disconnected: %s", req.ProviderId)
+
+	return &providerpb.DisconnectResponse{}, nil
 }

@@ -3,7 +3,9 @@ package bootstrap
 import (
 	"github.com/9triver/iarnet/internal/domain/resource"
 	"github.com/9triver/iarnet/internal/domain/resource/component"
+	"github.com/9triver/iarnet/internal/domain/resource/provider"
 	"github.com/9triver/iarnet/internal/domain/resource/store"
+	providerrepo "github.com/9triver/iarnet/internal/infra/repository/resource"
 	"github.com/sirupsen/logrus"
 )
 
@@ -12,6 +14,16 @@ func bootstrapResource(iarnet *Iarnet) error {
 	// 初始化 Store
 	storeInstance := store.NewStore()
 
+	// 初始化 Provider Repository
+	var providerRepo providerrepo.ProviderRepo
+	dbPath := iarnet.Config.Database.ResourceProviderDBPath
+	if repo, err := providerrepo.NewProviderRepoSQLite(dbPath, iarnet.Config); err != nil {
+		logrus.Warnf("Failed to initialize provider repository: %v, continuing without persistence", err)
+	} else {
+		providerRepo = repo
+		logrus.Infof("Provider repository initialized at %s", dbPath)
+	}
+
 	// 使用占位符 channeler 初始化 Resource Manager
 	// 真正的 channeler 会在 Transport 层创建后注入
 	nullChanneler := component.NewNullChanneler()
@@ -19,6 +31,12 @@ func bootstrapResource(iarnet *Iarnet) error {
 		nullChanneler,
 		storeInstance,
 		iarnet.Config.Resource.ComponentImages,
+		providerRepo,
+		&provider.EnvVariables{
+			IarnetHost: iarnet.Config.Host,
+			ZMQPort:    iarnet.Config.Transport.ZMQ.Port,
+			StorePort:  iarnet.Config.Transport.RPC.Store.Port,
+		},
 	)
 	iarnet.ResourceManager = resourceManager
 

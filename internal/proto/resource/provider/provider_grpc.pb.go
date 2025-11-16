@@ -19,215 +19,291 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ProviderService_AssignID_FullMethodName        = "/provider.ProviderService/AssignID"
-	ProviderService_GetCapacity_FullMethodName     = "/provider.ProviderService/GetCapacity"
-	ProviderService_GetAvailable_FullMethodName    = "/provider.ProviderService/GetAvailable"
-	ProviderService_DeployComponent_FullMethodName = "/provider.ProviderService/DeployComponent"
+	Service_Connect_FullMethodName      = "/provider.Service/Connect"
+	Service_Disconnect_FullMethodName   = "/provider.Service/Disconnect"
+	Service_GetCapacity_FullMethodName  = "/provider.Service/GetCapacity"
+	Service_GetAvailable_FullMethodName = "/provider.Service/GetAvailable"
+	Service_Deploy_FullMethodName       = "/provider.Service/Deploy"
+	Service_HealthCheck_FullMethodName  = "/provider.Service/HealthCheck"
 )
 
-// ProviderServiceClient is the client API for ProviderService service.
+// ServiceClient is the client API for Service service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type ProviderServiceClient interface {
-	AssignID(ctx context.Context, in *AssignIDRequest, opts ...grpc.CallOption) (*AssignIDResponse, error)
+type ServiceClient interface {
+	Connect(ctx context.Context, in *ConnectRequest, opts ...grpc.CallOption) (*ConnectResponse, error)
+	Disconnect(ctx context.Context, in *DisconnectRequest, opts ...grpc.CallOption) (*DisconnectResponse, error)
 	GetCapacity(ctx context.Context, in *GetCapacityRequest, opts ...grpc.CallOption) (*GetCapacityResponse, error)
 	GetAvailable(ctx context.Context, in *GetAvailableRequest, opts ...grpc.CallOption) (*GetAvailableResponse, error)
-	DeployComponent(ctx context.Context, in *DeployComponentRequest, opts ...grpc.CallOption) (*DeployComponentResponse, error)
+	Deploy(ctx context.Context, in *DeployRequest, opts ...grpc.CallOption) (*DeployResponse, error)
+	HealthCheck(ctx context.Context, in *HealthCheckRequest, opts ...grpc.CallOption) (*HealthCheckResponse, error)
 }
 
-type providerServiceClient struct {
+type serviceClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewProviderServiceClient(cc grpc.ClientConnInterface) ProviderServiceClient {
-	return &providerServiceClient{cc}
+func NewServiceClient(cc grpc.ClientConnInterface) ServiceClient {
+	return &serviceClient{cc}
 }
 
-func (c *providerServiceClient) AssignID(ctx context.Context, in *AssignIDRequest, opts ...grpc.CallOption) (*AssignIDResponse, error) {
+func (c *serviceClient) Connect(ctx context.Context, in *ConnectRequest, opts ...grpc.CallOption) (*ConnectResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(AssignIDResponse)
-	err := c.cc.Invoke(ctx, ProviderService_AssignID_FullMethodName, in, out, cOpts...)
+	out := new(ConnectResponse)
+	err := c.cc.Invoke(ctx, Service_Connect_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *providerServiceClient) GetCapacity(ctx context.Context, in *GetCapacityRequest, opts ...grpc.CallOption) (*GetCapacityResponse, error) {
+func (c *serviceClient) Disconnect(ctx context.Context, in *DisconnectRequest, opts ...grpc.CallOption) (*DisconnectResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DisconnectResponse)
+	err := c.cc.Invoke(ctx, Service_Disconnect_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *serviceClient) GetCapacity(ctx context.Context, in *GetCapacityRequest, opts ...grpc.CallOption) (*GetCapacityResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetCapacityResponse)
-	err := c.cc.Invoke(ctx, ProviderService_GetCapacity_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, Service_GetCapacity_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *providerServiceClient) GetAvailable(ctx context.Context, in *GetAvailableRequest, opts ...grpc.CallOption) (*GetAvailableResponse, error) {
+func (c *serviceClient) GetAvailable(ctx context.Context, in *GetAvailableRequest, opts ...grpc.CallOption) (*GetAvailableResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetAvailableResponse)
-	err := c.cc.Invoke(ctx, ProviderService_GetAvailable_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, Service_GetAvailable_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *providerServiceClient) DeployComponent(ctx context.Context, in *DeployComponentRequest, opts ...grpc.CallOption) (*DeployComponentResponse, error) {
+func (c *serviceClient) Deploy(ctx context.Context, in *DeployRequest, opts ...grpc.CallOption) (*DeployResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(DeployComponentResponse)
-	err := c.cc.Invoke(ctx, ProviderService_DeployComponent_FullMethodName, in, out, cOpts...)
+	out := new(DeployResponse)
+	err := c.cc.Invoke(ctx, Service_Deploy_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// ProviderServiceServer is the server API for ProviderService service.
-// All implementations must embed UnimplementedProviderServiceServer
+func (c *serviceClient) HealthCheck(ctx context.Context, in *HealthCheckRequest, opts ...grpc.CallOption) (*HealthCheckResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(HealthCheckResponse)
+	err := c.cc.Invoke(ctx, Service_HealthCheck_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// ServiceServer is the server API for Service service.
+// All implementations must embed UnimplementedServiceServer
 // for forward compatibility.
-type ProviderServiceServer interface {
-	AssignID(context.Context, *AssignIDRequest) (*AssignIDResponse, error)
+type ServiceServer interface {
+	Connect(context.Context, *ConnectRequest) (*ConnectResponse, error)
+	Disconnect(context.Context, *DisconnectRequest) (*DisconnectResponse, error)
 	GetCapacity(context.Context, *GetCapacityRequest) (*GetCapacityResponse, error)
 	GetAvailable(context.Context, *GetAvailableRequest) (*GetAvailableResponse, error)
-	DeployComponent(context.Context, *DeployComponentRequest) (*DeployComponentResponse, error)
-	mustEmbedUnimplementedProviderServiceServer()
+	Deploy(context.Context, *DeployRequest) (*DeployResponse, error)
+	HealthCheck(context.Context, *HealthCheckRequest) (*HealthCheckResponse, error)
+	mustEmbedUnimplementedServiceServer()
 }
 
-// UnimplementedProviderServiceServer must be embedded to have
+// UnimplementedServiceServer must be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
 // pointer dereference when methods are called.
-type UnimplementedProviderServiceServer struct{}
+type UnimplementedServiceServer struct{}
 
-func (UnimplementedProviderServiceServer) AssignID(context.Context, *AssignIDRequest) (*AssignIDResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method AssignID not implemented")
+func (UnimplementedServiceServer) Connect(context.Context, *ConnectRequest) (*ConnectResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Connect not implemented")
 }
-func (UnimplementedProviderServiceServer) GetCapacity(context.Context, *GetCapacityRequest) (*GetCapacityResponse, error) {
+func (UnimplementedServiceServer) Disconnect(context.Context, *DisconnectRequest) (*DisconnectResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Disconnect not implemented")
+}
+func (UnimplementedServiceServer) GetCapacity(context.Context, *GetCapacityRequest) (*GetCapacityResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetCapacity not implemented")
 }
-func (UnimplementedProviderServiceServer) GetAvailable(context.Context, *GetAvailableRequest) (*GetAvailableResponse, error) {
+func (UnimplementedServiceServer) GetAvailable(context.Context, *GetAvailableRequest) (*GetAvailableResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAvailable not implemented")
 }
-func (UnimplementedProviderServiceServer) DeployComponent(context.Context, *DeployComponentRequest) (*DeployComponentResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DeployComponent not implemented")
+func (UnimplementedServiceServer) Deploy(context.Context, *DeployRequest) (*DeployResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Deploy not implemented")
 }
-func (UnimplementedProviderServiceServer) mustEmbedUnimplementedProviderServiceServer() {}
-func (UnimplementedProviderServiceServer) testEmbeddedByValue()                         {}
+func (UnimplementedServiceServer) HealthCheck(context.Context, *HealthCheckRequest) (*HealthCheckResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method HealthCheck not implemented")
+}
+func (UnimplementedServiceServer) mustEmbedUnimplementedServiceServer() {}
+func (UnimplementedServiceServer) testEmbeddedByValue()                 {}
 
-// UnsafeProviderServiceServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to ProviderServiceServer will
+// UnsafeServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to ServiceServer will
 // result in compilation errors.
-type UnsafeProviderServiceServer interface {
-	mustEmbedUnimplementedProviderServiceServer()
+type UnsafeServiceServer interface {
+	mustEmbedUnimplementedServiceServer()
 }
 
-func RegisterProviderServiceServer(s grpc.ServiceRegistrar, srv ProviderServiceServer) {
-	// If the following call pancis, it indicates UnimplementedProviderServiceServer was
+func RegisterServiceServer(s grpc.ServiceRegistrar, srv ServiceServer) {
+	// If the following call pancis, it indicates UnimplementedServiceServer was
 	// embedded by pointer and is nil.  This will cause panics if an
 	// unimplemented method is ever invoked, so we test this at initialization
 	// time to prevent it from happening at runtime later due to I/O.
 	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
 		t.testEmbeddedByValue()
 	}
-	s.RegisterService(&ProviderService_ServiceDesc, srv)
+	s.RegisterService(&Service_ServiceDesc, srv)
 }
 
-func _ProviderService_AssignID_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AssignIDRequest)
+func _Service_Connect_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ConnectRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ProviderServiceServer).AssignID(ctx, in)
+		return srv.(ServiceServer).Connect(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ProviderService_AssignID_FullMethodName,
+		FullMethod: Service_Connect_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ProviderServiceServer).AssignID(ctx, req.(*AssignIDRequest))
+		return srv.(ServiceServer).Connect(ctx, req.(*ConnectRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ProviderService_GetCapacity_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Service_Disconnect_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DisconnectRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ServiceServer).Disconnect(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Service_Disconnect_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ServiceServer).Disconnect(ctx, req.(*DisconnectRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Service_GetCapacity_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetCapacityRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ProviderServiceServer).GetCapacity(ctx, in)
+		return srv.(ServiceServer).GetCapacity(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ProviderService_GetCapacity_FullMethodName,
+		FullMethod: Service_GetCapacity_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ProviderServiceServer).GetCapacity(ctx, req.(*GetCapacityRequest))
+		return srv.(ServiceServer).GetCapacity(ctx, req.(*GetCapacityRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ProviderService_GetAvailable_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Service_GetAvailable_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetAvailableRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ProviderServiceServer).GetAvailable(ctx, in)
+		return srv.(ServiceServer).GetAvailable(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ProviderService_GetAvailable_FullMethodName,
+		FullMethod: Service_GetAvailable_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ProviderServiceServer).GetAvailable(ctx, req.(*GetAvailableRequest))
+		return srv.(ServiceServer).GetAvailable(ctx, req.(*GetAvailableRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ProviderService_DeployComponent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeployComponentRequest)
+func _Service_Deploy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeployRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ProviderServiceServer).DeployComponent(ctx, in)
+		return srv.(ServiceServer).Deploy(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ProviderService_DeployComponent_FullMethodName,
+		FullMethod: Service_Deploy_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ProviderServiceServer).DeployComponent(ctx, req.(*DeployComponentRequest))
+		return srv.(ServiceServer).Deploy(ctx, req.(*DeployRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-// ProviderService_ServiceDesc is the grpc.ServiceDesc for ProviderService service.
+func _Service_HealthCheck_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(HealthCheckRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ServiceServer).HealthCheck(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Service_HealthCheck_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ServiceServer).HealthCheck(ctx, req.(*HealthCheckRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// Service_ServiceDesc is the grpc.ServiceDesc for Service service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var ProviderService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "provider.ProviderService",
-	HandlerType: (*ProviderServiceServer)(nil),
+var Service_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "provider.Service",
+	HandlerType: (*ServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "AssignID",
-			Handler:    _ProviderService_AssignID_Handler,
+			MethodName: "Connect",
+			Handler:    _Service_Connect_Handler,
+		},
+		{
+			MethodName: "Disconnect",
+			Handler:    _Service_Disconnect_Handler,
 		},
 		{
 			MethodName: "GetCapacity",
-			Handler:    _ProviderService_GetCapacity_Handler,
+			Handler:    _Service_GetCapacity_Handler,
 		},
 		{
 			MethodName: "GetAvailable",
-			Handler:    _ProviderService_GetAvailable_Handler,
+			Handler:    _Service_GetAvailable_Handler,
 		},
 		{
-			MethodName: "DeployComponent",
-			Handler:    _ProviderService_DeployComponent_Handler,
+			MethodName: "Deploy",
+			Handler:    _Service_Deploy_Handler,
+		},
+		{
+			MethodName: "HealthCheck",
+			Handler:    _Service_HealthCheck_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

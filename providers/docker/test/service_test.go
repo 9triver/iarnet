@@ -30,33 +30,33 @@ func TestService_AssignID(t *testing.T) {
 	ctx := context.Background()
 
 	// 测试正常分配 ID
-	req := &providerpb.AssignIDRequest{
+	req := &providerpb.ConnectRequest{
 		ProviderId: "test-provider-123",
 	}
 
-	resp, err := svc.AssignID(ctx, req)
+	resp, err := svc.Connect(ctx, req)
 	require.NoError(t, err)
 	assert.True(t, resp.Success)
 	assert.Empty(t, resp.Error)
 	assert.Equal(t, "test-provider-123", svc.GetProviderID())
 
 	// 测试重复分配 ID（应该失败）
-	resp2, err := svc.AssignID(ctx, req)
+	resp2, err := svc.Connect(ctx, req)
 	require.NoError(t, err)
 	assert.False(t, resp2.Success)
-	assert.Contains(t, resp2.Error, "already assigned")
+	assert.Contains(t, resp2.Error, "already connected")
 
 	// 测试空 ID（应该失败）
-	req3 := &providerpb.AssignIDRequest{
+	req3 := &providerpb.ConnectRequest{
 		ProviderId: "",
 	}
-	resp3, err := svc.AssignID(ctx, req3)
+	resp3, err := svc.Connect(ctx, req3)
 	require.NoError(t, err)
 	assert.False(t, resp3.Success)
 	assert.Contains(t, resp3.Error, "required")
 
 	// 测试 nil 请求（应该失败）
-	resp4, err := svc.AssignID(ctx, nil)
+	resp4, err := svc.Connect(ctx, nil)
 	require.NoError(t, err)
 	assert.False(t, resp4.Success)
 	assert.Contains(t, resp4.Error, "nil")
@@ -156,7 +156,7 @@ func TestService_RPCIntegration(t *testing.T) {
 	address := fmt.Sprintf("localhost:%d", port)
 
 	srv := grpc.NewServer()
-	providerpb.RegisterProviderServiceServer(srv, svc)
+	providerpb.RegisterServiceServer(srv, svc)
 
 	// 在 goroutine 中启动服务器
 	serverErr := make(chan error, 1)
@@ -177,15 +177,15 @@ func TestService_RPCIntegration(t *testing.T) {
 	require.NoError(t, err)
 	defer conn.Close()
 
-	client := providerpb.NewProviderServiceClient(conn)
+	client := providerpb.NewServiceClient(conn)
 
-	// 测试 AssignID RPC 调用
-	t.Run("AssignID via RPC", func(t *testing.T) {
-		req := &providerpb.AssignIDRequest{
+	// 测试 Connect RPC 调用
+	t.Run("Connect via RPC", func(t *testing.T) {
+		req := &providerpb.ConnectRequest{
 			ProviderId: "rpc-test-provider-123",
 		}
 
-		resp, err := client.AssignID(ctx, req)
+		resp, err := client.Connect(ctx, req)
 		require.NoError(t, err)
 		assert.True(t, resp.Success)
 		assert.Empty(t, resp.Error)
@@ -193,14 +193,14 @@ func TestService_RPCIntegration(t *testing.T) {
 
 	// 测试重复分配 ID（应该失败）
 	t.Run("AssignID duplicate via RPC", func(t *testing.T) {
-		req := &providerpb.AssignIDRequest{
+		req := &providerpb.ConnectRequest{
 			ProviderId: "rpc-test-provider-123",
 		}
 
-		resp, err := client.AssignID(ctx, req)
+		resp, err := client.Connect(ctx, req)
 		require.NoError(t, err)
 		assert.False(t, resp.Success)
-		assert.Contains(t, resp.Error, "already assigned")
+		assert.Contains(t, resp.Error, "already connected")
 	})
 
 	// 测试 GetCapacity RPC 调用
@@ -226,12 +226,12 @@ func TestService_RPCIntegration(t *testing.T) {
 	})
 
 	// 测试空 ID（应该失败）
-	t.Run("AssignID empty via RPC", func(t *testing.T) {
-		req := &providerpb.AssignIDRequest{
+	t.Run("Connect empty via RPC", func(t *testing.T) {
+		req := &providerpb.ConnectRequest{
 			ProviderId: "",
 		}
 
-		resp, err := client.AssignID(ctx, req)
+		resp, err := client.Connect(ctx, req)
 		require.NoError(t, err)
 		assert.False(t, resp.Success)
 		assert.Contains(t, resp.Error, "required")

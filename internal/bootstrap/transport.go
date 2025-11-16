@@ -41,6 +41,7 @@ func bootstrapTransport(iarnet *Iarnet) error {
 		AppMgr:   iarnet.ApplicationManager,
 		ResMgr:   iarnet.ResourceManager,
 		Platform: iarnet.IgnisPlatform,
+		Config:   iarnet.Config,
 	})
 
 	logrus.Info("Transport layer initialized")

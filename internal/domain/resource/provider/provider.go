@@ -7,29 +7,13 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/9triver/iarnet/internal/config"
 	"github.com/9triver/iarnet/internal/domain/resource/types"
 	resourcepb "github.com/9triver/iarnet/internal/proto/resource"
 	providerpb "github.com/9triver/iarnet/internal/proto/resource/provider"
-	"github.com/lithammer/shortuuid/v4"
+	"github.com/9triver/iarnet/internal/util"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
-
-type Provider interface {
-	Connect(ctx context.Context) error
-	GetCapacity(ctx context.Context) (*types.Capacity, error)
-	GetAvailable(ctx context.Context) (*types.Info, error)
-	GetType() types.ProviderType
-	GetID() string
-	GetName() string
-	GetHost() string
-	GetPort() int
-	GetLastUpdateTime() time.Time
-	GetStatus() types.ProviderStatus
-	GetLogs(d string, lines int) ([]string, error)
-	Deploy(ctx context.Context, id, image string, resourceRequest *types.Info) error
-}
 
 type EnvVariables struct {
 	IarnetHost string
@@ -37,7 +21,8 @@ type EnvVariables struct {
 	StorePort  int
 }
 
-type provider struct {
+// Provider 资源提供者
+type Provider struct {
 	id             string
 	name           string
 	host           string
@@ -47,16 +32,17 @@ type provider struct {
 	status         types.ProviderStatus
 
 	conn   *grpc.ClientConn
-	client providerpb.ProviderServiceClient
+	client providerpb.ServiceClient
 
-	cfg *config.Config
+	envVariables *EnvVariables
 }
 
 // NewProvider 创建新的 provider，如果未提供 ID，将通过 RPC 服务注册并获取分配的 ID
-func NewProvider(name string, host string, port int, cfg *config.Config) Provider {
-	return &provider{
+func NewProvider(name string, host string, port int, envVariables *EnvVariables) *Provider {
+	return &Provider{
+		id:             util.GenIDWith("provider."),
 		name:           name,
-		cfg:            cfg,
+		envVariables:   envVariables,
 		host:           host,
 		port:           port,
 		lastUpdateTime: time.Now(),
@@ -64,7 +50,22 @@ func NewProvider(name string, host string, port int, cfg *config.Config) Provide
 	}
 }
 
-func (p *provider) Connect(ctx context.Context) error {
+// NewProviderWithID 从持久化数据重建 Provider（使用保存的 ID）
+// 用于从数据库恢复 Provider 对象
+func NewProviderWithID(id, name string, host string, port int, envVariables *EnvVariables) *Provider {
+	return &Provider{
+		id:             id,
+		name:           name,
+		envVariables:   envVariables,
+		host:           host,
+		port:           port,
+		lastUpdateTime: time.Now(),
+		status:         types.ProviderStatusDisconnected,
+		// conn 和 client 保持为 nil，需要在业务层重新连接
+	}
+}
+
+func (p *Provider) Connect(ctx context.Context) error {
 	// 如果未提供 ID，通过 RPC 服务注册并获取分配的 ID
 	if p.host == "" || p.port == 0 {
 		return fmt.Errorf("service host and port are required when ID is not provided")
@@ -74,13 +75,12 @@ func (p *provider) Connect(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to create provider connection: %w", err)
 	}
-	client := providerpb.NewProviderServiceClient(conn)
+	client := providerpb.NewServiceClient(conn)
 
-	providerID := shortuuid.New()
-	req := &providerpb.AssignIDRequest{
-		ProviderId: providerID,
+	req := &providerpb.ConnectRequest{
+		ProviderId: p.id,
 	}
-	resp, err := client.AssignID(ctx, req)
+	resp, err := client.Connect(ctx, req)
 	if err != nil {
 		conn.Close()
 		return fmt.Errorf("failed to assign ID: %w", err)
@@ -90,7 +90,6 @@ func (p *provider) Connect(ctx context.Context) error {
 		return fmt.Errorf("failed to assign ID: %s", resp.Error)
 	}
 
-	p.id = providerID
 	p.providerType = types.ProviderType(resp.ProviderType.Name)
 	p.client = client
 	p.conn = conn
@@ -98,37 +97,73 @@ func (p *provider) Connect(ctx context.Context) error {
 	return nil
 }
 
-func (p *provider) GetID() string {
+func (p *Provider) GetID() string {
 	return p.id
 }
 
-func (p *provider) GetName() string {
+func (p *Provider) GetName() string {
 	return p.name
 }
 
-func (p *provider) GetHost() string {
+func (p *Provider) SetName(name string) {
+	p.name = name
+	p.lastUpdateTime = time.Now()
+}
+
+func (p *Provider) GetHost() string {
 	return p.host
 }
 
-func (p *provider) GetPort() int {
+func (p *Provider) GetPort() int {
 	return p.port
 }
 
-func (p *provider) GetType() types.ProviderType {
+func (p *Provider) GetType() types.ProviderType {
 	return p.providerType
 }
 
-func (p *provider) GetLastUpdateTime() time.Time {
+func (p *Provider) GetLastUpdateTime() time.Time {
 	return p.lastUpdateTime
 }
 
-func (p *provider) GetStatus() types.ProviderStatus {
+func (p *Provider) GetStatus() types.ProviderStatus {
 	return p.status
 }
 
-func (p *provider) GetCapacity(ctx context.Context) (*types.Capacity, error) {
+// SetStatus 设置 provider 状态
+func (p *Provider) SetStatus(status types.ProviderStatus) {
+	p.status = status
+}
+
+// Disconnect 断开连接但不清除 ID，仅更新状态
+// 用于健康检测失败时，让 provider 感知到 iarnet 的管理状态
+func (p *Provider) Disconnect() {
+	p.status = types.ProviderStatusDisconnected
+	if p.conn != nil {
+		p.conn.Close()
+		p.conn = nil
+	}
+	p.client = nil
+}
+
+// HealthCheck 健康检测，检查 provider 是否仍然连接
+func (p *Provider) HealthCheck(ctx context.Context) error {
+	if p.client == nil || p.id == "" {
+		return fmt.Errorf("provider not connected")
+	}
+	req := &providerpb.HealthCheckRequest{
+		ProviderId: p.id,
+	}
+	_, err := p.client.HealthCheck(ctx, req)
+	if err != nil {
+		return fmt.Errorf("failed to health check: %w", err)
+	}
+	return nil
+}
+
+func (p *Provider) GetCapacity(ctx context.Context) (*types.Capacity, error) {
 	// 如果已经连接，使用现有连接；否则创建临时连接（用于测试场景）
-	var client providerpb.ProviderServiceClient
+	var client providerpb.ServiceClient
 	var conn *grpc.ClientConn
 	var err error
 
@@ -143,7 +178,7 @@ func (p *provider) GetCapacity(ctx context.Context) (*types.Capacity, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to create provider connection: %w", err)
 		}
-		client = providerpb.NewProviderServiceClient(conn)
+		client = providerpb.NewServiceClient(conn)
 		defer conn.Close()
 	}
 
@@ -162,9 +197,9 @@ func (p *provider) GetCapacity(ctx context.Context) (*types.Capacity, error) {
 	}, nil
 }
 
-func (p *provider) GetAvailable(ctx context.Context) (*types.Info, error) {
+func (p *Provider) GetAvailable(ctx context.Context) (*types.Info, error) {
 	// 如果已经连接，使用现有连接；否则创建临时连接（用于测试场景）
-	var client providerpb.ProviderServiceClient
+	var client providerpb.ServiceClient
 	var conn *grpc.ClientConn
 	var err error
 
@@ -179,7 +214,7 @@ func (p *provider) GetAvailable(ctx context.Context) (*types.Info, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to create provider connection: %w", err)
 		}
-		client = providerpb.NewProviderServiceClient(conn)
+		client = providerpb.NewServiceClient(conn)
 		defer conn.Close()
 	}
 
@@ -194,21 +229,20 @@ func (p *provider) GetAvailable(ctx context.Context) (*types.Info, error) {
 	return &types.Info{CPU: resp.Available.Cpu, Memory: resp.Available.Memory, GPU: resp.Available.Gpu}, nil
 }
 
-func (p *provider) GetLogs(d string, lines int) ([]string, error) {
+func (p *Provider) GetLogs(d string, lines int) ([]string, error) {
 	// TODO: 实现获取日志的逻辑
 	return nil, fmt.Errorf("not implemented")
 }
 
-func (p *provider) Deploy(ctx context.Context, id, image string, resourceRequest *types.Info) error {
+func (p *Provider) Deploy(ctx context.Context, id, image string, resourceRequest *types.Info) error {
 	if p.client == nil {
 		return fmt.Errorf("provider not connected")
 	}
 	if p.id == "" {
 		return fmt.Errorf("provider not connected, please call Connect first")
 	}
-	req := &providerpb.DeployComponentRequest{
-		ComponentId: id,
-		Image:       image,
+	req := &providerpb.DeployRequest{
+		Image: image,
 		ResourceRequest: &resourcepb.Info{
 			Cpu:    resourceRequest.CPU,
 			Memory: resourceRequest.Memory,
@@ -216,12 +250,12 @@ func (p *provider) Deploy(ctx context.Context, id, image string, resourceRequest
 		},
 		EnvVars: map[string]string{
 			"COMPONENT_ID": id,
-			"ZMQ_ADDR":     net.JoinHostPort(p.cfg.Host, strconv.Itoa(p.cfg.Transport.ZMQ.Port)),
-			"STORE_ADDR":   net.JoinHostPort(p.cfg.Host, strconv.Itoa(p.cfg.Transport.RPC.Store.Port)),
+			"ZMQ_ADDR":     net.JoinHostPort(p.envVariables.IarnetHost, strconv.Itoa(p.envVariables.ZMQPort)),
+			"STORE_ADDR":   net.JoinHostPort(p.envVariables.IarnetHost, strconv.Itoa(p.envVariables.StorePort)),
 		},
 		ProviderId: p.id, // 必须传递 provider_id
 	}
-	resp, err := p.client.DeployComponent(ctx, req)
+	resp, err := p.client.Deploy(ctx, req)
 	if err != nil {
 		return fmt.Errorf("failed to deploy component: %w", err)
 	}
@@ -231,7 +265,7 @@ func (p *provider) Deploy(ctx context.Context, id, image string, resourceRequest
 	return nil
 }
 
-func (p *provider) Close() error {
+func (p *Provider) Close() error {
 	if p.client != nil {
 		return p.conn.Close()
 	}

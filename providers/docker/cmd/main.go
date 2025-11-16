@@ -44,7 +44,7 @@ func main() {
 	}
 
 	srv := grpc.NewServer()
-	providerpb.RegisterProviderServiceServer(srv, service)
+	providerpb.RegisterServiceServer(srv, service)
 
 	logrus.Infof("Docker provider gRPC server listening on :%d", cfg.Server.Port)
 

@@ -25,7 +25,7 @@ if _version_not_supported:
     )
 
 
-class ProviderServiceStub(object):
+class ServiceStub(object):
     """Missing associated documentation comment in .proto file."""
 
     def __init__(self, channel):
@@ -34,32 +34,48 @@ class ProviderServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.AssignID = channel.unary_unary(
-                '/provider.ProviderService/AssignID',
-                request_serializer=provider_dot_provider__pb2.AssignIDRequest.SerializeToString,
-                response_deserializer=provider_dot_provider__pb2.AssignIDResponse.FromString,
+        self.Connect = channel.unary_unary(
+                '/provider.Service/Connect',
+                request_serializer=provider_dot_provider__pb2.ConnectRequest.SerializeToString,
+                response_deserializer=provider_dot_provider__pb2.ConnectResponse.FromString,
+                _registered_method=True)
+        self.Disconnect = channel.unary_unary(
+                '/provider.Service/Disconnect',
+                request_serializer=provider_dot_provider__pb2.DisconnectRequest.SerializeToString,
+                response_deserializer=provider_dot_provider__pb2.DisconnectResponse.FromString,
                 _registered_method=True)
         self.GetCapacity = channel.unary_unary(
-                '/provider.ProviderService/GetCapacity',
+                '/provider.Service/GetCapacity',
                 request_serializer=provider_dot_provider__pb2.GetCapacityRequest.SerializeToString,
                 response_deserializer=provider_dot_provider__pb2.GetCapacityResponse.FromString,
                 _registered_method=True)
         self.GetAvailable = channel.unary_unary(
-                '/provider.ProviderService/GetAvailable',
+                '/provider.Service/GetAvailable',
                 request_serializer=provider_dot_provider__pb2.GetAvailableRequest.SerializeToString,
                 response_deserializer=provider_dot_provider__pb2.GetAvailableResponse.FromString,
                 _registered_method=True)
-        self.DeployComponent = channel.unary_unary(
-                '/provider.ProviderService/DeployComponent',
-                request_serializer=provider_dot_provider__pb2.DeployComponentRequest.SerializeToString,
-                response_deserializer=provider_dot_provider__pb2.DeployComponentResponse.FromString,
+        self.Deploy = channel.unary_unary(
+                '/provider.Service/Deploy',
+                request_serializer=provider_dot_provider__pb2.DeployRequest.SerializeToString,
+                response_deserializer=provider_dot_provider__pb2.DeployResponse.FromString,
+                _registered_method=True)
+        self.HealthCheck = channel.unary_unary(
+                '/provider.Service/HealthCheck',
+                request_serializer=provider_dot_provider__pb2.HealthCheckRequest.SerializeToString,
+                response_deserializer=provider_dot_provider__pb2.HealthCheckResponse.FromString,
                 _registered_method=True)
 
 
-class ProviderServiceServicer(object):
+class ServiceServicer(object):
     """Missing associated documentation comment in .proto file."""
 
-    def AssignID(self, request, context):
+    def Connect(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def Disconnect(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -77,19 +93,30 @@ class ProviderServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def DeployComponent(self, request, context):
+    def Deploy(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def HealthCheck(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
 
-def add_ProviderServiceServicer_to_server(servicer, server):
+def add_ServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'AssignID': grpc.unary_unary_rpc_method_handler(
-                    servicer.AssignID,
-                    request_deserializer=provider_dot_provider__pb2.AssignIDRequest.FromString,
-                    response_serializer=provider_dot_provider__pb2.AssignIDResponse.SerializeToString,
+            'Connect': grpc.unary_unary_rpc_method_handler(
+                    servicer.Connect,
+                    request_deserializer=provider_dot_provider__pb2.ConnectRequest.FromString,
+                    response_serializer=provider_dot_provider__pb2.ConnectResponse.SerializeToString,
+            ),
+            'Disconnect': grpc.unary_unary_rpc_method_handler(
+                    servicer.Disconnect,
+                    request_deserializer=provider_dot_provider__pb2.DisconnectRequest.FromString,
+                    response_serializer=provider_dot_provider__pb2.DisconnectResponse.SerializeToString,
             ),
             'GetCapacity': grpc.unary_unary_rpc_method_handler(
                     servicer.GetCapacity,
@@ -101,24 +128,29 @@ def add_ProviderServiceServicer_to_server(servicer, server):
                     request_deserializer=provider_dot_provider__pb2.GetAvailableRequest.FromString,
                     response_serializer=provider_dot_provider__pb2.GetAvailableResponse.SerializeToString,
             ),
-            'DeployComponent': grpc.unary_unary_rpc_method_handler(
-                    servicer.DeployComponent,
-                    request_deserializer=provider_dot_provider__pb2.DeployComponentRequest.FromString,
-                    response_serializer=provider_dot_provider__pb2.DeployComponentResponse.SerializeToString,
+            'Deploy': grpc.unary_unary_rpc_method_handler(
+                    servicer.Deploy,
+                    request_deserializer=provider_dot_provider__pb2.DeployRequest.FromString,
+                    response_serializer=provider_dot_provider__pb2.DeployResponse.SerializeToString,
+            ),
+            'HealthCheck': grpc.unary_unary_rpc_method_handler(
+                    servicer.HealthCheck,
+                    request_deserializer=provider_dot_provider__pb2.HealthCheckRequest.FromString,
+                    response_serializer=provider_dot_provider__pb2.HealthCheckResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'provider.ProviderService', rpc_method_handlers)
+            'provider.Service', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
-    server.add_registered_method_handlers('provider.ProviderService', rpc_method_handlers)
+    server.add_registered_method_handlers('provider.Service', rpc_method_handlers)
 
 
  # This class is part of an EXPERIMENTAL API.
-class ProviderService(object):
+class Service(object):
     """Missing associated documentation comment in .proto file."""
 
     @staticmethod
-    def AssignID(request,
+    def Connect(request,
             target,
             options=(),
             channel_credentials=None,
@@ -131,9 +163,36 @@ class ProviderService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/provider.ProviderService/AssignID',
-            provider_dot_provider__pb2.AssignIDRequest.SerializeToString,
-            provider_dot_provider__pb2.AssignIDResponse.FromString,
+            '/provider.Service/Connect',
+            provider_dot_provider__pb2.ConnectRequest.SerializeToString,
+            provider_dot_provider__pb2.ConnectResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Disconnect(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/provider.Service/Disconnect',
+            provider_dot_provider__pb2.DisconnectRequest.SerializeToString,
+            provider_dot_provider__pb2.DisconnectResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -158,7 +217,7 @@ class ProviderService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/provider.ProviderService/GetCapacity',
+            '/provider.Service/GetCapacity',
             provider_dot_provider__pb2.GetCapacityRequest.SerializeToString,
             provider_dot_provider__pb2.GetCapacityResponse.FromString,
             options,
@@ -185,7 +244,7 @@ class ProviderService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/provider.ProviderService/GetAvailable',
+            '/provider.Service/GetAvailable',
             provider_dot_provider__pb2.GetAvailableRequest.SerializeToString,
             provider_dot_provider__pb2.GetAvailableResponse.FromString,
             options,
@@ -199,7 +258,7 @@ class ProviderService(object):
             _registered_method=True)
 
     @staticmethod
-    def DeployComponent(request,
+    def Deploy(request,
             target,
             options=(),
             channel_credentials=None,
@@ -212,9 +271,36 @@ class ProviderService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/provider.ProviderService/DeployComponent',
-            provider_dot_provider__pb2.DeployComponentRequest.SerializeToString,
-            provider_dot_provider__pb2.DeployComponentResponse.FromString,
+            '/provider.Service/Deploy',
+            provider_dot_provider__pb2.DeployRequest.SerializeToString,
+            provider_dot_provider__pb2.DeployResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def HealthCheck(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/provider.Service/HealthCheck',
+            provider_dot_provider__pb2.HealthCheckRequest.SerializeToString,
+            provider_dot_provider__pb2.HealthCheckResponse.FromString,
             options,
             channel_credentials,
             insecure,

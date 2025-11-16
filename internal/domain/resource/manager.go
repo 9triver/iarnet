@@ -7,8 +7,10 @@ import (
 	"github.com/9triver/iarnet/internal/domain/resource/provider"
 	"github.com/9triver/iarnet/internal/domain/resource/store"
 	"github.com/9triver/iarnet/internal/domain/resource/types"
+	providerrepo "github.com/9triver/iarnet/internal/infra/repository/resource"
 	commonpb "github.com/9triver/iarnet/internal/proto/common"
 	storepb "github.com/9triver/iarnet/internal/proto/resource/store"
+	"github.com/sirupsen/logrus"
 )
 
 var (
@@ -22,20 +24,22 @@ type Manager struct {
 	storeService     store.Service
 	providerService  provider.Service
 	componentManager component.Manager
+	providerManager  *provider.Manager
 }
 
-func NewManager(channeler component.Channeler, s *store.Store, componentImages map[string]string) *Manager {
+func NewManager(channeler component.Channeler, s *store.Store, componentImages map[string]string, providerRepo providerrepo.ProviderRepo, envVariables *provider.EnvVariables) *Manager {
 	componentManager := component.NewManager(channeler)
 
 	// 初始化 Provider 模块
 	providerManager := provider.NewManager()
-	providerService := provider.NewService(providerManager)
+	providerService := provider.NewService(providerManager, providerRepo, envVariables)
 
 	return &Manager{
 		componentService: component.NewService(componentManager, providerService, componentImages),
 		storeService:     store.NewService(s),
 		providerService:  providerService,
 		componentManager: componentManager,
+		providerManager:  providerManager,
 	}
 }
 
@@ -47,24 +51,45 @@ func (m *Manager) SetChanneler(channeler component.Channeler) {
 
 // Start starts the component manager to receive messages from components
 func (m *Manager) Start(ctx context.Context) error {
-	return m.componentManager.Start(ctx)
+	// 从 repository 加载 provider
+	if err := m.providerService.LoadProviders(ctx); err != nil {
+		logrus.Warnf("Failed to load providers from repository: %v", err)
+		// 不返回错误，继续启动
+	}
+
+	// 启动组件管理器
+	if err := m.componentManager.Start(ctx); err != nil {
+		return err
+	}
+
+	// 启动 provider 健康检测
+	if m.providerManager != nil {
+		m.providerManager.Start()
+	}
+
+	return nil
 }
 
 func (m *Manager) DeployComponent(ctx context.Context, name string, runtimeEnv types.RuntimeEnv, resourceRequest *types.Info) (*component.Component, error) {
 	return m.componentService.DeployComponent(ctx, name, runtimeEnv, resourceRequest)
 }
 
-func (m *Manager) RegisterProvider(p provider.Provider) error {
-	return m.providerService.RegisterProvider(context.Background(), p)
+func (m *Manager) RegisterProvider(name string, host string, port int) (*provider.Provider, error) {
+	return m.providerService.RegisterProvider(context.Background(), name, host, port)
+}
+
+// UnregisterProvider 注销 Provider
+func (m *Manager) UnregisterProvider(id string) error {
+	return m.providerService.UnregisterProvider(context.Background(), id)
 }
 
 // GetAllProviders 获取所有注册的 Provider
-func (m *Manager) GetAllProviders() []provider.Provider {
+func (m *Manager) GetAllProviders() []*provider.Provider {
 	return m.providerService.GetAllProviders()
 }
 
 // GetProvider 获取指定 ID 的 Provider
-func (m *Manager) GetProvider(id string) provider.Provider {
+func (m *Manager) GetProvider(id string) *provider.Provider {
 	return m.providerService.GetProvider(id)
 }
 
