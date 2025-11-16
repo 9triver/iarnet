@@ -127,11 +127,31 @@ func (p *provider) GetStatus() types.ProviderStatus {
 }
 
 func (p *provider) GetCapacity(ctx context.Context) (*types.Capacity, error) {
-	if p.client == nil {
-		return nil, fmt.Errorf("provider not connected")
+	// 如果已经连接，使用现有连接；否则创建临时连接（用于测试场景）
+	var client providerpb.ProviderServiceClient
+	var conn *grpc.ClientConn
+	var err error
+
+	if p.client != nil {
+		client = p.client
+	} else {
+		// 创建临时连接（不调用 AssignID）
+		if p.host == "" || p.port == 0 {
+			return nil, fmt.Errorf("provider host and port are required")
+		}
+		conn, err = grpc.NewClient(fmt.Sprintf("%s:%d", p.host, p.port), grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			return nil, fmt.Errorf("failed to create provider connection: %w", err)
+		}
+		client = providerpb.NewProviderServiceClient(conn)
+		defer conn.Close()
 	}
-	req := &providerpb.GetCapacityRequest{}
-	resp, err := p.client.GetCapacity(ctx, req)
+
+	// 如果已连接，传递 provider_id；如果未连接，传递空字符串（允许未连接访问）
+	req := &providerpb.GetCapacityRequest{
+		ProviderId: p.id, // 如果未连接，p.id 为空字符串
+	}
+	resp, err := client.GetCapacity(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get capacity: %w", err)
 	}
@@ -143,11 +163,31 @@ func (p *provider) GetCapacity(ctx context.Context) (*types.Capacity, error) {
 }
 
 func (p *provider) GetAvailable(ctx context.Context) (*types.Info, error) {
-	if p.client == nil {
-		return nil, fmt.Errorf("provider not connected")
+	// 如果已经连接，使用现有连接；否则创建临时连接（用于测试场景）
+	var client providerpb.ProviderServiceClient
+	var conn *grpc.ClientConn
+	var err error
+
+	if p.client != nil {
+		client = p.client
+	} else {
+		// 创建临时连接（不调用 AssignID）
+		if p.host == "" || p.port == 0 {
+			return nil, fmt.Errorf("provider host and port are required")
+		}
+		conn, err = grpc.NewClient(fmt.Sprintf("%s:%d", p.host, p.port), grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			return nil, fmt.Errorf("failed to create provider connection: %w", err)
+		}
+		client = providerpb.NewProviderServiceClient(conn)
+		defer conn.Close()
 	}
-	req := &providerpb.GetAvailableRequest{}
-	resp, err := p.client.GetAvailable(ctx, req)
+
+	// 如果已连接，传递 provider_id；如果未连接，传递空字符串（允许未连接访问）
+	req := &providerpb.GetAvailableRequest{
+		ProviderId: p.id, // 如果未连接，p.id 为空字符串
+	}
+	resp, err := client.GetAvailable(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get available: %w", err)
 	}
@@ -163,6 +203,9 @@ func (p *provider) Deploy(ctx context.Context, id, image string, resourceRequest
 	if p.client == nil {
 		return fmt.Errorf("provider not connected")
 	}
+	if p.id == "" {
+		return fmt.Errorf("provider not connected, please call Connect first")
+	}
 	req := &providerpb.DeployComponentRequest{
 		ComponentId: id,
 		Image:       image,
@@ -176,6 +219,7 @@ func (p *provider) Deploy(ctx context.Context, id, image string, resourceRequest
 			"ZMQ_ADDR":     net.JoinHostPort(p.cfg.Host, strconv.Itoa(p.cfg.Transport.ZMQ.Port)),
 			"STORE_ADDR":   net.JoinHostPort(p.cfg.Host, strconv.Itoa(p.cfg.Transport.RPC.Store.Port)),
 		},
+		ProviderId: p.id, // 必须传递 provider_id
 	}
 	resp, err := p.client.DeployComponent(ctx, req)
 	if err != nil {

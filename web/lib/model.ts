@@ -50,6 +50,39 @@ export interface UnregisterResourceProviderResponse {
   message: string // 响应消息
 }
 
+// GetResourceProviderInfoResponse 获取资源提供者信息响应
+export interface GetResourceProviderInfoResponse {
+  id: string    // 提供者 ID
+  name: string  // 提供者名称
+  type: string  // 提供者类型
+  host: string  // 主机地址
+  port: number  // 端口
+  status: string // 状态 (connected/disconnected/unknown)
+  last_update_time: string // 最后更新时间（ISO 8601 格式）
+}
+
+// GetResourceProviderCapacityResponse 获取资源提供者容量响应
+export interface GetResourceProviderCapacityResponse {
+  total: ResourceInfo     // 总资源
+  used: ResourceInfo     // 已使用资源
+  available: ResourceInfo // 可用资源
+}
+
+// TestResourceProviderRequest 测试资源提供者连接请求
+export interface TestResourceProviderRequest {
+  name: string  // 提供者名称
+  host: string  // 主机地址
+  port: number  // 端口
+}
+
+// TestResourceProviderResponse 测试资源提供者连接响应
+export interface TestResourceProviderResponse {
+  success: boolean      // 连接是否成功
+  type: string          // 提供者类型
+  capacity?: ResourceInfo // 资源容量（连接成功时返回）
+  message: string       // 响应消息或错误信息
+}
+
 export interface Application {
   id: string
   name: string

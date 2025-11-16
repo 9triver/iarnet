@@ -30,8 +30,10 @@ class AssignIDResponse(_message.Message):
     def __init__(self, success: bool = ..., error: _Optional[str] = ..., provider_type: _Optional[_Union[ProviderType, _Mapping]] = ...) -> None: ...
 
 class GetCapacityRequest(_message.Message):
-    __slots__ = ()
-    def __init__(self) -> None: ...
+    __slots__ = ("provider_id",)
+    PROVIDER_ID_FIELD_NUMBER: _ClassVar[int]
+    provider_id: str
+    def __init__(self, provider_id: _Optional[str] = ...) -> None: ...
 
 class GetCapacityResponse(_message.Message):
     __slots__ = ("capacity",)
@@ -40,8 +42,10 @@ class GetCapacityResponse(_message.Message):
     def __init__(self, capacity: _Optional[_Union[_resource_pb2.Capacity, _Mapping]] = ...) -> None: ...
 
 class GetAvailableRequest(_message.Message):
-    __slots__ = ()
-    def __init__(self) -> None: ...
+    __slots__ = ("provider_id",)
+    PROVIDER_ID_FIELD_NUMBER: _ClassVar[int]
+    provider_id: str
+    def __init__(self, provider_id: _Optional[str] = ...) -> None: ...
 
 class GetAvailableResponse(_message.Message):
     __slots__ = ("available",)
@@ -50,7 +54,7 @@ class GetAvailableResponse(_message.Message):
     def __init__(self, available: _Optional[_Union[_resource_pb2.Info, _Mapping]] = ...) -> None: ...
 
 class DeployComponentRequest(_message.Message):
-    __slots__ = ("component_id", "image", "resource_request", "env_vars")
+    __slots__ = ("component_id", "image", "resource_request", "env_vars", "provider_id")
     class EnvVarsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -62,11 +66,13 @@ class DeployComponentRequest(_message.Message):
     IMAGE_FIELD_NUMBER: _ClassVar[int]
     RESOURCE_REQUEST_FIELD_NUMBER: _ClassVar[int]
     ENV_VARS_FIELD_NUMBER: _ClassVar[int]
+    PROVIDER_ID_FIELD_NUMBER: _ClassVar[int]
     component_id: str
     image: str
     resource_request: _resource_pb2.Info
     env_vars: _containers.ScalarMap[str, str]
-    def __init__(self, component_id: _Optional[str] = ..., image: _Optional[str] = ..., resource_request: _Optional[_Union[_resource_pb2.Info, _Mapping]] = ..., env_vars: _Optional[_Mapping[str, str]] = ...) -> None: ...
+    provider_id: str
+    def __init__(self, component_id: _Optional[str] = ..., image: _Optional[str] = ..., resource_request: _Optional[_Union[_resource_pb2.Info, _Mapping]] = ..., env_vars: _Optional[_Mapping[str, str]] = ..., provider_id: _Optional[str] = ...) -> None: ...
 
 class DeployComponentResponse(_message.Message):
     __slots__ = ("error",)

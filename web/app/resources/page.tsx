@@ -8,6 +8,8 @@ import type {
   GetResourceProvidersResponse,
   ProviderItem,
   RegisterResourceProviderRequest,
+  GetResourceProviderCapacityResponse,
+  TestResourceProviderResponse,
 } from "@/lib/model"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -28,7 +30,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { useForm } from "react-hook-form"
 import { Plus, Server, Cpu, HardDrive, Activity, Trash2, Edit, RefreshCw, MemoryStick } from "lucide-react"
-import { formatMemory, formatNumber } from "@/lib/utils"
+import { formatMemory, formatNumber, formatDateTime } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
 
 // 本地使用的资源类型（包含 CPU 和内存使用情况）
@@ -57,8 +59,7 @@ interface Resource {
 interface ResourceFormData {
   name: string
   type: "kubernetes" | "docker" | "vm"
-  host: string
-  port: number
+  url: string  // 格式: host:port，例如: localhost:50051
   token: string
   description?: string
 }
@@ -89,6 +90,9 @@ export default function ResourcesPage() {
   const [isNodeDialogOpen, setIsNodeDialogOpen] = useState(false)
   const [editingResource, setEditingResource] = useState<Resource | null>(null)
   const [loading, setLoading] = useState(true)
+  const [refreshingIds, setRefreshingIds] = useState<Set<string>>(new Set())
+  const [testingConnection, setTestingConnection] = useState(false)
+  const [testResult, setTestResult] = useState<TestResourceProviderResponse | null>(null)
 
   // 状态转换函数
   const convertStatus = (status: string | number | any): "connected" | "disconnected" | "error" => {
@@ -114,8 +118,7 @@ export default function ResourcesPage() {
     defaultValues: {
       name: "",
       type: "kubernetes",
-      host: "",
-      port: 2376,
+      url: "",
       token: "",
       description: "",
     },
@@ -168,31 +171,48 @@ export default function ResourcesPage() {
       const response = await resourcesAPI.getProviders()
       
       // 转换API数据格式为前端需要的格式
-      // 注意：后端 ProviderItem 不包含 cpu_usage 和 memory_usage
-      // 这些数据需要从其他地方获取，目前先设置为 0
-      const convertProvider = (provider: ProviderItem): Resource => ({
-        id: provider.id,
-        name: provider.name,
-        type: provider.type.toLowerCase() as "kubernetes" | "docker" | "vm",
-        host: provider.host,
-        port: provider.port,
-        category: "local_providers", // 全部作为本地资源处理
-        status: convertStatus(provider.status),
-        cpu: {
-          // TODO: 从 provider 的 GetCapacity 接口获取实际使用情况
-          // 目前先设置为 0，需要后续实现
-          total: 0,
-          used: 0,
-        },
-        memory: {
-          total: 0,
-          used: 0,
-        },
-        lastUpdated: provider.last_update_time,
-      })
+      // 为每个 provider 获取容量信息
+      const convertProvider = async (provider: ProviderItem): Promise<Resource> => {
+        let cpu = { total: 0, used: 0 }
+        let memory = { total: 0, used: 0 }
+        
+        // 获取 provider 的容量信息
+        try {
+          const capacity = await resourcesAPI.getProviderCapacity(provider.id)
+          // 后端返回的CPU单位是毫核（millicores），需要除以1000转换为核（cores）
+          cpu = {
+            total: capacity.total.cpu / 1000,
+            used: capacity.used.cpu / 1000,
+          }
+          // 内存单位是 bytes，保持原样，显示时会转换
+          memory = {
+            total: capacity.total.memory,
+            used: capacity.used.memory,
+          }
+        } catch (error) {
+          console.warn(`Failed to get capacity for provider ${provider.id}:`, error)
+          // 如果获取容量失败，保持默认值 0
+        }
+        
+        return {
+          id: provider.id,
+          name: provider.name,
+          type: provider.type.toLowerCase() as "kubernetes" | "docker" | "vm",
+          host: provider.host,
+          port: provider.port,
+          category: "local_providers", // 全部作为本地资源处理
+          status: convertStatus(provider.status),
+          cpu,
+          memory,
+          lastUpdated: provider.last_update_time,
+        }
+      }
       
       // 只处理本地资源，远程资源暂不接入数据
-      const localResources = (response.providers || []).map(convertProvider)
+      // 使用 Promise.all 并行获取所有 provider 的容量信息
+      const localResources = await Promise.all(
+        (response.providers || []).map(convertProvider)
+      )
       
       setResources(localResources)
     } catch (error) {
@@ -205,24 +225,60 @@ export default function ResourcesPage() {
     fetchData()
   }, [])
 
+  // 解析 URL 字符串为 host 和 port
+  const parseURL = (url: string): { host: string; port: number } => {
+    if (!url || !url.trim()) {
+      throw new Error('连接地址不能为空')
+    }
+    
+    const trimmedUrl = url.trim()
+    const parts = trimmedUrl.split(':')
+    
+    if (parts.length !== 2) {
+      throw new Error('URL 格式错误，应为 host:port，例如: localhost:50051')
+    }
+    
+    const host = parts[0].trim()
+    const portStr = parts[1].trim()
+    
+    if (!host) {
+      throw new Error('主机地址不能为空')
+    }
+    
+    const port = parseInt(portStr, 10)
+    if (isNaN(port)) {
+      throw new Error('端口必须是数字')
+    }
+    
+    if (port <= 0 || port > 65535) {
+      throw new Error('端口必须在 1-65535 之间')
+    }
+    
+    return { host, port }
+  }
+
   const onSubmit = async (data: ResourceFormData) => {
-    if (editingResource) {
-      // 编辑现有资源
-      // TODO: 后端暂不支持编辑，先在前端更新
-      setResources((prev) =>
-        prev.map((resource) =>
-          resource.id === editingResource.id
-            ? { ...resource, name: data.name, type: data.type, host: data.host, port: data.port }
-            : resource,
-        ),
-      )
-    } else {
-      // 添加新资源 - 调用后端API
-      try {
+    try {
+      // 解析 URL
+      const { host, port } = parseURL(data.url)
+      
+      if (editingResource) {
+        // 编辑现有资源
+        // TODO: 后端暂不支持编辑，先在前端更新
+        // 编辑模式下只更新名称和 URL（host:port）
+        setResources((prev) =>
+          prev.map((resource) =>
+            resource.id === editingResource.id
+              ? { ...resource, name: data.name, host, port }
+              : resource,
+          ),
+        )
+      } else {
+        // 添加新资源 - 调用后端API
         const request: RegisterResourceProviderRequest = {
           name: data.name,
-          host: data.host,
-          port: data.port,
+          host,
+          port,
         }
         
         const response = await resourcesAPI.registerProvider(request)
@@ -230,23 +286,27 @@ export default function ResourcesPage() {
         
         // 重新获取资源列表以显示最新数据
         await fetchProviders()
-      } catch (error) {
-        console.error('Failed to register provider:', error)
-        // 可以在这里添加错误提示
       }
-    }
 
-    setIsDialogOpen(false)
-    setEditingResource(null)
-    form.reset()
+      setIsDialogOpen(false)
+      // 状态清除由 onOpenChange 处理，避免重复操作
+    } catch (error) {
+      console.error('Failed to process form:', error)
+      // 将错误信息设置到 url 字段
+      const errorMessage = error instanceof Error ? error.message : 'URL 格式错误'
+      form.setError('url', {
+        type: 'manual',
+        message: errorMessage,
+      })
+    }
   }
 
   const handleEdit = (resource: Resource) => {
     setEditingResource(resource)
+    setTestResult(null)
     form.setValue("name", resource.name)
     form.setValue("type", resource.type)
-    form.setValue("host", resource.host)
-    form.setValue("port", resource.port)
+    form.setValue("url", `${resource.host}:${resource.port}`)
     setIsDialogOpen(true)
   }
 
@@ -260,6 +320,101 @@ export default function ResourcesPage() {
     } catch (error) {
       console.error('Failed to unregister provider:', error)
       // 可以在这里添加错误提示
+    }
+  }
+
+  // 刷新单个 provider 的数据
+  const handleRefreshProvider = async (id: string) => {
+    // 设置刷新状态
+    setRefreshingIds(prev => new Set(prev).add(id))
+    
+    // 记录开始时间，确保最小显示时间（避免闪烁）
+    const startTime = Date.now()
+    const minDisplayTime = 300 // 最小显示时间 300ms
+    
+    try {
+      // 获取 provider 的最新信息和容量
+      const [providerInfo, capacity] = await Promise.all([
+        resourcesAPI.getProviderInfo(id),
+        resourcesAPI.getProviderCapacity(id),
+      ])
+      
+      // 转换数据格式
+      const updatedResource: Resource = {
+        id: providerInfo.id,
+        name: providerInfo.name,
+        type: providerInfo.type.toLowerCase() as "kubernetes" | "docker" | "vm",
+        host: providerInfo.host,
+        port: providerInfo.port,
+        category: "local_providers",
+        status: convertStatus(providerInfo.status),
+        cpu: {
+          // 后端返回的CPU单位是毫核（millicores），需要除以1000转换为核（cores）
+          total: capacity.total.cpu / 1000,
+          used: capacity.used.cpu / 1000,
+        },
+        memory: {
+          total: capacity.total.memory,
+          used: capacity.used.memory,
+        },
+        lastUpdated: providerInfo.last_update_time,
+      }
+      
+      // 更新 resources 状态中对应的 provider
+      setResources(prev => 
+        prev.map(resource => 
+          resource.id === id ? updatedResource : resource
+        )
+      )
+      
+      // 确保最小显示时间
+      const elapsedTime = Date.now() - startTime
+      if (elapsedTime < minDisplayTime) {
+        await new Promise(resolve => setTimeout(resolve, minDisplayTime - elapsedTime))
+      }
+    } catch (error) {
+      console.error(`Failed to refresh provider ${id}:`, error)
+      
+      // 检查是否是 APIError 且状态码为 404
+      if (error && typeof error === 'object' && 'status' in error) {
+        const apiError = error as { status: number; message?: string }
+        if (apiError.status === 404) {
+          // 404 错误，说明 provider 已被删除，从列表中移除
+          setResources(prev => prev.filter(resource => resource.id !== id))
+          console.log(`Provider ${id} not found, removed from list`)
+        } else {
+          // 其他 HTTP 错误，更新状态为 error
+          setResources(prev => 
+            prev.map(resource => 
+              resource.id === id 
+                ? { ...resource, status: "error" as const }
+                : resource
+            )
+          )
+        }
+      } else {
+        // 其他类型的错误，更新状态为 error
+        setResources(prev => 
+          prev.map(resource => 
+            resource.id === id 
+              ? { ...resource, status: "error" as const }
+              : resource
+          )
+        )
+      }
+      
+      // 即使出错，也确保最小显示时间
+      const elapsedTime = Date.now() - startTime
+      if (elapsedTime < minDisplayTime) {
+        await new Promise(resolve => setTimeout(resolve, minDisplayTime - elapsedTime))
+      }
+    } finally {
+      // 清除刷新状态
+      setRefreshingIds(prev => {
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
     }
   }
 
@@ -398,17 +553,58 @@ export default function ResourcesPage() {
                 </DialogContent>
               </Dialog>
               
-              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button>
-                    <Plus className="mr-2 h-4 w-4" />
-                    接入资源
-                  </Button>
-                </DialogTrigger>
+              <Button
+                onClick={() => {
+                  // 点击接入资源时，清除所有状态并打开对话框
+                  // 先清除编辑状态，确保对话框显示正确的标题
+                  setEditingResource(null)
+                  setTestResult(null)
+                  // 重置表单到默认值
+                  form.reset({
+                    name: "",
+                    type: "docker",
+                    url: "",
+                    token: "",
+                  })
+                  // 清除表单验证错误
+                  form.clearErrors()
+                  // 打开对话框
+                  // 注意：由于 React 状态更新是批处理的，editingResource 会在同一渲染周期更新
+                  setIsDialogOpen(true)
+                }}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                接入资源
+              </Button>
+              
+              <Dialog 
+                open={isDialogOpen} 
+                onOpenChange={(open) => {
+                  if (!open) {
+                    // 关闭时清除所有相关状态
+                    // 使用 setTimeout 延迟清除，避免在对话框关闭动画期间触发重新渲染
+                    setTimeout(() => {
+                      setEditingResource(null)
+                      setTestResult(null)
+                      form.reset({
+                        name: "",
+                        type: "docker",
+                        url: "",
+                        token: "",
+                      })
+                    }, 150) // 延迟 150ms，等待对话框关闭动画完成
+                  }
+                  setIsDialogOpen(open)
+                }}
+              >
                 <DialogContent className="sm:max-w-[425px]">
                   <DialogHeader>
-                    <DialogTitle>添加新资源</DialogTitle>
-                    <DialogDescription>配置新的算力资源节点连接信息</DialogDescription>
+                    <DialogTitle>{editingResource ? "编辑资源" : "接入资源"}</DialogTitle>
+                    <DialogDescription>
+                      {editingResource 
+                        ? "修改资源名称和连接地址" 
+                        : "配置新的算力资源节点连接信息"}
+                    </DialogDescription>
                   </DialogHeader>
                   <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -427,79 +623,171 @@ export default function ResourcesPage() {
                       />
                       <FormField
                         control={form.control}
-                        name="type"
+                        name="url"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>资源类型</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="选择资源类型" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                <SelectItem value="kubernetes">Kubernetes</SelectItem>
-                                <SelectItem value="docker">Docker</SelectItem>
-                                <SelectItem value="vm">虚拟机</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="host"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>主机地址</FormLabel>
+                            <FormLabel>连接地址</FormLabel>
                             <FormControl>
-                              <Input placeholder="例如: 192.168.1.100" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="port"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>端口</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                placeholder="例如: 6443"
-                                {...field}
-                                onChange={(e) => field.onChange(parseInt(e.target.value))}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="token"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>认证信息</FormLabel>
-                            <FormControl>
-                              <Textarea
-                                placeholder="输入认证Token或配置文件内容"
-                                className="min-h-[100px]"
+                              <Input 
+                                placeholder="例如: localhost:50051 或 192.168.1.100:6443" 
                                 {...field}
                               />
                             </FormControl>
                             <FormDescription>
-                              Kubernetes: kubeconfig文件内容；Docker: TLS证书路径或留空
+                              格式: host:port，例如: localhost:50051
                             </FormDescription>
                             <FormMessage />
+                            <div className="flex items-center gap-2 mt-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={testingConnection || !field.value}
+                                onClick={async () => {
+                                  try {
+                                    setTestingConnection(true)
+                                    setTestResult(null)
+                                    
+                                    const { host, port } = parseURL(field.value)
+                                    const name = form.getValues("name") || "test"
+                                    
+                                    const result = await resourcesAPI.testProvider({
+                                      name,
+                                      host,
+                                      port,
+                                    })
+                                    
+                                    // 如果后端返回 success: false，也需要处理错误消息
+                                    if (!result.success && result.message) {
+                                      let errorMessage = result.message
+                                      const errorMsg = errorMessage.toLowerCase()
+                                      
+                                      // 检查是否是认证相关的错误
+                                      if (errorMsg.includes('authentication') || 
+                                          errorMsg.includes('provider_id is required') ||
+                                          errorMsg.includes('authenticated requests')) {
+                                        errorMessage = '认证失败，当前 provider 已被其他节点注册'
+                                      } else if (errorMsg.includes('连接失败')) {
+                                        // 提取原始错误信息，去掉 "连接失败: " 前缀
+                                        const originalMsg = result.message.replace(/^连接失败:\s*/i, '')
+                                        const originalMsgLower = originalMsg.toLowerCase()
+                                        
+                                        // 再次检查是否是认证错误
+                                        if (originalMsgLower.includes('authentication') || 
+                                            originalMsgLower.includes('provider_id is required') ||
+                                            originalMsgLower.includes('authenticated requests')) {
+                                          errorMessage = '认证失败，当前 provider 已被其他节点注册'
+                                        }
+                                      }
+                                      
+                                      setTestResult({
+                                        ...result,
+                                        message: errorMessage,
+                                      })
+                                    } else {
+                                      setTestResult(result)
+                                    }
+                                  } catch (error) {
+                                    let errorMessage = '测试连接失败'
+                                    
+                                    if (error instanceof Error) {
+                                      const errorMsg = error.message.toLowerCase()
+                                      // 检查是否是认证相关的错误（后端返回的错误消息可能包含 "连接失败: " 前缀）
+                                      if (errorMsg.includes('authentication') || 
+                                          errorMsg.includes('provider_id is required') ||
+                                          errorMsg.includes('authenticated requests') ||
+                                          errorMsg.includes('已被其他节点注册')) {
+                                        errorMessage = '认证失败，当前 provider 已被其他节点注册'
+                                      } else if (errorMsg.includes('connection') || 
+                                                 errorMsg.includes('connect') ||
+                                                 errorMsg.includes('连接失败')) {
+                                        // 提取原始错误信息，去掉 "连接失败: " 前缀
+                                        const originalMsg = error.message.replace(/^连接失败:\s*/i, '')
+                                        const originalMsgLower = originalMsg.toLowerCase()
+                                        
+                                        // 再次检查是否是认证错误
+                                        if (originalMsgLower.includes('authentication') || 
+                                            originalMsgLower.includes('provider_id is required') ||
+                                            originalMsgLower.includes('authenticated requests')) {
+                                          errorMessage = '认证失败，当前 provider 已被其他节点注册'
+                                        } else {
+                                          errorMessage = '连接失败，请检查地址和端口是否正确'
+                                        }
+                                      } else {
+                                        errorMessage = error.message
+                                      }
+                                    }
+                                    
+                                    setTestResult({
+                                      success: false,
+                                      type: "",
+                                      message: errorMessage,
+                                    })
+                                  } finally {
+                                    setTestingConnection(false)
+                                  }
+                                }}
+                              >
+                                {testingConnection ? (
+                                  <>
+                                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                                    测试中...
+                                  </>
+                                ) : (
+                                  "测试连接"
+                                )}
+                              </Button>
+                              {testResult && (
+                                <div className={`text-sm ${testResult.success ? 'text-green-600' : 'text-red-600'}`}>
+                                  {testResult.success ? (
+                                    <div className="flex items-center gap-2">
+                                      <span>✓ 连接成功</span>
+                                      {testResult.type && (
+                                        <Badge variant="outline">{testResult.type}</Badge>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span>✗ {testResult.message}</span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            {testResult?.success && testResult.capacity && (
+                              <div className="mt-2 p-3 bg-green-50 dark:bg-green-900/20 rounded-md border border-green-200 dark:border-green-800">
+                                <div className="text-sm font-medium text-green-900 dark:text-green-100 mb-2">
+                                  资源容量
+                                </div>
+                                <div className="grid grid-cols-3 gap-2 text-xs">
+                                  <div>
+                                    <div className="text-muted-foreground">CPU</div>
+                                    <div className="font-medium">{(testResult.capacity.cpu / 1000).toFixed(3)} 核心</div>
+                                  </div>
+                                  <div>
+                                    <div className="text-muted-foreground">内存</div>
+                                    <div className="font-medium">{formatMemory(testResult.capacity.memory)}</div>
+                                  </div>
+                                  <div>
+                                    <div className="text-muted-foreground">GPU</div>
+                                    <div className="font-medium">{testResult.capacity.gpu || 0}</div>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                           </FormItem>
                         )}
                       />
                       <DialogFooter>
-                        <Button type="submit">接入资源</Button>
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          onClick={() => {
+                            setIsDialogOpen(false)
+                            // 状态清除由 onOpenChange 处理，避免重复操作
+                          }}
+                        >
+                          取消
+                        </Button>
+                        <Button type="submit">{editingResource ? "保存" : "接入资源"}</Button>
                       </DialogFooter>
                     </form>
                   </Form>
@@ -649,7 +937,7 @@ export default function ResourcesPage() {
                             </div>
                           </div>
                         </TableCell>
-                        <TableCell className="w-40 text-xs text-muted-foreground">{resource.lastUpdated}</TableCell>
+                        <TableCell className="w-40 text-xs text-muted-foreground">{formatDateTime(resource.lastUpdated)}</TableCell>
                         <TableCell className="w-32">
                           <div className="flex items-center space-x-2">
                             <Button variant="ghost" size="sm" onClick={() => handleEdit(resource)}>
@@ -658,8 +946,13 @@ export default function ResourcesPage() {
                             <Button variant="ghost" size="sm" onClick={() => handleDelete(resource.id)}>
                               <Trash2 className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="sm">
-                              <RefreshCw className="h-4 w-4" />
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              onClick={() => handleRefreshProvider(resource.id)}
+                              disabled={refreshingIds.has(resource.id)}
+                            >
+                              <RefreshCw className={`h-4 w-4 ${refreshingIds.has(resource.id) ? 'animate-spin' : ''}`} />
                             </Button>
                           </div>
                         </TableCell>
@@ -755,7 +1048,7 @@ export default function ResourcesPage() {
                             </div>
                           </div>
                         </TableCell>
-                        <TableCell className="w-40 text-xs text-muted-foreground">{resource.lastUpdated}</TableCell>
+                        <TableCell className="w-40 text-xs text-muted-foreground">{formatDateTime(resource.lastUpdated)}</TableCell>
                         <TableCell className="w-32">
                           <div className="flex items-center space-x-2">
                             <Button variant="ghost" size="sm" onClick={() => handleEdit(resource)}>
@@ -764,8 +1057,13 @@ export default function ResourcesPage() {
                             <Button variant="ghost" size="sm" onClick={() => handleDelete(resource.id)}>
                               <Trash2 className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="sm">
-                              <RefreshCw className="h-4 w-4" />
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              onClick={() => handleRefreshProvider(resource.id)}
+                              disabled={refreshingIds.has(resource.id)}
+                            >
+                              <RefreshCw className={`h-4 w-4 ${refreshingIds.has(resource.id) ? 'animate-spin' : ''}`} />
                             </Button>
                           </div>
                         </TableCell>
@@ -783,3 +1081,4 @@ export default function ResourcesPage() {
     </div>
   )
 }
+

@@ -24,7 +24,30 @@ async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promi
     ...options,
   })
 
-  const data = await response.json()
+  // 检查响应是否有内容
+  const contentType = response.headers.get("content-type")
+  const hasJsonContent = contentType && contentType.includes("application/json")
+  
+  let data: any = {}
+  
+  // 只有在响应有内容且是 JSON 格式时才解析
+  if (hasJsonContent) {
+    try {
+      const text = await response.text()
+      if (text.trim()) {
+        data = JSON.parse(text)
+      }
+    } catch (error) {
+      // JSON 解析失败，尝试从状态码获取错误信息
+      if (!response.ok) {
+        throw new APIError(response.status, `请求失败: ${response.statusText}`)
+      }
+      throw new APIError(response.status, "响应格式错误")
+    }
+  } else if (!response.ok) {
+    // 非 JSON 响应且状态码不是成功，直接抛出错误
+    throw new APIError(response.status, response.statusText || "请求失败")
+  }
 
   // 只记录非404错误的日志，404通常表示资源不存在，这在某些情况下是正常的
   // if (response.status !== 404) {
@@ -38,7 +61,7 @@ async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promi
   // 处理后端标准响应格式 {code, message, data}
   if (data.code !== undefined) {
     if (data.code < 200 || data.code >= 300) {
-      throw new APIError(data.code, data.message || "API request failed")
+      throw new APIError(data.code, data.message || data.error || "API request failed")
     }
     return data.data
   }
@@ -51,9 +74,13 @@ async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promi
 import type {
   GetResourceCapacityResponse,
   GetResourceProvidersResponse,
+  GetResourceProviderInfoResponse,
+  GetResourceProviderCapacityResponse,
   RegisterResourceProviderRequest,
   RegisterResourceProviderResponse,
   UnregisterResourceProviderResponse,
+  TestResourceProviderRequest,
+  TestResourceProviderResponse,
 } from "./model"
 
 export const resourcesAPI = {
@@ -62,6 +89,14 @@ export const resourcesAPI = {
 
   // 获取资源提供者列表
   getProviders: () => apiRequest<GetResourceProvidersResponse>("/resource/provider"),
+
+  // 获取资源提供者信息
+  getProviderInfo: (id: string) =>
+    apiRequest<GetResourceProviderInfoResponse>(`/resource/provider/${id}/info`),
+
+  // 获取资源提供者容量
+  getProviderCapacity: (id: string) =>
+    apiRequest<GetResourceProviderCapacityResponse>(`/resource/provider/${id}/capacity`),
 
   // 注册资源提供者
   registerProvider: (request: RegisterResourceProviderRequest) =>
@@ -74,6 +109,13 @@ export const resourcesAPI = {
   unregisterProvider: (id: string) =>
     apiRequest<UnregisterResourceProviderResponse>(`/resource/provider/${id}`, {
       method: "DELETE",
+    }),
+
+  // 测试资源提供者连接
+  testProvider: (request: TestResourceProviderRequest) =>
+    apiRequest<TestResourceProviderResponse>("/resource/provider/test", {
+      method: "POST",
+      body: JSON.stringify(request),
     }),
 }
 

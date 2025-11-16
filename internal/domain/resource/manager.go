@@ -63,6 +63,11 @@ func (m *Manager) GetAllProviders() []provider.Provider {
 	return m.providerService.GetAllProviders()
 }
 
+// GetProvider 获取指定 ID 的 Provider
+func (m *Manager) GetProvider(id string) provider.Provider {
+	return m.providerService.GetProvider(id)
+}
+
 func (m *Manager) SaveObject(ctx context.Context, obj *commonpb.EncodedObject) (*commonpb.ObjectRef, error) {
 	return m.storeService.SaveObject(ctx, obj)
 }

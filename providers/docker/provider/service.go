@@ -107,6 +107,11 @@ func (s *Service) AssignID(ctx context.Context, req *providerpb.AssignIDRequest)
 }
 
 func (s *Service) GetCapacity(ctx context.Context, req *providerpb.GetCapacityRequest) (*providerpb.GetCapacityResponse, error) {
+	// 鉴权：如果 provider 已连接，需要验证 provider_id；如果未连接，允许访问
+	if err := s.checkAuth(req.ProviderId, true); err != nil {
+		return nil, fmt.Errorf("authentication failed: %w", err)
+	}
+
 	info, err := s.client.Info(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get Docker info: %w", err)
@@ -146,6 +151,11 @@ func (s *Service) GetCapacity(ctx context.Context, req *providerpb.GetCapacityRe
 }
 
 func (s *Service) GetAvailable(ctx context.Context, req *providerpb.GetAvailableRequest) (*providerpb.GetAvailableResponse, error) {
+	// 鉴权：如果 provider 已连接，需要验证 provider_id；如果未连接，允许访问
+	if err := s.checkAuth(req.ProviderId, true); err != nil {
+		return nil, fmt.Errorf("authentication failed: %w", err)
+	}
+
 	capacity, err := s.client.Info(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get Docker info: %w", err)
@@ -250,7 +260,43 @@ func (s *Service) GetProviderID() string {
 	return s.providerID
 }
 
+// checkAuth 检查鉴权
+// 如果 provider 已经被连接（有 providerID），则必须验证请求中的 provider_id 是否匹配
+// 如果 provider 没有被连接（没有 providerID），则对于 GetCapacity 和 GetAvailable 允许访问（返回 true），对于其他方法返回 false
+func (s *Service) checkAuth(requestProviderID string, allowUnconnected bool) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	// 如果 provider 还没有被连接
+	if s.providerID == "" {
+		if allowUnconnected {
+			// 允许未连接的 provider 访问（用于 GetCapacity 和 GetAvailable）
+			return nil
+		}
+		// 其他方法需要先连接
+		return fmt.Errorf("provider not connected, please call AssignID first")
+	}
+
+	// 如果 provider 已经被连接，必须验证 provider_id
+	if requestProviderID == "" {
+		return fmt.Errorf("provider_id is required for authenticated requests")
+	}
+
+	if requestProviderID != s.providerID {
+		return fmt.Errorf("unauthorized: provider_id mismatch, expected %s, got %s", s.providerID, requestProviderID)
+	}
+
+	return nil
+}
+
 func (s *Service) DeployComponent(ctx context.Context, req *providerpb.DeployComponentRequest) (*providerpb.DeployComponentResponse, error) {
+	// 鉴权：DeployComponent 必须验证 provider_id，不允许未连接的 provider 部署
+	if err := s.checkAuth(req.ProviderId, false); err != nil {
+		return &providerpb.DeployComponentResponse{
+			Error: fmt.Sprintf("authentication failed: %v", err),
+		}, nil
+	}
+
 	logrus.WithFields(logrus.Fields{
 		"image":            req.Image,
 		"env_vars":         req.EnvVars,

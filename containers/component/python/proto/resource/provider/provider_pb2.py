@@ -25,7 +25,7 @@ _sym_db = _symbol_database.Default()
 import resource_pb2 as resource__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x17provider/provider.proto\x12\x08provider\x1a\x0eresource.proto\"\x1c\n\x0cProviderType\x12\x0c\n\x04name\x18\x01 \x01(\t\"&\n\x0f\x41ssignIDRequest\x12\x13\n\x0bprovider_id\x18\x01 \x01(\t\"a\n\x10\x41ssignIDResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\r\n\x05\x65rror\x18\x02 \x01(\t\x12-\n\rprovider_type\x18\x03 \x01(\x0b\x32\x16.provider.ProviderType\"\x14\n\x12GetCapacityRequest\";\n\x13GetCapacityResponse\x12$\n\x08\x63\x61pacity\x18\x01 \x01(\x0b\x32\x12.resource.Capacity\"\x15\n\x13GetAvailableRequest\"9\n\x14GetAvailableResponse\x12!\n\tavailable\x18\x01 \x01(\x0b\x32\x0e.resource.Info\"\xd8\x01\n\x16\x44\x65ployComponentRequest\x12\x14\n\x0c\x63omponent_id\x18\x01 \x01(\t\x12\r\n\x05image\x18\x02 \x01(\t\x12(\n\x10resource_request\x18\x03 \x01(\x0b\x32\x0e.resource.Info\x12?\n\x08\x65nv_vars\x18\x04 \x03(\x0b\x32-.provider.DeployComponentRequest.EnvVarsEntry\x1a.\n\x0c\x45nvVarsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"(\n\x17\x44\x65ployComponentResponse\x12\r\n\x05\x65rror\x18\x01 \x01(\t2\xc7\x02\n\x0fProviderService\x12\x41\n\x08\x41ssignID\x12\x19.provider.AssignIDRequest\x1a\x1a.provider.AssignIDResponse\x12J\n\x0bGetCapacity\x12\x1c.provider.GetCapacityRequest\x1a\x1d.provider.GetCapacityResponse\x12M\n\x0cGetAvailable\x12\x1d.provider.GetAvailableRequest\x1a\x1e.provider.GetAvailableResponse\x12V\n\x0f\x44\x65ployComponent\x12 .provider.DeployComponentRequest\x1a!.provider.DeployComponentResponseB<Z:github.com/9triver/iarnet/internal/proto/resource/providerb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x17provider/provider.proto\x12\x08provider\x1a\x0eresource.proto\"\x1c\n\x0cProviderType\x12\x0c\n\x04name\x18\x01 \x01(\t\"&\n\x0f\x41ssignIDRequest\x12\x13\n\x0bprovider_id\x18\x01 \x01(\t\"a\n\x10\x41ssignIDResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\r\n\x05\x65rror\x18\x02 \x01(\t\x12-\n\rprovider_type\x18\x03 \x01(\x0b\x32\x16.provider.ProviderType\")\n\x12GetCapacityRequest\x12\x13\n\x0bprovider_id\x18\x01 \x01(\t\";\n\x13GetCapacityResponse\x12$\n\x08\x63\x61pacity\x18\x01 \x01(\x0b\x32\x12.resource.Capacity\"*\n\x13GetAvailableRequest\x12\x13\n\x0bprovider_id\x18\x01 \x01(\t\"9\n\x14GetAvailableResponse\x12!\n\tavailable\x18\x01 \x01(\x0b\x32\x0e.resource.Info\"\xed\x01\n\x16\x44\x65ployComponentRequest\x12\x14\n\x0c\x63omponent_id\x18\x01 \x01(\t\x12\r\n\x05image\x18\x02 \x01(\t\x12(\n\x10resource_request\x18\x03 \x01(\x0b\x32\x0e.resource.Info\x12?\n\x08\x65nv_vars\x18\x04 \x03(\x0b\x32-.provider.DeployComponentRequest.EnvVarsEntry\x12\x13\n\x0bprovider_id\x18\x05 \x01(\t\x1a.\n\x0c\x45nvVarsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"(\n\x17\x44\x65ployComponentResponse\x12\r\n\x05\x65rror\x18\x01 \x01(\t2\xc7\x02\n\x0fProviderService\x12\x41\n\x08\x41ssignID\x12\x19.provider.AssignIDRequest\x1a\x1a.provider.AssignIDResponse\x12J\n\x0bGetCapacity\x12\x1c.provider.GetCapacityRequest\x1a\x1d.provider.GetCapacityResponse\x12M\n\x0cGetAvailable\x12\x1d.provider.GetAvailableRequest\x1a\x1e.provider.GetAvailableResponse\x12V\n\x0f\x44\x65ployComponent\x12 .provider.DeployComponentRequest\x1a!.provider.DeployComponentResponseB<Z:github.com/9triver/iarnet/internal/proto/resource/providerb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -42,19 +42,19 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_ASSIGNIDRESPONSE']._serialized_start=123
   _globals['_ASSIGNIDRESPONSE']._serialized_end=220
   _globals['_GETCAPACITYREQUEST']._serialized_start=222
-  _globals['_GETCAPACITYREQUEST']._serialized_end=242
-  _globals['_GETCAPACITYRESPONSE']._serialized_start=244
-  _globals['_GETCAPACITYRESPONSE']._serialized_end=303
-  _globals['_GETAVAILABLEREQUEST']._serialized_start=305
-  _globals['_GETAVAILABLEREQUEST']._serialized_end=326
-  _globals['_GETAVAILABLERESPONSE']._serialized_start=328
-  _globals['_GETAVAILABLERESPONSE']._serialized_end=385
-  _globals['_DEPLOYCOMPONENTREQUEST']._serialized_start=388
-  _globals['_DEPLOYCOMPONENTREQUEST']._serialized_end=604
-  _globals['_DEPLOYCOMPONENTREQUEST_ENVVARSENTRY']._serialized_start=558
-  _globals['_DEPLOYCOMPONENTREQUEST_ENVVARSENTRY']._serialized_end=604
-  _globals['_DEPLOYCOMPONENTRESPONSE']._serialized_start=606
-  _globals['_DEPLOYCOMPONENTRESPONSE']._serialized_end=646
-  _globals['_PROVIDERSERVICE']._serialized_start=649
-  _globals['_PROVIDERSERVICE']._serialized_end=976
+  _globals['_GETCAPACITYREQUEST']._serialized_end=263
+  _globals['_GETCAPACITYRESPONSE']._serialized_start=265
+  _globals['_GETCAPACITYRESPONSE']._serialized_end=324
+  _globals['_GETAVAILABLEREQUEST']._serialized_start=326
+  _globals['_GETAVAILABLEREQUEST']._serialized_end=368
+  _globals['_GETAVAILABLERESPONSE']._serialized_start=370
+  _globals['_GETAVAILABLERESPONSE']._serialized_end=427
+  _globals['_DEPLOYCOMPONENTREQUEST']._serialized_start=430
+  _globals['_DEPLOYCOMPONENTREQUEST']._serialized_end=667
+  _globals['_DEPLOYCOMPONENTREQUEST_ENVVARSENTRY']._serialized_start=621
+  _globals['_DEPLOYCOMPONENTREQUEST_ENVVARSENTRY']._serialized_end=667
+  _globals['_DEPLOYCOMPONENTRESPONSE']._serialized_start=669
+  _globals['_DEPLOYCOMPONENTRESPONSE']._serialized_end=709
+  _globals['_PROVIDERSERVICE']._serialized_start=712
+  _globals['_PROVIDERSERVICE']._serialized_end=1039
 # @@protoc_insertion_point(module_scope)
