@@ -39,27 +39,17 @@ import {
   RefreshCw,
   Inbox,
 } from "lucide-react"
-import { Application, RunnerEnvironment } from "@/lib/model"
+import { Application, ApplicationStats, RunnerEnvironment } from "@/lib/model"
+import { formatDateTime } from "@/lib/utils"
 
 interface ApplicationFormData {
   name: string
   gitUrl?: string
   branch?: string
-  type: "web" | "api" | "worker" | "database"
   description?: string
-  ports?: string
-  healthCheck?: string
   executeCmd: string
+  envInstallCmd?: string
   runnerEnv?: string
-}
-
-interface ApplicationStats {
-  total: number
-  running: number
-  stopped: number
-  undeployed: number
-  failed: number
-  unknown: number
 }
 
 export default function ApplicationsPage() {
@@ -70,7 +60,6 @@ export default function ApplicationsPage() {
     stopped: 0,
     undeployed: 0,
     failed: 0,
-    unknown: 0,
   })
   const [isLoadingStats, setIsLoadingStats] = useState(true)
   const [applications, setApplications] = useState<Application[]>([
@@ -132,14 +121,14 @@ export default function ApplicationsPage() {
   const [editingApp, setEditingApp] = useState<Application | null>(null)
   const [isImporting, setIsImporting] = useState(false)
   const [importProgress, setImportProgress] = useState(0)
-  const [runnerEnvironments, setRunnerEnvironments] = useState<RunnerEnvironment[]>([])
+  const [runnerEnvironments, setRunnerEnvironments] = useState<string[]>([])
 
 
   // 获取应用统计数据
   const fetchStats = async () => {
     try {
       setIsLoadingStats(true)
-      const statsData = await applicationsAPI.getStats() as ApplicationStats
+      const statsData = await applicationsAPI.getStats()
       setStats(statsData)
     } catch (error) {
       console.error('获取应用统计数据失败:', error)
@@ -151,7 +140,32 @@ export default function ApplicationsPage() {
   const fetchApplications = async () => {
     try {
       const updatedApps = await applicationsAPI.getAll()
-      setApplications(updatedApps.applications)
+      // 转换后端返回的下划线字段名为驼峰格式
+      const convertedApps: Application[] = updatedApps.applications.map((app: any) => {
+        // 处理时间：检查是否为零值时间（空字符串或 "0001-01-01T00:00:00Z"）
+        let lastDeployed: string | undefined = undefined
+        if (app.last_deployed && app.last_deployed !== "" && app.last_deployed !== "0001-01-01T00:00:00Z") {
+          const date = new Date(app.last_deployed)
+          if (!isNaN(date.getTime())) {
+            lastDeployed = date.toISOString()
+          }
+        }
+        
+        return {
+          id: app.id,
+          name: app.name,
+          description: app.description || "",
+          gitUrl: app.git_url,
+          branch: app.branch,
+          status: (app.status === "idle" ? "idle" : app.status === "running" ? "running" : app.status === "stopped" ? "stopped" : app.status === "error" ? "error" : app.status === "deploying" ? "deploying" : app.status === "cloning" ? "cloning" : "idle") as Application["status"],
+          lastDeployed,
+          runnerEnv: app.runner_env,
+          containerId: app.container_id,
+          executeCmd: app.execute_cmd,
+          envInstallCmd: app.env_install_cmd,
+        }
+      })
+      setApplications(convertedApps)
     } catch (fetchError) {
       console.error('Failed to fetch updated applications:', fetchError)
     }
@@ -163,13 +177,6 @@ export default function ApplicationsPage() {
       setRunnerEnvironments(response.environments)
     } catch (fetchError) {
       console.error('Failed to fetch runner environments:', fetchError)
-      // 如果获取失败，使用默认的运行环境选项
-      setRunnerEnvironments([
-        { name: "docker" },
-        { name: "kubernetes" },
-        { name: "local" },
-        { name: "cloud" }
-      ])
     }
   }
 
@@ -190,11 +197,9 @@ export default function ApplicationsPage() {
       name: "",
       gitUrl: "",
       branch: "main",
-      type: "web",
       description: "",
-      ports: "3000",
-      healthCheck: "",
       executeCmd: "",
+      envInstallCmd: "",
       runnerEnv: "",
     },
   })
@@ -206,29 +211,48 @@ export default function ApplicationsPage() {
     )
   }
 
-  const onSubmit = async (data: ApplicationFormData) => {
-    // 解析端口字符串为数字数组
-    const parsePorts = (portsStr?: string): number[] => {
-      if (!portsStr) return []
-      return portsStr
-        .split(',')
-        .map(port => parseInt(port.trim()))
-        .filter(port => !isNaN(port) && port > 0 && port <= 65535)
+  // 将 Git URL 转换为可在浏览器中打开的 HTTPS 格式
+  const convertGitUrlToHttps = (url: string): string | null => {
+    if (!url) return null
+
+    // 如果已经是 HTTPS 格式，直接返回
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      // 移除 .git 后缀（如果有）
+      return url.replace(/\.git$/, '')
     }
 
-    const ports = parsePorts(data.ports)
+    // 处理 SSH 格式：git@github.com:user/repo.git
+    const sshPattern = /^git@([^:]+):([\w\-.]+\/[\w\-.]+)(?:\.git)?$/
+    const match = url.match(sshPattern)
+    if (match) {
+      const [, host, repo] = match
+      // 将常见的主机名映射到 HTTPS URL
+      if (host === 'github.com') {
+        return `https://github.com/${repo}`
+      } else if (host === 'gitlab.com') {
+        return `https://gitlab.com/${repo}`
+      } else if (host === 'bitbucket.org') {
+        return `https://bitbucket.org/${repo}`
+      } else {
+        // 对于其他主机，尝试使用 HTTPS
+        return `https://${host}/${repo}`
+      }
+    }
 
+    // 无法转换，返回 null
+    return null
+  }
+
+  const onSubmit = async (data: ApplicationFormData) => {
     if (editingApp) {
       // 编辑现有应用 - 调用后端API
       try {
         const updateData = {
           name: data.name,
-          type: data.type,
           description: data.description || "",
-          ports: ports,
-          healthCheck: data.healthCheck,
-          executeCmd: data.executeCmd,
-          runnerEnv: data.runnerEnv,
+          execute_cmd: data.executeCmd,
+          env_install_cmd: data.envInstallCmd,
+          runner_env: data.runnerEnv,
         }
 
         console.log('更新应用数据:', updateData)
@@ -248,14 +272,12 @@ export default function ApplicationsPage() {
       try {
         const createData = {
           name: data.name,
-          gitUrl: data.gitUrl,
-          branch: data.branch,
-          type: data.type,
+          git_url: data.gitUrl,
+          branch: data.branch || "main",
           description: data.description || "",
-          ports: ports,
-          healthCheck: data.healthCheck,
-          executeCmd: data.executeCmd,
-          runnerEnv: data.runnerEnv,
+          execute_cmd: data.executeCmd,
+          env_install_cmd: data.envInstallCmd,
+          runner_env: data.runnerEnv,
         }
 
         if (await applicationsAPI.create(createData)) { // TODO: fix
@@ -282,11 +304,9 @@ export default function ApplicationsPage() {
     form.setValue("name", app.name)
     form.setValue("gitUrl", app.gitUrl || "")
     form.setValue("branch", app.branch || "main")
-    form.setValue("type", app.type)
     form.setValue("description", app.description)
-    form.setValue("ports", app.ports ? app.ports.join(", ") : "")
-    form.setValue("healthCheck", app.healthCheck)
     form.setValue("executeCmd", app.executeCmd || "")
+    form.setValue("envInstallCmd", app.envInstallCmd || "")
     form.setValue("runnerEnv", app.runnerEnv || "")
     setIsDialogOpen(true)
   }
@@ -318,8 +338,7 @@ export default function ApplicationsPage() {
             ? {
                 ...app,
                 status: updatedApp.status,
-                lastDeployed: updatedApp.lastDeployed || new Date().toLocaleString(),
-                runningOn: updatedApp.runningOn || ["本地环境"],
+                lastDeployed: updatedApp.lastDeployed || new Date().toISOString(),
               }
             : app,
         ),
@@ -346,7 +365,6 @@ export default function ApplicationsPage() {
             ? {
                 ...app,
                 status: updatedApp.status,
-                runningOn: updatedApp.runningOn,
               }
             : app,
         ),
@@ -379,34 +397,15 @@ export default function ApplicationsPage() {
             部署中
           </Badge>
         )
+      case "cloning":
+        return (
+          <Badge variant="default" className="bg-yellow-500">
+            克隆中
+          </Badge>
+        )
     }
   }
 
-  const getTypeIcon = (type: Application["type"]) => {
-    switch (type) {
-      case "web":
-        return <Package className="h-4 w-4" />
-      case "api":
-        return <Activity className="h-4 w-4" />
-      case "worker":
-        return <Cpu className="h-4 w-4" />
-      case "database":
-        return <Database className="h-4 w-4" />
-    }
-  }
-
-  const getTypeLabel = (type: Application["type"]) => {
-    switch (type) {
-      case "web":
-        return "Web应用"
-      case "api":
-        return "API服务"
-      case "worker":
-        return "后台任务"
-      case "database":
-        return "数据库"
-    }
-  }
 
   return (
     <div className="flex h-screen bg-background">
@@ -468,33 +467,33 @@ export default function ApplicationsPage() {
                         )}
                       />
 
-                      <FormField
-                        control={form.control}
-                        name="gitUrl"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Git仓库URL</FormLabel>
-                            <FormControl>
-                              <Input
-                                placeholder="https://github.com/username/repo"
-                                disabled={!!editingApp}
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormDescription>
-                              {editingApp ? "Git仓库地址不支持修改" : "应用的Git仓库地址"}
-                            </FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                      <div className="grid grid-cols-12 gap-4">
+                        <FormField
+                          control={form.control}
+                          name="gitUrl"
+                          render={({ field }) => (
+                            <FormItem className="col-span-8">
+                              <FormLabel>Git仓库URL</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder="https://github.com/username/repo"
+                                  disabled={!!editingApp}
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormDescription>
+                                {editingApp ? "Git仓库地址不支持修改" : "应用的Git仓库地址"}
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
 
-                      <div className="grid grid-cols-2 gap-4">
                         <FormField
                           control={form.control}
                           name="branch"
                           render={({ field }) => (
-                            <FormItem>
+                            <FormItem className="col-span-4">
                               <FormLabel>分支</FormLabel>
                               <FormControl>
                                 <Input
@@ -510,67 +509,26 @@ export default function ApplicationsPage() {
                             </FormItem>
                           )}
                         />
-
-                        <FormField
-                          control={form.control}
-                          name="type"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>应用类型</FormLabel>
-                              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="选择应用类型" />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  <SelectItem value="web">Web应用</SelectItem>
-                                  <SelectItem value="api">API服务</SelectItem>
-                                  <SelectItem value="worker">后台任务</SelectItem>
-                                  <SelectItem value="database">数据库</SelectItem>
-                                </SelectContent>
-                              </Select>
-                              <FormDescription>应用的类型</FormDescription>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
                       </div>
 
-                      <div className="grid grid-cols-2 gap-4">
-                        <FormField
-                          control={form.control}
-                          name="ports"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>端口号</FormLabel>
-                              <FormControl>
-                                <Input
-                                  placeholder="3000, 8080, 9000"
-                                  {...field}
-                                />
-                              </FormControl>
-                              <FormDescription>应用运行端口，多个端口用逗号分隔</FormDescription>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-
-                        <FormField
-                          control={form.control}
-                          name="healthCheck"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>健康检查路径</FormLabel>
-                              <FormControl>
-                                <Input placeholder="/health" {...field} />
-                              </FormControl>
-                              <FormDescription>健康检查端点</FormDescription>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
+                      <FormField
+                        control={form.control}
+                        name="envInstallCmd"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>环境安装命令（可选）</FormLabel>
+                            <FormControl>
+                              <Textarea 
+                                placeholder="输入环境安装命令，支持多行：&#10;pip install -r requirements.txt&#10;&#10;或者：&#10;npm install&#10;yarn install" 
+                                className="min-h-[80px]"
+                                {...field} 
+                              />
+                            </FormControl>
+                            <FormDescription>在运行应用前执行的依赖安装命令</FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
                       <FormField
                         control={form.control}
@@ -605,8 +563,8 @@ export default function ApplicationsPage() {
                               </FormControl>
                               <SelectContent>
                                 {runnerEnvironments.map((env) => (
-                                  <SelectItem key={env.name} value={env.name}>
-                                    {env.name}
+                                  <SelectItem key={env} value={env}>
+                                    {env}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
@@ -733,7 +691,9 @@ export default function ApplicationsPage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {applications.map((app) => {
-                const lastDeployedDisplay = new Date().toLocaleString()
+                const lastDeployedDisplay = app.lastDeployed 
+                  ? formatDateTime(app.lastDeployed) 
+                  : "未部署"
 
                 return (
                   <Card
@@ -744,11 +704,10 @@ export default function ApplicationsPage() {
                   <CardHeader>
                     <div className="flex items-start justify-between">
                       <div className="flex items-center space-x-2">
-                        {getTypeIcon(app.type)}
+                        <Package className="h-4 w-4" />
                         <div>
                           <CardTitle className="text-lg">{app.name}</CardTitle>
                           <CardDescription className="flex items-center space-x-2 mt-1">
-                            <Badge variant="outline">{getTypeLabel(app.type)}</Badge>
                             {getStatusBadge(app.status)}
                           </CardDescription>
                         </div>
@@ -757,7 +716,9 @@ export default function ApplicationsPage() {
                   </CardHeader>
 
                   <CardContent className="space-y-4">
-                    <p className="text-sm text-muted-foreground line-clamp-2">{app.description}</p>
+                    {app.description && (
+                      <p className="text-sm text-muted-foreground line-clamp-2">{app.description}</p>
+                    )}
 
                     <div className="space-y-2">
                       {app.gitUrl && (
@@ -775,17 +736,11 @@ export default function ApplicationsPage() {
                         </div>
                       )}
 
-                      {app.ports && app.ports.length > 0 && (
+                      {app.runnerEnv && (
                         <div className="flex items-center space-x-2 text-sm">
-                          <Activity className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-muted-foreground">端口:</span>
-                          <div className="flex flex-wrap gap-1">
-                            {app.ports.map((port, index) => (
-                              <Badge key={index} variant="outline" className="text-xs font-mono">
-                                {port}
-                              </Badge>
-                            ))}
-                          </div>
+                          <Cpu className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-muted-foreground">运行环境:</span>
+                          <span className="font-mono">{app.runnerEnv}</span>
                         </div>
                       )}
 
@@ -794,19 +749,6 @@ export default function ApplicationsPage() {
                         <span className="text-muted-foreground">最后部署:</span>
                         <span className="text-xs">{lastDeployedDisplay}</span>
                       </div>
-
-                      {app.runningOn && app.runningOn.length > 0 && (
-                        <div className="space-y-1">
-                          <div className="text-sm text-muted-foreground">运行在:</div>
-                          <div className="flex flex-wrap gap-1">
-                            {app.runningOn.map((resource, index) => (
-                              <Badge key={index} variant="secondary" className="text-xs">
-                                {resource}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                      )}
                     </div>
 
                     <div className="flex items-center space-x-2 pt-2 border-t">
@@ -816,9 +758,9 @@ export default function ApplicationsPage() {
                           停止
                         </Button>
                       ) : (
-                        <Button size="sm" onClick={(e) => { e.stopPropagation(); handleRun(app.id); }} disabled={app.status === "deploying"}>
+                        <Button size="sm" onClick={(e) => { e.stopPropagation(); handleRun(app.id); }} disabled={app.status === "deploying" || app.status === "cloning"}>
                           <Play className="h-4 w-4" />
-                          {app.status === "deploying" ? "部署中..." : "运行"}
+                          {app.status === "deploying" ? "部署中..." : app.status === "cloning" ? "克隆中..." : "运行"}
                         </Button>
                       )}
 
@@ -828,11 +770,26 @@ export default function ApplicationsPage() {
                         <Settings className="h-4 w-4" />
                       </Button>
 
-                      <Button size="sm" variant="ghost" asChild>
-                        <a href={app.gitUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
-                          <ExternalLink className="h-4 w-4" />
-                        </a>
-                      </Button>
+                      {(() => {
+                        const httpsUrl = convertGitUrlToHttps(app.gitUrl || '')
+                        return httpsUrl ? (
+                          <Button size="sm" variant="ghost" asChild>
+                            <a href={httpsUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+                              <ExternalLink className="h-4 w-4" />
+                            </a>
+                          </Button>
+                        ) : (
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            disabled 
+                            title="无法打开此 Git 仓库链接"
+                            onClick={(e) => { e.stopPropagation(); }}
+                          >
+                            <ExternalLink className="h-4 w-4 opacity-50" />
+                          </Button>
+                        )
+                      })()}
 
                       <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); handleDelete(app.id); }}>
                         <Trash2 className="h-4 w-4" />

@@ -40,6 +40,10 @@ func (m *Manager) StartRunner(ctx context.Context, appID string) error {
 	return m.runnerSvc.StartRunner(ctx, appID)
 }
 
+func (m *Manager) GetRunnerImages() map[runner.RunnerEnv]string {
+	return m.runnerSvc.GetRunnerImages()
+}
+
 func (m *Manager) StopRunner(ctx context.Context, appID string) error {
 	return m.runnerSvc.StopRunner(ctx, appID)
 }

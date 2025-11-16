@@ -101,14 +101,12 @@ export interface Application {
   description: string
   gitUrl?: string
   branch?: string
-  status: "idle" | "running" | "stopped" | "error" | "deploying"
-  type: "web" | "api" | "worker" | "database"
+  status: "idle" | "running" | "stopped" | "error" | "deploying" | "cloning"
   lastDeployed?: string
-  runningOn?: string[]
-  ports?: number[]
-  healthCheck?: string
-  executeCmd: string
   runnerEnv?: string
+  containerId?: string
+  executeCmd?: string
+  envInstallCmd?: string
 }
 
 export interface GetApplicationsResponse {
@@ -211,7 +209,16 @@ export interface RunnerEnvironment {
 }
 
 export interface GetRunnerEnvironmentsResponse {
-  environments: RunnerEnvironment[]
+  environments: string[]
+}
+
+// ApplicationStats 应用统计信息
+export interface ApplicationStats {
+  total: number      // 总应用数
+  running: number    // 运行中的应用数
+  stopped: number    // 已停止的应用数
+  undeployed: number // 未部署的应用数
+  failed: number     // 失败的应用数
 }
 
 export interface ComponentResourceUsage {

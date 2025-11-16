@@ -1,4 +1,4 @@
-import { Application, CreateDirectoryResponse, CreateFileResponse, DeleteDirectoryResponse, DeleteFileResponse, GetApplicationLogsParsedResponse, GetApplicationLogsResponse, GetApplicationsResponse, GetCodeBrowserStatusResponse, GetDAGResponse, GetFileContentResponse, GetFileTreeResponse, GetRunnerEnvironmentsResponse, SaveFileResponse, StartCodeBrowserResponse } from "./model"
+import { Application, ApplicationStats, CreateDirectoryResponse, CreateFileResponse, DeleteDirectoryResponse, DeleteFileResponse, GetApplicationLogsParsedResponse, GetApplicationLogsResponse, GetApplicationsResponse, GetCodeBrowserStatusResponse, GetDAGResponse, GetFileContentResponse, GetFileTreeResponse, GetRunnerEnvironmentsResponse, SaveFileResponse, StartCodeBrowserResponse } from "./model"
 
 // API 客户端工具函数
 const API_BASE = "/api"
@@ -131,7 +131,7 @@ export const resourcesAPI = {
 // 应用管理 API
 export const applicationsAPI = {
   getAll: () => apiRequest<GetApplicationsResponse>("/application/apps"),
-  getStats: () => apiRequest("/application/stats"),
+  getStats: () => apiRequest<ApplicationStats>("/application/stats"),
   getById: (id: string) => apiRequest<Application>(`/application/apps/${id}`),
   getLogs: (id: string, lines?: number) => apiRequest<GetApplicationLogsResponse>(`/application/apps/${id}/logs${lines ? `?lines=${lines}` : ''}`),
   getLogsParsed: (id: string, lines?: number) => apiRequest<GetApplicationLogsParsedResponse>(`/application/apps/${id}/logs/parsed${lines ? `?lines=${lines}` : ''}`),

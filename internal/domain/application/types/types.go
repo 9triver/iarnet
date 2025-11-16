@@ -19,19 +19,21 @@ const (
 	AppStatusFailed     AppStatus = "error"     // 失败
 	AppStatusUndeployed AppStatus = "idle"      // 未部署
 	AppStatusDeploying  AppStatus = "deploying" // 部署中
+	AppStatusCloning    AppStatus = "cloning"   // 克隆中
 )
 
 type AppMetadata struct {
-	ID           AppID
-	Name         string
-	Status       AppStatus
-	GitUrl       string
-	Branch       string
-	Description  string
-	ContainerID  string
-	LastDeployed time.Time
-	ExecuteCmd   string
-	RunnerEnv    string
+	ID            AppID
+	Name          string
+	Status        AppStatus
+	GitUrl        string
+	Branch        string
+	Description   string
+	ContainerID   string
+	LastDeployed  time.Time
+	ExecuteCmd    string
+	EnvInstallCmd string
+	RunnerEnv     string
 }
 
 type RunnerEnv = string

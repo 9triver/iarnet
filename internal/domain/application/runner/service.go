@@ -14,6 +14,7 @@ type RunnerEnv = types.RunnerEnv
 // Service 运行器服务接口
 // 提供无状态的运行器操作服务，所有状态由 Manager 管理
 type Service interface {
+	GetRunnerImages() map[RunnerEnv]string
 	CreateRunner(ctx context.Context, appID, codeDir string, env RunnerEnv) error
 	StartRunner(ctx context.Context, appID string) error
 	StopRunner(ctx context.Context, appID string) error
@@ -39,6 +40,11 @@ func NewService(manager *Manager, dockerClient *client.Client, ignisPort int, im
 		dockerClient: dockerClient,
 		ignisPort:    ignisPort,
 	}
+}
+
+// GetRunnerImages 获取运行器镜像
+func (s *service) GetRunnerImages() map[RunnerEnv]string {
+	return s.images
 }
 
 // CreateRunner 创建运行器

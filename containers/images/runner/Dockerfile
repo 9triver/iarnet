@@ -17,10 +17,6 @@ RUN apk update && apk add --no-cache \
     && ln -sf /usr/local/bin/python3 /usr/bin/python \
     && ln -sf /usr/local/bin/pip3 /usr/bin/pip
 
-# 安装 actorc 及其依赖
-COPY containers/envs/python/libs/actorc /tmp/actorc
-RUN cd /tmp/actorc && pip install -e .
-
 # 安装 lucas 及其依赖
 COPY containers/envs/python/libs/lucas /tmp/lucas
 RUN cd /tmp/lucas && pip install -e .

@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation"
 import { applicationsAPI, componentsAPI, APIError } from "@/lib/api"
 import { getWebSocketManager, disconnectWebSocketManager } from "@/lib/websocket"
 import type { LogEntry, Application, DAG, DAGNode, DAGEdge, ControlNode, DataNode, Component } from "@/lib/model"
+import { formatDateTime } from "@/lib/utils"
 import { Sidebar } from "@/components/sidebar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -13,7 +14,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { Textarea } from "@/components/ui/textarea"
+import { useForm } from "react-hook-form"
+import { toast } from "sonner"
 import { CodeEditor } from "@/components/code-editor"
 import {
   ArrowLeft,
@@ -41,6 +46,8 @@ import {
   Search,
   Filter,
   X,
+  ExternalLink,
+  Settings,
 } from "lucide-react"
 import { Graph } from '@antv/g6'
 import { ExtensionCategory, register } from '@antv/g6'
@@ -136,8 +143,29 @@ export default function ApplicationDetailPage() {
   const [activeTab, setActiveTab] = useState("components")
   const [logSearchTerm, setLogSearchTerm] = useState("")
   const [logLevelFilter, setLogLevelFilter] = useState<string>("all")
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [runnerEnvironments, setRunnerEnvironments] = useState<string[]>([])
 
   const applicationId = params.id as string
+
+  // 编辑表单
+  interface ApplicationFormData {
+    name: string
+    description?: string
+    executeCmd: string
+    envInstallCmd?: string
+    runnerEnv?: string
+  }
+
+  const form = useForm<ApplicationFormData>({
+    defaultValues: {
+      name: "",
+      description: "",
+      executeCmd: "",
+      envInstallCmd: "",
+      runnerEnv: "",
+    },
+  })
 
   // 处理刷新DAG按钮点击
   const handleRefreshDAG = () => {
@@ -149,10 +177,20 @@ export default function ApplicationDetailPage() {
   const wsInitializedRef = useRef(false)
   const updateTimerRef = useRef<NodeJS.Timeout | null>(null)
 
+  const fetchRunnerEnvironments = async () => {
+    try {
+      const response = await applicationsAPI.getRunnerEnvironments()
+      setRunnerEnvironments(response.environments)
+    } catch (fetchError) {
+      console.error('Failed to fetch runner environments:', fetchError)
+    }
+  }
+
   useEffect(() => {
     loadApplicationDetail()
     loadAppDAG()
     loadComponents()
+    fetchRunnerEnvironments()
   }, [applicationId])
 
   // WebSocket 连接独立管理，避免与数据加载冲突
@@ -473,12 +511,26 @@ export default function ApplicationDetailPage() {
       setError(null)
 
       // 获取应用详情
-      const response = await applicationsAPI.getAll()
-      const app = response.applications.find((app: Application) => app.id === applicationId)
+      const appData: any = await applicationsAPI.getById(applicationId)
 
-      if (!app) {
+      if (!appData) {
         setError("应用不存在")
         return
+      }
+
+      // 转换后端返回的下划线字段名为驼峰格式
+      const app: Application = {
+        id: appData.id,
+        name: appData.name,
+        description: appData.description || "",
+        gitUrl: appData.git_url,
+        branch: appData.branch,
+        status: (appData.status === "idle" ? "idle" : appData.status === "running" ? "running" : appData.status === "stopped" ? "stopped" : appData.status === "error" ? "error" : appData.status === "deploying" ? "deploying" : appData.status === "cloning" ? "cloning" : "idle") as Application["status"],
+        lastDeployed: appData.last_deployed && appData.last_deployed !== "" && appData.last_deployed !== "0001-01-01T00:00:00Z" ? new Date(appData.last_deployed).toISOString() : undefined,
+        runnerEnv: appData.runner_env,
+        containerId: appData.container_id,
+        executeCmd: appData.execute_cmd,
+        envInstallCmd: appData.env_install_cmd,
       }
 
       setApplication(app)
@@ -582,31 +634,70 @@ export default function ApplicationDetailPage() {
     }
   }
 
+  const handleEdit = () => {
+    if (!application) return
+    form.setValue("name", application.name)
+    form.setValue("description", application.description || "")
+    form.setValue("executeCmd", application.executeCmd || "")
+    form.setValue("envInstallCmd", application.envInstallCmd || "")
+    form.setValue("runnerEnv", application.runnerEnv || "")
+    setIsEditDialogOpen(true)
+  }
 
+  const handleUpdate = async (data: ApplicationFormData) => {
+    if (!application) return
 
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case "web":
-        return <Activity className="h-5 w-5 text-blue-500" />
-      case "api":
-        return <Package className="h-5 w-5 text-green-500" />
-      case "worker":
-        return <RefreshCw className="h-5 w-5 text-purple-500" />
-      case "database":
-        return <Package className="h-5 w-5 text-orange-500" />
-      default:
-        return <Package className="h-5 w-5 text-gray-500" />
+    try {
+      const updateData = {
+        name: data.name,
+        description: data.description || "",
+        execute_cmd: data.executeCmd,
+        env_install_cmd: data.envInstallCmd,
+        runner_env: data.runnerEnv,
+      }
+
+      await applicationsAPI.update(application.id, updateData)
+      await loadApplicationDetail()
+      setIsEditDialogOpen(false)
+      toast.success(`应用 "${data.name}" 已成功更新`)
+    } catch (error) {
+      console.error('Failed to update application:', error)
+      toast.error("应用更新时发生错误，请稍后重试")
     }
   }
 
-  const getTypeLabel = (type: string) => {
-    const typeLabels = {
-      web: "Web应用",
-      api: "API服务",
-      worker: "后台任务",
-      database: "数据库"
+
+
+  // 将 Git URL 转换为可在浏览器中打开的 HTTPS 格式
+  const convertGitUrlToHttps = (url: string): string | null => {
+    if (!url) return null
+
+    // 如果已经是 HTTPS 格式，直接返回
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      // 移除 .git 后缀（如果有）
+      return url.replace(/\.git$/, '')
     }
-    return typeLabels[type as keyof typeof typeLabels] || type
+
+    // 处理 SSH 格式：git@github.com:user/repo.git
+    const sshPattern = /^git@([^:]+):([\w\-.]+\/[\w\-.]+)(?:\.git)?$/
+    const match = url.match(sshPattern)
+    if (match) {
+      const [, host, repo] = match
+      // 将常见的主机名映射到 HTTPS URL
+      if (host === 'github.com') {
+        return `https://github.com/${repo}`
+      } else if (host === 'gitlab.com') {
+        return `https://gitlab.com/${repo}`
+      } else if (host === 'bitbucket.org') {
+        return `https://bitbucket.org/${repo}`
+      } else {
+        // 对于其他主机，尝试使用 HTTPS
+        return `https://${host}/${repo}`
+      }
+    }
+
+    // 无法转换，返回 null
+    return null
   }
 
   const getStatusBadge = (status: string) => {
@@ -615,7 +706,8 @@ export default function ApplicationDetailPage() {
       stopped: { variant: "secondary" as const, label: "已停止", color: "bg-gray-500" },
       error: { variant: "destructive" as const, label: "错误", color: "bg-red-500" },
       deploying: { variant: "outline" as const, label: "部署中", color: "bg-blue-500" },
-      idle: { variant: "outline" as const, label: "未部署", color: "bg-orange-500" },
+      cloning: { variant: "outline" as const, label: "克隆中", color: "bg-yellow-500" },
+      idle: { variant: "secondary" as const, label: "未部署", color: "bg-gray-500" },
     }
 
     const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.idle
@@ -677,11 +769,10 @@ export default function ApplicationDetailPage() {
                 返回
               </Button>
               <div className="flex items-center space-x-3">
-                {getTypeIcon(application.type)}
+                <Package className="h-5 w-5" />
                 <div>
                   <h1 className="text-2xl font-bold">{application.name}</h1>
                   <div className="flex items-center space-x-2 mt-1">
-                    <Badge variant="outline">{getTypeLabel(application.type)}</Badge>
                     {getStatusBadge(application.status)}
                   </div>
                 </div>
@@ -704,8 +795,129 @@ export default function ApplicationDetailPage() {
                 <RefreshCw className="h-4 w-4 mr-2" />
                 刷新
               </Button>
+              <Button variant="outline" onClick={handleEdit}>
+                <Settings className="h-4 w-4 mr-2" />
+                编辑
+              </Button>
             </div>
           </div>
+
+          {/* 编辑应用对话框 */}
+          <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+            <DialogContent className="sm:max-w-[550px]">
+              <DialogHeader>
+                <DialogTitle>编辑应用</DialogTitle>
+                <DialogDescription>
+                  修改应用配置信息
+                </DialogDescription>
+              </DialogHeader>
+
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(handleUpdate)} className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>应用名称</FormLabel>
+                        <FormControl>
+                          <Input placeholder="例如：用户管理系统" {...field} />
+                        </FormControl>
+                        <FormDescription>为这个应用起一个易识别的名称</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="envInstallCmd"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>环境安装命令（可选）</FormLabel>
+                        <FormControl>
+                          <Textarea 
+                            placeholder="输入环境安装命令，支持多行：&#10;pip install -r requirements.txt&#10;&#10;或者：&#10;npm install&#10;yarn install" 
+                            className="min-h-[80px]"
+                            {...field} 
+                          />
+                        </FormControl>
+                        <FormDescription>在运行应用前执行的依赖安装命令</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="executeCmd"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>执行命令</FormLabel>
+                        <FormControl>
+                          <Textarea 
+                            placeholder="输入应用启动命令，支持多行：&#10;npm install&#10;npm start&#10;&#10;或者：&#10;pip install -r requirements.txt&#10;python app.py" 
+                            className="min-h-[100px]"
+                            {...field} 
+                          />
+                        </FormControl>
+                        <FormDescription>应用启动时执行的命令</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="runnerEnv"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>运行环境</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="选择运行环境" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {runnerEnvironments.map((env) => (
+                              <SelectItem key={env} value={env}>
+                                {env}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormDescription>选择应用的运行环境</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="description"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>描述（可选）</FormLabel>
+                        <FormControl>
+                          <Textarea placeholder="应用描述信息..." {...field} />
+                        </FormControl>
+                        <FormDescription>添加关于此应用的描述信息</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                      取消
+                    </Button>
+                    <Button type="submit">更新应用</Button>
+                  </DialogFooter>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
 
           {/* Application Info */}
           <Card>
@@ -713,22 +925,36 @@ export default function ApplicationDetailPage() {
               <CardTitle>应用信息</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {application.description && (
-                <div>
-                  <h4 className="text-sm font-medium text-muted-foreground mb-1">描述</h4>
-                  <p className="text-sm">{application.description}</p>
-                </div>
-              )}
+              <div>
+                <h4 className="text-sm font-medium text-muted-foreground mb-1">描述</h4>
+                <p className="text-sm">{application.description || "无描述"}</p>
+              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr] lg:grid-cols-[2fr_1fr_1fr_1fr] gap-4">
                 <div>
                   <h4 className="text-sm font-medium text-muted-foreground mb-1">Git仓库</h4>
                   <div className="space-y-2">
-                    {application.gitUrl && (
+                    {application.gitUrl ? (
                       <div className="flex items-center space-x-2 text-sm">
                         <Package className="h-4 w-4" />
                         <span className="font-mono text-xs break-all">{application.gitUrl}</span>
+                        {(() => {
+                          const httpsUrl = convertGitUrlToHttps(application.gitUrl || '')
+                          return httpsUrl ? (
+                            <a 
+                              href={httpsUrl} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="ml-2 text-primary hover:text-primary/80"
+                              title="在新标签页中打开仓库"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                          ) : null
+                        })()}
                       </div>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">未设置</span>
                     )}
                     {application.branch && (
                       <div className="flex items-center space-x-2 text-sm">
@@ -736,6 +962,14 @@ export default function ApplicationDetailPage() {
                         <span className="font-mono">{application.branch}</span>
                       </div>
                     )}
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-sm font-medium text-muted-foreground mb-1">运行环境</h4>
+                  <div className="flex items-center space-x-2 text-sm">
+                    <Cpu className="h-4 w-4" />
+                    <span>{application.runnerEnv || "未设置"}</span>
                   </div>
                 </div>
 
@@ -750,51 +984,24 @@ export default function ApplicationDetailPage() {
                   </div>
                 </div>
 
-                {application.ports && application.ports.length > 0 && (
-                  <div>
-                    <h4 className="text-sm font-medium text-muted-foreground mb-1">端口</h4>
-                    <div className="flex flex-wrap gap-1">
-                      {application.ports.map((port: number, index: number) => (
-                        <Badge key={index} variant="outline" className="text-xs font-mono">
-                          {port}
-                        </Badge>
-                      ))}
-                    </div>
+                <div>
+                  <h4 className="text-sm font-medium text-muted-foreground mb-1">最后部署</h4>
+                  <div className="flex items-center space-x-2 text-sm">
+                    <Clock className="h-4 w-4" />
+                    <span className="text-xs">
+                      {application.lastDeployed ? formatDateTime(application.lastDeployed) : "未部署"}
+                    </span>
                   </div>
-                )}
+                </div>
 
-                {application.executeCmd && (
-                  <div>
-                    <h4 className="text-sm font-medium text-muted-foreground mb-1">执行命令</h4>
-                    <div className="flex items-center space-x-2 text-sm">
-                      <Terminal className="h-4 w-4" />
-                      <span className="font-mono text-xs break-all">{application.executeCmd}</span>
-                    </div>
+                <div className="md:col-span-2 lg:col-span-4">
+                  <h4 className="text-sm font-medium text-muted-foreground mb-1">执行命令</h4>
+                  <div className="flex items-center space-x-2 text-sm">
+                    <Terminal className="h-4 w-4" />
+                    <span className="font-mono text-xs break-all">{application.executeCmd || "未设置"}</span>
                   </div>
-                )}
+                </div>
 
-                {application.lastDeployed && (
-                  <div>
-                    <h4 className="text-sm font-medium text-muted-foreground mb-1">最后部署</h4>
-                    <div className="flex items-center space-x-2 text-sm">
-                      <Clock className="h-4 w-4" />
-                      <span>{application.lastDeployed}</span>
-                    </div>
-                  </div>
-                )}
-
-                {application.runningOn && application.runningOn.length > 0 && (
-                  <div>
-                    <h4 className="text-sm font-medium text-muted-foreground mb-1">运行节点</h4>
-                    <div className="flex flex-wrap gap-1">
-                      {application.runningOn.map((resource: string, index: number) => (
-                        <Badge key={index} variant="secondary" className="text-xs">
-                          {resource}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
             </CardContent>
           </Card>
