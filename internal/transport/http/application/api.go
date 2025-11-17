@@ -1,9 +1,9 @@
 package application
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/9triver/iarnet/internal/domain/application"
 	"github.com/9triver/iarnet/internal/domain/application/types"
@@ -69,36 +69,16 @@ func (api *API) handleCreateApplication(w http.ResponseWriter, r *http.Request) 
 
 	logrus.Infof("Creating application: name=%s, git_url=%s", req.Name, req.GitURL)
 
-	// 创建应用元数据，初始状态为 cloning
+	// 转换为领域层的 AppMetadata
 	metadata := req.ToAppMetadata()
-	metadata.Status = types.AppStatusCloning
-	appID, err := api.am.CreateAppMetadata(r.Context(), metadata)
+
+	// 调用 manager 的 CreateApplication 方法，封装了创建元数据和异步克隆的逻辑
+	appID, err := api.am.CreateApplication(r.Context(), metadata)
 	if err != nil {
-		logrus.Errorf("Failed to create app metadata: %v", err)
+		logrus.Errorf("Failed to create application: %v", err)
 		response.InternalError("failed to create application: " + err.Error()).WriteJSON(w)
 		return
 	}
-
-	// 异步克隆 Git 仓库
-	go func() {
-		ctx := context.Background()
-		logrus.Infof("Starting async clone for application %s", appID)
-
-		if err := api.am.CloneRepository(ctx, string(appID), req.GitURL, req.Branch); err != nil {
-			logrus.Errorf("Failed to clone repository for application %s: %v", appID, err)
-			// 克隆失败，更新状态为 error
-			if updateErr := api.am.UpdateAppStatus(ctx, string(appID), types.AppStatusFailed); updateErr != nil {
-				logrus.Errorf("Failed to update app status to error: %v", updateErr)
-			}
-			return
-		}
-
-		// 克隆成功，更新状态为 idle（未部署）
-		logrus.Infof("Successfully cloned repository for application %s", appID)
-		if err := api.am.UpdateAppStatus(ctx, string(appID), types.AppStatusUndeployed); err != nil {
-			logrus.Errorf("Failed to update app status to idle: %v", err)
-		}
-	}()
 
 	logrus.Infof("Application created successfully: id=%s (cloning in background)", appID)
 	resp := CreateApplicationResponse{
@@ -239,41 +219,16 @@ func (api *API) handleRunApplication(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
-	// 更新应用状态为部署中
-	if err := api.am.UpdateAppStatus(ctx, appID, types.AppStatusDeploying); err != nil {
-		logrus.Errorf("Failed to update application status to deploying: %v", err)
-		response.NotFound("application not found").WriteJSON(w)
+	// 调用 manager 的 RunApplication 方法，封装了启动 runner 的完整逻辑
+	if err := api.am.RunApplication(ctx, appID); err != nil {
+		logrus.Errorf("Failed to run application %s: %v", appID, err)
+		// 检查是否是应用不存在的错误
+		if strings.Contains(err.Error(), "application not found") {
+			response.NotFound("application not found").WriteJSON(w)
+		} else {
+			response.InternalError("failed to run application: " + err.Error()).WriteJSON(w)
+		}
 		return
-	}
-
-	// 获取应用元数据
-	metadata, err := api.am.GetAppMetadata(ctx, appID)
-	if err != nil {
-		logrus.Errorf("Failed to get app metadata: %v", err)
-		api.am.UpdateAppStatus(ctx, appID, types.AppStatusFailed)
-		response.NotFound("application not found").WriteJSON(w)
-		return
-	}
-
-	// 创建 runner
-	if err := api.am.CreateRunner(ctx, appID, "", types.RunnerEnv(metadata.RunnerEnv)); err != nil {
-		logrus.Errorf("Failed to create runner: %v", err)
-		api.am.UpdateAppStatus(ctx, appID, types.AppStatusFailed)
-		response.InternalError("failed to create runner: " + err.Error()).WriteJSON(w)
-		return
-	}
-
-	// 启动 runner
-	if err := api.am.StartRunner(ctx, appID); err != nil {
-		logrus.Errorf("Failed to start runner: %v", err)
-		api.am.UpdateAppStatus(ctx, appID, types.AppStatusFailed)
-		response.InternalError("failed to start application: " + err.Error()).WriteJSON(w)
-		return
-	}
-
-	// 更新应用状态为运行中
-	if err := api.am.UpdateAppStatus(ctx, appID, types.AppStatusRunning); err != nil {
-		logrus.Errorf("Failed to update application status to running: %v", err)
 	}
 
 	// 获取更新后的应用信息

@@ -2,11 +2,13 @@ package application
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/9triver/iarnet/internal/domain/application/metadata"
 	"github.com/9triver/iarnet/internal/domain/application/runner"
 	"github.com/9triver/iarnet/internal/domain/application/types"
 	"github.com/9triver/iarnet/internal/domain/application/workspace"
+	logrus "github.com/sirupsen/logrus"
 )
 
 var (
@@ -32,8 +34,8 @@ func (m *Manager) Start(ctx context.Context) error {
 }
 
 // Runner methods
-func (m *Manager) CreateRunner(ctx context.Context, appID string, codeDir string, env runner.RunnerEnv) error {
-	return m.runnerSvc.CreateRunner(ctx, appID, codeDir, env)
+func (m *Manager) CreateRunner(ctx context.Context, appID string, codeDir string, env runner.RunnerEnv, envInstallCmd, executeCmd string) error {
+	return m.runnerSvc.CreateRunner(ctx, appID, codeDir, env, envInstallCmd, executeCmd)
 }
 
 func (m *Manager) StartRunner(ctx context.Context, appID string) error {
@@ -53,7 +55,7 @@ func (m *Manager) RemoveRunner(ctx context.Context, appID string) error {
 }
 
 // Workspace methods
-func (m *Manager) CloneRepository(ctx context.Context, appID string, gitURL, branch string) error {
+func (m *Manager) CloneRepository(ctx context.Context, appID string, gitURL, branch string) (string, error) {
 	return m.workspaceSvc.CloneRepository(ctx, appID, gitURL, branch)
 }
 
@@ -93,6 +95,10 @@ func (m *Manager) CleanWorkDir(ctx context.Context, appID string) error {
 	return m.workspaceSvc.CleanWorkDir(ctx, appID)
 }
 
+func (m *Manager) GetWorkspaceDir(ctx context.Context, appID string) (string, error) {
+	return m.workspaceSvc.GetWorkspaceDir(ctx, appID)
+}
+
 // Metadata methods
 func (m *Manager) GetAllAppMetadata(ctx context.Context) ([]types.AppMetadata, error) {
 	return m.metadataSvc.GetAllAppMetadata(ctx)
@@ -116,4 +122,104 @@ func (m *Manager) UpdateAppStatus(ctx context.Context, appID string, status type
 
 func (m *Manager) RemoveAppMetadata(ctx context.Context, appID string) error {
 	return m.metadataSvc.RemoveAppMetadata(ctx, appID)
+}
+
+// application manager methods
+// CreateApplication 创建应用，包括创建元数据和异步克隆 Git 仓库
+// 返回应用 ID 和错误
+func (m *Manager) CreateApplication(ctx context.Context, metadata types.AppMetadata) (types.AppID, error) {
+	// 设置初始状态为 cloning
+	metadata.Status = types.AppStatusCloning
+
+	// 创建应用元数据
+	appID, err := m.metadataSvc.CreateAppMetadata(ctx, metadata)
+	if err != nil {
+		logrus.Errorf("Failed to create app metadata: %v", err)
+		return "", err
+	}
+
+	// 异步克隆 Git 仓库
+	go func() {
+		ctx := context.Background()
+		logrus.Infof("Starting async clone for application %s", appID)
+
+		codeDir, err := m.workspaceSvc.CloneRepository(ctx, string(appID), metadata.GitUrl, metadata.Branch)
+		if err != nil {
+			logrus.Errorf("Failed to clone repository for application %s: %v", appID, err)
+			// 克隆失败，更新状态为 error
+			if updateErr := m.metadataSvc.UpdateAppStatus(ctx, string(appID), types.AppStatusFailed); updateErr != nil {
+				logrus.Errorf("Failed to update app status to error: %v", updateErr)
+			}
+			return
+		}
+
+		// 克隆成功，创建 runner
+		logrus.Infof("Successfully cloned repository for application %s to %s", appID, codeDir)
+
+		// 创建 runner
+		if err := m.runnerSvc.CreateRunner(ctx, string(appID), codeDir, runner.RunnerEnv(metadata.RunnerEnv), metadata.EnvInstallCmd, metadata.ExecuteCmd); err != nil {
+			logrus.Errorf("Failed to create runner for application %s: %v", appID, err)
+			if updateErr := m.metadataSvc.UpdateAppStatus(ctx, string(appID), types.AppStatusFailed); updateErr != nil {
+				logrus.Errorf("Failed to update app status to error: %v", updateErr)
+			}
+			return
+		}
+
+		// 更新状态为 idle（未部署）
+		if err := m.metadataSvc.UpdateAppStatus(ctx, string(appID), types.AppStatusUndeployed); err != nil {
+			logrus.Errorf("Failed to update app status to idle: %v", err)
+		}
+	}()
+
+	logrus.Infof("Application created successfully: id=%s (cloning in background)", appID)
+	return appID, nil
+}
+
+// RunApplication 运行应用，包括创建和启动 runner
+func (m *Manager) RunApplication(ctx context.Context, appID string) error {
+	// 更新应用状态为部署中
+	if err := m.metadataSvc.UpdateAppStatus(ctx, appID, types.AppStatusDeploying); err != nil {
+		logrus.Errorf("Failed to update application status to deploying: %v", err)
+		return fmt.Errorf("application not found: %s", appID)
+	}
+
+	// 获取应用元数据
+	metadata, err := m.metadataSvc.GetAppMetadata(ctx, appID)
+	if err != nil {
+		logrus.Errorf("Failed to get app metadata: %v", err)
+		m.metadataSvc.UpdateAppStatus(ctx, appID, types.AppStatusFailed)
+		return fmt.Errorf("application not found: %s", appID)
+	}
+
+	// 获取工作空间目录
+	codeDir, err := m.workspaceSvc.GetWorkspaceDir(ctx, appID)
+	if err != nil {
+		logrus.Errorf("Failed to get workspace directory for application %s: %v", appID, err)
+		m.metadataSvc.UpdateAppStatus(ctx, appID, types.AppStatusFailed)
+		return fmt.Errorf("failed to get workspace directory: %w", err)
+	}
+
+	// 创建 runner（如果还没有创建）
+	// 注意：runner 可能在创建应用时已经创建，这里需要检查或直接创建
+	if err := m.runnerSvc.CreateRunner(ctx, appID, codeDir, runner.RunnerEnv(metadata.RunnerEnv), metadata.EnvInstallCmd, metadata.ExecuteCmd); err != nil {
+		logrus.Errorf("Failed to create runner for application %s: %v", appID, err)
+		m.metadataSvc.UpdateAppStatus(ctx, appID, types.AppStatusFailed)
+		return fmt.Errorf("failed to create runner: %w", err)
+	}
+
+	// 启动 runner
+	if err := m.runnerSvc.StartRunner(ctx, appID); err != nil {
+		logrus.Errorf("Failed to start runner for application %s: %v", appID, err)
+		m.metadataSvc.UpdateAppStatus(ctx, appID, types.AppStatusFailed)
+		return fmt.Errorf("failed to start runner: %w", err)
+	}
+
+	// 更新应用状态为运行中
+	if err := m.metadataSvc.UpdateAppStatus(ctx, appID, types.AppStatusRunning); err != nil {
+		logrus.Errorf("Failed to update application status to running: %v", err)
+		// 不返回错误，因为 runner 已经启动成功
+	}
+
+	logrus.Infof("Successfully started application %s", appID)
+	return nil
 }

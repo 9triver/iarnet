@@ -13,7 +13,7 @@ import (
 // 提供无状态的工作空间操作服务，所有状态由 Manager 管理
 type Service interface {
 	// Git 仓库管理
-	CloneRepository(ctx context.Context, appID, gitURL, branch string) error
+	CloneRepository(ctx context.Context, appID, gitURL, branch string) (string, error)
 	PullRepository(ctx context.Context, appID string) error
 
 	// 文件操作
@@ -29,6 +29,8 @@ type Service interface {
 
 	// 工作目录管理
 	CleanWorkDir(ctx context.Context, appID string) error
+	// GetWorkspaceDir 获取工作空间目录路径
+	GetWorkspaceDir(ctx context.Context, appID string) (string, error)
 }
 
 // service 工作空间服务实现
@@ -54,20 +56,21 @@ func NewService(manager *Manager, baseDir string) Service {
 }
 
 // CloneRepository 克隆 Git 仓库
-func (s *service) CloneRepository(ctx context.Context, appID, gitURL, branch string) error {
+func (s *service) CloneRepository(ctx context.Context, appID, gitURL, branch string) (string, error) {
 	// 在 service 中创建工作空间领域对象
-	workspace := NewWorkspace(filepath.Join(s.baseDir, appID))
+	workspaceDir := filepath.Join(s.baseDir, appID)
+	workspace := NewWorkspace(workspaceDir)
 
 	// 委托给领域对象执行克隆操作
 	if err := workspace.CloneRepository(gitURL, branch); err != nil {
-		return err
+		return "", err
 	}
 
 	// 克隆成功后，将工作空间加入 manager
 	s.manager.Add(appID, workspace)
 
-	logrus.Infof("Cloned repository for application %s", appID)
-	return nil
+	logrus.Infof("Cloned repository for application %s to %s", appID, workspaceDir)
+	return workspaceDir, nil
 }
 
 // PullRepository 拉取仓库更新
@@ -200,4 +203,14 @@ func (s *service) CleanWorkDir(ctx context.Context, appID string) error {
 
 	logrus.Infof("Cleaned workspace for app %s", appID)
 	return nil
+}
+
+// GetWorkspaceDir 获取工作空间目录路径
+func (s *service) GetWorkspaceDir(ctx context.Context, appID string) (string, error) {
+	workspace, err := s.manager.Get(appID)
+	if err != nil {
+		// 如果工作空间不存在，返回预期的路径（即使目录还不存在）
+		return filepath.Join(s.baseDir, appID), nil
+	}
+	return workspace.GetDir(), nil
 }

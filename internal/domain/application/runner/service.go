@@ -15,7 +15,7 @@ type RunnerEnv = types.RunnerEnv
 // 提供无状态的运行器操作服务，所有状态由 Manager 管理
 type Service interface {
 	GetRunnerImages() map[RunnerEnv]string
-	CreateRunner(ctx context.Context, appID, codeDir string, env RunnerEnv) error
+	CreateRunner(ctx context.Context, appID, codeDir string, env RunnerEnv, envInstallCmd, executeCmd string) error
 	StartRunner(ctx context.Context, appID string) error
 	StopRunner(ctx context.Context, appID string) error
 	RemoveRunner(ctx context.Context, appID string) error
@@ -48,14 +48,14 @@ func (s *service) GetRunnerImages() map[RunnerEnv]string {
 }
 
 // CreateRunner 创建运行器
-func (s *service) CreateRunner(ctx context.Context, appID, codeDir string, env RunnerEnv) error {
+func (s *service) CreateRunner(ctx context.Context, appID, codeDir string, env RunnerEnv, envInstallCmd, executeCmd string) error {
 	image, ok := s.images[env]
 	if !ok {
 		return fmt.Errorf("image not found for environment %s", env)
 	}
 
 	// 在 service 中创建运行器领域对象
-	runner := NewRunner(s.dockerClient, appID, codeDir, image, s.ignisPort)
+	runner := NewRunner(s.dockerClient, appID, codeDir, image, s.ignisPort, envInstallCmd, executeCmd)
 
 	// 将运行器加入 manager
 	s.manager.Add(appID, runner)
