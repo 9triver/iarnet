@@ -62,11 +62,10 @@ class Actor:
         # Actor 状态
         self.function: Optional[RemoteFunction] = None      # 当前注册的函数
         self.function_name: Optional[str] = None            # 函数名称
-        self.expected_params: set[str] = set()              # 函数期望的参数名集合
+        self.expected_params: set[str] = set()         # 函数期望的参数名集合
         
         # 消息通信
         self.send_queue = queue.Queue[actor.Message | component.Message | None]()  # 发送消息队列（支持 actor.Message 和 component.Message）
-        self.session_id: Optional[str] = None               # 当前会话 ID
 
     # ========================================================================
     # 函数注册相关方法
@@ -177,7 +176,7 @@ class Actor:
         logger.info(
             "InvokeRequest received",
             extra={
-                "session": msg.SessionID,
+                "runtime_id": msg.RuntimeID,
                 "arg_count": len(msg.Args),
             }
         )
@@ -203,7 +202,7 @@ class Actor:
         Args:
             msg: InvokeRequest 消息，包含会话 ID 和参数列表
         """
-        session_id = msg.SessionID
+        runtime_id = msg.RuntimeID
         
         # 收集所有参数到局部字典（不使用实例变量，避免状态污染）
         invoke_params = {}
@@ -238,11 +237,11 @@ class Actor:
         # 如果所有参数都收集成功，执行函数
         if len(invoke_params) == len(msg.Args):
             logger.info(f"All parameters collected, executing function {self.function_name}")
-            self._execute_and_respond(invoke_params, session_id)
+            self._execute_and_respond(invoke_params, runtime_id)
         else:
             logger.error(f"Failed to collect all parameters: got {len(invoke_params)}/{len(msg.Args)}")
 
-    def _execute_and_respond(self, invoke_params: dict[str, Any], session_id: str):
+    def _execute_and_respond(self, invoke_params: dict[str, Any], runtime_id: str):
         """
         执行函数并发送响应
         
@@ -254,7 +253,7 @@ class Actor:
         
         Args:
             invoke_params: 函数参数字典
-            session_id: 会话 ID
+            runtime_id: Runtime ID
         """
         if not self.function:
             logger.error("Function not registered")
@@ -309,7 +308,7 @@ class Actor:
         
         # 发送 InvokeResponse 消息
         invoke_response = actor.InvokeResponse(
-            SessionID=session_id,
+            RuntimeID=runtime_id,
             Result=result_ref if result_ref else None,
             Error=error_msg if error_msg else "",
             Info=actor_info,
