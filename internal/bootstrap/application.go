@@ -54,7 +54,11 @@ func bootstrapApplication(iarnet *Iarnet) error {
 	metadataService := metadata.NewService(metadataCache)
 
 	// 组装 Application Manager
-	appManager := application.NewManager(runnerService, workspaceService, metadataService)
+	appManager := application.NewManager().
+		SetApplicationRunnerService(runnerService).
+		SetApplicationWorkspaceService(workspaceService).
+		SetApplicationMetadataService(metadataService).
+		SetIgnisPlatform(iarnet.IgnisPlatform)
 	iarnet.ApplicationManager = appManager
 
 	logrus.Info("Application module initialized")

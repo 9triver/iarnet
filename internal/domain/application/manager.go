@@ -8,6 +8,7 @@ import (
 	"github.com/9triver/iarnet/internal/domain/application/runner"
 	"github.com/9triver/iarnet/internal/domain/application/types"
 	"github.com/9triver/iarnet/internal/domain/application/workspace"
+	"github.com/9triver/iarnet/internal/domain/ignis"
 	logrus "github.com/sirupsen/logrus"
 )
 
@@ -21,10 +22,33 @@ type Manager struct {
 	runnerSvc    runner.Service
 	workspaceSvc workspace.Service
 	metadataSvc  metadata.Service
+	platform     *ignis.Platform
 }
 
-func NewManager(runnerSvc runner.Service, workspaceSvc workspace.Service, metadataSvc metadata.Service) *Manager {
-	return &Manager{runnerSvc: runnerSvc, workspaceSvc: workspaceSvc, metadataSvc: metadataSvc}
+func NewManager() *Manager {
+	return &Manager{}
+}
+
+// Dependency Injection
+
+func (m *Manager) SetApplicationRunnerService(runnerSvc runner.Service) *Manager {
+	m.runnerSvc = runnerSvc
+	return m
+}
+
+func (m *Manager) SetApplicationWorkspaceService(workspaceSvc workspace.Service) *Manager {
+	m.workspaceSvc = workspaceSvc
+	return m
+}
+
+func (m *Manager) SetApplicationMetadataService(metadataSvc metadata.Service) *Manager {
+	m.metadataSvc = metadataSvc
+	return m
+}
+
+func (m *Manager) SetIgnisPlatform(platform *ignis.Platform) *Manager {
+	m.platform = platform
+	return m
 }
 
 // Start starts the application manager
@@ -135,6 +159,13 @@ func (m *Manager) CreateApplication(ctx context.Context, metadata types.AppMetad
 	appID, err := m.metadataSvc.CreateAppMetadata(ctx, metadata)
 	if err != nil {
 		logrus.Errorf("Failed to create app metadata: %v", err)
+		return "", err
+	}
+
+	// 创建控制器
+	_, err = m.platform.CreateController(ctx, string(appID))
+	if err != nil {
+		logrus.Errorf("Failed to create controller for application %s: %v", appID, err)
 		return "", err
 	}
 

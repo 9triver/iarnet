@@ -25,14 +25,14 @@ func Initialize(cfg *config.Config) (*Iarnet, error) {
 		return nil, fmt.Errorf("failed to initialize resource module: %w", err)
 	}
 
-	// 2. 初始化 Application 模块
-	if err := bootstrapApplication(iarnet); err != nil {
-		return nil, fmt.Errorf("failed to initialize application module: %w", err)
-	}
-
-	// 3. 初始化 Ignis 模块
+	// 2. 初始化 Ignis 模块
 	if err := bootstrapIgnis(iarnet); err != nil {
 		return nil, fmt.Errorf("failed to initialize ignis module: %w", err)
+	}
+
+	// 3. 初始化 Application 模块
+	if err := bootstrapApplication(iarnet); err != nil {
+		return nil, fmt.Errorf("failed to initialize application module: %w", err)
 	}
 
 	// 4. 初始化 Transport 层

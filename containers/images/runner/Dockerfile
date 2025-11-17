@@ -17,8 +17,13 @@ RUN apk update && apk add --no-cache \
     && ln -sf /usr/local/bin/python3 /usr/bin/python \
     && ln -sf /usr/local/bin/pip3 /usr/bin/pip
 
-# 安装 lucas 及其依赖
+# 安装通用 Python 依赖
 RUN pip install cloudpickle
+RUN pip install grpcio
+RUN pip install grpcio-tools
+RUN pip install numpy
+
+# 安装 lucas 及其依赖
 COPY containers/envs/python/libs/lucas /tmp/lucas
 RUN cd /tmp/lucas && pip install -e .
 
