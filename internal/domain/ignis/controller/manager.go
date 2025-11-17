@@ -11,7 +11,8 @@ import (
 )
 
 type Manager interface {
-	AddController(controller *Controller) error
+	Add(controller *Controller) error
+	Get(appID string) *Controller
 	On(eventType EventType, handler EventHandler)
 	HandleSession(ctx context.Context, recv func() (*ctrlpb.Message, error), send func(*ctrlpb.Message) error) error
 }
@@ -31,7 +32,7 @@ func NewManager(componentService component.Service) Manager {
 	}
 }
 
-func (m *manager) AddController(controller *Controller) error {
+func (m *manager) Add(controller *Controller) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if _, ok := m.controllers[controller.AppID()]; ok {
@@ -40,6 +41,12 @@ func (m *manager) AddController(controller *Controller) error {
 	controller.SetEvents(m.events)
 	m.controllers[controller.AppID()] = controller
 	return nil
+}
+
+func (m *manager) Get(appID string) *Controller {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.controllers[appID]
 }
 
 func (m *manager) On(eventType EventType, handler EventHandler) {

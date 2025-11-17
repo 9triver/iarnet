@@ -36,6 +36,10 @@ func NewController(componentService component.Service, storeService store.Servic
 	}
 }
 
+func (c *Controller) GetDAGs() map[string]*task.DAG {
+	return c.dags
+}
+
 func (c *Controller) SetToClientChan(toClientChan chan *ctrlpb.Message) {
 	c.toClientChan = toClientChan
 }

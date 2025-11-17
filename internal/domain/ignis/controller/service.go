@@ -2,7 +2,9 @@ package controller
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/9triver/iarnet/internal/domain/ignis/task"
 	"github.com/9triver/iarnet/internal/domain/resource/component"
 	"github.com/9triver/iarnet/internal/domain/resource/store"
 	ctrlpb "github.com/9triver/iarnet/internal/proto/ignis/controller"
@@ -10,6 +12,7 @@ import (
 
 type Service interface {
 	CreateController(ctx context.Context, appID string) (*Controller, error)
+	GetDAGs(appID string) (map[string]*task.DAG, error)
 	Subscribe(eventType EventType, handler EventHandler)
 	HandleSession(ctx context.Context, recv func() (*ctrlpb.Message, error), send func(*ctrlpb.Message) error) error
 }
@@ -30,10 +33,18 @@ func NewService(manager Manager, componentService component.Service, storeServic
 
 func (s *service) CreateController(ctx context.Context, appID string) (*Controller, error) {
 	controller := NewController(s.componentService, s.storeService, appID)
-	if err := s.manager.AddController(controller); err != nil {
+	if err := s.manager.Add(controller); err != nil {
 		return nil, err
 	}
 	return controller, nil
+}
+
+func (s *service) GetDAGs(appID string) (map[string]*task.DAG, error) {
+	controller := s.manager.Get(appID)
+	if controller == nil {
+		return nil, fmt.Errorf("controller not found")
+	}
+	return controller.GetDAGs(), nil
 }
 
 func (s *service) Subscribe(eventType EventType, handler EventHandler) {

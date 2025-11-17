@@ -11,7 +11,6 @@ import (
 	"github.com/9triver/iarnet/internal/domain/ignis"
 	"github.com/9triver/iarnet/internal/domain/resource"
 	applicationAPI "github.com/9triver/iarnet/internal/transport/http/application"
-	ignisAPI "github.com/9triver/iarnet/internal/transport/http/ignis"
 	resourceAPI "github.com/9triver/iarnet/internal/transport/http/resource"
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
@@ -34,7 +33,6 @@ func NewServer(opts Options) *Server {
 	router := mux.NewRouter()
 	applicationAPI.RegisterRoutes(router, opts.AppMgr)
 	resourceAPI.RegisterRoutes(router, opts.ResMgr, opts.Config)
-	ignisAPI.RegisterRoutes(router, opts.Platform)
 
 	return &Server{Server: &http.Server{Addr: fmt.Sprintf("0.0.0.0:%d", opts.Port), Handler: router}, Router: router}
 }

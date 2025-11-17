@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/9triver/iarnet/internal/domain/application/types"
+	taskpkg "github.com/9triver/iarnet/internal/domain/ignis/task"
 )
 
 // CreateApplicationRequest 创建应用请求
@@ -255,4 +256,164 @@ type DeleteDirectoryRequest struct {
 type DeleteDirectoryResponse struct {
 	Message string `json:"message"`  // 响应消息
 	DirPath string `json:"dir_path"` // 目录路径
+}
+
+// DAG 相关类型
+
+// GetApplicationDAGRequest 获取应用 DAG 请求
+type GetApplicationDAGRequest struct {
+	AppID string `json:"app_id"`
+}
+
+// ControlNodeResponse 控制节点响应
+type ControlNodeResponse struct {
+	ID           string            `json:"id"`
+	Done         bool              `json:"done"`
+	FunctionName string            `json:"functionName"`
+	Params       map[string]string `json:"params"`
+	Current      int32             `json:"current"`
+	DataNode     string            `json:"dataNode"`
+	PreDataNodes []string          `json:"preDataNodes"`
+	FunctionType string            `json:"functionType"`
+}
+
+// DataNodeResponse 数据节点响应
+type DataNodeResponse struct {
+	ID         string   `json:"id"`
+	Done       bool     `json:"done"`
+	Ready      bool     `json:"ready"`
+	Lambda     string   `json:"lambda"`
+	ParentNode string   `json:"parentNode,omitempty"`
+	ChildNode  []string `json:"childNode"`
+}
+
+// DAGNodeResponse DAG 节点响应
+type DAGNodeResponse struct {
+	Type string      `json:"type"`
+	Node interface{} `json:"node"`
+}
+
+// DAGEdgeResponse DAG 边响应
+type DAGEdgeResponse struct {
+	FromNodeID string `json:"fromNodeId"`
+	ToNodeID   string `json:"toNodeId"`
+	Info       string `json:"info,omitempty"`
+}
+
+// DAGResponse DAG 响应
+type DAGResponse struct {
+	Nodes []DAGNodeResponse `json:"nodes"`
+	Edges []DAGEdgeResponse `json:"edges"`
+}
+
+// GetApplicationDAGResponse 获取应用 DAG 响应
+type GetApplicationDAGResponse struct {
+	DAG DAGResponse `json:"dag"`
+}
+
+// BuildGetApplicationDAGResponse 构建 DAG 响应
+func BuildGetApplicationDAGResponse(dags map[string]*taskpkg.DAG) GetApplicationDAGResponse {
+	resp := GetApplicationDAGResponse{
+		DAG: DAGResponse{
+			Nodes: make([]DAGNodeResponse, 0),
+			Edges: make([]DAGEdgeResponse, 0),
+		},
+	}
+
+	if len(dags) == 0 {
+		return resp
+	}
+
+	edgeSet := make(map[string]struct{})
+	addEdge := func(from, to, info string) {
+		if from == "" || to == "" {
+			return
+		}
+		key := from + "->" + to + ":" + info
+		if _, exists := edgeSet[key]; exists {
+			return
+		}
+		resp.DAG.Edges = append(resp.DAG.Edges, DAGEdgeResponse{
+			FromNodeID: from,
+			ToNodeID:   to,
+			Info:       info,
+		})
+		edgeSet[key] = struct{}{}
+	}
+
+	for _, dag := range dags {
+		for _, controlNode := range dag.ControlNodes {
+			nodeResp := ControlNodeResponse{
+				ID:           string(controlNode.ID),
+				Done:         controlNode.Status == taskpkg.DAGNodeStatusDone,
+				FunctionName: controlNode.FunctionName,
+				Params:       copyStringMap(controlNode.Params),
+				Current:      controlNode.Current,
+				DataNode:     string(controlNode.DataNode),
+				PreDataNodes: convertNodeIDs(controlNode.PreDataNodes),
+				FunctionType: controlNode.FunctionType,
+			}
+
+			resp.DAG.Nodes = append(resp.DAG.Nodes, DAGNodeResponse{
+				Type: "ControlNode",
+				Node: nodeResp,
+			})
+
+			for _, preID := range controlNode.PreDataNodes {
+				addEdge(string(preID), string(controlNode.ID), "data->control")
+			}
+			if controlNode.DataNode != "" {
+				addEdge(string(controlNode.ID), string(controlNode.DataNode), "control->data")
+			}
+		}
+
+		for _, dataNode := range dag.DataNodes {
+			nodeResp := DataNodeResponse{
+				ID:        string(dataNode.ID),
+				Done:      dataNode.Status == taskpkg.DAGNodeStatusDone,
+				Ready:     dataNode.Status == taskpkg.DAGNodeStatusReady || dataNode.Status == taskpkg.DAGNodeStatusDone,
+				Lambda:    dataNode.Lambda,
+				ChildNode: convertNodeIDs(dataNode.ChildNodes),
+			}
+			if dataNode.ParentNode != nil {
+				nodeResp.ParentNode = string(*dataNode.ParentNode)
+			}
+
+			resp.DAG.Nodes = append(resp.DAG.Nodes, DAGNodeResponse{
+				Type: "DataNode",
+				Node: nodeResp,
+			})
+
+			for _, successorID := range dataNode.SufControlNodes {
+				addEdge(string(dataNode.ID), string(successorID), "data->control")
+			}
+			for _, childID := range dataNode.ChildNodes {
+				addEdge(string(dataNode.ID), string(childID), "data->data")
+			}
+		}
+	}
+
+	return resp
+}
+
+func convertNodeIDs(ids []taskpkg.DAGNodeID) []string {
+	if len(ids) == 0 {
+		return nil
+	}
+	result := make([]string, len(ids))
+	for i, id := range ids {
+		result[i] = string(id)
+	}
+	return result
+}
+
+func copyStringMap(src map[string]string) map[string]string {
+	if len(src) == 0 {
+		return map[string]string{}
+	}
+	dst := make(map[string]string, len(src))
+	for k, v := range src {
+		dst[k] = v
+	}
+	return dst
 }

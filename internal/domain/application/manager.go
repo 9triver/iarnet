@@ -9,6 +9,7 @@ import (
 	"github.com/9triver/iarnet/internal/domain/application/types"
 	"github.com/9triver/iarnet/internal/domain/application/workspace"
 	"github.com/9triver/iarnet/internal/domain/ignis"
+	"github.com/9triver/iarnet/internal/domain/ignis/task"
 	logrus "github.com/sirupsen/logrus"
 )
 
@@ -253,4 +254,8 @@ func (m *Manager) RunApplication(ctx context.Context, appID string) error {
 
 	logrus.Infof("Successfully started application %s", appID)
 	return nil
+}
+
+func (m *Manager) GetApplicationDAGs(ctx context.Context, appID string) (map[string]*task.DAG, error) {
+	return m.platform.GetDAGs(appID)
 }

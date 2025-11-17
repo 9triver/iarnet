@@ -31,6 +31,8 @@ func RegisterRoutes(router *mux.Router, am *application.Manager) {
 	router.HandleFunc("/application/apps/{id}/files", api.handleDeleteFile).Methods("DELETE")
 	router.HandleFunc("/application/apps/{id}/directories", api.handleCreateDirectory).Methods("POST")
 	router.HandleFunc("/application/apps/{id}/directories", api.handleDeleteDirectory).Methods("DELETE")
+	// DAG管理相关路由
+	router.HandleFunc("/application/apps/{id}/dag", api.handleGetApplicationDAG).Methods("GET")
 }
 
 type API struct {
@@ -41,6 +43,26 @@ func NewAPI(am *application.Manager) *API {
 	return &API{
 		am: am,
 	}
+}
+
+func (api *API) handleGetApplicationDAG(w http.ResponseWriter, r *http.Request) {
+	req := GetApplicationDAGRequest{
+		AppID: mux.Vars(r)["id"],
+	}
+	if req.AppID == "" {
+		response.BadRequest("application id is required").WriteJSON(w)
+		return
+	}
+
+	dag, err := api.am.GetApplicationDAGs(r.Context(), req.AppID)
+	if err != nil {
+		logrus.Errorf("Failed to get application DAGs: %v", err)
+		response.InternalError("failed to get application DAGs: " + err.Error()).WriteJSON(w)
+		return
+	}
+
+	resp := BuildGetApplicationDAGResponse(dag)
+	response.Success(resp).WriteJSON(w)
 }
 
 func (api *API) handleGetApplicationList(w http.ResponseWriter, r *http.Request) {

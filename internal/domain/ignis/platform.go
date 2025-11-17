@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/9triver/iarnet/internal/domain/ignis/controller"
+	"github.com/9triver/iarnet/internal/domain/ignis/task"
 	ctrlpb "github.com/9triver/iarnet/internal/proto/ignis/controller"
 )
 
@@ -21,6 +22,10 @@ func NewPlatform(controllerService controller.Service) *Platform {
 
 func (p *Platform) CreateController(ctx context.Context, appID string) (*controller.Controller, error) {
 	return p.controllerService.CreateController(ctx, appID)
+}
+
+func (p *Platform) GetDAGs(appID string) (map[string]*task.DAG, error) {
+	return p.controllerService.GetDAGs(appID)
 }
 
 func (p *Platform) Subscribe(eventType controller.EventType, handler controller.EventHandler) {

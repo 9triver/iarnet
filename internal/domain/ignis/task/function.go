@@ -44,9 +44,10 @@ func (f *Function) Runtime(sessionID string, instanceID string) types.RuntimeID 
 
 func NewFunction(name string, inputs []string, group *ActorGroup) *Function {
 	return &Function{
-		name:   name,
-		inputs: inputs,
-		group:  group,
+		name:     name,
+		inputs:   inputs,
+		group:    group,
+		runtimes: make(map[string]*Runtime),
 	}
 }
 
