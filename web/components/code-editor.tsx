@@ -215,14 +215,14 @@ const FileTreeItem: React.FC<FileTreeItemProps> = ({
               </div>
               <div className="flex items-center space-x-2">
                 <RadioGroup value={createDialog.type} onValueChange={(value) => setCreateDialog({ ...createDialog, type: value as "file" | "folder" })} className="flex items-center space-x-4">
-                  <div className="flex items-center space-x-2">
+                  <label htmlFor={`file-${file.path}`} className="flex items-center space-x-2 cursor-pointer">
                     <RadioGroupItem value="file" id={`file-${file.path}`} />
-                    <Label htmlFor={`file-${file.path}`} className="font-normal cursor-pointer">文件</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
+                    <span className="font-normal">文件</span>
+                  </label>
+                  <label htmlFor={`folder-${file.path}`} className="flex items-center space-x-2 cursor-pointer">
                     <RadioGroupItem value="folder" id={`folder-${file.path}`} />
-                    <Label htmlFor={`folder-${file.path}`} className="font-normal cursor-pointer">文件夹</Label>
-                  </div>
+                    <span className="font-normal">文件夹</span>
+                  </label>
                 </RadioGroup>
               </div>
             </div>
@@ -494,14 +494,14 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ appId, className }) => {
                 </div>
                 <div className="flex items-center space-x-2">
                   <RadioGroup value={rootCreateType} onValueChange={(value) => setRootCreateType(value as "file" | "folder")} className="flex items-center space-x-4">
-                    <div className="flex items-center space-x-2">
+                    <label htmlFor="root-file" className="flex items-center space-x-2 cursor-pointer">
                       <RadioGroupItem value="file" id="root-file" />
-                      <Label htmlFor="root-file" className="font-normal cursor-pointer">文件</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
+                      <span className="font-normal">文件</span>
+                    </label>
+                    <label htmlFor="root-folder" className="flex items-center space-x-2 cursor-pointer">
                       <RadioGroupItem value="folder" id="root-folder" />
-                      <Label htmlFor="root-folder" className="font-normal cursor-pointer">文件夹</Label>
-                    </div>
+                      <span className="font-normal">文件夹</span>
+                    </label>
                   </RadioGroup>
                 </div>
               </div>
