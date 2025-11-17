@@ -138,29 +138,6 @@ export interface GetApplicationLogsParsedResponse {
   requestedLines: number
 }
 
-export interface CodeBrowserInfo {
-  port: number
-  pid: number
-  start_time: string
-  status: "running" | "stopped" | "error"
-  work_dir: string
-  cmd: string
-}
-
-export interface StartCodeBrowserResponse {
-  message: string
-  port: number
-  url: string
-}
-
-export interface StopCodeBrowserResponse {
-  message: string
-}
-
-export interface GetCodeBrowserStatusResponse {
-  browser: CodeBrowserInfo | null
-}
-
 export interface FileInfo {
   name: string
   path: string

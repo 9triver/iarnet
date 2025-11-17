@@ -1,4 +1,4 @@
-import { Application, ApplicationStats, CreateDirectoryResponse, CreateFileResponse, DeleteDirectoryResponse, DeleteFileResponse, GetApplicationLogsParsedResponse, GetApplicationLogsResponse, GetApplicationsResponse, GetCodeBrowserStatusResponse, GetDAGResponse, GetFileContentResponse, GetFileTreeResponse, GetRunnerEnvironmentsResponse, SaveFileResponse, StartCodeBrowserResponse } from "./model"
+import { Application, ApplicationStats, CreateDirectoryResponse, CreateFileResponse, DeleteDirectoryResponse, DeleteFileResponse, GetApplicationLogsParsedResponse, GetApplicationLogsResponse, GetApplicationsResponse, GetDAGResponse, GetFileContentResponse, GetFileTreeResponse, GetRunnerEnvironmentsResponse, SaveFileResponse } from "./model"
 
 // API 客户端工具函数
 const API_BASE = "/api"
@@ -157,17 +157,6 @@ export const applicationsAPI = {
     apiRequest<Application>(`/application/apps/${id}/stop`, {
       method: "POST",
     }),
-  // 代码浏览器相关API
-  startCodeBrowser: (id: string) =>
-    apiRequest<StartCodeBrowserResponse>(`/application/apps/${id}/code-browser`, {
-      method: "POST",
-    }),
-  stopCodeBrowser: (id: string) =>
-    apiRequest(`/application/apps/${id}/code-browser`, {
-      method: "DELETE",
-    }),
-  getCodeBrowserStatus: (id: string) =>
-    apiRequest<GetCodeBrowserStatusResponse>(`/application/apps/${id}/code-browser/status`),
   // 文件管理相关API
   getFileTree: (id: string, path: string = '') =>
     apiRequest<GetFileTreeResponse>(`/application/apps/${id}/files${path ? `?path=${encodeURIComponent(path)}` : ''}`),

@@ -9,6 +9,7 @@ import { ChevronRight, ChevronDown, File, Folder, Code, Save, Plus, Trash } from
 import { cn } from '@/lib/utils'
 import { applicationsAPI } from '@/lib/api'
 import { toast } from 'sonner'
+import type { FileInfo } from '@/lib/model'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,6 +23,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 
 
 interface FileContent {
@@ -48,6 +50,13 @@ interface FileTreeItemProps {
   onFileCreate: (path: string, isDir: boolean) => void
 }
 
+interface CreateDialogState {
+  isOpen: boolean
+  name: string
+  type: "file" | "folder"
+  targetPath: string
+}
+
 const FileTreeItem: React.FC<FileTreeItemProps> = ({
   file,
   level,
@@ -58,14 +67,73 @@ const FileTreeItem: React.FC<FileTreeItemProps> = ({
   onFileDelete,
   onFileCreate
 }) => {
+  const [createDialog, setCreateDialog] = useState<CreateDialogState>({
+    isOpen: false,
+    name: "",
+    type: "file",
+    targetPath: file.path
+  })
+  
   const isExpanded = expandedFolders.has(file.path)
   const isSelected = selectedFile === file.path
   
-  const handleClick = () => {
+  const handleCreate = () => {
+    if (createDialog.name.trim()) {
+      onFileCreate(`${createDialog.targetPath}/${createDialog.name.trim()}`, createDialog.type === "folder")
+      setCreateDialog({ isOpen: false, name: "", type: "file", targetPath: file.path })
+    }
+  }
+  
+  const handleClick = (e: React.MouseEvent) => {
+    // 如果点击的是按钮或对话框相关元素，不触发文件/文件夹的点击事件
+    const target = e.target as HTMLElement
+    
+    // 检查是否点击了交互元素（按钮、输入框等）
+    const isInteractiveElement = target.closest('button') || 
+      target.closest('input') ||
+      target.closest('label') ||
+      target.closest('[role="radiogroup"]') ||
+      target.closest('[role="radio"]')
+    
+    // 检查是否点击了对话框（通过 Portal 渲染，可能在 DOM 树外部）
+    const isDialogElement = target.closest('[role="dialog"]') || 
+      target.closest('[data-radix-portal]')
+    
+    // 如果点击的是交互元素，阻止事件
+    if (isInteractiveElement) {
+      e.stopPropagation()
+      e.preventDefault()
+      return
+    }
+    
+    // 如果点击的是对话框元素，阻止事件（但不在文件树项上检查，因为对话框通过 Portal 渲染）
+    if (isDialogElement) {
+      e.stopPropagation()
+      e.preventDefault()
+      return
+    }
+    
+    // 正常处理文件/文件夹点击
     if (file.is_dir) {
       onFolderToggle(file.path)
     } else {
       onFileSelect(file.path)
+    }
+  }
+  
+  // 处理鼠标按下事件，提前阻止事件冒泡
+  const handleMouseDown = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement
+    
+    // 只阻止按钮和输入框的事件冒泡
+    if (
+      target.closest('button') || 
+      target.closest('input') ||
+      target.closest('label') ||
+      target.closest('[role="radiogroup"]') ||
+      target.closest('[role="radio"]')
+    ) {
+      e.stopPropagation()
     }
   }
 
@@ -78,6 +146,7 @@ const FileTreeItem: React.FC<FileTreeItemProps> = ({
       )}
       style={{ paddingLeft: `${level * 12 + 8}px` }}
       onClick={handleClick}
+      onMouseDown={handleMouseDown}
     >
       {file.is_dir ? (
         <>
@@ -97,84 +166,110 @@ const FileTreeItem: React.FC<FileTreeItemProps> = ({
       <span className="truncate">{file.name}</span>
       <div className="flex-grow" />
       {file.is_dir && (
+        <div onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+          <AlertDialog open={createDialog.isOpen} onOpenChange={(open) => setCreateDialog({ ...createDialog, isOpen: open })}>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-muted-foreground hover:bg-transparent hover:text-foreground"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  e.preventDefault()
+                  setCreateDialog({ isOpen: true, name: "", type: "file", targetPath: file.path })
+                }}
+                onMouseDown={(e) => {
+                  e.stopPropagation()
+                  e.preventDefault()
+                }}
+              >
+                <Plus className="h-3 w-3" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+              <AlertDialogHeader>
+                <AlertDialogTitle>创建新文件/文件夹</AlertDialogTitle>
+                <AlertDialogDescription>
+                  在 <span className="font-semibold">{file.path}</span> 中创建新文件或文件夹。
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor={`name-${file.path}`} className="text-right">
+                  名称
+                </Label>
+                <Input
+                  id={`name-${file.path}`}
+                  placeholder="输入文件名或文件夹名"
+                  value={createDialog.name}
+                  onChange={(e) => setCreateDialog({ ...createDialog, name: e.target.value })}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      handleCreate()
+                    }
+                  }}
+                  className="col-span-3"
+                  autoFocus
+                />
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroup value={createDialog.type} onValueChange={(value) => setCreateDialog({ ...createDialog, type: value as "file" | "folder" })} className="flex items-center space-x-4">
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="file" id={`file-${file.path}`} />
+                    <Label htmlFor={`file-${file.path}`} className="font-normal cursor-pointer">文件</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="folder" id={`folder-${file.path}`} />
+                    <Label htmlFor={`folder-${file.path}`} className="font-normal cursor-pointer">文件夹</Label>
+                  </div>
+                </RadioGroup>
+              </div>
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setCreateDialog({ isOpen: false, name: "", type: "file", targetPath: file.path })}>取消</AlertDialogCancel>
+              <AlertDialogAction onClick={handleCreate}>创建</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+        </div>
+      )}
+      <div onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button
               variant="ghost"
               size="icon"
               className="h-6 w-6 text-muted-foreground hover:bg-transparent hover:text-foreground"
-              onClick={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation()
+                e.preventDefault()
+              }}
+              onMouseDown={(e) => {
+                e.stopPropagation()
+                e.preventDefault()
+              }}
             >
-              <Plus className="h-3 w-3" />
+              <Trash className="h-3 w-3" />
             </Button>
           </AlertDialogTrigger>
-          <AlertDialogContent>
+          <AlertDialogContent onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
             <AlertDialogHeader>
-              <AlertDialogTitle>创建新文件/文件夹</AlertDialogTitle>
+              <AlertDialogTitle>确认删除</AlertDialogTitle>
               <AlertDialogDescription>
-                在 <span className="font-semibold">{file.path}</span> 中创建新文件或文件夹。
+                您确定要删除 <span className="font-semibold">{file.path}</span> 吗？此操作不可撤销。
               </AlertDialogDescription>
             </AlertDialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="name" className="text-right">
-                  名称
-                </Label>
-                <Input id="name" defaultValue="" className="col-span-3" />
-              </div>
-              <div className="flex items-center space-x-2">
-                <input type="radio" id="file" name="type" value="file" defaultChecked />
-                <Label htmlFor="file">文件</Label>
-                <input type="radio" id="folder" name="type" value="folder" />
-                <Label htmlFor="folder">文件夹</Label>
-              </div>
-            </div>
             <AlertDialogFooter>
               <AlertDialogCancel>取消</AlertDialogCancel>
-              <AlertDialogAction onClick={() => {
-                const nameInput = document.getElementById('name') as HTMLInputElement
-                const typeInputs = document.getElementsByName('type') as NodeListOf<HTMLInputElement>
-                let type = 'file'
-                typeInputs.forEach(input => {
-                  if (input.checked) {
-                    type = input.value
-                  }
-                })
-                if (nameInput.value) {
-                  onFileCreate(`${file.path}/${nameInput.value}`, type === 'folder')
-                }
-              }}>创建</AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      )}
-      <AlertDialog>
-        <AlertDialogTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 text-muted-foreground hover:bg-transparent hover:text-foreground"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Trash className="h-3 w-3" />
-          </Button>
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>确认删除</AlertDialogTitle>
-            <AlertDialogDescription>
-              您确定要删除 <span className="font-semibold">{file.path}</span> 吗？此操作不可撤销。
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={() => onFileDelete(file.path, file.is_dir)}>删除</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
-  )
-}
+              <AlertDialogAction onClick={() => onFileDelete(file.path, file.is_dir)}>删除</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          </div>
+        </div>
+      )
+    }
 
 export const CodeEditor: React.FC<CodeEditorProps> = ({ appId, className }) => {
   const [fileTree, setFileTree] = useState<Map<string, FileInfo[]>>(new Map())
@@ -185,6 +280,9 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ appId, className }) => {
   const [error, setError] = useState<string | null>(null)
   const [editorContent, setEditorContent] = useState<string | undefined>(undefined)
   const [isDirty, setIsDirty] = useState(false)
+  const [isRootCreateDialogOpen, setIsRootCreateDialogOpen] = useState(false)
+  const [rootCreateName, setRootCreateName] = useState("")
+  const [rootCreateType, setRootCreateType] = useState<"file" | "folder">("file")
 
   // 获取文件树
   const fetchFileTree = async (path: string = '/') => {
@@ -326,6 +424,103 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ appId, className }) => {
     const files = fileTree.get(path) || []
     const result: React.ReactNode[] = []
     
+    // 如果是根目录，添加根目录创建按钮
+    if (path === '/') {
+      result.push(
+        <div 
+          key="root-create" 
+          className="flex items-center gap-1 px-2 py-1 text-sm"
+          onClick={(e) => {
+            // 如果根目录对话框打开，阻止事件冒泡
+            if (isRootCreateDialogOpen) {
+              e.stopPropagation()
+              e.preventDefault()
+            }
+          }}
+          onMouseDown={(e) => {
+            if (isRootCreateDialogOpen) {
+              e.stopPropagation()
+            }
+          }}
+        >
+          <Folder className="h-4 w-4 text-blue-500" />
+          <span className="flex-1 text-muted-foreground">/</span>
+          <div onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+            <AlertDialog open={isRootCreateDialogOpen} onOpenChange={setIsRootCreateDialogOpen}>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-muted-foreground hover:bg-transparent hover:text-foreground"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    e.preventDefault()
+                    setIsRootCreateDialogOpen(true)
+                  }}
+                  onMouseDown={(e) => {
+                    e.stopPropagation()
+                    e.preventDefault()
+                  }}
+                >
+                  <Plus className="h-3 w-3" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+                <AlertDialogHeader>
+                <AlertDialogTitle>创建新文件/文件夹</AlertDialogTitle>
+                <AlertDialogDescription>
+                  在根目录中创建新文件或文件夹。
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="root-create-name" className="text-right">
+                    名称
+                  </Label>
+                  <Input
+                    id="root-create-name"
+                    placeholder="输入文件名或文件夹名"
+                    value={rootCreateName}
+                    onChange={(e) => setRootCreateName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        handleCreateAtRoot()
+                      }
+                    }}
+                    className="col-span-3"
+                    autoFocus
+                  />
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroup value={rootCreateType} onValueChange={(value) => setRootCreateType(value as "file" | "folder")} className="flex items-center space-x-4">
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="file" id="root-file" />
+                      <Label htmlFor="root-file" className="font-normal cursor-pointer">文件</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="folder" id="root-folder" />
+                      <Label htmlFor="root-folder" className="font-normal cursor-pointer">文件夹</Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+              </div>
+              <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => {
+                  setRootCreateName("")
+                  setRootCreateType("file")
+                }}>取消</AlertDialogCancel>
+                <AlertDialogAction onClick={handleCreateAtRoot}>
+                  创建
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          </div>
+        </div>
+      )
+    }
+    
     files.forEach((file) => {
       result.push(
         <FileTreeItem
@@ -355,17 +550,27 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ appId, className }) => {
     fetchFileTree()
   }, [appId])
 
+  // 在根目录创建文件/目录
+  const handleCreateAtRoot = async () => {
+    if (!rootCreateName.trim()) {
+      toast.error("请输入名称")
+      return
+    }
+    try {
+      await handleCreateFileOrDirectory(rootCreateName.trim(), rootCreateType === "folder")
+      setIsRootCreateDialogOpen(false)
+      setRootCreateName("")
+      setRootCreateType("file")
+    } catch (error) {
+      // 错误已在 handleCreateFileOrDirectory 中处理
+    }
+  }
+
   return (
     <div className={cn('flex h-full border rounded-lg overflow-hidden', className)}>
       {/* 文件树侧边栏 */}
       <div className="w-80 border-r bg-muted/30">
-        {/* <div className="p-3 border-b">
-           <div className="flex items-center gap-2">
-            <Code className="h-5 w-5" />
-            <h3 className="font-semibold">文件浏览器</h3>
-          </div> 
-        </div> */}
-        <ScrollArea className="h-[calc(100%-60px)]">
+        <ScrollArea className="h-full">
           <div className="p-2">
             {loading && fileTree.size === 0 ? (
               <div className="text-sm text-muted-foreground p-2">加载中...</div>

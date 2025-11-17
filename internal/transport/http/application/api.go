@@ -23,6 +23,14 @@ func RegisterRoutes(router *mux.Router, am *application.Manager) {
 	router.HandleFunc("/application/apps/{id}", api.handleDeleteApplication).Methods("DELETE")
 	router.HandleFunc("/application/apps/{id}/run", api.handleRunApplication).Methods("POST")
 	router.HandleFunc("/application/apps/{id}/stop", api.handleStopApplication).Methods("POST")
+	// 文件管理相关路由
+	router.HandleFunc("/application/apps/{id}/files", api.handleGetFileTree).Methods("GET")
+	router.HandleFunc("/application/apps/{id}/files/content", api.handleGetFileContent).Methods("GET")
+	router.HandleFunc("/application/apps/{id}/files/content", api.handleSaveFileContent).Methods("PUT")
+	router.HandleFunc("/application/apps/{id}/files", api.handleCreateFile).Methods("POST")
+	router.HandleFunc("/application/apps/{id}/files", api.handleDeleteFile).Methods("DELETE")
+	router.HandleFunc("/application/apps/{id}/directories", api.handleCreateDirectory).Methods("POST")
+	router.HandleFunc("/application/apps/{id}/directories", api.handleDeleteDirectory).Methods("DELETE")
 }
 
 type API struct {
@@ -307,5 +315,256 @@ func (api *API) handleGetRunnerEnvironments(w http.ResponseWriter, r *http.Reque
 		Environments: runnerEnvs,
 	}
 
+	response.Success(resp).WriteJSON(w)
+}
+
+// 文件管理相关处理函数
+func (api *API) handleGetFileTree(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	appID := vars["id"]
+	if appID == "" {
+		response.BadRequest("application id is required").WriteJSON(w)
+		return
+	}
+
+	ctx := r.Context()
+
+	// 从查询参数获取路径
+	path := r.URL.Query().Get("path")
+	if path == "" {
+		path = "/"
+	}
+
+	// 调用 manager 获取文件树
+	files, err := api.am.GetFileTree(ctx, appID, path)
+	if err != nil {
+		logrus.Errorf("Failed to get file tree for app %s: %v", appID, err)
+		response.InternalError("failed to get file tree: " + err.Error()).WriteJSON(w)
+		return
+	}
+
+	resp := GetFileTreeResponse{
+		Files: files,
+	}
+	response.Success(resp).WriteJSON(w)
+}
+
+func (api *API) handleGetFileContent(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	appID := vars["id"]
+	if appID == "" {
+		response.BadRequest("application id is required").WriteJSON(w)
+		return
+	}
+
+	ctx := r.Context()
+
+	// 从查询参数获取文件路径
+	filePath := r.URL.Query().Get("path")
+	if filePath == "" {
+		response.BadRequest("file path is required").WriteJSON(w)
+		return
+	}
+
+	// 调用 manager 获取文件内容
+	content, language, err := api.am.GetFileContent(ctx, appID, filePath)
+	if err != nil {
+		logrus.Errorf("Failed to get file content for app %s: %v", appID, err)
+		response.InternalError("failed to get file content: " + err.Error()).WriteJSON(w)
+		return
+	}
+
+	resp := GetFileContentResponse{
+		Content:  content,
+		Language: language,
+		Path:     filePath,
+	}
+	response.Success(resp).WriteJSON(w)
+}
+
+func (api *API) handleSaveFileContent(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	appID := vars["id"]
+	if appID == "" {
+		response.BadRequest("application id is required").WriteJSON(w)
+		return
+	}
+
+	ctx := r.Context()
+
+	// 从查询参数获取文件路径
+	filePath := r.URL.Query().Get("path")
+	if filePath == "" {
+		response.BadRequest("file path is required").WriteJSON(w)
+		return
+	}
+
+	// 解析请求体
+	req := SaveFileContentRequest{}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		logrus.Errorf("Failed to decode save file content request: %v", err)
+		response.BadRequest("invalid request body: " + err.Error()).WriteJSON(w)
+		return
+	}
+
+	// 调用 manager 保存文件内容
+	if err := api.am.SaveFileContent(ctx, appID, filePath, req.Content); err != nil {
+		logrus.Errorf("Failed to save file content for app %s: %v", appID, err)
+		response.InternalError("failed to save file content: " + err.Error()).WriteJSON(w)
+		return
+	}
+
+	resp := SaveFileContentResponse{
+		Message:  "File saved successfully",
+		FilePath: filePath,
+	}
+	response.Success(resp).WriteJSON(w)
+}
+
+func (api *API) handleCreateFile(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	appID := vars["id"]
+	if appID == "" {
+		response.BadRequest("application id is required").WriteJSON(w)
+		return
+	}
+
+	ctx := r.Context()
+
+	// 解析请求体
+	req := CreateFileRequest{}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		logrus.Errorf("Failed to decode create file request: %v", err)
+		response.BadRequest("invalid request body: " + err.Error()).WriteJSON(w)
+		return
+	}
+
+	if req.FilePath == "" {
+		response.BadRequest("file path is required").WriteJSON(w)
+		return
+	}
+
+	// 调用 manager 创建文件
+	if err := api.am.CreateFile(ctx, appID, req.FilePath); err != nil {
+		logrus.Errorf("Failed to create file for app %s: %v", appID, err)
+		response.InternalError("failed to create file: " + err.Error()).WriteJSON(w)
+		return
+	}
+
+	resp := CreateFileResponse{
+		Message:  "File created successfully",
+		FilePath: req.FilePath,
+	}
+	response.Success(resp).WriteJSON(w)
+}
+
+func (api *API) handleDeleteFile(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	appID := vars["id"]
+	if appID == "" {
+		response.BadRequest("application id is required").WriteJSON(w)
+		return
+	}
+
+	ctx := r.Context()
+
+	// 解析请求体
+	req := DeleteFileRequest{}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		logrus.Errorf("Failed to decode delete file request: %v", err)
+		response.BadRequest("invalid request body: " + err.Error()).WriteJSON(w)
+		return
+	}
+
+	if req.FilePath == "" {
+		response.BadRequest("file path is required").WriteJSON(w)
+		return
+	}
+
+	// 调用 manager 删除文件
+	if err := api.am.DeleteFile(ctx, appID, req.FilePath); err != nil {
+		logrus.Errorf("Failed to delete file for app %s: %v", appID, err)
+		response.InternalError("failed to delete file: " + err.Error()).WriteJSON(w)
+		return
+	}
+
+	resp := DeleteFileResponse{
+		Message:  "File deleted successfully",
+		FilePath: req.FilePath,
+	}
+	response.Success(resp).WriteJSON(w)
+}
+
+func (api *API) handleCreateDirectory(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	appID := vars["id"]
+	if appID == "" {
+		response.BadRequest("application id is required").WriteJSON(w)
+		return
+	}
+
+	ctx := r.Context()
+
+	// 解析请求体
+	req := CreateDirectoryRequest{}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		logrus.Errorf("Failed to decode create directory request: %v", err)
+		response.BadRequest("invalid request body: " + err.Error()).WriteJSON(w)
+		return
+	}
+
+	if req.DirPath == "" {
+		response.BadRequest("directory path is required").WriteJSON(w)
+		return
+	}
+
+	// 调用 manager 创建目录
+	if err := api.am.CreateDirectory(ctx, appID, req.DirPath); err != nil {
+		logrus.Errorf("Failed to create directory for app %s: %v", appID, err)
+		response.InternalError("failed to create directory: " + err.Error()).WriteJSON(w)
+		return
+	}
+
+	resp := CreateDirectoryResponse{
+		Message: "Directory created successfully",
+		DirPath: req.DirPath,
+	}
+	response.Success(resp).WriteJSON(w)
+}
+
+func (api *API) handleDeleteDirectory(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	appID := vars["id"]
+	if appID == "" {
+		response.BadRequest("application id is required").WriteJSON(w)
+		return
+	}
+
+	ctx := r.Context()
+
+	// 解析请求体
+	req := DeleteDirectoryRequest{}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		logrus.Errorf("Failed to decode delete directory request: %v", err)
+		response.BadRequest("invalid request body: " + err.Error()).WriteJSON(w)
+		return
+	}
+
+	if req.DirPath == "" {
+		response.BadRequest("directory path is required").WriteJSON(w)
+		return
+	}
+
+	// 调用 manager 删除目录
+	if err := api.am.DeleteDirectory(ctx, appID, req.DirPath); err != nil {
+		logrus.Errorf("Failed to delete directory for app %s: %v", appID, err)
+		response.InternalError("failed to delete directory: " + err.Error()).WriteJSON(w)
+		return
+	}
+
+	resp := DeleteDirectoryResponse{
+		Message: "Directory deleted successfully",
+		DirPath: req.DirPath,
+	}
 	response.Success(resp).WriteJSON(w)
 }

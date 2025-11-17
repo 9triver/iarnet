@@ -192,3 +192,67 @@ func ToApplicationListResponse(metadata []types.AppMetadata) GetApplicationListR
 		Total:        len(applications),
 	}
 }
+
+// 文件管理相关类型
+type GetFileTreeRequest struct {
+	Path string `json:"path"` // 文件路径，默认为 "/"
+}
+
+type GetFileTreeResponse struct {
+	Files []types.FileInfo `json:"files"` // 文件列表
+}
+
+type GetFileContentRequest struct {
+	Path string `json:"path"` // 文件路径
+}
+
+type GetFileContentResponse struct {
+	Content  string `json:"content"`  // 文件内容
+	Language string `json:"language"` // 文件语言类型
+	Path     string `json:"path"`     // 文件路径
+}
+
+type SaveFileContentRequest struct {
+	Content string `json:"content"` // 文件内容
+}
+
+type SaveFileContentResponse struct {
+	Message  string `json:"message"`   // 响应消息
+	FilePath string `json:"file_path"` // 文件路径
+}
+
+type CreateFileRequest struct {
+	FilePath string `json:"filePath"` // 文件路径
+}
+
+type CreateFileResponse struct {
+	Message  string `json:"message"`   // 响应消息
+	FilePath string `json:"file_path"` // 文件路径
+}
+
+type DeleteFileRequest struct {
+	FilePath string `json:"filePath"` // 文件路径
+}
+
+type DeleteFileResponse struct {
+	Message  string `json:"message"`   // 响应消息
+	FilePath string `json:"file_path"` // 文件路径
+}
+
+type CreateDirectoryRequest struct {
+	DirPath string `json:"dirPath"` // 目录路径
+}
+
+type CreateDirectoryResponse struct {
+	Message string `json:"message"`  // 响应消息
+	DirPath string `json:"dir_path"` // 目录路径
+}
+
+type DeleteDirectoryRequest struct {
+	DirPath string `json:"dirPath"` // 目录路径
+}
+
+type DeleteDirectoryResponse struct {
+	Message string `json:"message"`  // 响应消息
+	DirPath string `json:"dir_path"` // 目录路径
+}

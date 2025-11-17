@@ -48,17 +48,12 @@ import {
   X,
   ExternalLink,
   Settings,
+  Folder,
 } from "lucide-react"
 import { Graph } from '@antv/g6'
 import { ExtensionCategory, register } from '@antv/g6'
 import { ReactNode } from '@antv/g6-extension-react'
 
-interface CodeBrowserInfo {
-  status: string
-  port?: number
-  start_time?: string
-  work_dir?: string
-}
 
 // 组件类型定义 - 表示分布式部署的actor类型
 // DAG节点显示信息
@@ -135,12 +130,10 @@ export default function ApplicationDetailPage() {
   const [isLoadingComponentLogs, setIsLoadingComponentLogs] = useState(false)
   const [showLogsDialog, setShowLogsDialog] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [codeBrowserStatus, setCodeBrowserStatus] = useState<CodeBrowserInfo | null>(null)
-  const [isStartingCodeBrowser, setIsStartingCodeBrowser] = useState(false)
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [isLoadingAppLogs, setIsLoadingAppLogs] = useState(false)
   const [logLines, setLogLines] = useState(100)
-  const [activeTab, setActiveTab] = useState("components")
+  const [activeTab, setActiveTab] = useState("files")
   const [logSearchTerm, setLogSearchTerm] = useState("")
   const [logLevelFilter, setLogLevelFilter] = useState<string>("all")
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
@@ -446,48 +439,6 @@ export default function ApplicationDetailPage() {
         style={{ minHeight: '500px' }}
       />
     )
-  }
-
-  const loadCodeBrowserStatus = async () => {
-    if (!applicationId) return
-
-    try {
-      const result = await applicationsAPI.getCodeBrowserStatus(applicationId)
-      setCodeBrowserStatus(result.browser)
-    } catch (err) {
-      console.error('Failed to load code browser status:', err)
-      setCodeBrowserStatus(null)
-    }
-  }
-
-  const handleStartCodeBrowser = async () => {
-    if (!application) return
-
-    try {
-      setIsStartingCodeBrowser(true)
-      const result = await applicationsAPI.startCodeBrowser(application.id)
-      await loadCodeBrowserStatus()
-
-      // 打开新窗口访问代码浏览器
-      if (result.url) {
-        window.open(result.url, '_blank')
-      }
-    } catch (err) {
-      console.error('Failed to start code browser:', err)
-    } finally {
-      setIsStartingCodeBrowser(false)
-    }
-  }
-
-  const handleStopCodeBrowser = async () => {
-    if (!application) return
-
-    try {
-      await applicationsAPI.stopCodeBrowser(application.id)
-      await loadCodeBrowserStatus()
-    } catch (err) {
-      console.error('Failed to stop code browser:', err)
-    }
   }
 
   const loadLogs = async () => {
@@ -994,11 +945,20 @@ export default function ApplicationDetailPage() {
                   </div>
                 </div>
 
-                <div className="md:col-span-2 lg:col-span-4">
-                  <h4 className="text-sm font-medium text-muted-foreground mb-1">执行命令</h4>
-                  <div className="flex items-center space-x-2 text-sm">
-                    <Terminal className="h-4 w-4" />
-                    <span className="font-mono text-xs break-all">{application.executeCmd || "未设置"}</span>
+                <div className="md:col-span-2 lg:col-span-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <h4 className="text-sm font-medium text-muted-foreground mb-1">环境安装命令</h4>
+                    <div className="flex items-center space-x-2 text-sm">
+                      <Terminal className="h-4 w-4" />
+                      <span className="font-mono text-xs break-all whitespace-pre-wrap">{application.envInstallCmd || "未设置"}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-medium text-muted-foreground mb-1">执行命令</h4>
+                    <div className="flex items-center space-x-2 text-sm">
+                      <Terminal className="h-4 w-4" />
+                      <span className="font-mono text-xs break-all whitespace-pre-wrap">{application.executeCmd || "未设置"}</span>
+                    </div>
                   </div>
                 </div>
 
@@ -1009,6 +969,10 @@ export default function ApplicationDetailPage() {
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
             <TabsList>
+              <TabsTrigger value="files" className="flex items-center space-x-2">
+                <Folder className="h-4 w-4" />
+                <span>文件管理</span>
+              </TabsTrigger>
               <TabsTrigger value="components" className="flex items-center space-x-2">
                 <Package className="h-4 w-4" />
                 <span>组件管理</span>
@@ -1016,10 +980,6 @@ export default function ApplicationDetailPage() {
               <TabsTrigger value="logs" className="flex items-center space-x-2">
                 <FileText className="h-4 w-4" />
                 <span>应用日志</span>
-              </TabsTrigger>
-              <TabsTrigger value="code" className="flex items-center space-x-2">
-                <Code className="h-4 w-4" />
-                <span>代码浏览</span>
               </TabsTrigger>
               <TabsTrigger value="metrics" disabled>
                 <Activity className="h-4 w-4 mr-2" />
@@ -1030,6 +990,26 @@ export default function ApplicationDetailPage() {
                 事件历史
               </TabsTrigger>
             </TabsList>
+
+            <TabsContent value="files">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Folder className="h-5 w-5" />
+                    <span>文件管理</span>
+                  </CardTitle>
+                  <CardDescription>
+                    浏览和编辑应用源代码文件
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <CodeEditor
+                    appId={params.id as string}
+                    className="h-[600px]"
+                  />
+                </CardContent>
+              </Card>
+            </TabsContent>
 
             <TabsContent value="components">
               <Card>
@@ -1404,26 +1384,6 @@ export default function ApplicationDetailPage() {
                       </div>
                     )}
                   </ScrollArea>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="code">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <Code className="h-5 w-5" />
-                    <span>代码浏览</span>
-                  </CardTitle>
-                  <CardDescription>
-                    在线浏览和编辑应用源代码，基于 Monaco Editor 的现代化代码编辑体验
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <CodeEditor
-                    appId={params.id as string}
-                    className="h-[600px]"
-                  />
                 </CardContent>
               </Card>
             </TabsContent>
