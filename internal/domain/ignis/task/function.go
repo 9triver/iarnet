@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -14,44 +15,87 @@ import (
 	actorpb "github.com/9triver/iarnet/internal/proto/ignis/actor"
 )
 
-type Node struct {
-	id     string
-	inputs []string // TODO: dependencies of the node
-	group  *ActorGroup
+type Function struct {
+	name     string
+	inputs   []string // TODO: dependencies of the node
+	group    *ActorGroup
+	runtimes map[string]*Runtime
 }
 
-func (node *Node) Runtime(sessionID types.SessionID) *Runtime {
-	return &Runtime{
-		sessionID: sessionID,
-		actor:     node.group.Select(),
-		deps:      utils.MakeSetFromSlice(node.inputs),
-		cond:      sync.NewCond(&sync.Mutex{}),
-		params:    append([]string(nil), node.inputs...),
-		args:      make(map[string]*commonpb.ObjectRef),
-		onComplete: func(ctx context.Context, actor *Actor) {
-			node.group.Push(actor)
-		},
+func (f *Function) Runtime(sessionID string, instanceID string) types.RuntimeID {
+	runtimeID := fmt.Sprintf("%s::%s::%s", f.name, sessionID, instanceID)
+	runtime, ok := f.runtimes[runtimeID]
+	if !ok {
+		runtime = &Runtime{
+			functionName: f.name,
+			runtimeID:    runtimeID,
+			actor:        f.group.Select(),
+			deps:         utils.MakeSetFromSlice(f.inputs),
+			cond:         sync.NewCond(&sync.Mutex{}),
+			params:       append([]string(nil), f.inputs...),
+			args:         make(map[string]*commonpb.ObjectRef),
+		}
+		f.runtimes[runtimeID] = runtime
+	} else {
+		logrus.WithFields(logrus.Fields{"runtime": runtimeID}).Errorf("task: runtime already exists")
 	}
+	return runtimeID
 }
 
-func NewNode(id string, inputs []string, group *ActorGroup) *Node {
-	return &Node{
-		id:     id,
+func NewFunction(name string, inputs []string, group *ActorGroup) *Function {
+	return &Function{
+		name:   name,
 		inputs: inputs,
 		group:  group,
 	}
 }
 
+// AddArg 添加参数
+func (f *Function) AddArg(runtimeID types.RuntimeID, param string, value *commonpb.ObjectRef) error {
+	runtime, ok := f.runtimes[runtimeID]
+	if !ok {
+		logrus.WithFields(logrus.Fields{"runtime": runtimeID}).Errorf("task: runtime not found")
+		return fmt.Errorf("runtime not found: %s", runtimeID)
+	}
+	return runtime.AddArg(param, value)
+}
+
+// Invoke 执行函数
+func (f *Function) Invoke(ctx context.Context, runtimeID types.RuntimeID) error {
+	runtime, ok := f.runtimes[runtimeID]
+	if !ok {
+		logrus.WithFields(logrus.Fields{"runtime": runtimeID}).Errorf("task: runtime not found")
+		return fmt.Errorf("runtime not found: %s", runtimeID)
+	}
+	return runtime.Invoke(ctx)
+}
+
+// Complete 完成函数执行
+func (f *Function) Done(ctx context.Context, runtimeID types.RuntimeID, actorInfo *actorpb.ActorInfo) error {
+	runtime, ok := f.runtimes[runtimeID]
+	if !ok {
+		logrus.WithFields(logrus.Fields{"runtime": runtimeID}).Errorf("task: runtime not found")
+		return fmt.Errorf("runtime not found: %s", runtimeID)
+	}
+	actor := runtime.Done(ctx, actorInfo)
+	if actor == nil {
+		logrus.WithFields(logrus.Fields{"runtime": runtimeID}).Errorf("task: actor not found")
+		return fmt.Errorf("actor not found: %s", runtimeID)
+	}
+	f.group.Push(actor)
+	return nil
+}
+
 type Runtime struct {
-	sessionID  types.SessionID
-	complete   chan struct{}
-	actor      *Actor
-	deps       utils.Set[string]
-	cond       *sync.Cond
-	params     []string
-	args       map[string]*commonpb.ObjectRef
-	onComplete func(ctx context.Context, actor *Actor)
-	invokeTime time.Time // 记录调用发送时间，用于计算链路延迟
+	functionName string
+	runtimeID    types.RuntimeID
+	actor        *Actor
+	deps         utils.Set[string]
+	cond         *sync.Cond
+	params       []string
+	args         map[string]*commonpb.ObjectRef
+	onComplete   func(ctx context.Context, actor *Actor)
+	invokeTime   time.Time // 记录调用发送时间，用于计算链路延迟
 }
 
 func (rt *Runtime) Ready() bool {
@@ -98,7 +142,7 @@ func (rt *Runtime) Invoke(ctx context.Context) error {
 
 	logrus.WithFields(logrus.Fields{
 		"actor":   rt.actor.GetID(),
-		"session": rt.sessionID,
+		"runtime": rt.runtimeID,
 		"args":    len(args),
 	}).Info("task: invoke request")
 
@@ -106,7 +150,7 @@ func (rt *Runtime) Invoke(ctx context.Context) error {
 	rt.invokeTime = time.Now()
 
 	req := &actorpb.InvokeRequest{
-		SessionID: string(rt.sessionID),
+		RuntimeID: string(rt.runtimeID),
 		Args:      args,
 	}
 
@@ -132,7 +176,7 @@ func (rt *Runtime) AddArg(param string, value *commonpb.ObjectRef) error {
 	return nil
 }
 
-func (rt *Runtime) Complete(ctx context.Context, actorInfo *actorpb.ActorInfo) {
+func (rt *Runtime) Done(ctx context.Context, actorInfo *actorpb.ActorInfo) *Actor {
 	// 计算延迟并更新 Actor 信息
 	if actorInfo != nil {
 		// 计算总延迟（从发送请求到收到响应的时间，单位：毫秒）
@@ -163,12 +207,13 @@ func (rt *Runtime) Complete(ctx context.Context, actorInfo *actorpb.ActorInfo) {
 
 		logrus.WithFields(logrus.Fields{
 			"actor":         rt.actor.GetID(),
-			"session":       rt.sessionID,
+			"function":      rt.functionName,
+			"runtime":       rt.runtimeID,
 			"calc_latency":  rt.actor.info.CalcLatency,
 			"link_latency":  rt.actor.info.LinkLatency,
 			"total_latency": totalLatency,
 		}).Info("task: updated actor latency")
 	}
 
-	rt.onComplete(ctx, rt.actor)
+	return rt.actor
 }

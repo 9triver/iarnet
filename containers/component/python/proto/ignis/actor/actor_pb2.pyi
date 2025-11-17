@@ -47,12 +47,12 @@ class InvokeArg(_message.Message):
     def __init__(self, Param: _Optional[str] = ..., Value: _Optional[_Union[_types_pb2.ObjectRef, _Mapping]] = ...) -> None: ...
 
 class InvokeRequest(_message.Message):
-    __slots__ = ("SessionID", "Args")
-    SESSIONID_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("RuntimeID", "Args")
+    RUNTIMEID_FIELD_NUMBER: _ClassVar[int]
     ARGS_FIELD_NUMBER: _ClassVar[int]
-    SessionID: str
+    RuntimeID: str
     Args: _containers.RepeatedCompositeFieldContainer[InvokeArg]
-    def __init__(self, SessionID: _Optional[str] = ..., Args: _Optional[_Iterable[_Union[InvokeArg, _Mapping]]] = ...) -> None: ...
+    def __init__(self, RuntimeID: _Optional[str] = ..., Args: _Optional[_Iterable[_Union[InvokeArg, _Mapping]]] = ...) -> None: ...
 
 class ActorInfo(_message.Message):
     __slots__ = ("CalcLatency", "LinkLatency")
@@ -63,16 +63,16 @@ class ActorInfo(_message.Message):
     def __init__(self, CalcLatency: _Optional[int] = ..., LinkLatency: _Optional[int] = ...) -> None: ...
 
 class InvokeResponse(_message.Message):
-    __slots__ = ("SessionID", "Result", "Error", "Info")
-    SESSIONID_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("RuntimeID", "Result", "Error", "Info")
+    RUNTIMEID_FIELD_NUMBER: _ClassVar[int]
     RESULT_FIELD_NUMBER: _ClassVar[int]
     ERROR_FIELD_NUMBER: _ClassVar[int]
     INFO_FIELD_NUMBER: _ClassVar[int]
-    SessionID: str
+    RuntimeID: str
     Result: _types_pb2.ObjectRef
     Error: str
     Info: ActorInfo
-    def __init__(self, SessionID: _Optional[str] = ..., Result: _Optional[_Union[_types_pb2.ObjectRef, _Mapping]] = ..., Error: _Optional[str] = ..., Info: _Optional[_Union[ActorInfo, _Mapping]] = ...) -> None: ...
+    def __init__(self, RuntimeID: _Optional[str] = ..., Result: _Optional[_Union[_types_pb2.ObjectRef, _Mapping]] = ..., Error: _Optional[str] = ..., Info: _Optional[_Union[ActorInfo, _Mapping]] = ...) -> None: ...
 
 class Message(_message.Message):
     __slots__ = ("Type", "Ack", "Ready", "Function", "InvokeRequest", "InvokeResponse")

@@ -22,8 +22,8 @@ type Controller struct {
 	toClientChan     chan *ctrlpb.Message
 	componentService component.Service
 	storeService     store.Service
-	nodes            map[string]*task.Node
-	runtimes         map[string]*task.Runtime
+	functions        map[string]*task.Function // functionName -> Function
+	dags             map[string]*task.DAG      // sessionID -> DAG
 }
 
 func NewController(componentService component.Service, storeService store.Service, appID string) *Controller {
@@ -31,8 +31,8 @@ func NewController(componentService component.Service, storeService store.Servic
 		appID:            appID,
 		componentService: componentService,
 		storeService:     storeService,
-		nodes:            make(map[string]*task.Node),
-		runtimes:         make(map[string]*task.Runtime),
+		functions:        make(map[string]*task.Function),
+		dags:             make(map[string]*task.DAG),
 	}
 }
 
@@ -54,30 +54,7 @@ func (c *Controller) GetToClientChan() chan *ctrlpb.Message {
 
 func (c *Controller) AppID() string { return c.appID }
 
-func (c *Controller) handleInvokeResponse(ctx context.Context, m *actorpb.InvokeResponse) error {
-	logrus.WithFields(logrus.Fields{"session": m.SessionID}).Info("control: invoke response")
-	runtimeId := m.SessionID
-	rt, ok := c.runtimes[runtimeId]
-	if !ok {
-		logrus.Errorf("Runtime not found: %s", runtimeId)
-		return fmt.Errorf("runtime not found: %s", runtimeId)
-	}
-	splits := strings.SplitN(m.SessionID, "::", 3)
-	name, sessionId, instanceId := splits[0], splits[1], splits[2]
-	if m.Error != "" {
-		logrus.WithFields(logrus.Fields{"name": name, "session": sessionId, "instance": instanceId, "error": m.Error}).Info("control: invoke failed")
-		ret := ctrlpb.NewReturnResult(sessionId, instanceId, name, nil, errors.New(m.Error))
-		c.PushToClient(ctx, ret)
-		return nil
-	}
-	rt.Complete(ctx, m.Info)
-	delete(c.runtimes, runtimeId)
-
-	ret := ctrlpb.NewReturnResult(sessionId, instanceId, name, m.Result, nil)
-	c.PushToClient(ctx, ret)
-	return nil
-}
-
+// HandleActorMessage 处理 Actor 消息
 func (c *Controller) HandleActorMessage(ctx context.Context, msg *actorpb.Message) error {
 	switch m := msg.GetMessage().(type) {
 	case *actorpb.Message_InvokeResponse:
@@ -85,6 +62,33 @@ func (c *Controller) HandleActorMessage(ctx context.Context, msg *actorpb.Messag
 	default:
 		return nil
 	}
+}
+
+func (c *Controller) handleInvokeResponse(ctx context.Context, m *actorpb.InvokeResponse) error {
+	splits := strings.SplitN(m.RuntimeID, "::", 3)
+	functionName, sessionID, instanceID := splits[0], splits[1], splits[2]
+	function, ok := c.functions[functionName]
+	if !ok {
+		logrus.Errorf("Function not found for function name %s", functionName)
+		return fmt.Errorf("Function not found for function name %s", functionName)
+	}
+	function.Done(ctx, m.RuntimeID, m.Info)
+	logrus.WithFields(logrus.Fields{"function": functionName, "runtime": m.RuntimeID}).Info("control: invoke response")
+
+	dag, ok := c.dags[sessionID]
+	if !ok {
+		logrus.Errorf("DAG not found for session %s", sessionID)
+		return fmt.Errorf("DAG not found for session %s", sessionID)
+	}
+	controlNode, ok := dag.GetControlNode(task.DAGNodeID(instanceID))
+	if !ok {
+		logrus.Errorf("ControlNode not found for instance %s", instanceID)
+		return fmt.Errorf("ControlNode not found for instance %s", instanceID)
+	}
+	controlNode.Done(m.Result)
+
+	ret := ctrlpb.NewReturnResult(sessionID, instanceID, functionName, m.Result, nil)
+	return c.PushToClient(ctx, ret)
 }
 
 func (c *Controller) HandleClientMessage(ctx context.Context, msg *ctrlpb.Message) error {
@@ -101,8 +105,8 @@ func (c *Controller) HandleClientMessage(ctx context.Context, msg *ctrlpb.Messag
 		return c.handleAppendClassMethodArg(ctx, m.AppendClassMethodArg)
 	case *ctrlpb.Message_Invoke:
 		return c.handleInvoke(ctx, m.Invoke)
-	case *ctrlpb.Message_MarkDAGNodeDone:
-		return c.handleMarkDAGNodeDone(ctx, m.MarkDAGNodeDone)
+	case *ctrlpb.Message_AppendDAGNode:
+		return c.handleAppendDAGNode(ctx, m.AppendDAGNode)
 	case *ctrlpb.Message_RequestObject:
 		return c.handleRequestObject(ctx, m.RequestObject)
 	default:
@@ -112,15 +116,53 @@ func (c *Controller) HandleClientMessage(ctx context.Context, msg *ctrlpb.Messag
 
 func (c *Controller) handleAppendData(ctx context.Context, m *ctrlpb.AppendData) error {
 	obj := m.Object
-	logrus.WithFields(logrus.Fields{"id": obj.ID, "session": m.SessionID}).Info("control: append data node")
+	sessionID := m.SessionID
+	if sessionID == "" {
+		logrus.Errorf("session ID is required")
+		ret := ctrlpb.NewReturnResult(m.SessionID, "", obj.ID, nil, fmt.Errorf("session ID is required"))
+		c.PushToClient(ctx, ret)
+		return nil
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"id":      obj.ID,
+		"session": sessionID,
+	}).Info("control: append data")
+
+	dag, ok := c.dags[sessionID]
+	if !ok {
+		logrus.Errorf("DAG not found for session %s", sessionID)
+		ret := ctrlpb.NewReturnResult(m.SessionID, "", obj.ID, nil, fmt.Errorf("DAG not found for session %s", sessionID))
+		c.PushToClient(ctx, ret)
+		return nil
+	}
+
+	lambdaID := obj.ID
+	dataNode, ok := dag.GetDataNodeByLambda(lambdaID)
+	if !ok {
+		logrus.Errorf("DataNode not found for lambda %s in session %s", lambdaID, sessionID)
+		ret := ctrlpb.NewReturnResult(m.SessionID, "", obj.ID, nil, fmt.Errorf("data node not found for lambda %s in session %s", lambdaID, sessionID))
+		c.PushToClient(ctx, ret)
+		return nil
+	}
+
 	go func() {
-		// TODO: 整理 proto 定义，将 EncodedObject 和 Object 合并
 		resp, err := c.storeService.SaveObject(ctx, m.Object)
 		if err != nil {
 			logrus.Errorf("Failed to save object: %v", err)
+			dataNode.Status = task.DAGNodeStatusFailed
 			return
 		}
-		logrus.Infof("Object saved successfully: %s", resp.ID)
+
+		logrus.WithFields(logrus.Fields{
+			"data_node_id": dataNode.ID,
+			"lambda_id":    lambdaID,
+			"object_id":    resp.ID,
+			"session":      sessionID,
+		}).Info("control: object saved, marking data node as done")
+
+		dataNode.Done(resp)
+
 		ret := ctrlpb.NewReturnResult(m.SessionID, "", resp.ID, resp, nil)
 		c.PushToClient(ctx, ret)
 	}()
@@ -178,7 +220,7 @@ func (c *Controller) handleAppendPyFunc(ctx context.Context, m *ctrlpb.AppendPyF
 		actorGroup.Push(actor)
 	}
 
-	c.nodes[m.GetName()] = task.NewNode(m.GetName(), m.GetParams(), actorGroup)
+	c.functions[m.GetName()] = task.NewFunction(m.GetName(), m.GetParams(), actorGroup)
 
 	return nil
 }
@@ -186,15 +228,27 @@ func (c *Controller) handleAppendPyFunc(ctx context.Context, m *ctrlpb.AppendPyF
 func (c *Controller) handleAppendArg(ctx context.Context, m *ctrlpb.AppendArg) error {
 	logrus.WithFields(logrus.Fields{"name": m.Name, "param": m.Param, "session": m.SessionID, "instance": m.InstanceID}).Info("control: append arg")
 
-	rt, err := c.getOrCreateRuntime(m.Name, m.SessionID, m.InstanceID)
-	if err != nil {
-		logrus.Errorf("Failed to get or create runtime: %v", err)
-		return err
+	dag, ok := c.dags[m.SessionID]
+	if !ok {
+		logrus.Errorf("DAG not found for session %s", m.SessionID)
+		return fmt.Errorf("DAG not found for session %s", m.SessionID)
+	}
+
+	controlNode, ok := dag.GetControlNode(task.DAGNodeID(m.InstanceID))
+	if !ok {
+		logrus.Errorf("ControlNode not found for session %s", m.SessionID)
+		return fmt.Errorf("ControlNode not found for session %s", m.SessionID)
+	}
+
+	function, ok := c.functions[controlNode.FunctionName]
+	if !ok {
+		logrus.Errorf("Function not found for function name %s", controlNode.FunctionName)
+		return fmt.Errorf("Function not found for function name %s", controlNode.FunctionName)
 	}
 
 	switch v := m.Value.Object.(type) {
 	case *ctrlpb.Data_Ref:
-		if err := rt.AddArg(m.Param, v.Ref); err != nil {
+		if err := function.AddArg(controlNode.RuntimeID, m.Param, v.Ref); err != nil {
 			logrus.Errorf("Failed to add runtime argument: %v", err)
 			ret := ctrlpb.NewReturnResult(m.SessionID, m.InstanceID, m.Name, nil, err)
 			c.PushToClient(ctx, ret)
@@ -211,7 +265,7 @@ func (c *Controller) handleAppendArg(ctx context.Context, m *ctrlpb.AppendArg) e
 				return
 			}
 			logrus.Infof("Object saved successfully: %s", resp.ID)
-			if err = rt.AddArg(m.Param, resp); err != nil {
+			if err = function.AddArg(controlNode.RuntimeID, m.Param, resp); err != nil {
 				logrus.Errorf("Failed to add runtime argument: %v", err)
 				ret := ctrlpb.NewReturnResult(m.SessionID, m.InstanceID, m.Name, nil, err)
 				c.PushToClient(ctx, ret)
@@ -227,12 +281,22 @@ func (c *Controller) handleAppendArg(ctx context.Context, m *ctrlpb.AppendArg) e
 
 func (c *Controller) handleInvoke(ctx context.Context, m *ctrlpb.Invoke) error {
 	logrus.WithFields(logrus.Fields{"name": m.Name, "session": m.SessionID, "instance": m.InstanceID}).Info("control: invoke")
-	rt, err := c.getOrCreateRuntime(m.Name, m.SessionID, m.InstanceID)
-	if err != nil {
-		logrus.Errorf("Failed to get or create runtime: %v", err)
-		return err
+	dag, ok := c.dags[m.SessionID]
+	if !ok {
+		logrus.Errorf("DAG not found for session %s", m.SessionID)
+		return fmt.Errorf("DAG not found for session %s", m.SessionID)
 	}
-	return rt.Invoke(ctx)
+	controlNode, ok := dag.GetControlNode(task.DAGNodeID(m.InstanceID))
+	if !ok {
+		logrus.Errorf("ControlNode not found for session %s", m.SessionID)
+		return fmt.Errorf("ControlNode not found for session %s", m.SessionID)
+	}
+	function, ok := c.functions[controlNode.FunctionName]
+	if !ok {
+		logrus.Errorf("Function not found for function name %s", controlNode.FunctionName)
+		return fmt.Errorf("Function not found for function name %s", controlNode.FunctionName)
+	}
+	return function.Invoke(ctx, controlNode.RuntimeID)
 }
 
 func (c *Controller) handleAppendPyClass(ctx context.Context, m *ctrlpb.AppendPyClass) error {
@@ -243,9 +307,144 @@ func (c *Controller) handleAppendClassMethodArg(ctx context.Context, m *ctrlpb.A
 	panic("not implemented")
 }
 
-func (c *Controller) handleMarkDAGNodeDone(ctx context.Context, m *ctrlpb.MarkDAGNodeDone) error {
+func (c *Controller) handleAppendDAGNode(ctx context.Context, m *ctrlpb.AppendDAGNode) error {
+	sessionID := m.SessionID
+	if sessionID == "" {
+		return fmt.Errorf("session ID is required")
+	}
+
+	// 获取或创建 DAG
+	dag, ok := c.dags[sessionID]
+	if !ok {
+		dag = task.NewDAG(sessionID)
+		c.dags[sessionID] = dag
+		logrus.WithFields(logrus.Fields{"session": sessionID}).Info("control: created new DAG")
+	}
+
+	switch m.Type {
+	case ctrlpb.DAGNodeType_DAG_NODE_TYPE_CONTROL:
+		return c.handleAppendControlNode(ctx, dag, m.GetControlNode(), sessionID)
+	case ctrlpb.DAGNodeType_DAG_NODE_TYPE_DATA:
+		return c.handleAppendDataNode(ctx, dag, m.GetDataNode(), sessionID)
+	default:
+		return fmt.Errorf("unsupported DAG node type: %v", m.Type)
+	}
+}
+
+// handleAppendControlNode 处理控制节点的添加
+func (c *Controller) handleAppendControlNode(ctx context.Context, dag *task.DAG, pbNode *ctrlpb.ControlNode, sessionID string) error {
+	if pbNode == nil {
+		return fmt.Errorf("control node is nil")
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"id":       pbNode.Id,
+		"function": pbNode.FunctionName,
+		"session":  sessionID,
+	}).Info("control: append control node")
+
+	// 检查函数是否存在
+	function, ok := c.functions[pbNode.FunctionName]
+	if !ok {
+		return fmt.Errorf("function %s not found", pbNode.FunctionName)
+	}
+
+	// 构建参数映射（lambda_id -> parameter_name）
+	params := make(map[string]string)
+	for lambdaID, paramName := range pbNode.Params {
+		params[lambdaID] = paramName
+	}
+
+	// 构建前置数据节点 IDs
+	preDataNodes := make([]task.DAGNodeID, 0, len(pbNode.PreDataNodes))
+	for _, dataNodeID := range pbNode.PreDataNodes {
+		preDataNodes = append(preDataNodes, task.DAGNodeID(dataNodeID))
+	}
+
+	runtimeID := function.Runtime(sessionID, pbNode.Id)
+
+	// 创建 ControlNode
+	controlNode := &task.ControlNode{
+		ID:           task.DAGNodeID(pbNode.Id),
+		FunctionName: pbNode.FunctionName,
+		Params:       params,
+		Current:      pbNode.Current,
+		DataNode:     task.DAGNodeID(pbNode.DataNode),
+		PreDataNodes: preDataNodes,
+		FunctionType: pbNode.FunctionType,
+		Status:       task.DAGNodeStatusPending,
+		RuntimeID:    runtimeID,
+	}
+
+	// 添加到 DAG
+	dag.AddControlNode(controlNode)
+
+	logrus.WithFields(logrus.Fields{
+		"id":      controlNode.ID,
+		"runtime": runtimeID,
+		"session": sessionID,
+	}).Info("control: control node added to DAG")
+
 	return nil
 }
+
+// handleAppendDataNode 处理数据节点的添加
+func (c *Controller) handleAppendDataNode(ctx context.Context, dag *task.DAG, pbNode *ctrlpb.DataNode, sessionID string) error {
+	if pbNode == nil {
+		return fmt.Errorf("data node is nil")
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"id":      pbNode.Id,
+		"lambda":  pbNode.Lambda,
+		"session": sessionID,
+	}).Info("control: append data node")
+
+	// 构建后续控制节点 IDs
+	sufControlNodes := make([]task.DAGNodeID, 0, len(pbNode.SufControlNodes))
+	for _, controlNodeID := range pbNode.SufControlNodes {
+		sufControlNodes = append(sufControlNodes, task.DAGNodeID(controlNodeID))
+	}
+
+	// 构建子数据节点 IDs
+	childNodes := make([]task.DAGNodeID, 0, len(pbNode.ChildNode))
+	for _, childNodeID := range pbNode.ChildNode {
+		childNodes = append(childNodes, task.DAGNodeID(childNodeID))
+	}
+
+	// 创建 DataNode
+	dataNode := &task.DataNode{
+		ID:              task.DAGNodeID(pbNode.Id),
+		Lambda:          pbNode.Lambda,
+		SufControlNodes: sufControlNodes,
+		Status:          task.DAGNodeStatusPending,
+		ChildNodes:      childNodes,
+	}
+
+	// 设置前置控制节点（如果存在）
+	if pbNode.PreControlNode != nil && *pbNode.PreControlNode != "" {
+		preControlNodeID := task.DAGNodeID(*pbNode.PreControlNode)
+		dataNode.PreControlNode = &preControlNodeID
+	}
+
+	// 设置父数据节点（如果存在）
+	if pbNode.ParentNode != nil && *pbNode.ParentNode != "" {
+		parentNodeID := task.DAGNodeID(*pbNode.ParentNode)
+		dataNode.ParentNode = &parentNodeID
+	}
+
+	// 添加到 DAG
+	dag.AddDataNode(dataNode)
+
+	logrus.WithFields(logrus.Fields{
+		"id":      dataNode.ID,
+		"lambda":  dataNode.Lambda,
+		"session": sessionID,
+	}).Info("control: data node added to DAG")
+
+	return nil
+}
+
 func (c *Controller) handleRequestObject(ctx context.Context, m *ctrlpb.RequestObject) error {
 	logrus.WithFields(logrus.Fields{"id": m.ID, "source": m.Source}).Info("control: request object")
 	object, err := c.storeService.GetObject(ctx, &commonpb.ObjectRef{
@@ -278,20 +477,4 @@ func (c *Controller) PushToClient(ctx context.Context, msg *ctrlpb.Message) erro
 	case c.toClientChan <- msg:
 		return nil
 	}
-}
-
-func (c *Controller) getOrCreateRuntime(name, sessionId, instanceId string) (*task.Runtime, error) {
-	runtimeId := fmt.Sprintf("%s::%s::%s", name, sessionId, instanceId)
-	rt, ok := c.runtimes[runtimeId]
-	if !ok {
-		node, ok := c.nodes[name]
-		if !ok {
-			return nil, fmt.Errorf("actor node %s not found", name)
-		}
-
-		rt = node.Runtime(runtimeId)
-		c.runtimes[runtimeId] = rt
-	}
-
-	return rt, nil
 }

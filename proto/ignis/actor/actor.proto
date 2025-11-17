@@ -34,7 +34,7 @@ message InvokeArg {
 // InvokeRequest 是 Actor 调用请求
 // 包含会话 ID 和所有参数
 message InvokeRequest {
-  string SessionID = 1; // 执行会话 ID
+  string RuntimeID = 1; // Runtime ID
   repeated InvokeArg Args = 2; // 参数列表
 }
 
@@ -48,7 +48,7 @@ message ActorInfo {
 // InvokeResponse 是 Actor 调用响应
 // Actor 执行函数后返回的结果
 message InvokeResponse {
-  string SessionID = 1; // 执行会话 ID
+  string RuntimeID = 1; // Runtime ID
   common.ObjectRef Result = 2; // 执行结果（对象引用）
   string Error = 3; // 错误信息（如果有）
   ActorInfo Info = 4; // Actor 延迟信息（用于负载均衡）

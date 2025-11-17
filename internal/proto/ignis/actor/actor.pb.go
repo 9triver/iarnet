@@ -216,7 +216,7 @@ func (x *InvokeArg) GetValue() *common.ObjectRef {
 // 包含会话 ID 和所有参数
 type InvokeRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	SessionID     string                 `protobuf:"bytes,1,opt,name=SessionID,proto3" json:"SessionID,omitempty"` // 执行会话 ID
+	RuntimeID     string                 `protobuf:"bytes,1,opt,name=RuntimeID,proto3" json:"RuntimeID,omitempty"` // Runtime ID
 	Args          []*InvokeArg           `protobuf:"bytes,2,rep,name=Args,proto3" json:"Args,omitempty"`           // 参数列表
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -252,9 +252,9 @@ func (*InvokeRequest) Descriptor() ([]byte, []int) {
 	return file_actor_actor_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *InvokeRequest) GetSessionID() string {
+func (x *InvokeRequest) GetRuntimeID() string {
 	if x != nil {
-		return x.SessionID
+		return x.RuntimeID
 	}
 	return ""
 }
@@ -324,7 +324,7 @@ func (x *ActorInfo) GetLinkLatency() int64 {
 // Actor 执行函数后返回的结果
 type InvokeResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	SessionID     string                 `protobuf:"bytes,1,opt,name=SessionID,proto3" json:"SessionID,omitempty"` // 执行会话 ID
+	RuntimeID     string                 `protobuf:"bytes,1,opt,name=RuntimeID,proto3" json:"RuntimeID,omitempty"` // Runtime ID
 	Result        *common.ObjectRef      `protobuf:"bytes,2,opt,name=Result,proto3" json:"Result,omitempty"`       // 执行结果（对象引用）
 	Error         string                 `protobuf:"bytes,3,opt,name=Error,proto3" json:"Error,omitempty"`         // 错误信息（如果有）
 	Info          *ActorInfo             `protobuf:"bytes,4,opt,name=Info,proto3" json:"Info,omitempty"`           // Actor 延迟信息（用于负载均衡）
@@ -362,9 +362,9 @@ func (*InvokeResponse) Descriptor() ([]byte, []int) {
 	return file_actor_actor_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *InvokeResponse) GetSessionID() string {
+func (x *InvokeResponse) GetRuntimeID() string {
 	if x != nil {
-		return x.SessionID
+		return x.RuntimeID
 	}
 	return ""
 }
@@ -545,13 +545,13 @@ const file_actor_actor_proto_rawDesc = "" +
 	"\x05Param\x18\x01 \x01(\tR\x05Param\x12'\n" +
 	"\x05Value\x18\x02 \x01(\v2\x11.common.ObjectRefR\x05Value\"S\n" +
 	"\rInvokeRequest\x12\x1c\n" +
-	"\tSessionID\x18\x01 \x01(\tR\tSessionID\x12$\n" +
+	"\tRuntimeID\x18\x01 \x01(\tR\tRuntimeID\x12$\n" +
 	"\x04Args\x18\x02 \x03(\v2\x10.actor.InvokeArgR\x04Args\"O\n" +
 	"\tActorInfo\x12 \n" +
 	"\vCalcLatency\x18\x02 \x01(\x03R\vCalcLatency\x12 \n" +
 	"\vLinkLatency\x18\x03 \x01(\x03R\vLinkLatency\"\x95\x01\n" +
 	"\x0eInvokeResponse\x12\x1c\n" +
-	"\tSessionID\x18\x01 \x01(\tR\tSessionID\x12)\n" +
+	"\tRuntimeID\x18\x01 \x01(\tR\tRuntimeID\x12)\n" +
 	"\x06Result\x18\x02 \x01(\v2\x11.common.ObjectRefR\x06Result\x12\x14\n" +
 	"\x05Error\x18\x03 \x01(\tR\x05Error\x12$\n" +
 	"\x04Info\x18\x04 \x01(\v2\x10.actor.ActorInfoR\x04Info\"\xb2\x02\n" +
