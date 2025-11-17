@@ -80,7 +80,8 @@ message AppendPyClass {
 
 message AppendData {
   string SessionID = 1; // current execution session, empty if shared by all sessions
-  common.EncodedObject Object = 2; // encoded object
+  string InstanceID = 2; // id of function instance under current execution session
+  common.EncodedObject Object = 3; // encoded object
 }
 
 message AppendArg {

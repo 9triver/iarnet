@@ -51,6 +51,22 @@ func NewFunction(name string, inputs []string, group *ActorGroup) *Function {
 	}
 }
 
+func (f *Function) GetName() string {
+	return f.name
+}
+
+func (f *Function) GetActors() []*Actor {
+	return f.group.GetAll()
+}
+
+func (f *Function) IsReady(runtimeID types.RuntimeID) bool {
+	runtime, ok := f.runtimes[runtimeID]
+	if !ok {
+		return false
+	}
+	return runtime.Ready()
+}
+
 // AddArg 添加参数
 func (f *Function) AddArg(runtimeID types.RuntimeID, param string, value *commonpb.ObjectRef) error {
 	runtime, ok := f.runtimes[runtimeID]

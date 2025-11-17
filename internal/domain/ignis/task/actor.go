@@ -80,9 +80,10 @@ func (a *Actor) GetCalcLatency() int64 {
 }
 
 type ActorGroup struct {
-	name string
-	pq   utils.PQueue[*Actor]
-	cond *sync.Cond
+	name   string
+	actors map[types.ActorID]*Actor
+	pq     utils.PQueue[*Actor]
+	cond   *sync.Cond
 }
 
 func (g *ActorGroup) Select() *Actor {
@@ -99,6 +100,7 @@ func (g *ActorGroup) Select() *Actor {
 func (g *ActorGroup) Push(actor *Actor) {
 	g.cond.L.Lock()
 	g.pq.Push(actor)
+	g.actors[actor.id] = actor
 	g.cond.L.Unlock()
 
 	g.cond.Signal()
@@ -110,6 +112,15 @@ func NewGroup(name string, candidates ...*Actor) *ActorGroup {
 		pq: utils.MakePriorityQueue(func(i, j *Actor) bool {
 			return i.GetLinkLatency()*2+i.GetCalcLatency() < j.GetLinkLatency()*2+j.GetCalcLatency()
 		}, candidates...),
-		cond: sync.NewCond(&sync.Mutex{}),
+		cond:   sync.NewCond(&sync.Mutex{}),
+		actors: make(map[types.ActorID]*Actor),
 	}
+}
+
+func (g *ActorGroup) GetAll() []*Actor {
+	actors := make([]*Actor, 0, len(g.actors))
+	for _, actor := range g.actors {
+		actors = append(actors, actor)
+	}
+	return actors
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
 
 	"github.com/9triver/iarnet/internal/domain/ignis/task"
@@ -89,7 +90,13 @@ func (c *Controller) handleInvokeResponse(ctx context.Context, m *actorpb.Invoke
 		logrus.Errorf("ControlNode not found for instance %s", instanceID)
 		return fmt.Errorf("ControlNode not found for instance %s", instanceID)
 	}
-	controlNode.Done(m.Result)
+	controlNode.Done()
+	dataNode, ok := dag.GetDataNode(controlNode.DataNode)
+	if !ok {
+		logrus.Errorf("DataNode not found for control node %s", controlNode.ID)
+		return fmt.Errorf("DataNode not found for control node %s", controlNode.ID)
+	}
+	dataNode.Done(m.Result)
 
 	ret := ctrlpb.NewReturnResult(sessionID, instanceID, functionName, m.Result, nil)
 	return c.PushToClient(ctx, ret)
@@ -142,7 +149,7 @@ func (c *Controller) handleAppendData(ctx context.Context, m *ctrlpb.AppendData)
 	}
 
 	lambdaID := obj.ID
-	dataNode, ok := dag.GetDataNodeByLambda(lambdaID)
+	dataNode, ok := dag.GetDataNode(m.InstanceID)
 	if !ok {
 		logrus.Errorf("DataNode not found for lambda %s in session %s", lambdaID, sessionID)
 		ret := ctrlpb.NewReturnResult(m.SessionID, "", obj.ID, nil, fmt.Errorf("data node not found for lambda %s in session %s", lambdaID, sessionID))
@@ -250,17 +257,28 @@ func (c *Controller) handleAppendArg(ctx context.Context, m *ctrlpb.AppendArg) e
 		return fmt.Errorf("Function not found for function name %s", controlNode.FunctionName)
 	}
 
+	dataNode, ok := dag.GetDataNode(m.InstanceID)
+	if !ok {
+		logrus.Errorf("DataNode not found for instance %s", m.InstanceID)
+		return fmt.Errorf("DataNode not found for instance %s", m.InstanceID)
+	}
+
 	switch v := m.Value.Object.(type) {
 	case *ctrlpb.Data_Ref:
+		dataNode.Done(v.Ref)
 		if err := function.AddArg(controlNode.RuntimeID, m.Param, v.Ref); err != nil {
 			logrus.Errorf("Failed to add runtime argument: %v", err)
 			ret := ctrlpb.NewReturnResult(m.SessionID, m.InstanceID, m.Name, nil, err)
 			c.PushToClient(ctx, ret)
 			return err
 		}
+		if function.IsReady(controlNode.RuntimeID) {
+			controlNode.Ready()
+		}
 	case *ctrlpb.Data_Encoded:
 		logrus.WithFields(logrus.Fields{"id": v.Encoded.ID, "session": m.SessionID, "instance": m.InstanceID}).Info("control: append encoded arg")
 		go func() {
+			dataNode.Start()
 			resp, err := c.storeService.SaveObject(ctx, v.Encoded)
 			if err != nil {
 				logrus.Errorf("Failed to save object: %v", err)
@@ -275,6 +293,7 @@ func (c *Controller) handleAppendArg(ctx context.Context, m *ctrlpb.AppendArg) e
 				c.PushToClient(ctx, ret)
 				return
 			}
+			dataNode.Done(resp)
 		}()
 	default:
 		logrus.Errorf("Unsupported data type: %T", v)
@@ -300,6 +319,7 @@ func (c *Controller) handleInvoke(ctx context.Context, m *ctrlpb.Invoke) error {
 		logrus.Errorf("Function not found for function name %s", controlNode.FunctionName)
 		return fmt.Errorf("Function not found for function name %s", controlNode.FunctionName)
 	}
+	controlNode.Start()
 	return function.Invoke(ctx, controlNode.RuntimeID)
 }
 
@@ -355,9 +375,7 @@ func (c *Controller) handleAppendControlNode(ctx context.Context, dag *task.DAG,
 
 	// 构建参数映射（lambda_id -> parameter_name）
 	params := make(map[string]string)
-	for lambdaID, paramName := range pbNode.Params {
-		params[lambdaID] = paramName
-	}
+	maps.Copy(params, pbNode.Params)
 
 	// 构建前置数据节点 IDs
 	preDataNodes := make([]task.DAGNodeID, 0, len(pbNode.PreDataNodes))
@@ -481,4 +499,12 @@ func (c *Controller) PushToClient(ctx context.Context, msg *ctrlpb.Message) erro
 	case c.toClientChan <- msg:
 		return nil
 	}
+}
+
+func (c *Controller) GetActors() map[string][]*task.Actor {
+	actors := make(map[string][]*task.Actor)
+	for _, function := range c.functions {
+		actors[function.GetName()] = function.GetActors()
+	}
+	return actors
 }

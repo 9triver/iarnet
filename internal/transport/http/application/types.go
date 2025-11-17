@@ -268,23 +268,16 @@ type GetApplicationDAGRequest struct {
 // ControlNodeResponse 控制节点响应
 type ControlNodeResponse struct {
 	ID           string            `json:"id"`
-	Done         bool              `json:"done"`
+	Status       string            `json:"status"`
 	FunctionName string            `json:"functionName"`
 	Params       map[string]string `json:"params"`
-	Current      int32             `json:"current"`
-	DataNode     string            `json:"dataNode"`
-	PreDataNodes []string          `json:"preDataNodes"`
-	FunctionType string            `json:"functionType"`
 }
 
 // DataNodeResponse 数据节点响应
 type DataNodeResponse struct {
-	ID         string   `json:"id"`
-	Done       bool     `json:"done"`
-	Ready      bool     `json:"ready"`
-	Lambda     string   `json:"lambda"`
-	ParentNode string   `json:"parentNode,omitempty"`
-	ChildNode  []string `json:"childNode"`
+	ID     string `json:"id"`
+	Status string `json:"status"`
+	Lambda string `json:"lambda"`
 }
 
 // DAGNodeResponse DAG 节点响应
@@ -345,66 +338,36 @@ func BuildGetApplicationDAGResponse(dags map[string]*taskpkg.DAG) GetApplication
 		for _, controlNode := range dag.ControlNodes {
 			nodeResp := ControlNodeResponse{
 				ID:           string(controlNode.ID),
-				Done:         controlNode.Status == taskpkg.DAGNodeStatusDone,
+				Status:       string(controlNode.Status),
 				FunctionName: controlNode.FunctionName,
 				Params:       copyStringMap(controlNode.Params),
-				Current:      controlNode.Current,
-				DataNode:     string(controlNode.DataNode),
-				PreDataNodes: convertNodeIDs(controlNode.PreDataNodes),
-				FunctionType: controlNode.FunctionType,
 			}
 
 			resp.DAG.Nodes = append(resp.DAG.Nodes, DAGNodeResponse{
 				Type: "ControlNode",
 				Node: nodeResp,
 			})
-
-			for _, preID := range controlNode.PreDataNodes {
-				addEdge(string(preID), string(controlNode.ID), "data->control")
-			}
-			if controlNode.DataNode != "" {
-				addEdge(string(controlNode.ID), string(controlNode.DataNode), "control->data")
-			}
 		}
 
 		for _, dataNode := range dag.DataNodes {
 			nodeResp := DataNodeResponse{
-				ID:        string(dataNode.ID),
-				Done:      dataNode.Status == taskpkg.DAGNodeStatusDone,
-				Ready:     dataNode.Status == taskpkg.DAGNodeStatusReady || dataNode.Status == taskpkg.DAGNodeStatusDone,
-				Lambda:    dataNode.Lambda,
-				ChildNode: convertNodeIDs(dataNode.ChildNodes),
-			}
-			if dataNode.ParentNode != nil {
-				nodeResp.ParentNode = string(*dataNode.ParentNode)
+				ID:     string(dataNode.ID),
+				Status: string(dataNode.Status),
+				Lambda: dataNode.Lambda,
 			}
 
 			resp.DAG.Nodes = append(resp.DAG.Nodes, DAGNodeResponse{
 				Type: "DataNode",
 				Node: nodeResp,
 			})
+		}
 
-			for _, successorID := range dataNode.SufControlNodes {
-				addEdge(string(dataNode.ID), string(successorID), "data->control")
-			}
-			for _, childID := range dataNode.ChildNodes {
-				addEdge(string(dataNode.ID), string(childID), "data->data")
-			}
+		for _, edge := range dag.Edges {
+			addEdge(string(edge.From), string(edge.To), edge.Label)
 		}
 	}
 
 	return resp
-}
-
-func convertNodeIDs(ids []taskpkg.DAGNodeID) []string {
-	if len(ids) == 0 {
-		return nil
-	}
-	result := make([]string, len(ids))
-	for i, id := range ids {
-		result[i] = string(id)
-	}
-	return result
 }
 
 func copyStringMap(src map[string]string) map[string]string {

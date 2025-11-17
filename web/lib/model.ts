@@ -223,24 +223,19 @@ export interface GetComponentLogsResponse {
   logs: string[]
 }
 
+export type DAGNodeStatus = "pending" | "ready" | "running" | "done" | "failed"
+
 export interface ControlNode {
   id: string
-  done: boolean
+  status: DAGNodeStatus
   functionName: string
   params: Record<string, string>
-  current: number
-  dataNode: string
-  preDataNodes: string[]
-  functionType: string
 }
 
 export interface DataNode {
   id: string
-  done: boolean
+  status: DAGNodeStatus
   lambda: string
-  ready: boolean
-  parentNode?: string
-  childNode: string[]
 }
 
 export interface DAGNode_ControlNode {

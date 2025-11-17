@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { applicationsAPI, componentsAPI, APIError } from "@/lib/api"
 import { getWebSocketManager, disconnectWebSocketManager } from "@/lib/websocket"
-import type { LogEntry, Application, DAG, DAGNode, DAGEdge, ControlNode, DataNode, Component } from "@/lib/model"
+import type { LogEntry, Application, DAG, DAGNode, DAGEdge, ControlNode, DataNode, Component, DAGNodeStatus } from "@/lib/model"
 import { formatDateTime } from "@/lib/utils"
 import { Sidebar } from "@/components/sidebar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -61,9 +61,7 @@ interface NodeDisplayInfo {
   id: string
   name: string
   type: "control" | "data"
-  status: "running" | "pending" | "ready" | "unknown"
-  done?: boolean
-  ready?: boolean
+  status: DAGNodeStatus | "unknown"
 }
 
 // 注册G6 React节点扩展
@@ -77,19 +75,45 @@ const DAGNodeComponent = ({ g6Node }: { g6Node: any }) => {
   const isControl = nodeType === "ControlNode"
   const isData = nodeType === "DataNode"
   
-  const getStatusColor = () => {
+  const statusValue: DAGNodeStatus | "unknown" = (() => {
     if (isControl) {
-      return (node as ControlNode)?.done ? "bg-green-500" : "bg-gray-400"
-    } else {
-      return (node as DataNode)?.done ? "bg-green-500" : "bg-gray-400"
+      return (node as ControlNode)?.status ?? "unknown"
+    }
+    if (isData) {
+      return (node as DataNode)?.status ?? "unknown"
+    }
+    return "unknown"
+  })()
+
+  const getStatusColor = () => {
+    switch (statusValue) {
+      case "done":
+        return "bg-green-500"
+      case "running":
+        return "bg-blue-500"
+      case "ready":
+        return "bg-amber-400"
+      case "failed":
+        return "bg-red-500"
+      default:
+        return "bg-gray-400"
     }
   }
 
   const getStatusText = () => {
-    if (isControl) {
-      return (node as ControlNode)?.done ? "已完成" : "未开始"
-    } else {
-      return (node as DataNode)?.done ? "已完成" : "未开始"
+    switch (statusValue) {
+      case "done":
+        return "已完成"
+      case "running":
+        return "运行中"
+      case "ready":
+        return "就绪"
+      case "failed":
+        return "失败"
+      case "pending":
+        return "等待中"
+      default:
+        return "未知"
     }
   }
 
@@ -298,11 +322,21 @@ export default function ApplicationDetailPage() {
         return `Node ${index}`
       }
 
+      const EDGE_LABEL_MAX_LENGTH = 10
+      const EDGE_LABEL_BASE_RANKSEP = 32
+      const EDGE_LABEL_PER_CHAR = 6
+
+      let maxEdgeLabelLength = 0
+
       // 转换DAG数据为G6格式
       const g6Data = {
         nodes: dag.nodes.map((node, index) => {
           const nodeId = getNodeId(node, index)
           const nodeName = getNodeName(node, index)
+          const nodeStatus: DAGNodeStatus | "unknown" =
+            node.type === "ControlNode"
+              ? (node.node as ControlNode)?.status ?? "unknown"
+              : (node.node as DataNode)?.status ?? "unknown"
           
           return {
             id: nodeId,
@@ -311,9 +345,7 @@ export default function ApplicationDetailPage() {
               nodeType: node.type,
               nodeName: nodeName,
               node: node.node,
-              status: node.type === "ControlNode" 
-                ? ((node.node as ControlNode)?.done ? "done" : "pending")
-                : ((node.node as DataNode)?.done ? "done" : "pending")
+              status: nodeStatus,
             },
           }
         }),
@@ -330,13 +362,22 @@ export default function ApplicationDetailPage() {
               edgeLabel = String(edge.info)
             }
           }
+          const fullLabel = edgeLabel
+          let displayLabel = fullLabel
+          if (fullLabel.length > EDGE_LABEL_MAX_LENGTH) {
+            displayLabel = `${fullLabel.slice(0, EDGE_LABEL_MAX_LENGTH - 1)}…`
+          }
+          if (edgeLabel.length > maxEdgeLabelLength) {
+            maxEdgeLabelLength = displayLabel.length
+          }
 
           return {
             id: `edge-${index}`,
             source: edge.fromNodeId,
             target: edge.toNodeId,
             data: {
-              label: edgeLabel
+              displayLabel,
+              fullLabel
             },
             style: {
               stroke: '#94a3b8',
@@ -348,6 +389,8 @@ export default function ApplicationDetailPage() {
       }
 
       // 创建G6图实例
+      const dynamicRanksep = EDGE_LABEL_BASE_RANKSEP + Math.max(0, maxEdgeLabelLength * EDGE_LABEL_PER_CHAR)
+
       const graph = new Graph({
         container: containerRef.current,
         padding: 20,
@@ -364,7 +407,7 @@ export default function ApplicationDetailPage() {
             stroke: '#94a3b8',
             lineWidth: 1.5,
             endArrow: true,
-            labelText: (d: any) => d.data?.label || '',
+            labelText: (d: any) => d.data?.displayLabel || '',
             labelFill: '#475569',
             labelFontSize: 10,
             labelTextAlign: 'center',
@@ -383,7 +426,7 @@ export default function ApplicationDetailPage() {
           type: 'dagre',
           rankdir: 'LR', // 从左到右
           nodesep: 160,
-          ranksep: 60,
+          ranksep: dynamicRanksep,
           controlPoints: true
         },
         behaviors: [
@@ -407,6 +450,62 @@ export default function ApplicationDetailPage() {
         autoResize: true
       })
 
+
+      // TODO: 添加tooltip，当前实现无效
+      const tooltipEl = document.createElement('div')
+      tooltipEl.style.position = 'fixed'
+      tooltipEl.style.pointerEvents = 'none'
+      tooltipEl.style.padding = '6px 10px'
+      tooltipEl.style.background = 'rgba(15, 23, 42, 0.9)'
+      tooltipEl.style.color = '#fff'
+      tooltipEl.style.borderRadius = '6px'
+      tooltipEl.style.fontSize = '12px'
+      tooltipEl.style.lineHeight = '16px'
+      tooltipEl.style.maxWidth = '320px'
+      tooltipEl.style.wordBreak = 'break-all'
+      tooltipEl.style.zIndex = '9999'
+      tooltipEl.style.boxShadow = '0 8px 16px rgba(15, 23, 42, 0.35)'
+      tooltipEl.style.opacity = '0'
+      tooltipEl.style.transition = 'opacity 0.15s ease'
+      document.body.appendChild(tooltipEl)
+
+      const showTooltip = (content: string, x: number, y: number) => {
+        tooltipEl.textContent = content
+        tooltipEl.style.left = `${x + 16}px`
+        tooltipEl.style.top = `${y + 16}px`
+        tooltipEl.style.opacity = '1'
+      }
+
+      const hideTooltip = () => {
+        tooltipEl.style.opacity = '0'
+      }
+
+      const handleEdgeTooltip = (evt: any) => {
+        const item = evt?.item || evt?.target?.get?.('item')
+        const model = item?.getModel?.()
+        const displayLabel = model?.data?.displayLabel
+        const fullLabel = model?.data?.fullLabel
+        if (!fullLabel || fullLabel === displayLabel) {
+          hideTooltip()
+          return
+        }
+        const clientX = evt?.clientX ?? evt?.canvasX ?? 0
+        const clientY = evt?.clientY ?? evt?.canvasY ?? 0
+        showTooltip(fullLabel, clientX, clientY)
+      }
+
+      graph.on('edge:mouseenter', handleEdgeTooltip)
+      graph.on('edge:mousemove', handleEdgeTooltip)
+      graph.on('edge-label:mouseenter', handleEdgeTooltip)
+      graph.on('edge-label:mousemove', handleEdgeTooltip)
+
+      const handleLeave = () => {
+        hideTooltip()
+      }
+
+      graph.on('edge:mouseleave', handleLeave)
+      graph.on('edge-label:mouseleave', handleLeave)
+
       // 渲染图形 - 使用 try-catch 捕获可能的错误
       try {
         graph.render()
@@ -428,6 +527,10 @@ export default function ApplicationDetailPage() {
             // 忽略销毁时的错误，这通常不是问题
             console.debug('图表销毁时出错:', error)
           }
+        }
+        hideTooltip()
+        if (tooltipEl.parentNode) {
+          tooltipEl.parentNode.removeChild(tooltipEl)
         }
       }
     }, [dag])

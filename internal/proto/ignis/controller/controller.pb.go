@@ -609,8 +609,9 @@ func (x *AppendPyClass) GetReplicas() int32 {
 
 type AppendData struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	SessionID     string                 `protobuf:"bytes,1,opt,name=SessionID,proto3" json:"SessionID,omitempty"` // current execution session, empty if shared by all sessions
-	Object        *common.EncodedObject  `protobuf:"bytes,2,opt,name=Object,proto3" json:"Object,omitempty"`       // encoded object
+	SessionID     string                 `protobuf:"bytes,1,opt,name=SessionID,proto3" json:"SessionID,omitempty"`   // current execution session, empty if shared by all sessions
+	InstanceID    string                 `protobuf:"bytes,2,opt,name=InstanceID,proto3" json:"InstanceID,omitempty"` // id of function instance under current execution session
+	Object        *common.EncodedObject  `protobuf:"bytes,3,opt,name=Object,proto3" json:"Object,omitempty"`         // encoded object
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -648,6 +649,13 @@ func (*AppendData) Descriptor() ([]byte, []int) {
 func (x *AppendData) GetSessionID() string {
 	if x != nil {
 		return x.SessionID
+	}
+	return ""
+}
+
+func (x *AppendData) GetInstanceID() string {
+	if x != nil {
+		return x.InstanceID
 	}
 	return ""
 }
@@ -1735,11 +1743,14 @@ const file_controller_controller_proto_rawDesc = "" +
 	"\bReplicas\x18\b \x01(\x05R\bReplicas\x1a9\n" +
 	"\vClassMethod\x12\x12\n" +
 	"\x04Name\x18\x01 \x01(\tR\x04Name\x12\x16\n" +
-	"\x06Params\x18\x02 \x03(\tR\x06Params\"Y\n" +
+	"\x06Params\x18\x02 \x03(\tR\x06Params\"y\n" +
 	"\n" +
 	"AppendData\x12\x1c\n" +
-	"\tSessionID\x18\x01 \x01(\tR\tSessionID\x12-\n" +
-	"\x06Object\x18\x02 \x01(\v2\x15.common.EncodedObjectR\x06Object\"\x9b\x01\n" +
+	"\tSessionID\x18\x01 \x01(\tR\tSessionID\x12\x1e\n" +
+	"\n" +
+	"InstanceID\x18\x02 \x01(\tR\n" +
+	"InstanceID\x12-\n" +
+	"\x06Object\x18\x03 \x01(\v2\x15.common.EncodedObjectR\x06Object\"\x9b\x01\n" +
 	"\tAppendArg\x12\x1c\n" +
 	"\tSessionID\x18\x01 \x01(\tR\tSessionID\x12\x1e\n" +
 	"\n" +
