@@ -17,7 +17,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <>
       {children}
-      <Toaster position="top-right" richColors />
+      <Toaster position="bottom-left" richColors />
     </>
   )
 }

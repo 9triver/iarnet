@@ -18,6 +18,7 @@ RUN apk update && apk add --no-cache \
     && ln -sf /usr/local/bin/pip3 /usr/bin/pip
 
 # 安装 lucas 及其依赖
+RUN pip install cloudpickle
 COPY containers/envs/python/libs/lucas /tmp/lucas
 RUN cd /tmp/lucas && pip install -e .
 
