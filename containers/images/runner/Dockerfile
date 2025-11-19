@@ -4,9 +4,12 @@ COPY containers/images/runner .
 
 ENV GOPROXY=https://goproxy.cn,direct
 ENV GOSUMDB=sum.golang.org
+ENV CGO_ENABLED=0
+ENV GOOS=linux
+ENV GOARCH=amd64
 
 RUN go mod download
-RUN go build -o runner ./main.go
+RUN go build -o runner .
 
 # ======= 运行环境 1：Python =======
 FROM python:3.11-alpine AS python_3.11

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { applicationsAPI, APIError } from "@/lib/api"
 import { getWebSocketManager, disconnectWebSocketManager } from "@/lib/websocket"
@@ -11,7 +11,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -38,10 +37,6 @@ import {
   MemoryStick,
   HardDrive,
   FileText,
-  Info,
-  AlertTriangle,
-  AlertCircle,
-  CheckCircle,
   Search,
   Filter,
   X,
@@ -49,6 +44,7 @@ import {
   Settings,
   Folder,
 } from "lucide-react"
+import { AutoSizer, CellMeasurer, CellMeasurerCache, List, type ListRowProps } from "react-virtualized"
 import { Graph } from '@antv/g6'
 import { ExtensionCategory, register } from '@antv/g6'
 import { ReactNode } from '@antv/g6-extension-react'
@@ -300,6 +296,13 @@ export default function ApplicationDetailPage() {
   const [runnerEnvironments, setRunnerEnvironments] = useState<string[]>([])
 
   const applicationId = params.id as string
+  const logLevelStyles: Record<string, { badge: string; dot: string; label: string }> = {
+    error: { badge: "bg-red-100 text-red-800", dot: "bg-red-500", label: "错误" },
+    warn: { badge: "bg-amber-100 text-amber-800", dot: "bg-amber-500", label: "警告" },
+    debug: { badge: "bg-blue-100 text-blue-800", dot: "bg-blue-500", label: "调试" },
+    trace: { badge: "bg-slate-100 text-slate-800", dot: "bg-slate-400", label: "追踪" },
+    info: { badge: "bg-emerald-100 text-emerald-800", dot: "bg-emerald-500", label: "信息" },
+  }
 
   // 编辑表单
   interface ApplicationFormData {
@@ -323,6 +326,12 @@ export default function ApplicationDetailPage() {
   // 标记 WebSocket 是否已初始化，避免重复连接
   const wsInitializedRef = useRef(false)
   const updateTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const logViewerCacheRef = useRef(
+    new CellMeasurerCache({
+      fixedWidth: true,
+      defaultHeight: 72,
+    })
+  )
 
   const fetchRunnerEnvironments = async () => {
     try {
@@ -694,6 +703,26 @@ export default function ApplicationDetailPage() {
       setIsLoadingAppLogs(false)
     }
   }
+
+  const filteredLogs = useMemo(() => {
+    const searchTerm = logSearchTerm.trim().toLowerCase()
+    const levelFilter = logLevelFilter.toLowerCase()
+
+    return logs.filter((log) => {
+      if (levelFilter !== "all" && log.level?.toLowerCase() !== levelFilter) {
+        return false
+      }
+      if (searchTerm) {
+        const content = `${log.message ?? ""} ${log.details ?? ""}`.toLowerCase()
+        return content.includes(searchTerm)
+      }
+      return true
+    })
+  }, [logs, logLevelFilter, logSearchTerm])
+
+  useEffect(() => {
+    logViewerCacheRef.current.clearAll()
+  }, [filteredLogs])
 
   const loadApplicationDetail = async () => {
     try {
@@ -1577,122 +1606,89 @@ export default function ApplicationDetailPage() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <ScrollArea className="h-[500px] w-full border rounded-md p-4 bg-gray-50 dark:bg-gray-900">
-                    {isLoadingAppLogs ? (
-                      <div className="flex items-center justify-center h-32">
-                        <RefreshCw className="h-6 w-6 animate-spin mr-2" />
-                        <span>加载日志中...</span>
-                      </div>
-                    ) : logs.length > 0 ? (
-                      (() => {
-                        // 过滤日志
-                        const filteredLogs = logs.filter(log => {
-                          // 级别过滤
-                          if (logLevelFilter !== "all" && log.level.toLowerCase() !== logLevelFilter) {
-                            return false
-                          }
-                          // 搜索过滤
-                          if (logSearchTerm) {
-                            const searchLower = logSearchTerm.toLowerCase()
-                            return log.message.toLowerCase().includes(searchLower) ||
-                              (log.details && log.details.toLowerCase().includes(searchLower))
-                          }
-                          return true
-                        })
+                  {isLoadingAppLogs ? (
+                    <div className="flex items-center justify-center h-32">
+                      <RefreshCw className="h-6 w-6 animate-spin mr-2" />
+                      <span>加载日志中...</span>
+                    </div>
+                  ) : filteredLogs.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-40 text-muted-foreground space-y-2 text-sm">
+                      {logSearchTerm || logLevelFilter !== "all" ? (
+                        <Filter className="h-8 w-8 opacity-50" />
+                      ) : (
+                        <FileText className="h-8 w-8 opacity-50" />
+                      )}
+                      <span>{logSearchTerm || logLevelFilter !== "all" ? "没有符合条件的日志" : "尚未获取到日志数据"}</span>
+                      <span className="text-xs">
+                        {logSearchTerm || logLevelFilter !== "all" ? "调整筛选条件或清空搜索后重试" : "启动应用或刷新后再试"}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="h-[500px] w-full border rounded-md bg-gray-50 dark:bg-gray-900">
+                      <AutoSizer>
+                        {({ height, width }: { height: number; width: number }) => (
+                          <List
+                            width={width}
+                            height={height}
+                            rowCount={filteredLogs.length}
+                            deferredMeasurementCache={logViewerCacheRef.current}
+                            rowHeight={logViewerCacheRef.current.rowHeight}
+                            overscanRowCount={6}
+                            rowRenderer={({ index, key, parent, style }: ListRowProps) => {
+                              const log = filteredLogs[index]
+                              const levelKey = (log.level || "info").toLowerCase()
+                              const levelStyles = logLevelStyles[levelKey] || logLevelStyles.info
 
-                        // 高亮搜索文本的函数
-                        const highlightText = (text: string, searchTerm: string) => {
-                          if (!searchTerm) return text
-                          const regex = new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi')
-                          const parts = text.split(regex)
-                          return parts.map((part, index) =>
-                            regex.test(part) ?
-                              <span key={index} className="bg-yellow-200 dark:bg-yellow-800 px-1 rounded">{part}</span> :
-                              part
-                          )
-                        }
-
-                        const getLevelIcon = (level: string) => {
-                          switch (level.toLowerCase()) {
-                            case 'error':
-                              return <AlertCircle className="h-4 w-4 text-red-500" />
-                            case 'warn':
-                            case 'warning':
-                              return <AlertTriangle className="h-4 w-4 text-yellow-500" />
-                            case 'info':
-                              return <Info className="h-4 w-4 text-blue-500" />
-                            case 'debug':
-                              return <Terminal className="h-4 w-4 text-gray-500" />
-                            default:
-                              return <CheckCircle className="h-4 w-4 text-green-500" />
-                          }
-                        }
-
-                        const getLevelColor = (level: string) => {
-                          switch (level.toLowerCase()) {
-                            case 'error':
-                              return 'text-red-600 dark:text-red-400'
-                            case 'warn':
-                            case 'warning':
-                              return 'text-yellow-600 dark:text-yellow-400'
-                            case 'info':
-                              return 'text-blue-600 dark:text-blue-400'
-                            case 'debug':
-                              return 'text-gray-600 dark:text-gray-400'
-                            default:
-                              return 'text-green-600 dark:text-green-400'
-                          }
-                        }
-
-                        return (
-                          <div className="space-y-2">
-                            {(logSearchTerm || logLevelFilter !== "all") && (
-                              <div className="mb-3 text-sm text-gray-600 dark:text-gray-400 border-b pb-2">
-                                显示 {filteredLogs.length} / {logs.length} 条日志
-                                {logSearchTerm && <span className="ml-2">搜索: "{logSearchTerm}"</span>}
-                                {logLevelFilter !== "all" && <span className="ml-2">级别: {logLevelFilter}</span>}
-                              </div>
-                            )}
-                            {filteredLogs.length > 0 ? (
-                              filteredLogs.map((log, index) => (
-                                <div key={log.id || index} className="border-l-2 border-gray-200 dark:border-gray-700 pl-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-r">
-                                  <div className="flex items-start space-x-2">
-                                    <div className="flex items-center space-x-2 min-w-0 flex-1">
-                                      {getLevelIcon(log.level)}
-                                      <span className={`text-xs font-medium uppercase tracking-wide ${getLevelColor(log.level)}`}>
-                                        {log.level}
-                                      </span>
-                                      <span className="text-xs text-gray-500 dark:text-gray-400">
-                                        {new Date(log.timestamp).toLocaleString()}
-                                      </span>
+                              return (
+                                <CellMeasurer
+                                  cache={logViewerCacheRef.current}
+                                  columnIndex={0}
+                                  key={key}
+                                  parent={parent}
+                                  rowIndex={index}
+                                >
+                                  <div
+                                    style={style}
+                                    className="border-b border-gray-200/80 dark:border-gray-800/80 px-4 py-3 hover:bg-white dark:hover:bg-gray-900 transition-colors"
+                                  >
+                                    <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                                      <div className="flex items-center gap-3">
+                                        <span
+                                          className={`px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wide ${levelStyles.badge}`}
+                                        >
+                                          {log.level?.toUpperCase() || "INFO"}
+                                        </span>
+                                        <span className="text-xs text-muted-foreground font-mono">
+                                          {formatDateTime(log.timestamp)}
+                                        </span>
+                                      </div>
+                                      <div className="text-[11px] text-muted-foreground font-mono flex items-center gap-2">
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white border text-gray-700 dark:text-gray-300 dark:bg-gray-900">
+                                          <span className={`w-2 h-2 rounded-full ${levelStyles.dot}`} />
+                                          {levelStyles.label}
+                                        </span>
+                                        <span className="hidden md:inline">
+                                          App: {log.app || application?.name || "未知"}
+                                        </span>
+                                      </div>
                                     </div>
+                                    <p className="mt-2 text-sm text-gray-900 dark:text-gray-100 whitespace-pre-wrap break-words font-mono">
+                                      {log.message}
+                                    </p>
+                                    {log.details && (
+                                      <pre className="mt-2 bg-gray-100 dark:bg-gray-950 rounded-md p-2 text-xs text-gray-700 dark:text-gray-300 overflow-x-auto whitespace-pre-wrap break-words font-mono">
+                                        {log.details}
+                                      </pre>
+                                    )}
                                   </div>
-                                  <div className="mt-1 text-sm font-mono text-gray-800 dark:text-gray-200">
-                                    {highlightText(log.message, logSearchTerm)}
-                                  </div>
-                                  {log.details && (
-                                    <div className="mt-1 text-xs text-gray-600 dark:text-gray-400 font-mono bg-gray-100 dark:bg-gray-800 p-2 rounded">
-                                      {highlightText(log.details, logSearchTerm)}
-                                    </div>
-                                  )}
-                                </div>
-                              ))
-                            ) : (
-                              <div className="flex items-center justify-center h-32 text-muted-foreground">
-                                <Search className="h-8 w-8 mr-2 opacity-50" />
-                                <span>没有找到匹配的日志</span>
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })()
-                    ) : (
-                      <div className="flex items-center justify-center h-32 text-muted-foreground">
-                        <FileText className="h-8 w-8 mr-2 opacity-50" />
-                        <span>暂无日志数据</span>
-                      </div>
-                    )}
-                  </ScrollArea>
+                                </CellMeasurer>
+                              )
+                            }}
+                          />
+                        )}
+                      </AutoSizer>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>

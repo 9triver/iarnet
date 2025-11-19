@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.10
 // 	protoc        v6.31.1
-// source: component/component.proto
+// source: resource/component/component.proto
 
 package component
 
@@ -56,11 +56,11 @@ func (x MessageType) String() string {
 }
 
 func (MessageType) Descriptor() protoreflect.EnumDescriptor {
-	return file_component_component_proto_enumTypes[0].Descriptor()
+	return file_resource_component_component_proto_enumTypes[0].Descriptor()
 }
 
 func (MessageType) Type() protoreflect.EnumType {
-	return &file_component_component_proto_enumTypes[0]
+	return &file_resource_component_component_proto_enumTypes[0]
 }
 
 func (x MessageType) Number() protoreflect.EnumNumber {
@@ -69,7 +69,7 @@ func (x MessageType) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use MessageType.Descriptor instead.
 func (MessageType) EnumDescriptor() ([]byte, []int) {
-	return file_component_component_proto_rawDescGZIP(), []int{0}
+	return file_resource_component_component_proto_rawDescGZIP(), []int{0}
 }
 
 type Message struct {
@@ -86,7 +86,7 @@ type Message struct {
 
 func (x *Message) Reset() {
 	*x = Message{}
-	mi := &file_component_component_proto_msgTypes[0]
+	mi := &file_resource_component_component_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -98,7 +98,7 @@ func (x *Message) String() string {
 func (*Message) ProtoMessage() {}
 
 func (x *Message) ProtoReflect() protoreflect.Message {
-	mi := &file_component_component_proto_msgTypes[0]
+	mi := &file_resource_component_component_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -111,7 +111,7 @@ func (x *Message) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Message.ProtoReflect.Descriptor instead.
 func (*Message) Descriptor() ([]byte, []int) {
-	return file_component_component_proto_rawDescGZIP(), []int{0}
+	return file_resource_component_component_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *Message) GetType() MessageType {
@@ -162,11 +162,11 @@ func (*Message_Ready) isMessage_Message() {}
 
 func (*Message_Payload) isMessage_Message() {}
 
-var File_component_component_proto protoreflect.FileDescriptor
+var File_resource_component_component_proto protoreflect.FileDescriptor
 
-const file_component_component_proto_rawDesc = "" +
+const file_resource_component_component_proto_rawDesc = "" +
 	"\n" +
-	"\x19component/component.proto\x12\tcomponent\x1a\x15common/messages.proto\x1a\x19google/protobuf/any.proto\"\x99\x01\n" +
+	"\"resource/component/component.proto\x12\tcomponent\x1a\x15common/messages.proto\x1a\x19google/protobuf/any.proto\"\x99\x01\n" +
 	"\aMessage\x12*\n" +
 	"\x04Type\x18\x01 \x01(\x0e2\x16.component.MessageTypeR\x04Type\x12%\n" +
 	"\x05Ready\x18\x02 \x01(\v2\r.common.ReadyH\x00R\x05Ready\x120\n" +
@@ -178,26 +178,26 @@ const file_component_component_proto_rawDesc = "" +
 	"\aPAYLOAD\x10\x02B=Z;github.com/9triver/iarnet/internal/proto/resource/componentb\x06proto3"
 
 var (
-	file_component_component_proto_rawDescOnce sync.Once
-	file_component_component_proto_rawDescData []byte
+	file_resource_component_component_proto_rawDescOnce sync.Once
+	file_resource_component_component_proto_rawDescData []byte
 )
 
-func file_component_component_proto_rawDescGZIP() []byte {
-	file_component_component_proto_rawDescOnce.Do(func() {
-		file_component_component_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_component_component_proto_rawDesc), len(file_component_component_proto_rawDesc)))
+func file_resource_component_component_proto_rawDescGZIP() []byte {
+	file_resource_component_component_proto_rawDescOnce.Do(func() {
+		file_resource_component_component_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_resource_component_component_proto_rawDesc), len(file_resource_component_component_proto_rawDesc)))
 	})
-	return file_component_component_proto_rawDescData
+	return file_resource_component_component_proto_rawDescData
 }
 
-var file_component_component_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_component_component_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
-var file_component_component_proto_goTypes = []any{
+var file_resource_component_component_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_resource_component_component_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_resource_component_component_proto_goTypes = []any{
 	(MessageType)(0),     // 0: component.MessageType
 	(*Message)(nil),      // 1: component.Message
 	(*common.Ready)(nil), // 2: common.Ready
 	(*anypb.Any)(nil),    // 3: google.protobuf.Any
 }
-var file_component_component_proto_depIdxs = []int32{
+var file_resource_component_component_proto_depIdxs = []int32{
 	0, // 0: component.Message.Type:type_name -> component.MessageType
 	2, // 1: component.Message.Ready:type_name -> common.Ready
 	3, // 2: component.Message.Payload:type_name -> google.protobuf.Any
@@ -208,12 +208,12 @@ var file_component_component_proto_depIdxs = []int32{
 	0, // [0:3] is the sub-list for field type_name
 }
 
-func init() { file_component_component_proto_init() }
-func file_component_component_proto_init() {
-	if File_component_component_proto != nil {
+func init() { file_resource_component_component_proto_init() }
+func file_resource_component_component_proto_init() {
+	if File_resource_component_component_proto != nil {
 		return
 	}
-	file_component_component_proto_msgTypes[0].OneofWrappers = []any{
+	file_resource_component_component_proto_msgTypes[0].OneofWrappers = []any{
 		(*Message_Ready)(nil),
 		(*Message_Payload)(nil),
 	}
@@ -221,18 +221,18 @@ func file_component_component_proto_init() {
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_component_component_proto_rawDesc), len(file_component_component_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_resource_component_component_proto_rawDesc), len(file_resource_component_component_proto_rawDesc)),
 			NumEnums:      1,
 			NumMessages:   1,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_component_component_proto_goTypes,
-		DependencyIndexes: file_component_component_proto_depIdxs,
-		EnumInfos:         file_component_component_proto_enumTypes,
-		MessageInfos:      file_component_component_proto_msgTypes,
+		GoTypes:           file_resource_component_component_proto_goTypes,
+		DependencyIndexes: file_resource_component_component_proto_depIdxs,
+		EnumInfos:         file_resource_component_component_proto_enumTypes,
+		MessageInfos:      file_resource_component_component_proto_msgTypes,
 	}.Build()
-	File_component_component_proto = out.File
-	file_component_component_proto_goTypes = nil
-	file_component_component_proto_depIdxs = nil
+	File_resource_component_component_proto = out.File
+	file_resource_component_component_proto_goTypes = nil
+	file_resource_component_component_proto_depIdxs = nil
 }

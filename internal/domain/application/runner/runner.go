@@ -13,32 +13,44 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+type EnvVars struct {
+	IgnisPort     int
+	LoggerPort    int
+	EnvInstallCmd string
+	ExecuteCmd    string
+}
+
+func (e *EnvVars) ToEnvVars() []string {
+	return []string{
+		"IGNIS_PORT=" + strconv.FormatInt(int64(e.IgnisPort), 10),
+		"LOGGER_PORT=" + strconv.FormatInt(int64(e.LoggerPort), 10),
+		"ENV_INSTALL_CMD=" + e.EnvInstallCmd,
+		"EXECUTE_CMD=" + e.ExecuteCmd,
+	}
+}
+
 // Runner 运行器领域对象
 // 封装了容器运行时的操作逻辑
 type Runner struct {
-	containerID   string
-	dockerClient  *client.Client
-	appID         string
-	codeDir       string
-	image         string
-	ignisPort     int
-	envInstallCmd string
-	executeCmd    string
-	status        types.RunnerStatus
-	statusMu      sync.RWMutex // 保护 status 字段的锁
+	containerID  string
+	dockerClient *client.Client
+	appID        string
+	codeDir      string
+	image        string
+	envVars      *EnvVars
+	status       types.RunnerStatus
+	statusMu     sync.RWMutex // 保护 status 字段的锁
 }
 
 // NewRunner 创建运行器领域对象
-func NewRunner(dockerClient *client.Client, appID, codeDir, image string, ignisPort int, envInstallCmd, executeCmd string) *Runner {
+func NewRunner(dockerClient *client.Client, appID, codeDir, image string, envVars *EnvVars) *Runner {
 	return &Runner{
-		dockerClient:  dockerClient,
-		appID:         appID,
-		codeDir:       codeDir,
-		image:         image,
-		ignisPort:     ignisPort,
-		envInstallCmd: envInstallCmd,
-		executeCmd:    executeCmd,
-		status:        types.RunnerStatusIdle,
+		dockerClient: dockerClient,
+		appID:        appID,
+		codeDir:      codeDir,
+		image:        image,
+		envVars:      envVars,
+		status:       types.RunnerStatusIdle,
 	}
 }
 
@@ -60,12 +72,7 @@ func (r *Runner) Start(ctx context.Context) error {
 	}
 
 	// 构建环境变量
-	env := []string{
-		"APP_ID=" + r.appID,
-		"IGNIS_PORT=" + strconv.FormatInt(int64(r.ignisPort), 10),
-		"ENV_INSTALL_CMD=" + r.envInstallCmd,
-		"EXECUTE_CMD=" + r.executeCmd,
-	}
+	env := append(r.envVars.ToEnvVars(), "APP_ID="+r.appID)
 
 	// 创建容器配置
 	containerConfig := &container.Config{

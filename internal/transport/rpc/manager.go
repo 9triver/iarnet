@@ -9,14 +9,17 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
-	"github.com/9triver/iarnet/internal/domain/application/logger"
+	applogger "github.com/9triver/iarnet/internal/domain/application/logger"
 	"github.com/9triver/iarnet/internal/domain/ignis/controller"
+	reslogger "github.com/9triver/iarnet/internal/domain/resource/logger"
 	"github.com/9triver/iarnet/internal/domain/resource/store"
-	loggerpb "github.com/9triver/iarnet/internal/proto/application/logger"
+	appLoggerPB "github.com/9triver/iarnet/internal/proto/application/logger"
 	ctrlpb "github.com/9triver/iarnet/internal/proto/ignis/controller"
+	resLoggerPB "github.com/9triver/iarnet/internal/proto/resource/logger"
 	storepb "github.com/9triver/iarnet/internal/proto/resource/store"
-	loggerrpc "github.com/9triver/iarnet/internal/transport/rpc/application/logger"
+	appLoggerRPC "github.com/9triver/iarnet/internal/transport/rpc/application/logger"
 	controllerrpc "github.com/9triver/iarnet/internal/transport/rpc/ignis/controller"
+	resLoggerRPC "github.com/9triver/iarnet/internal/transport/rpc/resource/logger"
 	storerpc "github.com/9triver/iarnet/internal/transport/rpc/resource/store"
 )
 
@@ -51,36 +54,41 @@ func (rs *server) Stop() {
 
 // Options enumerates all required fields to start RPC servers.
 type Options struct {
-	IgnisAddr         string
-	StoreAddr         string
-	LoggerAddr        string
-	ControllerService controller.Service
-	StoreService      store.Service
-	LoggerService     logger.Service
-	IgnisServerOpts   []grpc.ServerOption
-	StoreServerOpts   []grpc.ServerOption
-	LoggerServerOpts  []grpc.ServerOption
+	IgnisAddr                string
+	StoreAddr                string
+	LoggerAddr               string
+	ResourceLoggerAddr       string
+	ControllerService        controller.Service
+	StoreService             store.Service
+	LoggerService            applogger.Service
+	ResourceLoggerService    reslogger.Service
+	IgnisServerOpts          []grpc.ServerOption
+	StoreServerOpts          []grpc.ServerOption
+	LoggerServerOpts         []grpc.ServerOption
+	ResourceLoggerServerOpts []grpc.ServerOption
 }
 
 // Manager manages the lifecycle of RPC servers.
 type Manager struct {
-	Ignis     *server
-	Store     *server
-	Logger    *server
-	Options   Options
-	startOnce sync.Once
-	stopOnce  sync.Once
+	Ignis          *server
+	Store          *server
+	Logger         *server
+	ResourceLogger *server
+	Options        Options
+	startOnce      sync.Once
+	stopOnce       sync.Once
 }
 
 // NewManager creates a new RPC server manager.
 func NewManager(opts Options) *Manager {
 	return &Manager{
-		Ignis:     nil,
-		Store:     nil,
-		Logger:    nil,
-		Options:   opts,
-		startOnce: sync.Once{},
-		stopOnce:  sync.Once{},
+		Ignis:          nil,
+		Store:          nil,
+		Logger:         nil,
+		ResourceLogger: nil,
+		Options:        opts,
+		startOnce:      sync.Once{},
+		stopOnce:       sync.Once{},
 	}
 }
 
@@ -97,6 +105,12 @@ func (m *Manager) Start() error {
 	}
 	if m.Options.StoreAddr == "" {
 		return errors.New("store listen address is required")
+	}
+	if m.Options.ResourceLoggerAddr == "" {
+		return errors.New("resource logger listen address is required")
+	}
+	if m.Options.ResourceLoggerService == nil {
+		return errors.New("resource logger service is required")
 	}
 
 	m.startOnce.Do(func() {
@@ -133,7 +147,7 @@ func (m *Manager) Start() error {
 		// 启动 Logger 服务器（如果配置了）
 		if m.Options.LoggerAddr != "" && m.Options.LoggerService != nil {
 			logger, err := startServer(m.Options.LoggerAddr, m.Options.LoggerServerOpts, func(s *grpc.Server) {
-				loggerpb.RegisterLoggerServiceServer(s, loggerrpc.NewServer(m.Options.LoggerService))
+				appLoggerPB.RegisterLoggerServiceServer(s, appLoggerRPC.NewServer(m.Options.LoggerService))
 			})
 			if err != nil {
 				logrus.WithError(err).Error("failed to start logger server")
@@ -148,6 +162,23 @@ func (m *Manager) Start() error {
 		} else if m.Options.LoggerAddr != "" {
 			logrus.Warn("Logger address is configured but logger service is not provided, skipping logger server")
 		}
+		// 启动 Resource Logger 服务器（如果配置了）
+		if m.Options.ResourceLoggerAddr != "" && m.Options.ResourceLoggerService != nil {
+			resLogger, err := startServer(m.Options.ResourceLoggerAddr, m.Options.ResourceLoggerServerOpts, func(s *grpc.Server) {
+				resLoggerPB.RegisterLoggerServiceServer(s, resLoggerRPC.NewServer(m.Options.ResourceLoggerService))
+			})
+			if err != nil {
+				logrus.WithError(err).Error("failed to start resource logger server")
+				for _, s := range startedServers {
+					s.Stop()
+				}
+			} else {
+				logrus.Infof("Resource logger server listening on %s", m.Options.ResourceLoggerAddr)
+				m.ResourceLogger = resLogger
+			}
+		} else if m.Options.ResourceLoggerAddr != "" {
+			logrus.Warn("Resource logger address is configured but service is not provided, skipping resource logger server")
+		}
 	})
 
 	return nil
@@ -159,6 +190,7 @@ func (m *Manager) Stop() {
 		shutdownWithTimeout(m.Ignis, 30*time.Second)
 		shutdownWithTimeout(m.Store, 30*time.Second)
 		shutdownWithTimeout(m.Logger, 30*time.Second)
+		shutdownWithTimeout(m.ResourceLogger, 30*time.Second)
 	})
 }
 

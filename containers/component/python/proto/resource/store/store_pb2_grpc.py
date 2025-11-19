@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-from store import store_pb2 as store_dot_store__pb2
+from resource.store import store_pb2 as resource_dot_store_dot_store__pb2
 
 GRPC_GENERATED_VERSION = '1.76.0'
 GRPC_VERSION = grpc.__version__
@@ -18,7 +18,7 @@ except ImportError:
 if _version_not_supported:
     raise RuntimeError(
         f'The grpc package installed is at version {GRPC_VERSION},'
-        + ' but the generated code in store/store_pb2_grpc.py depends on'
+        + ' but the generated code in resource/store/store_pb2_grpc.py depends on'
         + f' grpcio>={GRPC_GENERATED_VERSION}.'
         + f' Please upgrade your grpc module to grpcio>={GRPC_GENERATED_VERSION}'
         + f' or downgrade your generated code using grpcio-tools<={GRPC_VERSION}.'
@@ -36,18 +36,18 @@ class ServiceStub(object):
         """
         self.SaveObject = channel.unary_unary(
                 '/store.Service/SaveObject',
-                request_serializer=store_dot_store__pb2.SaveObjectRequest.SerializeToString,
-                response_deserializer=store_dot_store__pb2.SaveObjectResponse.FromString,
+                request_serializer=resource_dot_store_dot_store__pb2.SaveObjectRequest.SerializeToString,
+                response_deserializer=resource_dot_store_dot_store__pb2.SaveObjectResponse.FromString,
                 _registered_method=True)
         self.GetObject = channel.unary_unary(
                 '/store.Service/GetObject',
-                request_serializer=store_dot_store__pb2.GetObjectRequest.SerializeToString,
-                response_deserializer=store_dot_store__pb2.GetObjectResponse.FromString,
+                request_serializer=resource_dot_store_dot_store__pb2.GetObjectRequest.SerializeToString,
+                response_deserializer=resource_dot_store_dot_store__pb2.GetObjectResponse.FromString,
                 _registered_method=True)
         self.GetStreamChunk = channel.unary_unary(
                 '/store.Service/GetStreamChunk',
-                request_serializer=store_dot_store__pb2.GetStreamChunkRequest.SerializeToString,
-                response_deserializer=store_dot_store__pb2.GetStreamChunkResponse.FromString,
+                request_serializer=resource_dot_store_dot_store__pb2.GetStreamChunkRequest.SerializeToString,
+                response_deserializer=resource_dot_store_dot_store__pb2.GetStreamChunkResponse.FromString,
                 _registered_method=True)
 
 
@@ -77,18 +77,18 @@ def add_ServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'SaveObject': grpc.unary_unary_rpc_method_handler(
                     servicer.SaveObject,
-                    request_deserializer=store_dot_store__pb2.SaveObjectRequest.FromString,
-                    response_serializer=store_dot_store__pb2.SaveObjectResponse.SerializeToString,
+                    request_deserializer=resource_dot_store_dot_store__pb2.SaveObjectRequest.FromString,
+                    response_serializer=resource_dot_store_dot_store__pb2.SaveObjectResponse.SerializeToString,
             ),
             'GetObject': grpc.unary_unary_rpc_method_handler(
                     servicer.GetObject,
-                    request_deserializer=store_dot_store__pb2.GetObjectRequest.FromString,
-                    response_serializer=store_dot_store__pb2.GetObjectResponse.SerializeToString,
+                    request_deserializer=resource_dot_store_dot_store__pb2.GetObjectRequest.FromString,
+                    response_serializer=resource_dot_store_dot_store__pb2.GetObjectResponse.SerializeToString,
             ),
             'GetStreamChunk': grpc.unary_unary_rpc_method_handler(
                     servicer.GetStreamChunk,
-                    request_deserializer=store_dot_store__pb2.GetStreamChunkRequest.FromString,
-                    response_serializer=store_dot_store__pb2.GetStreamChunkResponse.SerializeToString,
+                    request_deserializer=resource_dot_store_dot_store__pb2.GetStreamChunkRequest.FromString,
+                    response_serializer=resource_dot_store_dot_store__pb2.GetStreamChunkResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -116,8 +116,8 @@ class Service(object):
             request,
             target,
             '/store.Service/SaveObject',
-            store_dot_store__pb2.SaveObjectRequest.SerializeToString,
-            store_dot_store__pb2.SaveObjectResponse.FromString,
+            resource_dot_store_dot_store__pb2.SaveObjectRequest.SerializeToString,
+            resource_dot_store_dot_store__pb2.SaveObjectResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -143,8 +143,8 @@ class Service(object):
             request,
             target,
             '/store.Service/GetObject',
-            store_dot_store__pb2.GetObjectRequest.SerializeToString,
-            store_dot_store__pb2.GetObjectResponse.FromString,
+            resource_dot_store_dot_store__pb2.GetObjectRequest.SerializeToString,
+            resource_dot_store_dot_store__pb2.GetObjectResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -170,8 +170,8 @@ class Service(object):
             request,
             target,
             '/store.Service/GetStreamChunk',
-            store_dot_store__pb2.GetStreamChunkRequest.SerializeToString,
-            store_dot_store__pb2.GetStreamChunkResponse.FromString,
+            resource_dot_store_dot_store__pb2.GetStreamChunkRequest.SerializeToString,
+            resource_dot_store_dot_store__pb2.GetStreamChunkResponse.FromString,
             options,
             channel_credentials,
             insecure,

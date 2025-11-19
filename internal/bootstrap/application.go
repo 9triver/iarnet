@@ -48,6 +48,7 @@ func bootstrapApplication(iarnet *Iarnet) error {
 		runnerManager,
 		iarnet.DockerClient,
 		iarnet.Config.Transport.RPC.Ignis.Port,
+		iarnet.Config.Transport.RPC.Logger.Port,
 		runnerImages,
 	)
 

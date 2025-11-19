@@ -3,9 +3,11 @@ package bootstrap
 import (
 	"github.com/9triver/iarnet/internal/domain/resource"
 	"github.com/9triver/iarnet/internal/domain/resource/component"
+	"github.com/9triver/iarnet/internal/domain/resource/logger"
 	"github.com/9triver/iarnet/internal/domain/resource/provider"
 	"github.com/9triver/iarnet/internal/domain/resource/store"
 	providerrepo "github.com/9triver/iarnet/internal/infra/repository/resource"
+	resloggerrepo "github.com/9triver/iarnet/internal/infra/repository/resource"
 	"github.com/sirupsen/logrus"
 )
 
@@ -38,7 +40,16 @@ func bootstrapResource(iarnet *Iarnet) error {
 			StorePort:  iarnet.Config.Transport.RPC.Store.Port,
 		},
 	)
-	iarnet.ResourceManager = resourceManager
+
+	var resourceLoggerService logger.Service
+	resourceLoggerRepo, err := resloggerrepo.NewLoggerRepoSQLite(iarnet.Config.Database.ResourceLoggerDBPath, iarnet.Config)
+	if err != nil {
+		logrus.Warnf("Failed to initialize resource logger repository: %v, continuing without resource logger persistence", err)
+		resourceLoggerService = nil
+	} else {
+		resourceLoggerService = logger.NewService(resourceLoggerRepo)
+	}
+	iarnet.ResourceManager = resourceManager.SetLoggerService(resourceLoggerService)
 
 	logrus.Info("Resource module initialized")
 	return nil

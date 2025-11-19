@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v6.31.1
-// source: resource/logger/logger.proto
+// source: logger.proto
 
 package logger
 
@@ -19,7 +19,7 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	LoggerService_StreamLogs_FullMethodName = "/resource.logger.LoggerService/StreamLogs"
+	LoggerService_StreamLogs_FullMethodName = "/logger.LoggerService/StreamLogs"
 )
 
 // LoggerServiceClient is the client API for LoggerService service.
@@ -100,7 +100,7 @@ type LoggerService_StreamLogsServer = grpc.BidiStreamingServer[LogStreamMessage,
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var LoggerService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "resource.logger.LoggerService",
+	ServiceName: "logger.LoggerService",
 	HandlerType: (*LoggerServiceServer)(nil),
 	Methods:     []grpc.MethodDesc{},
 	Streams: []grpc.StreamDesc{
@@ -111,5 +111,5 @@ var LoggerService_ServiceDesc = grpc.ServiceDesc{
 			ClientStreams: true,
 		},
 	},
-	Metadata: "resource/logger/logger.proto",
+	Metadata: "logger.proto",
 }

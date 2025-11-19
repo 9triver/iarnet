@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,27 +15,44 @@ const ENV_INSTALLED_MARKER = ".env_installed"
 func main() {
 	appID := os.Getenv("APP_ID")
 	ignisPort := os.Getenv("IGNIS_PORT")
+	loggerPort := os.Getenv("LOGGER_PORT")
 	envInstallCmd := os.Getenv("ENV_INSTALL_CMD")
 	executeCmd := os.Getenv("EXECUTE_CMD")
+
+	if ignisPort == "" {
+		logrus.Fatalf("IGNIS_PORT environment variable is required")
+	}
+
+	loggerAddr := "host.internal:" + loggerPort
+	hook, err := newRemoteLogHook(context.Background(), loggerAddr, appID)
+	if err != nil {
+		logrus.Warnf("failed to initialize remote logging hook: %v", err)
+	} else {
+		defer hook.Close()
+		logrus.SetReportCaller(true)
+		logrus.AddHook(hook)
+	}
 
 	if appID == "" {
 		logrus.Fatalf("APP_ID environment variable is required")
 	}
-	if ignisPort == "" {
-		logrus.Fatalf("IGNIS_PORT environment variable is required")
+
+	if loggerPort == "" {
+		logrus.Fatalf("LOGGER_PORT environment variable is required")
 	}
 	if executeCmd == "" {
 		logrus.Fatalf("EXECUTE_CMD environment variable is required")
 	}
 
 	os.Setenv("MASTER_ADDR", "host.internal:"+ignisPort)
+	os.Setenv("LOGGER_ADDR", "host.internal:"+loggerPort)
 
 	logrus.Infof("Registering app %s to Ignis platform at port %s", appID, ignisPort)
 
 	markerPath := filepath.Join(APP_CODE_PATH, ENV_INSTALLED_MARKER)
 
 	// 检查是否已经执行过环境安装命令
-	_, err := os.Stat(markerPath)
+	_, err = os.Stat(markerPath)
 	envInstalled := err == nil
 
 	if envInstallCmd != "" && !envInstalled {

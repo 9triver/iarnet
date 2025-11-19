@@ -19,17 +19,13 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	LoggerService_SubmitLog_FullMethodName      = "/logger.LoggerService/SubmitLog"
-	LoggerService_SubmitLogBatch_FullMethodName = "/logger.LoggerService/SubmitLogBatch"
-	LoggerService_StreamLogs_FullMethodName     = "/logger.LoggerService/StreamLogs"
+	LoggerService_StreamLogs_FullMethodName = "/logger.LoggerService/StreamLogs"
 )
 
 // LoggerServiceClient is the client API for LoggerService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type LoggerServiceClient interface {
-	SubmitLog(ctx context.Context, in *SubmitLogRequest, opts ...grpc.CallOption) (*SubmitLogResponse, error)
-	SubmitLogBatch(ctx context.Context, in *BatchSubmitLogRequest, opts ...grpc.CallOption) (*BatchSubmitLogResponse, error)
 	StreamLogs(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[LogStreamMessage, LogStreamResponse], error)
 }
 
@@ -39,26 +35,6 @@ type loggerServiceClient struct {
 
 func NewLoggerServiceClient(cc grpc.ClientConnInterface) LoggerServiceClient {
 	return &loggerServiceClient{cc}
-}
-
-func (c *loggerServiceClient) SubmitLog(ctx context.Context, in *SubmitLogRequest, opts ...grpc.CallOption) (*SubmitLogResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(SubmitLogResponse)
-	err := c.cc.Invoke(ctx, LoggerService_SubmitLog_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *loggerServiceClient) SubmitLogBatch(ctx context.Context, in *BatchSubmitLogRequest, opts ...grpc.CallOption) (*BatchSubmitLogResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(BatchSubmitLogResponse)
-	err := c.cc.Invoke(ctx, LoggerService_SubmitLogBatch_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
 }
 
 func (c *loggerServiceClient) StreamLogs(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[LogStreamMessage, LogStreamResponse], error) {
@@ -78,8 +54,6 @@ type LoggerService_StreamLogsClient = grpc.BidiStreamingClient[LogStreamMessage,
 // All implementations must embed UnimplementedLoggerServiceServer
 // for forward compatibility.
 type LoggerServiceServer interface {
-	SubmitLog(context.Context, *SubmitLogRequest) (*SubmitLogResponse, error)
-	SubmitLogBatch(context.Context, *BatchSubmitLogRequest) (*BatchSubmitLogResponse, error)
 	StreamLogs(grpc.BidiStreamingServer[LogStreamMessage, LogStreamResponse]) error
 	mustEmbedUnimplementedLoggerServiceServer()
 }
@@ -91,12 +65,6 @@ type LoggerServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedLoggerServiceServer struct{}
 
-func (UnimplementedLoggerServiceServer) SubmitLog(context.Context, *SubmitLogRequest) (*SubmitLogResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SubmitLog not implemented")
-}
-func (UnimplementedLoggerServiceServer) SubmitLogBatch(context.Context, *BatchSubmitLogRequest) (*BatchSubmitLogResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SubmitLogBatch not implemented")
-}
 func (UnimplementedLoggerServiceServer) StreamLogs(grpc.BidiStreamingServer[LogStreamMessage, LogStreamResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method StreamLogs not implemented")
 }
@@ -121,42 +89,6 @@ func RegisterLoggerServiceServer(s grpc.ServiceRegistrar, srv LoggerServiceServe
 	s.RegisterService(&LoggerService_ServiceDesc, srv)
 }
 
-func _LoggerService_SubmitLog_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SubmitLogRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(LoggerServiceServer).SubmitLog(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: LoggerService_SubmitLog_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(LoggerServiceServer).SubmitLog(ctx, req.(*SubmitLogRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _LoggerService_SubmitLogBatch_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(BatchSubmitLogRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(LoggerServiceServer).SubmitLogBatch(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: LoggerService_SubmitLogBatch_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(LoggerServiceServer).SubmitLogBatch(ctx, req.(*BatchSubmitLogRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _LoggerService_StreamLogs_Handler(srv interface{}, stream grpc.ServerStream) error {
 	return srv.(LoggerServiceServer).StreamLogs(&grpc.GenericServerStream[LogStreamMessage, LogStreamResponse]{ServerStream: stream})
 }
@@ -170,16 +102,7 @@ type LoggerService_StreamLogsServer = grpc.BidiStreamingServer[LogStreamMessage,
 var LoggerService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "logger.LoggerService",
 	HandlerType: (*LoggerServiceServer)(nil),
-	Methods: []grpc.MethodDesc{
-		{
-			MethodName: "SubmitLog",
-			Handler:    _LoggerService_SubmitLog_Handler,
-		},
-		{
-			MethodName: "SubmitLogBatch",
-			Handler:    _LoggerService_SubmitLogBatch_Handler,
-		},
-	},
+	Methods:     []grpc.MethodDesc{},
 	Streams: []grpc.StreamDesc{
 		{
 			StreamName:    "StreamLogs",

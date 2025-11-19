@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-from logger import logger_pb2 as logger_dot_logger__pb2
+from resource.logger import logger_pb2 as resource_dot_logger_dot_logger__pb2
 
 GRPC_GENERATED_VERSION = '1.76.0'
 GRPC_VERSION = grpc.__version__
@@ -18,7 +18,7 @@ except ImportError:
 if _version_not_supported:
     raise RuntimeError(
         f'The grpc package installed is at version {GRPC_VERSION},'
-        + ' but the generated code in logger/logger_pb2_grpc.py depends on'
+        + ' but the generated code in resource/logger/logger_pb2_grpc.py depends on'
         + f' grpcio>={GRPC_GENERATED_VERSION}.'
         + f' Please upgrade your grpc module to grpcio>={GRPC_GENERATED_VERSION}'
         + f' or downgrade your generated code using grpcio-tools<={GRPC_VERSION}.'
@@ -34,37 +34,15 @@ class LoggerServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.SubmitLog = channel.unary_unary(
-                '/logger.LoggerService/SubmitLog',
-                request_serializer=logger_dot_logger__pb2.SubmitLogRequest.SerializeToString,
-                response_deserializer=logger_dot_logger__pb2.SubmitLogResponse.FromString,
-                _registered_method=True)
-        self.SubmitLogBatch = channel.unary_unary(
-                '/logger.LoggerService/SubmitLogBatch',
-                request_serializer=logger_dot_logger__pb2.BatchSubmitLogRequest.SerializeToString,
-                response_deserializer=logger_dot_logger__pb2.BatchSubmitLogResponse.FromString,
-                _registered_method=True)
         self.StreamLogs = channel.stream_stream(
-                '/logger.LoggerService/StreamLogs',
-                request_serializer=logger_dot_logger__pb2.LogStreamMessage.SerializeToString,
-                response_deserializer=logger_dot_logger__pb2.LogStreamResponse.FromString,
+                '/resource.logger.LoggerService/StreamLogs',
+                request_serializer=resource_dot_logger_dot_logger__pb2.LogStreamMessage.SerializeToString,
+                response_deserializer=resource_dot_logger_dot_logger__pb2.LogStreamResponse.FromString,
                 _registered_method=True)
 
 
 class LoggerServiceServicer(object):
     """Missing associated documentation comment in .proto file."""
-
-    def SubmitLog(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def SubmitLogBatch(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
 
     def StreamLogs(self, request_iterator, context):
         """Missing associated documentation comment in .proto file."""
@@ -75,85 +53,21 @@ class LoggerServiceServicer(object):
 
 def add_LoggerServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'SubmitLog': grpc.unary_unary_rpc_method_handler(
-                    servicer.SubmitLog,
-                    request_deserializer=logger_dot_logger__pb2.SubmitLogRequest.FromString,
-                    response_serializer=logger_dot_logger__pb2.SubmitLogResponse.SerializeToString,
-            ),
-            'SubmitLogBatch': grpc.unary_unary_rpc_method_handler(
-                    servicer.SubmitLogBatch,
-                    request_deserializer=logger_dot_logger__pb2.BatchSubmitLogRequest.FromString,
-                    response_serializer=logger_dot_logger__pb2.BatchSubmitLogResponse.SerializeToString,
-            ),
             'StreamLogs': grpc.stream_stream_rpc_method_handler(
                     servicer.StreamLogs,
-                    request_deserializer=logger_dot_logger__pb2.LogStreamMessage.FromString,
-                    response_serializer=logger_dot_logger__pb2.LogStreamResponse.SerializeToString,
+                    request_deserializer=resource_dot_logger_dot_logger__pb2.LogStreamMessage.FromString,
+                    response_serializer=resource_dot_logger_dot_logger__pb2.LogStreamResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'logger.LoggerService', rpc_method_handlers)
+            'resource.logger.LoggerService', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
-    server.add_registered_method_handlers('logger.LoggerService', rpc_method_handlers)
+    server.add_registered_method_handlers('resource.logger.LoggerService', rpc_method_handlers)
 
 
  # This class is part of an EXPERIMENTAL API.
 class LoggerService(object):
     """Missing associated documentation comment in .proto file."""
-
-    @staticmethod
-    def SubmitLog(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/logger.LoggerService/SubmitLog',
-            logger_dot_logger__pb2.SubmitLogRequest.SerializeToString,
-            logger_dot_logger__pb2.SubmitLogResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def SubmitLogBatch(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/logger.LoggerService/SubmitLogBatch',
-            logger_dot_logger__pb2.BatchSubmitLogRequest.SerializeToString,
-            logger_dot_logger__pb2.BatchSubmitLogResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
 
     @staticmethod
     def StreamLogs(request_iterator,
@@ -169,9 +83,9 @@ class LoggerService(object):
         return grpc.experimental.stream_stream(
             request_iterator,
             target,
-            '/logger.LoggerService/StreamLogs',
-            logger_dot_logger__pb2.LogStreamMessage.SerializeToString,
-            logger_dot_logger__pb2.LogStreamResponse.FromString,
+            '/resource.logger.LoggerService/StreamLogs',
+            resource_dot_logger_dot_logger__pb2.LogStreamMessage.SerializeToString,
+            resource_dot_logger_dot_logger__pb2.LogStreamResponse.FromString,
             options,
             channel_credentials,
             insecure,

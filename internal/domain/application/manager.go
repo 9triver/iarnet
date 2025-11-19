@@ -159,12 +159,8 @@ func (m *Manager) RemoveAppMetadata(ctx context.Context, appID string) error {
 }
 
 // Logger methods
-func (m *Manager) SubmitLog(ctx context.Context, applicationID string, entry *logger.Entry) (*logger.SubmitLogResult, error) {
+func (m *Manager) SubmitLog(ctx context.Context, applicationID string, entry *logger.Entry) (logger.LogID, error) {
 	return m.loggerSvc.SubmitLog(ctx, applicationID, entry)
-}
-
-func (m *Manager) BatchSubmitLogs(ctx context.Context, applicationID string, entries []*logger.Entry) (*logger.BatchSubmitLogResult, error) {
-	return m.loggerSvc.BatchSubmitLogs(ctx, applicationID, entries)
 }
 
 func (m *Manager) GetLogs(ctx context.Context, applicationID string, options *logger.QueryOptions) (*logger.QueryResult, error) {
@@ -211,17 +207,8 @@ func (m *Manager) CreateApplication(ctx context.Context, metadata types.AppMetad
 			return
 		}
 
-		// 克隆成功，创建 runner
+		// 克隆成功
 		logrus.Infof("Successfully cloned repository for application %s to %s", appID, codeDir)
-
-		// 创建 runner
-		if err := m.runnerSvc.CreateRunner(ctx, string(appID), codeDir, runner.RunnerEnv(metadata.RunnerEnv), metadata.EnvInstallCmd, metadata.ExecuteCmd); err != nil {
-			logrus.Errorf("Failed to create runner for application %s: %v", appID, err)
-			if updateErr := m.metadataSvc.UpdateAppStatus(ctx, string(appID), types.AppStatusFailed); updateErr != nil {
-				logrus.Errorf("Failed to update app status to error: %v", updateErr)
-			}
-			return
-		}
 
 		// 更新状态为 idle（未部署）
 		if err := m.metadataSvc.UpdateAppStatus(ctx, string(appID), types.AppStatusUndeployed); err != nil {

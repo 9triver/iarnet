@@ -1,61 +1,27 @@
 syntax = "proto3";
 
-package logger;
+package resource.logger;
 
 option go_package = "github.com/9triver/iarnet/internal/proto/resource/logger";
 
 import "common/logger.proto";
 
-// 单条日志提交请求
-message SubmitLogRequest {
-  string application_id = 1;
-  string component_id = 2;
-  common.LogEntry entry = 3;
-}
-
-// 单条日志提交响应
-message SubmitLogResponse {
-  bool success = 1;
-  string error = 2;               // 错误信息（如果 success = false）
-  string log_id = 3;              // 日志 ID（用于追踪，可选）
-}
-
-// 批量日志提交请求
-message BatchSubmitLogRequest {
-  string application_id = 1;
-  string component_id = 2;
-  repeated common.LogEntry entries = 3;
-}
-
-// 批量日志提交响应
-message BatchSubmitLogResponse {
-  bool success = 1;
-  string error = 2;
-  int32 accepted_count = 3;       // 成功接受的日志数量
-  int32 rejected_count = 4;       // 被拒绝的日志数量
-  repeated string log_ids = 5;    // 日志 ID 列表（可选）
-}
-
-// 流式日志消息（客户端 -> 服务端）
 message LogStreamMessage {
-  string application_id = 1;
-  string component_id = 2;
+  string component_id = 1;
   oneof message {
-    common.LogEntry entry = 3;            // 日志条目
-    common.StreamControl control = 4;     // 控制消息
+    common.LogEntry entry = 2;            // 日志条目
+    common.StreamControl control = 3;     // 控制消息
   }
 }
 
-// 流式日志响应（服务端 -> 客户端）
 message LogStreamResponse {
-  bool success = 1;
-  string error = 2;
-  int32 processed_count = 3;      // 已处理的日志数量
-  string message = 4;              // 响应消息
+  string component_id = 1;
+  bool success = 2;
+  string error = 3;
+  int32 processed_count = 4;      // 已处理的日志数量
+  string message = 5;              // 响应消息
 }
 
 service LoggerService {
-  rpc SubmitLog(SubmitLogRequest) returns (SubmitLogResponse);
-  rpc SubmitLogBatch(BatchSubmitLogRequest) returns (BatchSubmitLogResponse);
   rpc StreamLogs(stream LogStreamMessage) returns (stream LogStreamResponse);
 }

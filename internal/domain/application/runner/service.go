@@ -28,17 +28,19 @@ type Service interface {
 type service struct {
 	manager      *Manager
 	ignisPort    int
+	loggerPort   int
 	images       map[RunnerEnv]string
 	dockerClient *client.Client
 }
 
 // NewService 创建运行器服务
-func NewService(manager *Manager, dockerClient *client.Client, ignisPort int, images map[RunnerEnv]string) Service {
+func NewService(manager *Manager, dockerClient *client.Client, ignisPort int, loggerPort int, images map[RunnerEnv]string) Service {
 	return &service{
 		manager:      manager,
-		images:       images,
 		dockerClient: dockerClient,
 		ignisPort:    ignisPort,
+		loggerPort:   loggerPort,
+		images:       images,
 	}
 }
 
@@ -55,7 +57,12 @@ func (s *service) CreateRunner(ctx context.Context, appID, codeDir string, env R
 	}
 
 	// 在 service 中创建运行器领域对象
-	runner := NewRunner(s.dockerClient, appID, codeDir, image, s.ignisPort, envInstallCmd, executeCmd)
+	runner := NewRunner(s.dockerClient, appID, codeDir, image, &EnvVars{
+		IgnisPort:     s.ignisPort,
+		LoggerPort:    s.loggerPort,
+		EnvInstallCmd: envInstallCmd,
+		ExecuteCmd:    executeCmd,
+	})
 
 	// 将运行器加入 manager
 	s.manager.Add(appID, runner)

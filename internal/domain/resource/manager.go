@@ -2,8 +2,10 @@ package resource
 
 import (
 	"context"
+	"time"
 
 	"github.com/9triver/iarnet/internal/domain/resource/component"
+	"github.com/9triver/iarnet/internal/domain/resource/logger"
 	"github.com/9triver/iarnet/internal/domain/resource/provider"
 	"github.com/9triver/iarnet/internal/domain/resource/store"
 	"github.com/9triver/iarnet/internal/domain/resource/types"
@@ -16,6 +18,7 @@ import (
 var (
 	_ store.Service     = (*Manager)(nil)
 	_ component.Service = (*Manager)(nil)
+	_ logger.Service    = (*Manager)(nil)
 )
 
 type Manager struct {
@@ -25,6 +28,7 @@ type Manager struct {
 	providerService  provider.Service
 	componentManager component.Manager
 	providerManager  *provider.Manager
+	loggerService    logger.Service
 }
 
 func NewManager(channeler component.Channeler, s *store.Store, componentImages map[string]string, providerRepo providerrepo.ProviderRepo, envVariables *provider.EnvVariables) *Manager {
@@ -41,6 +45,13 @@ func NewManager(channeler component.Channeler, s *store.Store, componentImages m
 		componentManager: componentManager,
 		providerManager:  providerManager,
 	}
+}
+
+// dependency injection
+// SetLoggerService sets the logger service
+func (m *Manager) SetLoggerService(loggerService logger.Service) *Manager {
+	m.loggerService = loggerService
+	return m
 }
 
 // SetChanneler 更新 component manager 的 channeler
@@ -68,6 +79,18 @@ func (m *Manager) Start(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (m *Manager) SubmitLog(ctx context.Context, componentID string, entry *logger.Entry) (logger.LogID, error) {
+	return m.loggerService.SubmitLog(ctx, componentID, entry)
+}
+
+func (m *Manager) GetLogs(ctx context.Context, componentID string, options *logger.QueryOptions) (*logger.QueryResult, error) {
+	return m.loggerService.GetLogs(ctx, componentID, options)
+}
+
+func (m *Manager) GetLogsByTimeRange(ctx context.Context, componentID string, startTime, endTime time.Time, limit int) ([]*logger.Entry, error) {
+	return m.loggerService.GetLogsByTimeRange(ctx, componentID, startTime, endTime, limit)
 }
 
 func (m *Manager) DeployComponent(ctx context.Context, runtimeEnv types.RuntimeEnv, resourceRequest *types.Info) (*component.Component, error) {

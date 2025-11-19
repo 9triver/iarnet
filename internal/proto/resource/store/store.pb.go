@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.10
 // 	protoc        v6.31.1
-// source: store/store.proto
+// source: resource/store/store.proto
 
 package store
 
@@ -31,7 +31,7 @@ type SaveObjectRequest struct {
 
 func (x *SaveObjectRequest) Reset() {
 	*x = SaveObjectRequest{}
-	mi := &file_store_store_proto_msgTypes[0]
+	mi := &file_resource_store_store_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -43,7 +43,7 @@ func (x *SaveObjectRequest) String() string {
 func (*SaveObjectRequest) ProtoMessage() {}
 
 func (x *SaveObjectRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_store_store_proto_msgTypes[0]
+	mi := &file_resource_store_store_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -56,7 +56,7 @@ func (x *SaveObjectRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SaveObjectRequest.ProtoReflect.Descriptor instead.
 func (*SaveObjectRequest) Descriptor() ([]byte, []int) {
-	return file_store_store_proto_rawDescGZIP(), []int{0}
+	return file_resource_store_store_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *SaveObjectRequest) GetObject() *common.EncodedObject {
@@ -77,7 +77,7 @@ type SaveObjectResponse struct {
 
 func (x *SaveObjectResponse) Reset() {
 	*x = SaveObjectResponse{}
-	mi := &file_store_store_proto_msgTypes[1]
+	mi := &file_resource_store_store_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -89,7 +89,7 @@ func (x *SaveObjectResponse) String() string {
 func (*SaveObjectResponse) ProtoMessage() {}
 
 func (x *SaveObjectResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_store_store_proto_msgTypes[1]
+	mi := &file_resource_store_store_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -102,7 +102,7 @@ func (x *SaveObjectResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SaveObjectResponse.ProtoReflect.Descriptor instead.
 func (*SaveObjectResponse) Descriptor() ([]byte, []int) {
-	return file_store_store_proto_rawDescGZIP(), []int{1}
+	return file_resource_store_store_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *SaveObjectResponse) GetObjectRef() *common.ObjectRef {
@@ -135,7 +135,7 @@ type GetObjectRequest struct {
 
 func (x *GetObjectRequest) Reset() {
 	*x = GetObjectRequest{}
-	mi := &file_store_store_proto_msgTypes[2]
+	mi := &file_resource_store_store_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -147,7 +147,7 @@ func (x *GetObjectRequest) String() string {
 func (*GetObjectRequest) ProtoMessage() {}
 
 func (x *GetObjectRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_store_store_proto_msgTypes[2]
+	mi := &file_resource_store_store_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -160,7 +160,7 @@ func (x *GetObjectRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetObjectRequest.ProtoReflect.Descriptor instead.
 func (*GetObjectRequest) Descriptor() ([]byte, []int) {
-	return file_store_store_proto_rawDescGZIP(), []int{2}
+	return file_resource_store_store_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *GetObjectRequest) GetObjectRef() *common.ObjectRef {
@@ -179,7 +179,7 @@ type GetObjectResponse struct {
 
 func (x *GetObjectResponse) Reset() {
 	*x = GetObjectResponse{}
-	mi := &file_store_store_proto_msgTypes[3]
+	mi := &file_resource_store_store_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -191,7 +191,7 @@ func (x *GetObjectResponse) String() string {
 func (*GetObjectResponse) ProtoMessage() {}
 
 func (x *GetObjectResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_store_store_proto_msgTypes[3]
+	mi := &file_resource_store_store_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -204,7 +204,7 @@ func (x *GetObjectResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetObjectResponse.ProtoReflect.Descriptor instead.
 func (*GetObjectResponse) Descriptor() ([]byte, []int) {
-	return file_store_store_proto_rawDescGZIP(), []int{3}
+	return file_resource_store_store_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *GetObjectResponse) GetObject() *common.EncodedObject {
@@ -224,7 +224,7 @@ type GetStreamChunkRequest struct {
 
 func (x *GetStreamChunkRequest) Reset() {
 	*x = GetStreamChunkRequest{}
-	mi := &file_store_store_proto_msgTypes[4]
+	mi := &file_resource_store_store_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -236,7 +236,7 @@ func (x *GetStreamChunkRequest) String() string {
 func (*GetStreamChunkRequest) ProtoMessage() {}
 
 func (x *GetStreamChunkRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_store_store_proto_msgTypes[4]
+	mi := &file_resource_store_store_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -249,7 +249,7 @@ func (x *GetStreamChunkRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetStreamChunkRequest.ProtoReflect.Descriptor instead.
 func (*GetStreamChunkRequest) Descriptor() ([]byte, []int) {
-	return file_store_store_proto_rawDescGZIP(), []int{4}
+	return file_resource_store_store_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *GetStreamChunkRequest) GetObjectID() string {
@@ -275,7 +275,7 @@ type GetStreamChunkResponse struct {
 
 func (x *GetStreamChunkResponse) Reset() {
 	*x = GetStreamChunkResponse{}
-	mi := &file_store_store_proto_msgTypes[5]
+	mi := &file_resource_store_store_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -287,7 +287,7 @@ func (x *GetStreamChunkResponse) String() string {
 func (*GetStreamChunkResponse) ProtoMessage() {}
 
 func (x *GetStreamChunkResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_store_store_proto_msgTypes[5]
+	mi := &file_resource_store_store_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -300,7 +300,7 @@ func (x *GetStreamChunkResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetStreamChunkResponse.ProtoReflect.Descriptor instead.
 func (*GetStreamChunkResponse) Descriptor() ([]byte, []int) {
-	return file_store_store_proto_rawDescGZIP(), []int{5}
+	return file_resource_store_store_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *GetStreamChunkResponse) GetChunk() *common.StreamChunk {
@@ -310,11 +310,11 @@ func (x *GetStreamChunkResponse) GetChunk() *common.StreamChunk {
 	return nil
 }
 
-var File_store_store_proto protoreflect.FileDescriptor
+var File_resource_store_store_proto protoreflect.FileDescriptor
 
-const file_store_store_proto_rawDesc = "" +
+const file_resource_store_store_proto_rawDesc = "" +
 	"\n" +
-	"\x11store/store.proto\x12\x05store\x1a\x12common/types.proto\"B\n" +
+	"\x1aresource/store/store.proto\x12\x05store\x1a\x12common/types.proto\"B\n" +
 	"\x11SaveObjectRequest\x12-\n" +
 	"\x06Object\x18\x01 \x01(\v2\x15.common.EncodedObjectR\x06Object\"u\n" +
 	"\x12SaveObjectResponse\x12/\n" +
@@ -337,19 +337,19 @@ const file_store_store_proto_rawDesc = "" +
 	"\x0eGetStreamChunk\x12\x1c.store.GetStreamChunkRequest\x1a\x1d.store.GetStreamChunkResponseB9Z7github.com/9triver/iarnet/internal/proto/resource/storeb\x06proto3"
 
 var (
-	file_store_store_proto_rawDescOnce sync.Once
-	file_store_store_proto_rawDescData []byte
+	file_resource_store_store_proto_rawDescOnce sync.Once
+	file_resource_store_store_proto_rawDescData []byte
 )
 
-func file_store_store_proto_rawDescGZIP() []byte {
-	file_store_store_proto_rawDescOnce.Do(func() {
-		file_store_store_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_store_store_proto_rawDesc), len(file_store_store_proto_rawDesc)))
+func file_resource_store_store_proto_rawDescGZIP() []byte {
+	file_resource_store_store_proto_rawDescOnce.Do(func() {
+		file_resource_store_store_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_resource_store_store_proto_rawDesc), len(file_resource_store_store_proto_rawDesc)))
 	})
-	return file_store_store_proto_rawDescData
+	return file_resource_store_store_proto_rawDescData
 }
 
-var file_store_store_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
-var file_store_store_proto_goTypes = []any{
+var file_resource_store_store_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_resource_store_store_proto_goTypes = []any{
 	(*SaveObjectRequest)(nil),      // 0: store.SaveObjectRequest
 	(*SaveObjectResponse)(nil),     // 1: store.SaveObjectResponse
 	(*GetObjectRequest)(nil),       // 2: store.GetObjectRequest
@@ -360,7 +360,7 @@ var file_store_store_proto_goTypes = []any{
 	(*common.ObjectRef)(nil),       // 7: common.ObjectRef
 	(*common.StreamChunk)(nil),     // 8: common.StreamChunk
 }
-var file_store_store_proto_depIdxs = []int32{
+var file_resource_store_store_proto_depIdxs = []int32{
 	6, // 0: store.SaveObjectRequest.Object:type_name -> common.EncodedObject
 	7, // 1: store.SaveObjectResponse.ObjectRef:type_name -> common.ObjectRef
 	7, // 2: store.GetObjectRequest.ObjectRef:type_name -> common.ObjectRef
@@ -379,26 +379,26 @@ var file_store_store_proto_depIdxs = []int32{
 	0, // [0:5] is the sub-list for field type_name
 }
 
-func init() { file_store_store_proto_init() }
-func file_store_store_proto_init() {
-	if File_store_store_proto != nil {
+func init() { file_resource_store_store_proto_init() }
+func file_resource_store_store_proto_init() {
+	if File_resource_store_store_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_store_store_proto_rawDesc), len(file_store_store_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_resource_store_store_proto_rawDesc), len(file_resource_store_store_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_store_store_proto_goTypes,
-		DependencyIndexes: file_store_store_proto_depIdxs,
-		MessageInfos:      file_store_store_proto_msgTypes,
+		GoTypes:           file_resource_store_store_proto_goTypes,
+		DependencyIndexes: file_resource_store_store_proto_depIdxs,
+		MessageInfos:      file_resource_store_store_proto_msgTypes,
 	}.Build()
-	File_store_store_proto = out.File
-	file_store_store_proto_goTypes = nil
-	file_store_store_proto_depIdxs = nil
+	File_resource_store_store_proto = out.File
+	file_resource_store_store_proto_goTypes = nil
+	file_resource_store_store_proto_depIdxs = nil
 }

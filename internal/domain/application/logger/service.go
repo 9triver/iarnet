@@ -10,8 +10,7 @@ import (
 )
 
 type Service interface {
-	SubmitLog(ctx context.Context, applicationID string, entry *Entry) (*SubmitLogResult, error)
-	BatchSubmitLogs(ctx context.Context, applicationID string, entries []*Entry) (*BatchSubmitLogResult, error)
+	SubmitLog(ctx context.Context, applicationID string, entry *Entry) (LogID, error)
 	GetLogs(ctx context.Context, applicationID string, options *QueryOptions) (*QueryResult, error)
 	GetLogsByTimeRange(ctx context.Context, applicationID string, startTime, endTime time.Time, limit int) ([]*Entry, error)
 }
@@ -26,64 +25,21 @@ func NewService(repo application.LoggerRepo) Service {
 	}
 }
 
-func (s *service) SubmitLog(ctx context.Context, applicationID string, entry *Entry) (*SubmitLogResult, error) {
+func (s *service) SubmitLog(ctx context.Context, applicationID string, entry *Entry) (LogID, error) {
 	if applicationID == "" {
-		return nil, errors.New("application ID is required")
+		return "", errors.New("application ID is required")
 	}
 	if entry == nil {
-		return nil, errors.New("log entry is required")
+		return "", errors.New("log entry is required")
 	}
 
-	// 转换为 DAO
 	dao := domainEntryToDAO(applicationID, entry)
 
-	// 保存到数据库
 	if err := s.repo.SaveLog(ctx, dao); err != nil {
-		return &SubmitLogResult{
-			Success: false,
-			Error:   err.Error(),
-		}, nil
+		return "", err
 	}
 
-	return &SubmitLogResult{
-		Success: true,
-		LogID:   dao.ID,
-	}, nil
-}
-
-func (s *service) BatchSubmitLogs(ctx context.Context, applicationID string, entries []*Entry) (*BatchSubmitLogResult, error) {
-	if applicationID == "" {
-		return nil, errors.New("application ID is required")
-	}
-	if len(entries) == 0 {
-		return nil, errors.New("log entries are required")
-	}
-
-	// 转换为 DAO
-	daos := domainEntriesToDAOs(applicationID, entries)
-
-	// 批量保存到数据库
-	if err := s.repo.BatchSaveLogs(ctx, daos); err != nil {
-		return &BatchSubmitLogResult{
-			Success:       false,
-			Error:         err.Error(),
-			AcceptedCount: 0,
-			RejectedCount: len(entries),
-		}, nil
-	}
-
-	// 提取日志 ID
-	logIDs := make([]string, len(daos))
-	for i, dao := range daos {
-		logIDs[i] = dao.ID
-	}
-
-	return &BatchSubmitLogResult{
-		Success:       true,
-		AcceptedCount: len(entries),
-		RejectedCount: 0,
-		LogIDs:        logIDs,
-	}, nil
+	return dao.ID, nil
 }
 
 func (s *service) GetLogs(ctx context.Context, applicationID string, options *QueryOptions) (*QueryResult, error) {

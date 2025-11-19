@@ -44,9 +44,10 @@ type HTTPConfig struct {
 
 // RPCConfig RPC 配置
 type RPCConfig struct {
-	Ignis  RPCIgnisConfig  `yaml:"ignis"`
-	Store  RPCStoreConfig  `yaml:"store"`
-	Logger RPCLoggerConfig `yaml:"logger"` // 应用日志服务配置
+	Ignis          RPCIgnisConfig          `yaml:"ignis"`
+	Store          RPCStoreConfig          `yaml:"store"`
+	Logger         RPCLoggerConfig         `yaml:"logger"`          // 应用日志服务配置
+	ResourceLogger RPCResourceLoggerConfig `yaml:"resource_logger"` // 资源日志服务配置
 }
 
 type RPCIgnisConfig struct {
@@ -60,6 +61,11 @@ type RPCStoreConfig struct {
 // RPCLoggerConfig 应用日志服务 RPC 配置
 type RPCLoggerConfig struct {
 	Port int `yaml:"port"` // e.g., 50003
+}
+
+// RPCResourceLoggerConfig 资源日志服务 RPC 配置
+type RPCResourceLoggerConfig struct {
+	Port int `yaml:"port"` // e.g., 50004
 }
 
 // StoreConfig Store 服务配置
@@ -79,6 +85,7 @@ type IgnisConfig struct {
 type DatabaseConfig struct {
 	ApplicationDBPath      string `yaml:"application_db_path"`       // Application 数据库路径
 	ResourceProviderDBPath string `yaml:"resource_provider_db_path"` // Resource Provider 数据库路径
+	ResourceLoggerDBPath   string `yaml:"resource_logger_db_path"`   // Resource Logger 数据库路径
 	MaxOpenConns           int    `yaml:"max_open_conns"`            // 最大打开连接数
 	MaxIdleConns           int    `yaml:"max_idle_conns"`            // 最大空闲连接数
 	ConnMaxLifetimeSeconds int    `yaml:"conn_max_lifetime_seconds"` // 连接最大生存时间（秒）

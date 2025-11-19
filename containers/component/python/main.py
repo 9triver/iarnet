@@ -29,7 +29,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
 # ============================================================================
 # 主函数
 # ============================================================================
@@ -39,6 +38,7 @@ def main():
     # 读取环境变量
     zmq_addr = os.getenv("ZMQ_ADDR")
     store_addr = os.getenv("STORE_ADDR")
+    application_id = os.getenv("APPLICATION_ID")
     component_id = os.getenv("COMPONENT_ID")
             
     # 验证必需的环境变量

@@ -41,6 +41,7 @@ PROTO_SRC="common/*.proto"
 
 GO_OUTPUT="$PROJECT_ROOT/internal/proto/"
 PY_OUTPUTS=("$PROJECT_ROOT/containers/envs/python/libs/lucas/lucas/actorc/protos/" "$PROJECT_ROOT/containers/component/python/proto/")
+RUNNER_COMMON_OUTPUT="$PROJECT_ROOT/containers/images/runner/proto"
 
 # Go generation
 echo "  Generating Go files: $GO_OUTPUT"
@@ -50,6 +51,15 @@ else
   find "$GO_OUTPUT" -type f -name "*.pb.go" -delete
 fi
 $PROTOC_CMD --go_out="$GO_OUTPUT" --go_opt=paths=source_relative --go-grpc_out="$GO_OUTPUT" --go-grpc_opt=paths=source_relative $PROTO_SRC
+
+# Runner common Go generation
+echo "  Generating Go files for runner (common): $RUNNER_COMMON_OUTPUT"
+if [ ! -d "$RUNNER_COMMON_OUTPUT" ]; then
+  mkdir -p "$RUNNER_COMMON_OUTPUT"
+else
+  find "$RUNNER_COMMON_OUTPUT" -type f -name "*.pb.go" -delete
+fi
+$PROTOC_CMD --go_out="$RUNNER_COMMON_OUTPUT" --go_opt=paths=source_relative --go-grpc_out="$RUNNER_COMMON_OUTPUT" --go-grpc_opt=paths=source_relative $PROTO_SRC
 
 # Python generation
 for PY_OUTPUT in "${PY_OUTPUTS[@]}"; do
@@ -136,22 +146,22 @@ cd ..
 # ============================================================================
 echo ""
 echo ">>> Generating resource..."
-cd "$BASE_DIR/resource"
 
+cd "$BASE_DIR"
 # Run from resource directory, so paths are relative to it
 # Use BASE_DIR for -I so that "common/types.proto" imports work correctly
-PROTOC_CMD="$PROTOC -I $BASE_DIR -I ."
-PROTO_SRC="*.proto provider/*.proto store/*.proto component/*.proto logger/*.proto"
+PROTOC_CMD="$PROTOC -I ."
+PROTO_SRC="resource/*.proto resource/provider/*.proto resource/store/*.proto resource/component/*.proto resource/logger/*.proto"
 
-IARNET_OUTPUT="$PROJECT_ROOT/internal/proto/resource"
-PY_OUTPUTS=("$PROJECT_ROOT/containers/component/python/proto/resource")
+IARNET_OUTPUT="$PROJECT_ROOT/internal/proto/"
+PY_OUTPUTS=("$PROJECT_ROOT/containers/component/python/proto/")
 
 # Go generation
 echo "  Generating Go files: $IARNET_OUTPUT"
 if [ ! -d "$IARNET_OUTPUT" ]; then
   mkdir -p "$IARNET_OUTPUT"
 else
-  find "$IARNET_OUTPUT" -type f -name "*.pb.go" -delete
+  find "$IARNET_OUTPUT/resource" -type f -name "*.pb.go" -delete
 fi
 $PROTOC_CMD --go_out="$IARNET_OUTPUT" --go_opt=paths=source_relative --go-grpc_out="$IARNET_OUTPUT" --go-grpc_opt=paths=source_relative $PROTO_SRC
 
@@ -161,9 +171,9 @@ for PY_OUTPUT in "${PY_OUTPUTS[@]}"; do
   if [ ! -d "$PY_OUTPUT" ]; then
     mkdir -p "$PY_OUTPUT"
   else
-    find "$PY_OUTPUT" -type f -name "*_pb2.py" -delete
-    find "$PY_OUTPUT" -type f -name "*_pb2.pyi" -delete
-    find "$PY_OUTPUT" -type f -name "*_pb2_grpc.py" -delete
+    find "$PY_OUTPUT/resource" -type f -name "*_pb2.py" -delete
+    find "$PY_OUTPUT/resource" -type f -name "*_pb2.pyi" -delete
+    find "$PY_OUTPUT/resource" -type f -name "*_pb2_grpc.py" -delete
   fi
   $PROTOC_CMD --python_out="$PY_OUTPUT" --pyi_out="$PY_OUTPUT" --grpc_python_out="$PY_OUTPUT" $PROTO_SRC
 done
@@ -175,9 +185,12 @@ echo ""
 echo ">>> Generating application..."
 cd "$BASE_DIR/application"
 
+PROTOC_CMD="$PROTOC -I . -I $BASE_DIR"
+
 PROTO_SRC="logger/*.proto"
 
 IARNET_OUTPUT="$PROJECT_ROOT/internal/proto/application"
+RUNNER_OUTPUT="$PROJECT_ROOT/containers/images/runner/proto/logger"
 
 # Go generation
 echo "  Generating Go files: $IARNET_OUTPUT"
@@ -190,7 +203,18 @@ $PROTOC_CMD --go_out="$IARNET_OUTPUT" --go_opt=paths=source_relative --go-grpc_o
 
 cd "$BASE_DIR/application/logger"
 PROTOC_CMD="$PROTOC -I . -I $BASE_DIR"
+
+RUNNER_PROTO_SRC="*.proto"
+
+# Go generation for runner
+echo "  Generating Go files for runner: $RUNNER_OUTPUT"
+mkdir -p "$RUNNER_OUTPUT"
+find "$RUNNER_OUTPUT" -type f -name "*.pb.go" -delete || true
+$PROTOC_CMD --go_out="$RUNNER_OUTPUT" --go_opt=paths=source_relative --go-grpc_out="$RUNNER_OUTPUT" --go-grpc_opt=paths=source_relative $RUNNER_PROTO_SRC
+find "$RUNNER_OUTPUT" -type f -name "*.pb.go" -exec sed -i 's|github.com/9triver/iarnet/internal/proto/common|github.com/9triver/iarnet/runner/proto/common|g' {} +
+
 LUCAS_PROTO_SRC="*.proto"
+
 LUCAS_PY_OUTPUT="$PROJECT_ROOT/containers/envs/python/libs/lucas/lucas/actorc/protos/logger"
 # Python generation for lucas
 mkdir -p "$LUCAS_PY_OUTPUT"

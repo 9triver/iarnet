@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-from provider import provider_pb2 as provider_dot_provider__pb2
+from resource.provider import provider_pb2 as resource_dot_provider_dot_provider__pb2
 
 GRPC_GENERATED_VERSION = '1.76.0'
 GRPC_VERSION = grpc.__version__
@@ -18,7 +18,7 @@ except ImportError:
 if _version_not_supported:
     raise RuntimeError(
         f'The grpc package installed is at version {GRPC_VERSION},'
-        + ' but the generated code in provider/provider_pb2_grpc.py depends on'
+        + ' but the generated code in resource/provider/provider_pb2_grpc.py depends on'
         + f' grpcio>={GRPC_GENERATED_VERSION}.'
         + f' Please upgrade your grpc module to grpcio>={GRPC_GENERATED_VERSION}'
         + f' or downgrade your generated code using grpcio-tools<={GRPC_VERSION}.'
@@ -36,33 +36,33 @@ class ServiceStub(object):
         """
         self.Connect = channel.unary_unary(
                 '/provider.Service/Connect',
-                request_serializer=provider_dot_provider__pb2.ConnectRequest.SerializeToString,
-                response_deserializer=provider_dot_provider__pb2.ConnectResponse.FromString,
+                request_serializer=resource_dot_provider_dot_provider__pb2.ConnectRequest.SerializeToString,
+                response_deserializer=resource_dot_provider_dot_provider__pb2.ConnectResponse.FromString,
                 _registered_method=True)
         self.Disconnect = channel.unary_unary(
                 '/provider.Service/Disconnect',
-                request_serializer=provider_dot_provider__pb2.DisconnectRequest.SerializeToString,
-                response_deserializer=provider_dot_provider__pb2.DisconnectResponse.FromString,
+                request_serializer=resource_dot_provider_dot_provider__pb2.DisconnectRequest.SerializeToString,
+                response_deserializer=resource_dot_provider_dot_provider__pb2.DisconnectResponse.FromString,
                 _registered_method=True)
         self.GetCapacity = channel.unary_unary(
                 '/provider.Service/GetCapacity',
-                request_serializer=provider_dot_provider__pb2.GetCapacityRequest.SerializeToString,
-                response_deserializer=provider_dot_provider__pb2.GetCapacityResponse.FromString,
+                request_serializer=resource_dot_provider_dot_provider__pb2.GetCapacityRequest.SerializeToString,
+                response_deserializer=resource_dot_provider_dot_provider__pb2.GetCapacityResponse.FromString,
                 _registered_method=True)
         self.GetAvailable = channel.unary_unary(
                 '/provider.Service/GetAvailable',
-                request_serializer=provider_dot_provider__pb2.GetAvailableRequest.SerializeToString,
-                response_deserializer=provider_dot_provider__pb2.GetAvailableResponse.FromString,
+                request_serializer=resource_dot_provider_dot_provider__pb2.GetAvailableRequest.SerializeToString,
+                response_deserializer=resource_dot_provider_dot_provider__pb2.GetAvailableResponse.FromString,
                 _registered_method=True)
         self.Deploy = channel.unary_unary(
                 '/provider.Service/Deploy',
-                request_serializer=provider_dot_provider__pb2.DeployRequest.SerializeToString,
-                response_deserializer=provider_dot_provider__pb2.DeployResponse.FromString,
+                request_serializer=resource_dot_provider_dot_provider__pb2.DeployRequest.SerializeToString,
+                response_deserializer=resource_dot_provider_dot_provider__pb2.DeployResponse.FromString,
                 _registered_method=True)
         self.HealthCheck = channel.unary_unary(
                 '/provider.Service/HealthCheck',
-                request_serializer=provider_dot_provider__pb2.HealthCheckRequest.SerializeToString,
-                response_deserializer=provider_dot_provider__pb2.HealthCheckResponse.FromString,
+                request_serializer=resource_dot_provider_dot_provider__pb2.HealthCheckRequest.SerializeToString,
+                response_deserializer=resource_dot_provider_dot_provider__pb2.HealthCheckResponse.FromString,
                 _registered_method=True)
 
 
@@ -110,33 +110,33 @@ def add_ServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'Connect': grpc.unary_unary_rpc_method_handler(
                     servicer.Connect,
-                    request_deserializer=provider_dot_provider__pb2.ConnectRequest.FromString,
-                    response_serializer=provider_dot_provider__pb2.ConnectResponse.SerializeToString,
+                    request_deserializer=resource_dot_provider_dot_provider__pb2.ConnectRequest.FromString,
+                    response_serializer=resource_dot_provider_dot_provider__pb2.ConnectResponse.SerializeToString,
             ),
             'Disconnect': grpc.unary_unary_rpc_method_handler(
                     servicer.Disconnect,
-                    request_deserializer=provider_dot_provider__pb2.DisconnectRequest.FromString,
-                    response_serializer=provider_dot_provider__pb2.DisconnectResponse.SerializeToString,
+                    request_deserializer=resource_dot_provider_dot_provider__pb2.DisconnectRequest.FromString,
+                    response_serializer=resource_dot_provider_dot_provider__pb2.DisconnectResponse.SerializeToString,
             ),
             'GetCapacity': grpc.unary_unary_rpc_method_handler(
                     servicer.GetCapacity,
-                    request_deserializer=provider_dot_provider__pb2.GetCapacityRequest.FromString,
-                    response_serializer=provider_dot_provider__pb2.GetCapacityResponse.SerializeToString,
+                    request_deserializer=resource_dot_provider_dot_provider__pb2.GetCapacityRequest.FromString,
+                    response_serializer=resource_dot_provider_dot_provider__pb2.GetCapacityResponse.SerializeToString,
             ),
             'GetAvailable': grpc.unary_unary_rpc_method_handler(
                     servicer.GetAvailable,
-                    request_deserializer=provider_dot_provider__pb2.GetAvailableRequest.FromString,
-                    response_serializer=provider_dot_provider__pb2.GetAvailableResponse.SerializeToString,
+                    request_deserializer=resource_dot_provider_dot_provider__pb2.GetAvailableRequest.FromString,
+                    response_serializer=resource_dot_provider_dot_provider__pb2.GetAvailableResponse.SerializeToString,
             ),
             'Deploy': grpc.unary_unary_rpc_method_handler(
                     servicer.Deploy,
-                    request_deserializer=provider_dot_provider__pb2.DeployRequest.FromString,
-                    response_serializer=provider_dot_provider__pb2.DeployResponse.SerializeToString,
+                    request_deserializer=resource_dot_provider_dot_provider__pb2.DeployRequest.FromString,
+                    response_serializer=resource_dot_provider_dot_provider__pb2.DeployResponse.SerializeToString,
             ),
             'HealthCheck': grpc.unary_unary_rpc_method_handler(
                     servicer.HealthCheck,
-                    request_deserializer=provider_dot_provider__pb2.HealthCheckRequest.FromString,
-                    response_serializer=provider_dot_provider__pb2.HealthCheckResponse.SerializeToString,
+                    request_deserializer=resource_dot_provider_dot_provider__pb2.HealthCheckRequest.FromString,
+                    response_serializer=resource_dot_provider_dot_provider__pb2.HealthCheckResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -164,8 +164,8 @@ class Service(object):
             request,
             target,
             '/provider.Service/Connect',
-            provider_dot_provider__pb2.ConnectRequest.SerializeToString,
-            provider_dot_provider__pb2.ConnectResponse.FromString,
+            resource_dot_provider_dot_provider__pb2.ConnectRequest.SerializeToString,
+            resource_dot_provider_dot_provider__pb2.ConnectResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -191,8 +191,8 @@ class Service(object):
             request,
             target,
             '/provider.Service/Disconnect',
-            provider_dot_provider__pb2.DisconnectRequest.SerializeToString,
-            provider_dot_provider__pb2.DisconnectResponse.FromString,
+            resource_dot_provider_dot_provider__pb2.DisconnectRequest.SerializeToString,
+            resource_dot_provider_dot_provider__pb2.DisconnectResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -218,8 +218,8 @@ class Service(object):
             request,
             target,
             '/provider.Service/GetCapacity',
-            provider_dot_provider__pb2.GetCapacityRequest.SerializeToString,
-            provider_dot_provider__pb2.GetCapacityResponse.FromString,
+            resource_dot_provider_dot_provider__pb2.GetCapacityRequest.SerializeToString,
+            resource_dot_provider_dot_provider__pb2.GetCapacityResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -245,8 +245,8 @@ class Service(object):
             request,
             target,
             '/provider.Service/GetAvailable',
-            provider_dot_provider__pb2.GetAvailableRequest.SerializeToString,
-            provider_dot_provider__pb2.GetAvailableResponse.FromString,
+            resource_dot_provider_dot_provider__pb2.GetAvailableRequest.SerializeToString,
+            resource_dot_provider_dot_provider__pb2.GetAvailableResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -272,8 +272,8 @@ class Service(object):
             request,
             target,
             '/provider.Service/Deploy',
-            provider_dot_provider__pb2.DeployRequest.SerializeToString,
-            provider_dot_provider__pb2.DeployResponse.FromString,
+            resource_dot_provider_dot_provider__pb2.DeployRequest.SerializeToString,
+            resource_dot_provider_dot_provider__pb2.DeployResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -299,8 +299,8 @@ class Service(object):
             request,
             target,
             '/provider.Service/HealthCheck',
-            provider_dot_provider__pb2.HealthCheckRequest.SerializeToString,
-            provider_dot_provider__pb2.HealthCheckResponse.FromString,
+            resource_dot_provider_dot_provider__pb2.HealthCheckRequest.SerializeToString,
+            resource_dot_provider_dot_provider__pb2.HealthCheckResponse.FromString,
             options,
             channel_credentials,
             insecure,

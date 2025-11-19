@@ -4,7 +4,6 @@ import (
 	"time"
 
 	domainlogger "github.com/9triver/iarnet/internal/domain/application/logger"
-	loggerpb "github.com/9triver/iarnet/internal/proto/application/logger"
 	commonpb "github.com/9triver/iarnet/internal/proto/common"
 )
 
@@ -120,38 +119,4 @@ func domainEntryToProto(entry *domainlogger.Entry) *commonpb.LogEntry {
 	}
 
 	return protoEntry
-}
-
-// domainSubmitLogResultToProto 将 domain SubmitLogResult 转换为 proto SubmitLogResponse
-func domainSubmitLogResultToProto(result *domainlogger.SubmitLogResult) *loggerpb.SubmitLogResponse {
-	if result == nil {
-		return &loggerpb.SubmitLogResponse{
-			Success: false,
-			Error:   "unknown error",
-		}
-	}
-
-	return &loggerpb.SubmitLogResponse{
-		Success: result.Success,
-		Error:   result.Error,
-		LogId:   result.LogID,
-	}
-}
-
-// domainBatchSubmitLogResultToProto 将 domain BatchSubmitLogResult 转换为 proto BatchSubmitLogResponse
-func domainBatchSubmitLogResultToProto(result *domainlogger.BatchSubmitLogResult) *loggerpb.BatchSubmitLogResponse {
-	if result == nil {
-		return &loggerpb.BatchSubmitLogResponse{
-			Success: false,
-			Error:   "unknown error",
-		}
-	}
-
-	return &loggerpb.BatchSubmitLogResponse{
-		Success:       result.Success,
-		Error:         result.Error,
-		AcceptedCount: int32(result.AcceptedCount),
-		RejectedCount: int32(result.RejectedCount),
-		LogIds:        result.LogIDs,
-	}
 }
