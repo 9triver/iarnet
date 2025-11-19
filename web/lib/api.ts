@@ -1,4 +1,4 @@
-import { Application, ApplicationStats, CreateDirectoryResponse, CreateFileResponse, DeleteDirectoryResponse, DeleteFileResponse, GetApplicationActorsResponse, GetApplicationLogsParsedResponse, GetApplicationLogsResponse, GetApplicationsResponse, GetDAGResponse, GetFileContentResponse, GetFileTreeResponse, GetRunnerEnvironmentsResponse, SaveFileResponse } from "./model"
+import { Application, ApplicationStats, CreateDirectoryResponse, CreateFileResponse, DeleteDirectoryResponse, DeleteFileResponse, GetApplicationActorsResponse, GetApplicationLogsResponse, GetApplicationsResponse, GetComponentLogsResponse, GetDAGResponse, GetFileContentResponse, GetFileTreeResponse, GetRunnerEnvironmentsResponse, SaveFileResponse } from "./model"
 
 // API 客户端工具函数
 const API_BASE = "/api"
@@ -129,12 +129,43 @@ export const resourcesAPI = {
 }
 
 // 应用管理 API
+export interface GetApplicationLogsParams {
+  limit?: number
+  offset?: number
+  level?: string
+  startTime?: string
+  endTime?: string
+}
+
+export interface GetComponentLogsParams {
+  lines?: number
+}
+
 export const applicationsAPI = {
   getAll: () => apiRequest<GetApplicationsResponse>("/application/apps"),
   getStats: () => apiRequest<ApplicationStats>("/application/stats"),
   getById: (id: string) => apiRequest<Application>(`/application/apps/${id}`),
-  getLogs: (id: string, lines?: number) => apiRequest<GetApplicationLogsResponse>(`/application/apps/${id}/logs${lines ? `?lines=${lines}` : ''}`),
-  getLogsParsed: (id: string, lines?: number) => apiRequest<GetApplicationLogsParsedResponse>(`/application/apps/${id}/logs/parsed${lines ? `?lines=${lines}` : ''}`),
+  getLogs: (id: string, params?: GetApplicationLogsParams) => {
+    const searchParams = new URLSearchParams()
+    if (params?.limit !== undefined) {
+      searchParams.set("limit", params.limit.toString())
+    }
+    if (params?.offset !== undefined) {
+      searchParams.set("offset", params.offset.toString())
+    }
+    if (params?.level) {
+      searchParams.set("level", params.level)
+    }
+    if (params?.startTime) {
+      searchParams.set("start_time", params.startTime)
+    }
+    if (params?.endTime) {
+      searchParams.set("end_time", params.endTime)
+    }
+    const query = searchParams.toString()
+    const endpoint = query ? `/application/apps/${id}/logs?${query}` : `/application/apps/${id}/logs`
+    return apiRequest<GetApplicationLogsResponse>(endpoint)
+  },
   create: (app: any) =>
     apiRequest("/application/apps", {
       method: "POST",
@@ -208,6 +239,24 @@ export const applicationsAPI = {
     apiRequest(`/application/apps/${id}/components`),
   getActors: (id: string) =>
     apiRequest<GetApplicationActorsResponse>(`/application/apps/${id}/actors`),
+  getComponentLogs: async (id: string, componentId: string, params?: GetComponentLogsParams): Promise<GetComponentLogsResponse> => {
+    const searchParams = new URLSearchParams()
+    if (params?.lines !== undefined) {
+      searchParams.set("lines", params.lines.toString())
+    }
+    const query = searchParams.toString()
+    const endpoint = query
+      ? `/application/apps/${id}/components/${componentId}/logs?${query}`
+      : `/application/apps/${id}/components/${componentId}/logs`
+    const raw = await apiRequest<any>(endpoint)
+    const logs = Array.isArray(raw.logs) ? raw.logs : []
+    return {
+      componentId: raw.component_id ?? raw.componentId ?? componentId,
+      logs,
+      totalLines: raw.total_lines ?? raw.totalLines ?? logs.length,
+      requestedLines: raw.requested_lines ?? raw.requestedLines ?? params?.lines ?? logs.length,
+    }
+  },
 }
 
 // Actor组件管理 API

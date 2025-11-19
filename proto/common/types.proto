@@ -28,7 +28,7 @@ message EncodedObject {
 
 message StreamChunk {
   string ObjectID = 1;
-  string Offset = 2;
+  int64 Offset = 2;
   bool EoS = 3;
   EncodedObject Value = 4;
   string Error = 5;

@@ -113,29 +113,41 @@ export interface GetApplicationsResponse {
   applications: Application[]
 }
 
-export interface GetApplicationLogsResponse {
-  applicationId: string
-  applicationName: string
-  logs: string[]
-  totalLines: number
-  requestedLines: number
+export interface LogFieldKV {
+  key: string
+  value: string
+}
+
+export interface LogCallerInfo {
+  file?: string
+  line?: number
+  function?: string
+}
+
+export interface ApplicationLogPayload {
+  timestamp: string
+  level: string
+  message: string
+  fields?: LogFieldKV[]
+  caller?: LogCallerInfo
 }
 
 export interface LogEntry {
   id: string
   timestamp: string
   level: string
-  app: string
+  app?: string
   message: string
-  details: string
+  details?: string
+  fields?: LogFieldKV[]
+  caller?: LogCallerInfo
 }
 
-export interface GetApplicationLogsParsedResponse {
+export interface GetApplicationLogsResponse {
   applicationId: string
-  applicationName: string
-  logs: LogEntry[]
-  totalLines: number
-  requestedLines: number
+  logs: ApplicationLogPayload[]
+  total: number
+  hasMore: boolean
 }
 
 export interface FileInfo {
@@ -256,7 +268,10 @@ export interface GetComponentsResponse {
 }
 
 export interface GetComponentLogsResponse {
+  componentId?: string
   logs: string[]
+  totalLines?: number
+  requestedLines?: number
 }
 
 export type DAGNodeStatus = "pending" | "ready" | "running" | "done" | "failed"

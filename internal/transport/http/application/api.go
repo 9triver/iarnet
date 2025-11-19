@@ -2,10 +2,14 @@ package application
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/9triver/iarnet/internal/domain/application"
+	applogger "github.com/9triver/iarnet/internal/domain/application/logger"
 	apptypes "github.com/9triver/iarnet/internal/domain/application/types"
 	"github.com/9triver/iarnet/internal/transport/http/util/response"
 	"github.com/gorilla/mux"
@@ -37,6 +41,7 @@ func RegisterRoutes(router *mux.Router, am *application.Manager) {
 	router.HandleFunc("/application/apps/{id}/actors", api.handleGetApplicationActors).Methods("GET")
 	// 执行结果相关路由
 	router.HandleFunc("/application/apps/{id}/execution-result", api.handleGetExecutionResult).Methods("GET")
+	router.HandleFunc("/application/apps/{id}/logs", api.handleGetApplicationLogs).Methods("GET")
 }
 
 type API struct {
@@ -363,6 +368,176 @@ func (api *API) handleGetRunnerEnvironments(w http.ResponseWriter, r *http.Reque
 	}
 
 	response.Success(resp).WriteJSON(w)
+}
+
+func (api *API) handleGetApplicationLogs(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	appID := vars["id"]
+	if appID == "" {
+		response.BadRequest("application id is required").WriteJSON(w)
+		return
+	}
+
+	query := r.URL.Query()
+
+	limit, err := parsePositiveInt(query.Get("limit"), 100)
+	if err != nil {
+		response.BadRequest("invalid limit: " + err.Error()).WriteJSON(w)
+		return
+	}
+
+	offset, err := parseNonNegativeInt(query.Get("offset"), 0)
+	if err != nil {
+		response.BadRequest("invalid offset: " + err.Error()).WriteJSON(w)
+		return
+	}
+
+	opts := &applogger.QueryOptions{
+		Limit:  limit,
+		Offset: offset,
+	}
+
+	if levelParam := strings.TrimSpace(query.Get("level")); levelParam != "" && strings.ToLower(levelParam) != "all" {
+		level, err := parseLogLevel(levelParam)
+		if err != nil {
+			response.BadRequest(err.Error()).WriteJSON(w)
+			return
+		}
+		opts.Level = level
+	}
+
+	if startParam := strings.TrimSpace(query.Get("start_time")); startParam != "" {
+		startTime, err := time.Parse(time.RFC3339, startParam)
+		if err != nil {
+			response.BadRequest("invalid start_time, must be RFC3339").WriteJSON(w)
+			return
+		}
+		opts.StartTime = &startTime
+	}
+
+	if endParam := strings.TrimSpace(query.Get("end_time")); endParam != "" {
+		endTime, err := time.Parse(time.RFC3339, endParam)
+		if err != nil {
+			response.BadRequest("invalid end_time, must be RFC3339").WriteJSON(w)
+			return
+		}
+		opts.EndTime = &endTime
+	}
+
+	result, err := api.am.GetLogs(r.Context(), appID, opts)
+	if err != nil {
+		logrus.Errorf("Failed to get application logs: %v", err)
+		response.InternalError("failed to get application logs: " + err.Error()).WriteJSON(w)
+		return
+	}
+
+	resp := BuildGetApplicationLogsResponse(appID, result)
+	response.Success(resp).WriteJSON(w)
+}
+
+func parsePositiveInt(raw string, defaultVal int) (int, error) {
+	if raw == "" {
+		return defaultVal, nil
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil || value <= 0 {
+		return 0, fmt.Errorf("must be positive integer")
+	}
+	return value, nil
+}
+
+func parseNonNegativeInt(raw string, defaultVal int) (int, error) {
+	if raw == "" {
+		return defaultVal, nil
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil || value < 0 {
+		return 0, fmt.Errorf("must be non-negative integer")
+	}
+	return value, nil
+}
+
+func parseLogLevel(level string) (applogger.LogLevel, error) {
+	switch strings.ToLower(level) {
+	case "trace":
+		return applogger.LogLevelTrace, nil
+	case "debug":
+		return applogger.LogLevelDebug, nil
+	case "info":
+		return applogger.LogLevelInfo, nil
+	case "warn", "warning":
+		return applogger.LogLevelWarn, nil
+	case "error":
+		return applogger.LogLevelError, nil
+	case "fatal":
+		return applogger.LogLevelFatal, nil
+	case "panic":
+		return applogger.LogLevelPanic, nil
+	default:
+		return "", fmt.Errorf("invalid level: %s", level)
+	}
+}
+
+type GetApplicationLogsResponse struct {
+	ApplicationID string           `json:"application_id"`
+	Logs          []ApplicationLog `json:"logs"`
+	Total         int              `json:"total"`
+	HasMore       bool             `json:"has_more"`
+}
+
+type ApplicationLog struct {
+	Timestamp time.Time             `json:"timestamp"`
+	Level     string                `json:"level"`
+	Message   string                `json:"message"`
+	Fields    []ApplicationLogField `json:"fields,omitempty"`
+	Caller    *ApplicationLogCaller `json:"caller,omitempty"`
+}
+
+type ApplicationLogField struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+type ApplicationLogCaller struct {
+	File     string `json:"file,omitempty"`
+	Line     int    `json:"line,omitempty"`
+	Function string `json:"function,omitempty"`
+}
+
+func BuildGetApplicationLogsResponse(appID string, result *applogger.QueryResult) GetApplicationLogsResponse {
+	logs := make([]ApplicationLog, len(result.Entries))
+	for i, entry := range result.Entries {
+		fields := make([]ApplicationLogField, len(entry.Fields))
+		for idx, field := range entry.Fields {
+			fields[idx] = ApplicationLogField{
+				Key:   field.Key,
+				Value: field.Value,
+			}
+		}
+
+		var caller *ApplicationLogCaller
+		if entry.Caller != nil {
+			caller = &ApplicationLogCaller{
+				File:     entry.Caller.File,
+				Line:     entry.Caller.Line,
+				Function: entry.Caller.Function,
+			}
+		}
+
+		logs[i] = ApplicationLog{
+			Timestamp: entry.Timestamp,
+			Level:     string(entry.Level),
+			Message:   entry.Message,
+			Fields:    fields,
+			Caller:    caller,
+		}
+	}
+	return GetApplicationLogsResponse{
+		ApplicationID: appID,
+		Logs:          logs,
+		Total:         result.Total,
+		HasMore:       result.HasMore,
+	}
 }
 
 // 文件管理相关处理函数

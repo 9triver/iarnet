@@ -9,6 +9,7 @@ import (
 // Service defines store operations without binding to any transport implementation.
 type Service interface {
 	SaveObject(ctx context.Context, obj *commonpb.EncodedObject) (*commonpb.ObjectRef, error)
+	SaveStreamChunk(ctx context.Context, chunk *commonpb.StreamChunk) error
 	GetObject(ctx context.Context, ref *commonpb.ObjectRef) (*commonpb.EncodedObject, error)
 	GetStreamChunk(ctx context.Context, id string, offset string) (*commonpb.StreamChunk, error)
 }
@@ -29,6 +30,10 @@ func (s *service) SaveObject(ctx context.Context, obj *commonpb.EncodedObject) (
 		ID:     obj.ID,
 		Source: s.store.GetID(),
 	}, nil
+}
+
+func (s *service) SaveStreamChunk(ctx context.Context, chunk *commonpb.StreamChunk) error {
+	return s.store.SaveStreamChunk(chunk)
 }
 
 func (s *service) GetObject(ctx context.Context, ref *commonpb.ObjectRef) (*commonpb.EncodedObject, error) {

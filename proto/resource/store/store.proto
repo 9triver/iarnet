@@ -37,8 +37,16 @@ message GetStreamChunkResponse {
   common.StreamChunk Chunk = 1;
 }
 
+message SaveStreamChunkRequest {
+  common.StreamChunk Chunk = 1;
+}
+
+message SaveStreamChunkResponse {
+}
+
 service Service {
   rpc SaveObject(SaveObjectRequest) returns (SaveObjectResponse);
+  rpc SaveStreamChunk(SaveStreamChunkRequest) returns (SaveStreamChunkResponse);
   rpc GetObject(GetObjectRequest) returns (GetObjectResponse);
   rpc GetStreamChunk(GetStreamChunkRequest) returns (GetStreamChunkResponse);
 }

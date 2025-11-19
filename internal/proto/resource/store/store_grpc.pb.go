@@ -19,9 +19,10 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Service_SaveObject_FullMethodName     = "/store.Service/SaveObject"
-	Service_GetObject_FullMethodName      = "/store.Service/GetObject"
-	Service_GetStreamChunk_FullMethodName = "/store.Service/GetStreamChunk"
+	Service_SaveObject_FullMethodName      = "/store.Service/SaveObject"
+	Service_SaveStreamChunk_FullMethodName = "/store.Service/SaveStreamChunk"
+	Service_GetObject_FullMethodName       = "/store.Service/GetObject"
+	Service_GetStreamChunk_FullMethodName  = "/store.Service/GetStreamChunk"
 )
 
 // ServiceClient is the client API for Service service.
@@ -29,6 +30,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ServiceClient interface {
 	SaveObject(ctx context.Context, in *SaveObjectRequest, opts ...grpc.CallOption) (*SaveObjectResponse, error)
+	SaveStreamChunk(ctx context.Context, in *SaveStreamChunkRequest, opts ...grpc.CallOption) (*SaveStreamChunkResponse, error)
 	GetObject(ctx context.Context, in *GetObjectRequest, opts ...grpc.CallOption) (*GetObjectResponse, error)
 	GetStreamChunk(ctx context.Context, in *GetStreamChunkRequest, opts ...grpc.CallOption) (*GetStreamChunkResponse, error)
 }
@@ -45,6 +47,16 @@ func (c *serviceClient) SaveObject(ctx context.Context, in *SaveObjectRequest, o
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SaveObjectResponse)
 	err := c.cc.Invoke(ctx, Service_SaveObject_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *serviceClient) SaveStreamChunk(ctx context.Context, in *SaveStreamChunkRequest, opts ...grpc.CallOption) (*SaveStreamChunkResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SaveStreamChunkResponse)
+	err := c.cc.Invoke(ctx, Service_SaveStreamChunk_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -76,6 +88,7 @@ func (c *serviceClient) GetStreamChunk(ctx context.Context, in *GetStreamChunkRe
 // for forward compatibility.
 type ServiceServer interface {
 	SaveObject(context.Context, *SaveObjectRequest) (*SaveObjectResponse, error)
+	SaveStreamChunk(context.Context, *SaveStreamChunkRequest) (*SaveStreamChunkResponse, error)
 	GetObject(context.Context, *GetObjectRequest) (*GetObjectResponse, error)
 	GetStreamChunk(context.Context, *GetStreamChunkRequest) (*GetStreamChunkResponse, error)
 	mustEmbedUnimplementedServiceServer()
@@ -90,6 +103,9 @@ type UnimplementedServiceServer struct{}
 
 func (UnimplementedServiceServer) SaveObject(context.Context, *SaveObjectRequest) (*SaveObjectResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SaveObject not implemented")
+}
+func (UnimplementedServiceServer) SaveStreamChunk(context.Context, *SaveStreamChunkRequest) (*SaveStreamChunkResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SaveStreamChunk not implemented")
 }
 func (UnimplementedServiceServer) GetObject(context.Context, *GetObjectRequest) (*GetObjectResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetObject not implemented")
@@ -132,6 +148,24 @@ func _Service_SaveObject_Handler(srv interface{}, ctx context.Context, dec func(
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ServiceServer).SaveObject(ctx, req.(*SaveObjectRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Service_SaveStreamChunk_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SaveStreamChunkRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ServiceServer).SaveStreamChunk(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Service_SaveStreamChunk_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ServiceServer).SaveStreamChunk(ctx, req.(*SaveStreamChunkRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -182,6 +216,10 @@ var Service_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SaveObject",
 			Handler:    _Service_SaveObject_Handler,
+		},
+		{
+			MethodName: "SaveStreamChunk",
+			Handler:    _Service_SaveStreamChunk_Handler,
 		},
 		{
 			MethodName: "GetObject",

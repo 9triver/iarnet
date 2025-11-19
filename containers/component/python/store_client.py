@@ -6,6 +6,7 @@ Store 服务的 gRPC 客户端
 import logging
 import re
 import uuid
+from collections.abc import Iterator
 from typing import Optional
 
 import grpc
@@ -114,6 +115,55 @@ class StoreClient:
             logger.warning(f"Error reading /etc/hosts: {e}")
         
         return None
+
+    def iter_stream_chunks(self, object_id: str) -> Iterator[common.StreamChunk]:
+        """
+        迭代获取流对象的所有 chunk。
+
+        Args:
+            object_id: 流对象 ID
+
+        Yields:
+            common.StreamChunk
+        """
+        offset = 0
+        while True:
+            try:
+                request = store_pb.GetStreamChunkRequest(
+                    ObjectID=object_id,
+                    Offset=offset
+                )
+                response = self.stub.GetStreamChunk(request, timeout=30)
+            except Exception as e:
+                logger.error(f"Failed to get stream chunk for {object_id}: {e}")
+                raise
+
+            chunk = response.Chunk if response else None
+            if chunk is None:
+                logger.error(f"Stream {object_id} returned empty chunk, stop iteration")
+                break
+
+            yield chunk
+
+            if chunk.EoS:
+                logger.info(f"Stream {object_id} reached EOS")
+                break
+
+            offset = chunk.Offset + 1
+
+    def save_stream_chunk(self, chunk: common.StreamChunk) -> bool:
+        """
+        保存单个流式 chunk 到 Store。
+        """
+        try:
+            request = store_pb.SaveStreamChunkRequest(Chunk=chunk)
+            self.stub.SaveStreamChunk(request)
+            return True
+        except Exception as e:
+            logger.error(
+                f"Failed to save stream chunk: obj={chunk.ObjectID}, offset={chunk.Offset}, error={e}"
+            )
+            return False
 
     def close(self):
         """关闭 gRPC 连接"""

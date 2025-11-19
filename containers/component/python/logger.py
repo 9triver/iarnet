@@ -1,13 +1,13 @@
 import logging
+import queue
+import threading
+import time
 from typing import Optional
+
+import grpc
 
 from proto.common import logger_pb2 as common_logger_pb2
 from proto.resource.logger import logger_pb2, logger_pb2_grpc
-
-import grpc
-import time
-import queue
-import threading
 
 # logging 级别到 proto LogLevel 的映射
 _LEVEL_MAP = {
@@ -19,10 +19,47 @@ _LEVEL_MAP = {
 }
 
 
+_GLOBAL_HANDLER: Optional["RemoteLogHandler"] = None
+_GLOBAL_HANDLER_LOCK = threading.Lock()
+
+
 def setup_logging(logger: logging.Logger, component_id: str, logger_addr: str):
     handler = RemoteLogHandler(component_id, logger_addr)
     logger.addHandler(handler)
     return handler
+
+
+def setup_global_logging(component_id: str, logger_addr: str, level: int = logging.INFO):
+    """
+    将 RemoteLogHandler 安装到 root logger，确保所有日志都发送到远程服务。
+    """
+    global _GLOBAL_HANDLER
+
+    with _GLOBAL_HANDLER_LOCK:
+        root_logger = logging.getLogger()
+        root_logger.setLevel(level)
+
+        if _GLOBAL_HANDLER:
+            if (
+                _GLOBAL_HANDLER.component_id == component_id
+                and _GLOBAL_HANDLER.logger_addr == logger_addr
+            ):
+                return _GLOBAL_HANDLER
+            root_logger.removeHandler(_GLOBAL_HANDLER)
+            _GLOBAL_HANDLER.close()
+            _GLOBAL_HANDLER = None
+
+        handler = RemoteLogHandler(component_id, logger_addr)
+
+        # 移除已存在的 RemoteLogHandler，避免重复发送
+        for existing in list(root_logger.handlers):
+            if isinstance(existing, RemoteLogHandler):
+                root_logger.removeHandler(existing)
+                existing.close()
+
+        root_logger.addHandler(handler)
+        _GLOBAL_HANDLER = handler
+        return handler
 
 
 class RemoteLogHandler(logging.Handler):
@@ -94,7 +131,7 @@ class RemoteLogHandler(logging.Handler):
                 ))
 
             stream_msg = logger_pb2.LogStreamMessage(
-                application_id=self._application_id,
+                component_id=self._component_id,
                 entry=common_logger_pb2.LogEntry(
                     timestamp=int(time.time_ns()),
                     level=proto_level,

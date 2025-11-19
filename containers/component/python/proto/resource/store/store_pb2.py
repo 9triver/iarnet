@@ -25,7 +25,7 @@ _sym_db = _symbol_database.Default()
 from common import types_pb2 as common_dot_types__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1aresource/store/store.proto\x12\x05store\x1a\x12\x63ommon/types.proto\":\n\x11SaveObjectRequest\x12%\n\x06Object\x18\x01 \x01(\x0b\x32\x15.common.EncodedObject\"Z\n\x12SaveObjectResponse\x12$\n\tObjectRef\x18\x01 \x01(\x0b\x32\x11.common.ObjectRef\x12\x0f\n\x07Success\x18\x02 \x01(\x08\x12\r\n\x05\x45rror\x18\x03 \x01(\t\"8\n\x10GetObjectRequest\x12$\n\tObjectRef\x18\x01 \x01(\x0b\x32\x11.common.ObjectRef\":\n\x11GetObjectResponse\x12%\n\x06Object\x18\x01 \x01(\x0b\x32\x15.common.EncodedObject\"9\n\x15GetStreamChunkRequest\x12\x10\n\x08ObjectID\x18\x01 \x01(\t\x12\x0e\n\x06Offset\x18\x02 \x01(\t\"<\n\x16GetStreamChunkResponse\x12\"\n\x05\x43hunk\x18\x01 \x01(\x0b\x32\x13.common.StreamChunk2\xdb\x01\n\x07Service\x12\x41\n\nSaveObject\x12\x18.store.SaveObjectRequest\x1a\x19.store.SaveObjectResponse\x12>\n\tGetObject\x12\x17.store.GetObjectRequest\x1a\x18.store.GetObjectResponse\x12M\n\x0eGetStreamChunk\x12\x1c.store.GetStreamChunkRequest\x1a\x1d.store.GetStreamChunkResponseB9Z7github.com/9triver/iarnet/internal/proto/resource/storeb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1aresource/store/store.proto\x12\x05store\x1a\x12\x63ommon/types.proto\":\n\x11SaveObjectRequest\x12%\n\x06Object\x18\x01 \x01(\x0b\x32\x15.common.EncodedObject\"Z\n\x12SaveObjectResponse\x12$\n\tObjectRef\x18\x01 \x01(\x0b\x32\x11.common.ObjectRef\x12\x0f\n\x07Success\x18\x02 \x01(\x08\x12\r\n\x05\x45rror\x18\x03 \x01(\t\"8\n\x10GetObjectRequest\x12$\n\tObjectRef\x18\x01 \x01(\x0b\x32\x11.common.ObjectRef\":\n\x11GetObjectResponse\x12%\n\x06Object\x18\x01 \x01(\x0b\x32\x15.common.EncodedObject\"9\n\x15GetStreamChunkRequest\x12\x10\n\x08ObjectID\x18\x01 \x01(\t\x12\x0e\n\x06Offset\x18\x02 \x01(\t\"<\n\x16GetStreamChunkResponse\x12\"\n\x05\x43hunk\x18\x01 \x01(\x0b\x32\x13.common.StreamChunk\"<\n\x16SaveStreamChunkRequest\x12\"\n\x05\x43hunk\x18\x01 \x01(\x0b\x32\x13.common.StreamChunk\"\x19\n\x17SaveStreamChunkResponse2\xad\x02\n\x07Service\x12\x41\n\nSaveObject\x12\x18.store.SaveObjectRequest\x1a\x19.store.SaveObjectResponse\x12P\n\x0fSaveStreamChunk\x12\x1d.store.SaveStreamChunkRequest\x1a\x1e.store.SaveStreamChunkResponse\x12>\n\tGetObject\x12\x17.store.GetObjectRequest\x1a\x18.store.GetObjectResponse\x12M\n\x0eGetStreamChunk\x12\x1c.store.GetStreamChunkRequest\x1a\x1d.store.GetStreamChunkResponseB9Z7github.com/9triver/iarnet/internal/proto/resource/storeb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -45,6 +45,10 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_GETSTREAMCHUNKREQUEST']._serialized_end=384
   _globals['_GETSTREAMCHUNKRESPONSE']._serialized_start=386
   _globals['_GETSTREAMCHUNKRESPONSE']._serialized_end=446
-  _globals['_SERVICE']._serialized_start=449
-  _globals['_SERVICE']._serialized_end=668
+  _globals['_SAVESTREAMCHUNKREQUEST']._serialized_start=448
+  _globals['_SAVESTREAMCHUNKREQUEST']._serialized_end=508
+  _globals['_SAVESTREAMCHUNKRESPONSE']._serialized_start=510
+  _globals['_SAVESTREAMCHUNKRESPONSE']._serialized_end=535
+  _globals['_SERVICE']._serialized_start=538
+  _globals['_SERVICE']._serialized_end=839
 # @@protoc_insertion_point(module_scope)

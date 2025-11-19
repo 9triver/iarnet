@@ -1,10 +1,10 @@
 "use client"
 
-import { useState, useEffect, useRef, useMemo } from "react"
+import { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { applicationsAPI, APIError } from "@/lib/api"
 import { getWebSocketManager, disconnectWebSocketManager } from "@/lib/websocket"
-import type { LogEntry, Application, DAG, DAGNode, DAGEdge, ControlNode, DataNode, DAGNodeStatus, GetApplicationActorsResponse, ActorRecord } from "@/lib/model"
+import type { LogEntry, Application, DAG, DAGNode, DAGEdge, ControlNode, DataNode, DAGNodeStatus, GetApplicationActorsResponse, ActorRecord, ApplicationLogPayload } from "@/lib/model"
 import { formatDateTime, formatMemory } from "@/lib/utils"
 import { Sidebar } from "@/components/sidebar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -294,6 +294,12 @@ export default function ApplicationDetailPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const isSubmittingRef = useRef(false) // 使用 ref 跟踪提交状态，避免状态更新导致的重新渲染
   const [runnerEnvironments, setRunnerEnvironments] = useState<string[]>([])
+  const [isActorLogDialogOpen, setIsActorLogDialogOpen] = useState(false)
+  const [selectedActorLog, setSelectedActorLog] = useState<{ actorId: string; componentId?: string; functionName: string } | null>(null)
+  const [actorLogs, setActorLogs] = useState<string[]>([])
+  const [actorLogLines, setActorLogLines] = useState(100)
+  const [isLoadingActorLogs, setIsLoadingActorLogs] = useState(false)
+  const [actorLogsError, setActorLogsError] = useState<string | null>(null)
 
   const applicationId = params.id as string
   const logLevelStyles: Record<string, { badge: string; dot: string; label: string }> = {
@@ -401,7 +407,7 @@ export default function ApplicationDetailPage() {
     if (applicationId && activeTab === "logs") {
       loadLogs()
     }
-  }, [logLines])
+  }, [logLines, logLevelFilter])
 
   // 处理标签页切换
   const handleTabChange = (value: string) => {
@@ -689,13 +695,38 @@ export default function ApplicationDetailPage() {
     )
   }
 
+  const buildLogDetails = (log: ApplicationLogPayload): string | undefined => {
+    const segments: string[] = []
+    if (log.fields && log.fields.length > 0) {
+      const kvPairs = log.fields.map((field) => `${field.key}=${field.value}`)
+      segments.push(kvPairs.join(", "))
+    }
+    if (segments.length === 0) {
+      return undefined
+    }
+    return segments.join("\n")
+  }
+
   const loadLogs = async () => {
     if (!applicationId) return
 
     try {
       setIsLoadingAppLogs(true)
-      const response = await applicationsAPI.getLogsParsed(applicationId, logLines)
-      setLogs(response.logs || [])
+      const response = await applicationsAPI.getLogs(applicationId, {
+        limit: logLines,
+        level: logLevelFilter !== "all" ? logLevelFilter : undefined,
+      })
+      const normalizedLogs: LogEntry[] = (response.logs || []).map((log, index) => ({
+        id: `${log.timestamp}-${index}`,
+        timestamp: log.timestamp,
+        level: log.level,
+        app: application?.name || applicationId || "未知",
+        message: log.message,
+        details: buildLogDetails(log),
+        fields: log.fields,
+        caller: log.caller,
+      }))
+      setLogs(normalizedLogs)
     } catch (err) {
       console.error('Failed to load logs:', err)
       setLogs([])
@@ -723,6 +754,7 @@ export default function ApplicationDetailPage() {
   useEffect(() => {
     logViewerCacheRef.current.clearAll()
   }, [filteredLogs])
+
 
   const loadApplicationDetail = async () => {
     try {
@@ -811,6 +843,43 @@ export default function ApplicationDetailPage() {
     }
   }
 
+  const loadActorLogs = useCallback(
+    async (componentId: string, lines?: number) => {
+      if (!applicationId) return
+
+      const effectiveLines = lines ?? actorLogLines
+
+      try {
+        setIsLoadingActorLogs(true)
+        setActorLogsError(null)
+        const response = await applicationsAPI.getComponentLogs(applicationId, componentId, {
+          lines: effectiveLines,
+        })
+        setActorLogs(response.logs || [])
+      } catch (error) {
+        console.error('Failed to load actor logs:', error)
+        setActorLogs([])
+        setActorLogsError("加载日志失败，请稍后重试")
+      } finally {
+        setIsLoadingActorLogs(false)
+      }
+    },
+    [actorLogLines, applicationId]
+  )
+
+  useEffect(() => {
+    if (!isActorLogDialogOpen || !selectedActorLog) {
+      return
+    }
+    if (!selectedActorLog.componentId) {
+      setActorLogs([])
+      setActorLogsError("当前 Actor 未绑定组件，暂无法获取日志")
+      return
+    }
+
+    loadActorLogs(selectedActorLog.componentId, actorLogLines)
+  }, [actorLogLines, isActorLogDialogOpen, loadActorLogs, selectedActorLog])
+
   const handleDagSessionChange = (sessionId: string) => {
     setSelectedDagSession(sessionId)
     loadAppDAG(sessionId)
@@ -822,6 +891,37 @@ export default function ApplicationDetailPage() {
 
   const handleRefreshActors = () => {
     loadActors()
+  }
+
+  const handleViewActorLogs = (functionName: string, actor: ActorViewItem) => {
+    setSelectedActorLog({
+      actorId: actor.id,
+      componentId: actor.componentId,
+      functionName,
+    })
+    setActorLogs([])
+    setActorLogLines(100)
+    setActorLogsError(null)
+    setIsActorLogDialogOpen(true)
+  }
+
+  const handleActorLogDialogOpenChange = (open: boolean) => {
+    setIsActorLogDialogOpen(open)
+    if (!open) {
+      setTimeout(() => {
+        setSelectedActorLog(null)
+        setActorLogs([])
+        setActorLogsError(null)
+      }, 200)
+    }
+  }
+
+  const handleRefreshActorLogs = () => {
+    if (!selectedActorLog?.componentId) {
+      setActorLogsError("当前 Actor 未关联组件，无法获取日志")
+      return
+    }
+    loadActorLogs(selectedActorLog.componentId, actorLogLines)
   }
 
   const handleStart = async () => {
@@ -1179,6 +1279,92 @@ export default function ApplicationDetailPage() {
             </DialogContent>
           </Dialog>
 
+          {/* Actor log viewer */}
+          <Dialog open={isActorLogDialogOpen} onOpenChange={handleActorLogDialogOpenChange}>
+            <DialogContent className="sm:max-w-[720px] w-full max-h-[85vh]">
+              <DialogHeader>
+                <DialogTitle>Actor 日志</DialogTitle>
+                <DialogDescription>
+                  针对单个 Actor 实例的实时日志预览
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="flex flex-col gap-4 max-h-[70vh]">
+                <div className="rounded-lg border bg-muted/40 p-4 text-sm space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">函数</span>
+                    <span className="font-mono text-sm">{selectedActorLog?.functionName ?? "未选择"}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Actor ID</span>
+                    <span className="font-mono text-xs break-all">
+                      {selectedActorLog?.actorId ?? "未选择"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">组件 ID</span>
+                    <span className="font-mono text-xs break-all">
+                      {selectedActorLog?.componentId ?? "暂无"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <Select value={actorLogLines.toString()} onValueChange={(value) => setActorLogLines(Number(value))}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue placeholder="选择行数" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="50">最近 50 行</SelectItem>
+                      <SelectItem value="100">最近 100 行</SelectItem>
+                      <SelectItem value="200">最近 200 行</SelectItem>
+                      <SelectItem value="500">最近 500 行</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRefreshActorLogs}
+                    disabled={isLoadingActorLogs || !selectedActorLog?.componentId}
+                  >
+                    <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingActorLogs ? "animate-spin" : ""}`} />
+                    刷新
+                  </Button>
+                </div>
+
+                <div className="flex-1 min-h-[260px]">
+                  <div className="h-full min-h-[260px] rounded-lg border bg-slate-950 text-slate-100 overflow-hidden">
+                    {isLoadingActorLogs ? (
+                      <div className="h-full flex items-center justify-center space-x-2 text-sm text-slate-300">
+                        <RefreshCw className="h-5 w-5 animate-spin" />
+                        <span>加载日志中...</span>
+                      </div>
+                    ) : actorLogsError ? (
+                      <div className="p-4 text-sm text-red-400">
+                        {actorLogsError}
+                      </div>
+                    ) : actorLogs.length === 0 ? (
+                      <div className="h-full flex items-center justify-center text-sm text-slate-400">
+                        暂无日志输出
+                      </div>
+                    ) : (
+                      <div className="max-h-[360px] overflow-y-auto divide-y divide-white/5">
+                        {actorLogs.map((line, index) => (
+                          <pre
+                            key={`${line}-${index}`}
+                            className="px-4 py-2 text-xs font-mono whitespace-pre-wrap break-words text-green-200"
+                          >
+                            {line}
+                          </pre>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
           {/* Application Info */}
           <Card>
             <CardHeader>
@@ -1511,6 +1697,15 @@ export default function ApplicationDetailPage() {
                                         </span>
                                       </span>
                                     </div>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="inline-flex items-center gap-1"
+                                      onClick={() => handleViewActorLogs(group.functionName, actor)}
+                                    >
+                                      <FileText className="h-3.5 w-3.5" />
+                                      查看日志
+                                    </Button>
                                     {actor.image && (
                                       <p className="text-xs text-muted-foreground font-mono break-all text-right">
                                         {actor.image}
@@ -1606,11 +1801,11 @@ export default function ApplicationDetailPage() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  {isLoadingAppLogs ? (
-                    <div className="flex items-center justify-center h-32">
-                      <RefreshCw className="h-6 w-6 animate-spin mr-2" />
-                      <span>加载日志中...</span>
-                    </div>
+                    {isLoadingAppLogs ? (
+                      <div className="flex items-center justify-center h-32">
+                        <RefreshCw className="h-6 w-6 animate-spin mr-2" />
+                        <span>加载日志中...</span>
+                      </div>
                   ) : filteredLogs.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-40 text-muted-foreground space-y-2 text-sm">
                       {logSearchTerm || logLevelFilter !== "all" ? (
@@ -1639,7 +1834,7 @@ export default function ApplicationDetailPage() {
                               const levelKey = (log.level || "info").toLowerCase()
                               const levelStyles = logLevelStyles[levelKey] || logLevelStyles.info
 
-                              return (
+                        return (
                                 <CellMeasurer
                                   cache={logViewerCacheRef.current}
                                   columnIndex={0}
@@ -1661,34 +1856,32 @@ export default function ApplicationDetailPage() {
                                         <span className="text-xs text-muted-foreground font-mono">
                                           {formatDateTime(log.timestamp)}
                                         </span>
-                                      </div>
+                              </div>
                                       <div className="text-[11px] text-muted-foreground font-mono flex items-center gap-2">
-                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white border text-gray-700 dark:text-gray-300 dark:bg-gray-900">
-                                          <span className={`w-2 h-2 rounded-full ${levelStyles.dot}`} />
-                                          {levelStyles.label}
-                                        </span>
-                                        <span className="hidden md:inline">
-                                          App: {log.app || application?.name || "未知"}
-                                        </span>
-                                      </div>
+                                        {log.caller && (log.caller.file || log.caller.line || log.caller.function) && (
+                                          <span className="hidden md:inline">
+                                            {log.caller.file}{log.caller.line !== undefined ? `:${log.caller.line}` : ""}{log.caller.function ? ` (${log.caller.function})` : ""}
+                                      </span>
+                                        )}
                                     </div>
+                                  </div>
                                     <p className="mt-2 text-sm text-gray-900 dark:text-gray-100 whitespace-pre-wrap break-words font-mono">
                                       {log.message}
                                     </p>
-                                    {log.details && (
+                                  {log.details && (
                                       <pre className="mt-2 bg-gray-100 dark:bg-gray-950 rounded-md p-2 text-xs text-gray-700 dark:text-gray-300 overflow-x-auto whitespace-pre-wrap break-words font-mono">
                                         {log.details}
                                       </pre>
-                                    )}
-                                  </div>
+                                  )}
+                                </div>
                                 </CellMeasurer>
                               )
                             }}
                           />
-                        )}
+                            )}
                       </AutoSizer>
-                    </div>
-                  )}
+                      </div>
+                    )}
                 </CardContent>
               </Card>
             </TabsContent>

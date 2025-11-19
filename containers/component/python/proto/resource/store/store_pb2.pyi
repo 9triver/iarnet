@@ -47,3 +47,13 @@ class GetStreamChunkResponse(_message.Message):
     CHUNK_FIELD_NUMBER: _ClassVar[int]
     Chunk: _types_pb2.StreamChunk
     def __init__(self, Chunk: _Optional[_Union[_types_pb2.StreamChunk, _Mapping]] = ...) -> None: ...
+
+class SaveStreamChunkRequest(_message.Message):
+    __slots__ = ("Chunk",)
+    CHUNK_FIELD_NUMBER: _ClassVar[int]
+    Chunk: _types_pb2.StreamChunk
+    def __init__(self, Chunk: _Optional[_Union[_types_pb2.StreamChunk, _Mapping]] = ...) -> None: ...
+
+class SaveStreamChunkResponse(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...

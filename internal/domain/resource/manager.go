@@ -125,6 +125,10 @@ func (m *Manager) SaveObject(ctx context.Context, obj *commonpb.EncodedObject) (
 	return m.storeService.SaveObject(ctx, obj)
 }
 
+func (m *Manager) SaveStreamChunk(ctx context.Context, chunk *commonpb.StreamChunk) error {
+	return m.storeService.SaveStreamChunk(ctx, chunk)
+}
+
 func (m *Manager) GetObject(ctx context.Context, ref *commonpb.ObjectRef) (*commonpb.EncodedObject, error) {
 	return m.storeService.GetObject(ctx, ref)
 }

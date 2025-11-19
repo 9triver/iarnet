@@ -310,6 +310,86 @@ func (x *GetStreamChunkResponse) GetChunk() *common.StreamChunk {
 	return nil
 }
 
+type SaveStreamChunkRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Chunk         *common.StreamChunk    `protobuf:"bytes,1,opt,name=Chunk,proto3" json:"Chunk,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SaveStreamChunkRequest) Reset() {
+	*x = SaveStreamChunkRequest{}
+	mi := &file_resource_store_store_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SaveStreamChunkRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SaveStreamChunkRequest) ProtoMessage() {}
+
+func (x *SaveStreamChunkRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_resource_store_store_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SaveStreamChunkRequest.ProtoReflect.Descriptor instead.
+func (*SaveStreamChunkRequest) Descriptor() ([]byte, []int) {
+	return file_resource_store_store_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *SaveStreamChunkRequest) GetChunk() *common.StreamChunk {
+	if x != nil {
+		return x.Chunk
+	}
+	return nil
+}
+
+type SaveStreamChunkResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SaveStreamChunkResponse) Reset() {
+	*x = SaveStreamChunkResponse{}
+	mi := &file_resource_store_store_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SaveStreamChunkResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SaveStreamChunkResponse) ProtoMessage() {}
+
+func (x *SaveStreamChunkResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_resource_store_store_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SaveStreamChunkResponse.ProtoReflect.Descriptor instead.
+func (*SaveStreamChunkResponse) Descriptor() ([]byte, []int) {
+	return file_resource_store_store_proto_rawDescGZIP(), []int{7}
+}
+
 var File_resource_store_store_proto protoreflect.FileDescriptor
 
 const file_resource_store_store_proto_rawDesc = "" +
@@ -329,10 +409,14 @@ const file_resource_store_store_proto_rawDesc = "" +
 	"\bObjectID\x18\x01 \x01(\tR\bObjectID\x12\x16\n" +
 	"\x06Offset\x18\x02 \x01(\tR\x06Offset\"C\n" +
 	"\x16GetStreamChunkResponse\x12)\n" +
-	"\x05Chunk\x18\x01 \x01(\v2\x13.common.StreamChunkR\x05Chunk2\xdb\x01\n" +
+	"\x05Chunk\x18\x01 \x01(\v2\x13.common.StreamChunkR\x05Chunk\"C\n" +
+	"\x16SaveStreamChunkRequest\x12)\n" +
+	"\x05Chunk\x18\x01 \x01(\v2\x13.common.StreamChunkR\x05Chunk\"\x19\n" +
+	"\x17SaveStreamChunkResponse2\xad\x02\n" +
 	"\aService\x12A\n" +
 	"\n" +
-	"SaveObject\x12\x18.store.SaveObjectRequest\x1a\x19.store.SaveObjectResponse\x12>\n" +
+	"SaveObject\x12\x18.store.SaveObjectRequest\x1a\x19.store.SaveObjectResponse\x12P\n" +
+	"\x0fSaveStreamChunk\x12\x1d.store.SaveStreamChunkRequest\x1a\x1e.store.SaveStreamChunkResponse\x12>\n" +
 	"\tGetObject\x12\x17.store.GetObjectRequest\x1a\x18.store.GetObjectResponse\x12M\n" +
 	"\x0eGetStreamChunk\x12\x1c.store.GetStreamChunkRequest\x1a\x1d.store.GetStreamChunkResponseB9Z7github.com/9triver/iarnet/internal/proto/resource/storeb\x06proto3"
 
@@ -348,35 +432,40 @@ func file_resource_store_store_proto_rawDescGZIP() []byte {
 	return file_resource_store_store_proto_rawDescData
 }
 
-var file_resource_store_store_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_resource_store_store_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_resource_store_store_proto_goTypes = []any{
-	(*SaveObjectRequest)(nil),      // 0: store.SaveObjectRequest
-	(*SaveObjectResponse)(nil),     // 1: store.SaveObjectResponse
-	(*GetObjectRequest)(nil),       // 2: store.GetObjectRequest
-	(*GetObjectResponse)(nil),      // 3: store.GetObjectResponse
-	(*GetStreamChunkRequest)(nil),  // 4: store.GetStreamChunkRequest
-	(*GetStreamChunkResponse)(nil), // 5: store.GetStreamChunkResponse
-	(*common.EncodedObject)(nil),   // 6: common.EncodedObject
-	(*common.ObjectRef)(nil),       // 7: common.ObjectRef
-	(*common.StreamChunk)(nil),     // 8: common.StreamChunk
+	(*SaveObjectRequest)(nil),       // 0: store.SaveObjectRequest
+	(*SaveObjectResponse)(nil),      // 1: store.SaveObjectResponse
+	(*GetObjectRequest)(nil),        // 2: store.GetObjectRequest
+	(*GetObjectResponse)(nil),       // 3: store.GetObjectResponse
+	(*GetStreamChunkRequest)(nil),   // 4: store.GetStreamChunkRequest
+	(*GetStreamChunkResponse)(nil),  // 5: store.GetStreamChunkResponse
+	(*SaveStreamChunkRequest)(nil),  // 6: store.SaveStreamChunkRequest
+	(*SaveStreamChunkResponse)(nil), // 7: store.SaveStreamChunkResponse
+	(*common.EncodedObject)(nil),    // 8: common.EncodedObject
+	(*common.ObjectRef)(nil),        // 9: common.ObjectRef
+	(*common.StreamChunk)(nil),      // 10: common.StreamChunk
 }
 var file_resource_store_store_proto_depIdxs = []int32{
-	6, // 0: store.SaveObjectRequest.Object:type_name -> common.EncodedObject
-	7, // 1: store.SaveObjectResponse.ObjectRef:type_name -> common.ObjectRef
-	7, // 2: store.GetObjectRequest.ObjectRef:type_name -> common.ObjectRef
-	6, // 3: store.GetObjectResponse.Object:type_name -> common.EncodedObject
-	8, // 4: store.GetStreamChunkResponse.Chunk:type_name -> common.StreamChunk
-	0, // 5: store.Service.SaveObject:input_type -> store.SaveObjectRequest
-	2, // 6: store.Service.GetObject:input_type -> store.GetObjectRequest
-	4, // 7: store.Service.GetStreamChunk:input_type -> store.GetStreamChunkRequest
-	1, // 8: store.Service.SaveObject:output_type -> store.SaveObjectResponse
-	3, // 9: store.Service.GetObject:output_type -> store.GetObjectResponse
-	5, // 10: store.Service.GetStreamChunk:output_type -> store.GetStreamChunkResponse
-	8, // [8:11] is the sub-list for method output_type
-	5, // [5:8] is the sub-list for method input_type
-	5, // [5:5] is the sub-list for extension type_name
-	5, // [5:5] is the sub-list for extension extendee
-	0, // [0:5] is the sub-list for field type_name
+	8,  // 0: store.SaveObjectRequest.Object:type_name -> common.EncodedObject
+	9,  // 1: store.SaveObjectResponse.ObjectRef:type_name -> common.ObjectRef
+	9,  // 2: store.GetObjectRequest.ObjectRef:type_name -> common.ObjectRef
+	8,  // 3: store.GetObjectResponse.Object:type_name -> common.EncodedObject
+	10, // 4: store.GetStreamChunkResponse.Chunk:type_name -> common.StreamChunk
+	10, // 5: store.SaveStreamChunkRequest.Chunk:type_name -> common.StreamChunk
+	0,  // 6: store.Service.SaveObject:input_type -> store.SaveObjectRequest
+	6,  // 7: store.Service.SaveStreamChunk:input_type -> store.SaveStreamChunkRequest
+	2,  // 8: store.Service.GetObject:input_type -> store.GetObjectRequest
+	4,  // 9: store.Service.GetStreamChunk:input_type -> store.GetStreamChunkRequest
+	1,  // 10: store.Service.SaveObject:output_type -> store.SaveObjectResponse
+	7,  // 11: store.Service.SaveStreamChunk:output_type -> store.SaveStreamChunkResponse
+	3,  // 12: store.Service.GetObject:output_type -> store.GetObjectResponse
+	5,  // 13: store.Service.GetStreamChunk:output_type -> store.GetStreamChunkResponse
+	10, // [10:14] is the sub-list for method output_type
+	6,  // [6:10] is the sub-list for method input_type
+	6,  // [6:6] is the sub-list for extension type_name
+	6,  // [6:6] is the sub-list for extension extendee
+	0,  // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_resource_store_store_proto_init() }
@@ -390,7 +479,7 @@ func file_resource_store_store_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_resource_store_store_proto_rawDesc), len(file_resource_store_store_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

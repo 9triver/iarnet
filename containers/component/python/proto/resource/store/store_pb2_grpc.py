@@ -39,6 +39,11 @@ class ServiceStub(object):
                 request_serializer=resource_dot_store_dot_store__pb2.SaveObjectRequest.SerializeToString,
                 response_deserializer=resource_dot_store_dot_store__pb2.SaveObjectResponse.FromString,
                 _registered_method=True)
+        self.SaveStreamChunk = channel.unary_unary(
+                '/store.Service/SaveStreamChunk',
+                request_serializer=resource_dot_store_dot_store__pb2.SaveStreamChunkRequest.SerializeToString,
+                response_deserializer=resource_dot_store_dot_store__pb2.SaveStreamChunkResponse.FromString,
+                _registered_method=True)
         self.GetObject = channel.unary_unary(
                 '/store.Service/GetObject',
                 request_serializer=resource_dot_store_dot_store__pb2.GetObjectRequest.SerializeToString,
@@ -55,6 +60,12 @@ class ServiceServicer(object):
     """Missing associated documentation comment in .proto file."""
 
     def SaveObject(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SaveStreamChunk(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -79,6 +90,11 @@ def add_ServiceServicer_to_server(servicer, server):
                     servicer.SaveObject,
                     request_deserializer=resource_dot_store_dot_store__pb2.SaveObjectRequest.FromString,
                     response_serializer=resource_dot_store_dot_store__pb2.SaveObjectResponse.SerializeToString,
+            ),
+            'SaveStreamChunk': grpc.unary_unary_rpc_method_handler(
+                    servicer.SaveStreamChunk,
+                    request_deserializer=resource_dot_store_dot_store__pb2.SaveStreamChunkRequest.FromString,
+                    response_serializer=resource_dot_store_dot_store__pb2.SaveStreamChunkResponse.SerializeToString,
             ),
             'GetObject': grpc.unary_unary_rpc_method_handler(
                     servicer.GetObject,
@@ -118,6 +134,33 @@ class Service(object):
             '/store.Service/SaveObject',
             resource_dot_store_dot_store__pb2.SaveObjectRequest.SerializeToString,
             resource_dot_store_dot_store__pb2.SaveObjectResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SaveStreamChunk(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/store.Service/SaveStreamChunk',
+            resource_dot_store_dot_store__pb2.SaveStreamChunkRequest.SerializeToString,
+            resource_dot_store_dot_store__pb2.SaveStreamChunkResponse.FromString,
             options,
             channel_credentials,
             insecure,

@@ -224,7 +224,7 @@ class Actor:
                 
             # 解码对象并添加到参数字典
             try:
-                value = EncDec.decode(store_obj)
+                value = self._decode_store_object(store_obj)
                 invoke_params[arg.Param] = value
                 logger.debug(
                     f"Collected arg: param={arg.Param}, value_type={type(value).__name__}, "
@@ -285,6 +285,8 @@ class Actor:
                 error_msg = "Failed to save result to store"
                 logger.error(error_msg)
             else:
+                if is_stream:
+                    self._stream_result_chunks(object_ref.ID, value, store_lang)
                 # 创建 ObjectRef 引用（不再需要 Flow 和 StoreRef）
                 result_ref = common.ObjectRef(
                     ID=object_ref.ID,
@@ -320,6 +322,87 @@ class Actor:
             InvokeResponse=invoke_response
         )
         self.send_queue.put(response_msg)
+
+    def _decode_store_object(self, store_obj: common.EncodedObject) -> Any:
+        """
+        解码 Store 中的对象，支持流式对象。
+
+        Args:
+            store_obj: Store 返回的对象
+
+        Returns:
+            Python 对象或生成器
+        """
+        if store_obj.IsStream:
+            return self._create_stream_reader(store_obj)
+        return EncDec.decode(store_obj)
+
+    def _create_stream_reader(self, store_obj: common.EncodedObject):
+        """
+        将流式对象转换为生成器，按需从 Store 拉取数据。
+        """
+        object_id = store_obj.ID
+        logger.info(f"Creating stream reader for object {object_id}")
+
+        def generator():
+            try:
+                for chunk in self.store_client.iter_stream_chunks(object_id):
+                    if chunk.Error:
+                        raise RuntimeError(
+                            f"Stream {object_id} chunk error: {chunk.Error}"
+                        )
+                    if chunk.Value is None:
+                        continue
+                    yield EncDec.decode(chunk.Value)
+                    if chunk.EoS:
+                        return
+            except Exception as exc:
+                logger.error(f"Stream {object_id} iteration failed: {exc}")
+                raise
+
+        return generator()
+
+    def _stream_result_chunks(self, object_id: str, generator: Any, language: common.Language):
+        """
+        将函数返回的生成器拆分为多个 chunk，写入 Store。
+        """
+        offset = 0
+        try:
+            for item in generator:
+                data, nested_stream = EncDec.encode(item, language)
+                if nested_stream:
+                    raise ValueError("Nested stream results are not supported")
+                encoded = common.EncodedObject(
+                    ID=EncDec.next_id(),
+                    Data=data,
+                    Language=language,
+                )
+                chunk = common.StreamChunk(
+                    ObjectID=object_id,
+                    Offset=offset,
+                    Value=encoded,
+                )
+                if not self.store_client.save_stream_chunk(chunk):
+                    raise RuntimeError(
+                        f"Failed to save stream chunk: object={object_id}, offset={offset}"
+                    )
+                offset += 1
+
+            eos_chunk = common.StreamChunk(
+                ObjectID=object_id,
+                Offset=offset,
+                EoS=True,
+            )
+            if not self.store_client.save_stream_chunk(eos_chunk):
+                raise RuntimeError(f"Failed to save EOS chunk for stream {object_id}")
+        except Exception as exc:
+            error_chunk = common.StreamChunk(
+                ObjectID=object_id,
+                Offset=offset,
+                Error=str(exc),
+            )
+            self.store_client.save_stream_chunk(error_chunk)
+            raise
 
     # ========================================================================
     # 消息接收和发送相关方法

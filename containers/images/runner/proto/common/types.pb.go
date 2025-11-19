@@ -208,7 +208,7 @@ func (x *EncodedObject) GetIsStream() bool {
 type StreamChunk struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ObjectID      string                 `protobuf:"bytes,1,opt,name=ObjectID,proto3" json:"ObjectID,omitempty"`
-	Offset        string                 `protobuf:"bytes,2,opt,name=Offset,proto3" json:"Offset,omitempty"`
+	Offset        int64                  `protobuf:"varint,2,opt,name=Offset,proto3" json:"Offset,omitempty"`
 	EoS           bool                   `protobuf:"varint,3,opt,name=EoS,proto3" json:"EoS,omitempty"`
 	Value         *EncodedObject         `protobuf:"bytes,4,opt,name=Value,proto3" json:"Value,omitempty"`
 	Error         string                 `protobuf:"bytes,5,opt,name=Error,proto3" json:"Error,omitempty"`
@@ -253,11 +253,11 @@ func (x *StreamChunk) GetObjectID() string {
 	return ""
 }
 
-func (x *StreamChunk) GetOffset() string {
+func (x *StreamChunk) GetOffset() int64 {
 	if x != nil {
 		return x.Offset
 	}
-	return ""
+	return 0
 }
 
 func (x *StreamChunk) GetEoS() bool {
@@ -297,7 +297,7 @@ const file_common_types_proto_rawDesc = "" +
 	"\bIsStream\x18\x05 \x01(\bR\bIsStream\"\x96\x01\n" +
 	"\vStreamChunk\x12\x1a\n" +
 	"\bObjectID\x18\x01 \x01(\tR\bObjectID\x12\x16\n" +
-	"\x06Offset\x18\x02 \x01(\tR\x06Offset\x12\x10\n" +
+	"\x06Offset\x18\x02 \x01(\x03R\x06Offset\x12\x10\n" +
 	"\x03EoS\x18\x03 \x01(\bR\x03EoS\x12+\n" +
 	"\x05Value\x18\x04 \x01(\v2\x15.common.EncodedObjectR\x05Value\x12\x14\n" +
 	"\x05Error\x18\x05 \x01(\tR\x05Error*I\n" +
