@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { applicationsAPI, componentsAPI, APIError } from "@/lib/api"
+import { applicationsAPI, APIError } from "@/lib/api"
 import { getWebSocketManager, disconnectWebSocketManager } from "@/lib/websocket"
-import type { LogEntry, Application, DAG, DAGNode, DAGEdge, ControlNode, DataNode, Component, DAGNodeStatus } from "@/lib/model"
-import { formatDateTime } from "@/lib/utils"
+import type { LogEntry, Application, DAG, DAGNode, DAGEdge, ControlNode, DataNode, DAGNodeStatus, GetApplicationActorsResponse, ActorRecord } from "@/lib/model"
+import { formatDateTime, formatMemory } from "@/lib/utils"
 import { Sidebar } from "@/components/sidebar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -32,7 +32,6 @@ import {
   Terminal,
   Code,
   Globe,
-  Box,
   Database,
   Network,
   Cpu,
@@ -62,6 +61,148 @@ interface NodeDisplayInfo {
   name: string
   type: "control" | "data"
   status: DAGNodeStatus | "unknown"
+}
+
+interface ActorViewItem {
+  id: string
+  displayName: string
+  componentId?: string
+  providerId?: string
+  image?: string
+  resourceUsage?: {
+    cpu?: number
+    memory?: number
+    gpu?: number
+  }
+  calcLatency?: number
+  linkLatency?: number
+}
+
+interface ActorGroupView {
+  functionName: string
+  actors: ActorViewItem[]
+}
+
+const pickString = (...values: unknown[]): string | undefined => {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value
+    }
+  }
+  return undefined
+}
+
+const pickNumber = (...values: unknown[]): number | undefined => {
+  for (const value of values) {
+    if (typeof value === "number" && !Number.isNaN(value)) {
+      return value
+    }
+  }
+  return undefined
+}
+
+const normalizeActor = (actor: ActorRecord | undefined, functionName: string, index: number): ActorViewItem => {
+  const fallbackId = `${functionName || "actor"}-${index + 1}`
+  if (!actor || typeof actor !== "object") {
+    return {
+      id: fallbackId,
+      displayName: fallbackId,
+    }
+  }
+
+  const resolvedId =
+    pickString(actor.id, actor.ID, actor.actor_id, actor.actorId, actor.actorID, actor.name) || fallbackId
+
+  const component = (actor.component && typeof actor.component === "object") ? actor.component : undefined
+  const componentId = component ? pickString(
+    component.id,
+    component.ID,
+    component.component_id,
+    component.componentId
+  ) : undefined
+  const providerId = component ? pickString(component.provider_id, component.providerId, component.providerID) : undefined
+  const image = component && typeof component.image === "string" ? component.image : undefined
+
+  const rawUsage =
+    component && typeof component.resource_usage === "object" ? component.resource_usage :
+    component && typeof component.resourceUsage === "object" ? component.resourceUsage :
+    undefined
+
+  const rawCpu = pickNumber(rawUsage?.cpu)
+  const rawMemory = pickNumber(rawUsage?.memory)
+  const rawGpu = pickNumber(rawUsage?.gpu)
+  
+  const resourceUsage = rawUsage ? {
+    cpu: rawCpu !== undefined ? rawCpu / 1000 : undefined, // 转换为核
+    memory: rawMemory, // 保持字节，前端格式化
+    gpu: rawGpu,
+  } : undefined
+
+  const info = actor.info && typeof actor.info === "object" ? actor.info : undefined
+  // 延迟信息：0也是有效值，需要特殊处理
+  const calcLatency = (() => {
+    if (info?.calc_latency !== undefined && typeof info.calc_latency === "number") {
+      return info.calc_latency
+    }
+    if (info?.calcLatency !== undefined && typeof info.calcLatency === "number") {
+      return info.calcLatency
+    }
+    if (info?.CalcLatency !== undefined && typeof info.CalcLatency === "number") {
+      return info.CalcLatency
+    }
+    if ((actor as any)?.calcLatency !== undefined && typeof (actor as any).calcLatency === "number") {
+      return (actor as any).calcLatency
+    }
+    return undefined
+  })()
+  
+  const linkLatency = (() => {
+    if (info?.link_latency !== undefined && typeof info.link_latency === "number") {
+      return info.link_latency
+    }
+    if (info?.linkLatency !== undefined && typeof info.linkLatency === "number") {
+      return info.linkLatency
+    }
+    if (info?.LinkLatency !== undefined && typeof info.LinkLatency === "number") {
+      return info.LinkLatency
+    }
+    if ((actor as any)?.linkLatency !== undefined && typeof (actor as any).linkLatency === "number") {
+      return (actor as any).linkLatency
+    }
+    return undefined
+  })()
+
+  const displayName = componentId ? `${componentId} (${resolvedId})` : resolvedId
+
+  return {
+    id: resolvedId,
+    displayName,
+    componentId,
+    providerId,
+    image,
+    resourceUsage,
+    calcLatency,
+    linkLatency,
+  }
+}
+
+const normalizeActorGroups = (data: GetApplicationActorsResponse | null | undefined): ActorGroupView[] => {
+  if (!data || typeof data !== "object") {
+    return []
+  }
+
+  return Object.entries(data)
+    .map(([functionName, actorList]) => {
+      const actorsArray = Array.isArray(actorList) ? actorList : []
+      const normalizedActors = actorsArray.map((actor, index) => normalizeActor(actor, functionName, index))
+      // 按actor id排序
+      normalizedActors.sort((a, b) => a.id.localeCompare(b.id))
+      return {
+        functionName,
+        actors: normalizedActors,
+      }
+    })
+    .sort((a, b) => a.functionName.localeCompare(b.functionName))
 }
 
 // 注册G6 React节点扩展
@@ -144,15 +285,9 @@ export default function ApplicationDetailPage() {
   const [application, setApplication] = useState<Application | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  const [isLoadingComponents, setIsLoadingComponents] = useState(false)// 组件列表状态
-  const [components, setComponents] = useState<Component[]>([])
-  const [isLoadingComponentsList, setIsLoadingComponentsList] = useState(false)
-  
-  // 组件日志状态
-  const [selectedComponent, setSelectedComponent] = useState<string | null>(null)
-  const [componentLogs, setComponentLogs] = useState<string>("")
-  const [isLoadingComponentLogs, setIsLoadingComponentLogs] = useState(false)
-  const [showLogsDialog, setShowLogsDialog] = useState(false)
+  const [isLoadingComponents, setIsLoadingComponents] = useState(false)// DAG 加载状态
+  const [actorGroups, setActorGroups] = useState<ActorGroupView[]>([])
+  const [isLoadingActorsList, setIsLoadingActorsList] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [isLoadingAppLogs, setIsLoadingAppLogs] = useState(false)
@@ -161,6 +296,7 @@ export default function ApplicationDetailPage() {
   const [logSearchTerm, setLogSearchTerm] = useState("")
   const [logLevelFilter, setLogLevelFilter] = useState<string>("all")
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const isSubmittingRef = useRef(false) // 使用 ref 跟踪提交状态，避免状态更新导致的重新渲染
   const [runnerEnvironments, setRunnerEnvironments] = useState<string[]>([])
 
   const applicationId = params.id as string
@@ -184,12 +320,6 @@ export default function ApplicationDetailPage() {
     },
   })
 
-  // 处理刷新DAG按钮点击
-  const handleRefreshDAG = () => {
-    loadAppDAG()
-    loadComponents()
-  }
-
   // 标记 WebSocket 是否已初始化，避免重复连接
   const wsInitializedRef = useRef(false)
   const updateTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -206,7 +336,7 @@ export default function ApplicationDetailPage() {
   useEffect(() => {
     loadApplicationDetail()
     loadAppDAG()
-    loadComponents()
+    loadActors()
     fetchRunnerEnvironments()
   }, [applicationId])
 
@@ -231,7 +361,7 @@ export default function ApplicationDetailPage() {
         updateTimerRef.current = setTimeout(() => {
           console.log('执行 DAG 数据更新')
           loadAppDAG()
-          loadComponents()
+          loadActors()
         }, 300)
       }
       
@@ -269,6 +399,12 @@ export default function ApplicationDetailPage() {
     setActiveTab(value)
     if (value === "logs" && applicationId) {
       loadLogs()
+    }
+    if (value === "dag" && applicationId) {
+      loadAppDAG()
+    }
+    if (value === "components" && applicationId) {
+      loadActors()
     }
   }
 
@@ -597,14 +733,23 @@ export default function ApplicationDetailPage() {
   }
 
   const [appDAG, setAppDAG] = useState<DAG | null>(null)
+  const [dagSessions, setDagSessions] = useState<string[]>([])
+  const [selectedDagSession, setSelectedDagSession] = useState<string | null>(null)
 
-  const loadAppDAG = async () => {
+  const loadAppDAG = async (sessionId?: string) => {
     if (!applicationId) return
 
     setIsLoadingComponents(true)
     try {
-      const dagResponse = await applicationsAPI.getAppDAG(applicationId)
+      const requestSession = sessionId ?? selectedDagSession ?? undefined
+      const dagResponse = await applicationsAPI.getAppDAG(applicationId, requestSession)
 
+      setDagSessions(dagResponse.sessions || [])
+      const resolvedSession =
+        dagResponse.selectedSessionId ||
+        requestSession ||
+        (dagResponse.sessions && dagResponse.sessions.length > 0 ? dagResponse.sessions[dagResponse.sessions.length - 1] : null)
+      setSelectedDagSession(resolvedSession || null)
       setAppDAG(dagResponse.dag)
     } catch (error) {
       // DAG不存在是正常现象，应用只有在运行时才会有DAG
@@ -614,56 +759,40 @@ export default function ApplicationDetailPage() {
       } else {
         console.error('Failed to load DAG:', error)
       }
+      setDagSessions([])
+      setSelectedDagSession(null)
       setAppDAG(null)
     } finally {
       setIsLoadingComponents(false)
     }
   }
 
-  const loadComponents = async () => {
+  const loadActors = async () => {
     if (!applicationId) return
 
-    setIsLoadingComponentsList(true)
+    setIsLoadingActorsList(true)
     try {
-      const response = await applicationsAPI.getComponents(applicationId) as { components: Component[] }
-      // 转换组件数据：后端返回的CPU单位是毫核（millicores），需要除以1000转换为核（cores）
-      const components = (response.components || []).map(component => ({
-        ...component,
-        resource_usage: {
-          ...component.resource_usage,
-          cpu: component.resource_usage.cpu / 1000
-        }
-      }))
-      setComponents(components)
+      const response = await applicationsAPI.getActors(applicationId)
+      setActorGroups(normalizeActorGroups(response))
     } catch (error) {
-      console.error('Failed to load components:', error)
-      setComponents([])
+      console.error('Failed to load actors:', error)
+      setActorGroups([])
     } finally {
-      setIsLoadingComponentsList(false)
+      setIsLoadingActorsList(false)
     }
   }
 
-  // 加载组件日志
-  const loadComponentLogs = async (componentName: string) => {
-    if (!applicationId || !componentName) return
-    
-    setIsLoadingComponentLogs(true)
-    try {
-      const response = await componentsAPI.getLogs(applicationId, componentName) as { logs: string }
-      setComponentLogs(response.logs || "")
-    } catch (error) {
-      console.error('Failed to load component logs:', error)
-      setComponentLogs("获取日志失败: " + (error instanceof Error ? error.message : String(error)))
-    } finally {
-      setIsLoadingComponentLogs(false)
-    }
+  const handleDagSessionChange = (sessionId: string) => {
+    setSelectedDagSession(sessionId)
+    loadAppDAG(sessionId)
   }
 
-  // 处理查看组件日志
-  const handleViewComponentLogs = (componentName: string) => {
-    setSelectedComponent(componentName)
-    setShowLogsDialog(true)
-    loadComponentLogs(componentName)
+  const handleRefreshDAG = () => {
+    loadAppDAG(selectedDagSession ?? undefined)
+  }
+
+  const handleRefreshActors = () => {
+    loadActors()
   }
 
   const handleStart = async () => {
@@ -690,6 +819,7 @@ export default function ApplicationDetailPage() {
 
   const handleEdit = () => {
     if (!application) return
+    isSubmittingRef.current = false // 重置提交标志
     form.setValue("name", application.name)
     form.setValue("description", application.description || "")
     form.setValue("executeCmd", application.executeCmd || "")
@@ -698,8 +828,29 @@ export default function ApplicationDetailPage() {
     setIsEditDialogOpen(true)
   }
 
+  const handleEditDialogOpenChange = (open: boolean) => {
+    setIsEditDialogOpen(open)
+    // 延迟清除表单数据，等待关闭动画完成
+    // 如果是提交关闭，不清除表单（由 handleUpdate 处理）
+    if (!open && !isSubmittingRef.current) {
+      setTimeout(() => {
+        form.reset({
+          name: "",
+          description: "",
+          executeCmd: "",
+          envInstallCmd: "",
+          runnerEnv: "",
+        })
+        form.clearErrors()
+      }, 200) // 等待对话框关闭动画完成
+    }
+  }
+
   const handleUpdate = async (data: ApplicationFormData) => {
     if (!application) return
+
+    // 先设置提交标志，确保在关闭对话框时不会被清除
+    isSubmittingRef.current = true
 
     try {
       const updateData = {
@@ -711,12 +862,40 @@ export default function ApplicationDetailPage() {
       }
 
       await applicationsAPI.update(application.id, updateData)
-      await loadApplicationDetail()
-      setIsEditDialogOpen(false)
+      
       toast.success(`应用 "${data.name}" 已成功更新`)
+      
+      // 使用 requestAnimationFrame 确保在下一帧再关闭对话框
+      // 这样可以确保 isSubmittingRef.current 已经被正确设置
+      requestAnimationFrame(() => {
+        setIsEditDialogOpen(false)
+        
+        // 延迟清除表单、加载详情和重置标志，等待关闭动画完成
+        // 对话框关闭动画通常需要 200-300ms，我们延迟 500ms 确保完全关闭
+        setTimeout(async () => {
+          // 先加载详情，再清除表单
+          await loadApplicationDetail()
+          
+          // 再延迟一点清除表单，确保详情已经加载完成
+          setTimeout(() => {
+            form.reset({
+              name: "",
+              description: "",
+              executeCmd: "",
+              envInstallCmd: "",
+              runnerEnv: "",
+            })
+            form.clearErrors()
+            isSubmittingRef.current = false // 重置提交标志
+          }, 100)
+        }, 500)
+      })
+      
     } catch (error) {
       console.error('Failed to update application:', error)
       toast.error("应用更新时发生错误，请稍后重试")
+      isSubmittingRef.current = false // 提交失败时重置标志
+      // 提交失败时不关闭对话框，让用户可以看到错误并重试
     }
   }
 
@@ -857,7 +1036,7 @@ export default function ApplicationDetailPage() {
           </div>
 
           {/* 编辑应用对话框 */}
-          <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <Dialog open={isEditDialogOpen} onOpenChange={handleEditDialogOpenChange}>
             <DialogContent className="sm:max-w-[550px]">
               <DialogHeader>
                 <DialogTitle>编辑应用</DialogTitle>
@@ -890,13 +1069,12 @@ export default function ApplicationDetailPage() {
                       <FormItem>
                         <FormLabel>环境安装命令（可选）</FormLabel>
                         <FormControl>
-                          <Textarea 
-                            placeholder="输入环境安装命令，支持多行：&#10;pip install -r requirements.txt&#10;&#10;或者：&#10;npm install&#10;yarn install" 
-                            className="min-h-[80px]"
+                          <Input 
+                            placeholder="例如：pip install -r requirements.txt"
                             {...field} 
                           />
                         </FormControl>
-                        <FormDescription>在运行应用前执行的依赖安装命令</FormDescription>
+                        <FormDescription>在运行应用前执行的依赖安装命令。若需要多行命令，请放在脚本文件中。</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -909,13 +1087,12 @@ export default function ApplicationDetailPage() {
                       <FormItem>
                         <FormLabel>执行命令</FormLabel>
                         <FormControl>
-                          <Textarea 
-                            placeholder="输入应用启动命令，支持多行：&#10;npm install&#10;npm start&#10;&#10;或者：&#10;pip install -r requirements.txt&#10;python app.py" 
-                            className="min-h-[100px]"
+                          <Input 
+                            placeholder="例如：python app.py"
                             {...field} 
                           />
                         </FormControl>
-                        <FormDescription>应用启动时执行的命令</FormDescription>
+                        <FormDescription>应用启动时执行的命令。若需要多行命令，请放在脚本文件中。</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -963,7 +1140,7 @@ export default function ApplicationDetailPage() {
                   />
 
                   <DialogFooter>
-                    <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                    <Button type="button" variant="outline" onClick={() => handleEditDialogOpenChange(false)}>
                       取消
                     </Button>
                     <Button type="submit">更新应用</Button>
@@ -1028,13 +1205,42 @@ export default function ApplicationDetailPage() {
                 </div>
 
                 <div>
-                  <h4 className="text-sm font-medium text-muted-foreground mb-1">组件数量</h4>
+                  <h4 className="text-sm font-medium text-muted-foreground mb-1">函数数量</h4>
                   <div className="flex items-center space-x-2 text-sm">
                     <Package className="h-4 w-4" />
-                    <span>{appDAG?.nodes.length || 0} 个节点</span>
-                    {isLoadingComponents && (
+                    <span>{actorGroups.length} 个函数</span>
+                    {isLoadingActorsList && (
                       <RefreshCw className="h-3 w-3 animate-spin" />
                     )}
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-sm font-medium text-muted-foreground mb-1">Actor数量</h4>
+                  <div className="flex items-center space-x-2 text-sm">
+                    <Package className="h-4 w-4" />
+                    <span>{actorGroups.reduce((sum, group) => sum + group.actors.length, 0)} 个Actor</span>
+                    {isLoadingActorsList && (
+                      <RefreshCw className="h-3 w-3 animate-spin" />
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <h4 className="text-sm font-medium text-muted-foreground mb-1">环境安装命令</h4>
+                  <div className="flex items-center space-x-2 text-sm">
+                    <Terminal className="h-4 w-4" />
+                    <span className="font-mono text-xs break-all whitespace-pre-wrap">{application.envInstallCmd || "未设置"}</span>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-sm font-medium text-muted-foreground mb-1">执行命令</h4>
+                  <div className="flex items-center space-x-2 text-sm">
+                    <Terminal className="h-4 w-4" />
+                    <span className="font-mono text-xs break-all whitespace-pre-wrap">{application.executeCmd || "未设置"}</span>
                   </div>
                 </div>
 
@@ -1047,24 +1253,6 @@ export default function ApplicationDetailPage() {
                     </span>
                   </div>
                 </div>
-
-                <div className="md:col-span-2 lg:col-span-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <h4 className="text-sm font-medium text-muted-foreground mb-1">环境安装命令</h4>
-                    <div className="flex items-center space-x-2 text-sm">
-                      <Terminal className="h-4 w-4" />
-                      <span className="font-mono text-xs break-all whitespace-pre-wrap">{application.envInstallCmd || "未设置"}</span>
-                    </div>
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-medium text-muted-foreground mb-1">执行命令</h4>
-                    <div className="flex items-center space-x-2 text-sm">
-                      <Terminal className="h-4 w-4" />
-                      <span className="font-mono text-xs break-all whitespace-pre-wrap">{application.executeCmd || "未设置"}</span>
-                    </div>
-                  </div>
-                </div>
-
               </div>
             </CardContent>
           </Card>
@@ -1078,7 +1266,11 @@ export default function ApplicationDetailPage() {
               </TabsTrigger>
               <TabsTrigger value="components" className="flex items-center space-x-2">
                 <Package className="h-4 w-4" />
-                <span>组件管理</span>
+                <span>Actor管理</span>
+              </TabsTrigger>
+              <TabsTrigger value="dag" className="flex items-center space-x-2">
+                <GitBranch className="h-4 w-4" />
+                <span>DAG</span>
               </TabsTrigger>
               <TabsTrigger value="logs" className="flex items-center space-x-2">
                 <FileText className="h-4 w-4" />
@@ -1114,31 +1306,45 @@ export default function ApplicationDetailPage() {
               </Card>
             </TabsContent>
 
-            <TabsContent value="components">
+            <TabsContent value="dag">
               <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <CardTitle className="flex items-center space-x-2">
-                      <Package className="h-5 w-5" />
-                      <span>组件管理</span>
+                      <GitBranch className="h-5 w-5" />
+                      <span>DAG</span>
                     </CardTitle>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-4">
+                      {dagSessions.length > 0 && (
+                        <div className="flex items-center space-x-2">
+                          <label className="text-sm font-semibold text-foreground whitespace-nowrap">
+                            执行会话：
+                          </label>
+                          <Select
+                            value={selectedDagSession ?? dagSessions[dagSessions.length - 1]}
+                            onValueChange={handleDagSessionChange}
+                          >
+                            <SelectTrigger className="w-64 font-mono text-sm bg-white">
+                              <SelectValue placeholder="选择 Session" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {dagSessions.map((sessionId) => (
+                                <SelectItem key={sessionId} value={sessionId} className="font-mono">
+                                  {sessionId}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
                       <Button variant="outline" size="sm" onClick={handleRefreshDAG} disabled={isLoadingComponents}>
                         <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingComponents ? 'animate-spin' : ''}`} />
                         刷新
                       </Button>
-                      <Button variant="outline" size="sm" onClick={() => applicationsAPI.analyzeApplication(applicationId)}>
-                        <Activity className="h-4 w-4 mr-2" />
-                        分析
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => applicationsAPI.deployComponents(applicationId)}>
-                        <Play className="h-4 w-4 mr-2" />
-                        部署
-                      </Button>
                     </div>
                   </div>
                   <CardDescription>
-                    管理应用的Actor组件，包括Web服务、API服务、工作处理等可分布式部署的执行单元
+                    显示应用 Actor 组件之间的依赖关系和数据流向
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -1153,152 +1359,152 @@ export default function ApplicationDetailPage() {
                         <div className="text-center">
                           <Package className="h-8 w-8 mx-auto mb-2 opacity-50" />
                           <p>暂无DAG数据</p>
-                          <Button variant="link" onClick={loadAppDAG} className="mt-2">
+                          <Button variant="link" onClick={() => loadAppDAG(selectedDagSession ?? undefined)} className="mt-2">
                             点击加载DAG
                           </Button>
                         </div>
                       )}
                     </div>
                   ) : (
-                    <Tabs defaultValue="dag" className="space-y-4">
-                      <TabsList>
-                        <TabsTrigger value="dag" className="flex items-center space-x-2">
-                          <GitBranch className="h-4 w-4" />
-                          <span>DAG图</span>
-                        </TabsTrigger>
-                        <TabsTrigger value="list" className="flex items-center space-x-2">
-                          <Box className="h-4 w-4" />
-                          <span>组件列表</span>
-                        </TabsTrigger>
-                      </TabsList>
+                    <DAGVisualization 
+                      key={`dag-${appDAG.nodes.length}-${appDAG.edges.length}`} 
+                      dag={appDAG} 
+                    />
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-                      <TabsContent value="dag" className="space-y-4">
-                        <Card>
-                          <CardHeader>
-                            <CardTitle className="flex items-center space-x-2">
-                              <GitBranch className="w-5 h-5" />
-                              <span>组件依赖图</span>
-                            </CardTitle>
-                            <CardDescription>
-                              显示应用Actor组件之间的依赖关系和数据流向
-                            </CardDescription>
-                          </CardHeader>
-                          <CardContent>
-                            {appDAG ? (
-                              <DAGVisualization 
-                                key={`dag-${appDAG.nodes.length}-${appDAG.edges.length}`} 
-                                dag={appDAG} 
-                              />
-                            ) : (
-                              <div className="flex items-center justify-center h-64 text-muted-foreground">
-                                {isLoadingComponents ? "加载组件数据中..." : "暂无组件数据"}
+            <TabsContent value="components">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center space-x-2">
+                      <Package className="h-5 w-5" />
+                      <span>Actor 管理</span>
+                    </CardTitle>
+                    <div className="flex items-center space-x-2">
+                      <Button variant="outline" size="sm" onClick={handleRefreshActors} disabled={isLoadingActorsList}>
+                        <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingActorsList ? 'animate-spin' : ''}`} />
+                        刷新
+                      </Button>
+                    </div>
+                  </div>
+                  <CardDescription>
+                    按函数视角查看 Actor 运行实例、资源占用与实时延迟，便于跟踪调度效果
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {isLoadingActorsList ? (
+                    <div className="flex items-center justify-center h-32">
+                      <RefreshCw className="h-6 w-6 animate-spin mr-2" />
+                      <span>加载组件列表中...</span>
+                    </div>
+                  ) : actorGroups.length > 0 ? (
+                    <div className="space-y-4">
+                      {actorGroups.map((group) => (
+                        <div key={group.functionName} className="border rounded-lg p-4 bg-background">
+                          <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+                            <div className="flex items-center space-x-3">
+                              <Package className="h-5 w-5 text-primary" />
+                              <div>
+                                <p className="font-semibold text-lg">{group.functionName}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  绑定 {group.actors.length} 个 Actor 实例
+                                </p>
                               </div>
-                            )}
-                          </CardContent>
-                        </Card>
-                      </TabsContent>
-
-                      <TabsContent value="list" className="space-y-4">
-                        {isLoadingComponentsList ? (
-                          <div className="flex items-center justify-center h-32">
-                            <RefreshCw className="h-6 w-6 animate-spin mr-2" />
-                            <span>加载组件列表中...</span>
+                            </div>
+                            <Badge variant="secondary" className="w-fit">
+                              {group.actors.length} 个 Actor
+                            </Badge>
                           </div>
-                        ) : components.length > 0 ? (
-                          <div className="space-y-2">
-                            {components.map((component, index) => {
-                              const getStatusColor = (status: string) => {
-                                switch (status) {
-                                  case "running": return "bg-green-500"
-                                  case "deploying": return "bg-blue-500"
-                                  case "stopped": return "bg-gray-500"
-                                  case "failed": return "bg-red-500"
-                                  case "pending": return "bg-yellow-500"
-                                  default: return "bg-gray-400"
-                                }
-                              }
 
-                              const getStatusText = (status: string) => {
-                                switch (status) {
-                                  case "running": return "运行中"
-                                  case "deploying": return "部署中"
-                                  case "stopped": return "已停止"
-                                  case "failed": return "失败"
-                                  case "pending": return "等待中"
-                                  default: return "未知"
-                                }
-                              }
-
-                              return (
-                                <div key={component.name || `component-${index}`} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50">
-                                  <div className="flex items-center space-x-4 flex-1">
-                                    <div className="flex items-center space-x-2">
-                                      <Package className="w-4 h-4" />
-                                      <div>
-                                        <h4 className="font-semibold">{component.name}</h4>
-                                        <p className="text-sm text-muted-foreground font-mono text-xs">
-                                          {component.image}
-                                        </p>
-                                      </div>
+                          {group.actors.length > 0 ? (
+                            <div className="mt-4 space-y-2">
+                              {group.actors.map((actor) => (
+                                <div
+                                  key={`${group.functionName}-${actor.id}`}
+                                  className="p-4 border rounded-md bg-muted/30 flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
+                                >
+                                  <div className="flex items-start space-x-3 flex-1">
+                                    <div className="p-2 rounded-md bg-white border shadow-sm">
+                                      <Package className="h-4 w-4 text-primary" />
                                     </div>
-
-                                    <div className="flex items-center space-x-6 text-sm">
-                                      <div className="flex items-center space-x-1">
-                                        <span className="text-muted-foreground">Provider:</span>
-                                        <span className="font-mono text-xs">{component.provider_id}</span>
+                                    <div className="flex-1">
+                                      <p className="font-medium font-mono mb-2">{actor.id}</p>
+                                      <div className="space-y-1">
+                                        {actor.componentId && (
+                                          <p className="text-xs text-muted-foreground font-mono flex items-center space-x-1">
+                                            <Package className="h-3 w-3" />
+                                            <span>组件 {actor.componentId}</span>
+                                          </p>
+                                        )}
+                                        {actor.providerId && (
+                                          <p className="text-xs text-muted-foreground font-mono flex items-center space-x-1">
+                                            <Network className="h-3 w-3" />
+                                            <span>运行在 {actor.providerId}</span>
+                                          </p>
+                                        )}
                                       </div>
-
-                                      <div className="flex items-center space-x-1">
-                                        <Cpu className="w-3 h-3" />
-                                        <span className="text-muted-foreground">CPU:</span>
-                                        <span className="font-mono text-xs">{component.resource_usage.cpu}</span>
-                                      </div>
-
-                                      <div className="flex items-center space-x-1">
-                                        <MemoryStick className="w-3 h-3" />
-                                        <span className="text-muted-foreground">内存:</span>
-                                        <span className="font-mono text-xs">{component.resource_usage.memory}MB</span>
-                                      </div>
-
-                                      {component.resource_usage.gpu > 0 && (
-                                        <div className="flex items-center space-x-1">
-                                          <HardDrive className="w-3 h-3" />
-                                          <span className="text-muted-foreground">GPU:</span>
-                                          <span className="font-mono text-xs">{component.resource_usage.gpu}</span>
-                                        </div>
-                                      )}
                                     </div>
                                   </div>
 
-                                  <div className="flex items-center space-x-2">
-                                    <div className="flex items-center space-x-1">
-                                      <div className={`w-2 h-2 rounded-full ${getStatusColor(component.status)}`} />
-                                      <span className="text-xs text-muted-foreground">
-                                        {getStatusText(component.status)}
+                                  <div className="flex flex-col items-end gap-2">
+                                    <div className="flex flex-wrap gap-4 text-xs text-muted-foreground md:justify-end md:text-right">
+                                      {actor.resourceUsage?.cpu !== undefined && (
+                                        <span className="flex items-center space-x-1">
+                                          <Cpu className="h-3 w-3" />
+                                          <span>CPU {actor.resourceUsage.cpu.toFixed(3)} 核</span>
+                                        </span>
+                                      )}
+                                      {actor.resourceUsage?.memory !== undefined && (
+                                        <span className="flex items-center space-x-1">
+                                          <MemoryStick className="h-3 w-3" />
+                                          <span>内存 {formatMemory(actor.resourceUsage.memory)}</span>
+                                        </span>
+                                      )}
+                                      {actor.resourceUsage?.gpu !== undefined && actor.resourceUsage.gpu > 0 && (
+                                        <span className="flex items-center space-x-1">
+                                          <HardDrive className="h-3 w-3" />
+                                          <span>GPU {actor.resourceUsage.gpu}</span>
+                                        </span>
+                                      )}
+                                      <span className="flex items-center space-x-1">
+                                        <Activity className="h-3 w-3" />
+                                        <span>
+                                          计算延迟 {actor.calcLatency !== undefined && actor.calcLatency !== null ? `${actor.calcLatency}ms` : "未知"}
+                                        </span>
+                                      </span>
+                                      <span className="flex items-center space-x-1">
+                                        <Globe className="h-3 w-3" />
+                                        <span>
+                                          链路延迟 {actor.linkLatency !== undefined && actor.linkLatency !== null ? `${actor.linkLatency}ms` : "未知"}
+                                        </span>
                                       </span>
                                     </div>
-                                    
-                                    <Button 
-                                      variant="outline" 
-                                      size="sm"
-                                      onClick={() => handleViewComponentLogs(component.name)}
-                                    >
-                                      <FileText className="w-3 h-3 mr-1" />
-                                      日志
-                                    </Button>
+                                    {actor.image && (
+                                      <p className="text-xs text-muted-foreground font-mono break-all text-right">
+                                        {actor.image}
+                                      </p>
+                                    )}
                                   </div>
                                 </div>
-                              )
-                            })}
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-center h-32 text-muted-foreground">
-                            <Package className="h-8 w-8 mr-2 opacity-50" />
-                            <span>暂无组件数据</span>
-                          </div>
-                        )}
-                      </TabsContent>
-                    </Tabs>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="mt-4 text-sm text-muted-foreground">
+                              尚未收到 {group.functionName} 的 Actor 运行实例
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-32 text-muted-foreground space-y-2 text-sm">
+                      <Package className="h-8 w-8 opacity-50" />
+                      <span>尚未获取到 Actor 实例数据</span>
+                      <span className="text-xs">启动应用或触发任务后，Actor 列表将自动填充</span>
+                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -1524,46 +1730,6 @@ export default function ApplicationDetailPage() {
         </div>
       </main>
 
-      {/* 组件日志对话框 */}
-      <Dialog open={showLogsDialog} onOpenChange={setShowLogsDialog}>
-        <DialogContent className="max-w-4xl max-h-[80vh]">
-          <DialogHeader>
-            <DialogTitle>组件日志 - {selectedComponent}</DialogTitle>
-            <DialogDescription>
-              查看组件的运行日志信息
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex-1 overflow-hidden">
-            {isLoadingComponentLogs ? (
-              <div className="flex items-center justify-center h-64">
-                <RefreshCw className="h-6 w-6 animate-spin mr-2" />
-                <span>加载日志中...</span>
-              </div>
-            ) : (
-              <ScrollArea className="h-96 w-full rounded border">
-                <div className="p-4">
-                  <pre className="text-sm font-mono whitespace-pre-wrap break-words">
-                    {componentLogs || "暂无日志数据"}
-                  </pre>
-                </div>
-              </ScrollArea>
-            )}
-          </div>
-          <div className="flex justify-end space-x-2 pt-4">
-            <Button 
-              variant="outline" 
-              onClick={() => selectedComponent && loadComponentLogs(selectedComponent)}
-              disabled={isLoadingComponentLogs}
-            >
-              <RefreshCw className="w-4 h-4 mr-2" />
-              刷新
-            </Button>
-            <Button variant="outline" onClick={() => setShowLogsDialog(false)}>
-              关闭
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

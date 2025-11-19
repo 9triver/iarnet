@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/9triver/iarnet/internal/domain/application"
-	"github.com/9triver/iarnet/internal/domain/application/types"
+	apptypes "github.com/9triver/iarnet/internal/domain/application/types"
 	"github.com/9triver/iarnet/internal/transport/http/util/response"
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
@@ -33,6 +33,10 @@ func RegisterRoutes(router *mux.Router, am *application.Manager) {
 	router.HandleFunc("/application/apps/{id}/directories", api.handleDeleteDirectory).Methods("DELETE")
 	// DAG管理相关路由
 	router.HandleFunc("/application/apps/{id}/dag", api.handleGetApplicationDAG).Methods("GET")
+	// Actor管理相关路由
+	router.HandleFunc("/application/apps/{id}/actors", api.handleGetApplicationActors).Methods("GET")
+	// 执行结果相关路由
+	router.HandleFunc("/application/apps/{id}/execution-result", api.handleGetExecutionResult).Methods("GET")
 }
 
 type API struct {
@@ -47,7 +51,8 @@ func NewAPI(am *application.Manager) *API {
 
 func (api *API) handleGetApplicationDAG(w http.ResponseWriter, r *http.Request) {
 	req := GetApplicationDAGRequest{
-		AppID: mux.Vars(r)["id"],
+		AppID:     mux.Vars(r)["id"],
+		SessionID: r.URL.Query().Get("session_id"),
 	}
 	if req.AppID == "" {
 		response.BadRequest("application id is required").WriteJSON(w)
@@ -61,7 +66,7 @@ func (api *API) handleGetApplicationDAG(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	resp := BuildGetApplicationDAGResponse(dag)
+	resp := BuildGetApplicationDAGResponse(dag, req.SessionID)
 	response.Success(resp).WriteJSON(w)
 }
 
@@ -133,6 +138,26 @@ func (api *API) handleGetApplicationById(w http.ResponseWriter, r *http.Request)
 	}
 
 	resp := FromAppMetadataToGetResponse(metadata)
+	response.Success(resp).WriteJSON(w)
+}
+
+func (api *API) handleGetApplicationActors(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	appID := vars["id"]
+	if appID == "" {
+		response.BadRequest("application id is required").WriteJSON(w)
+		return
+	}
+
+	actors, err := api.am.GetApplicationActors(r.Context(), appID)
+	if err != nil {
+		logrus.Errorf("Failed to get actors: %v", err)
+		response.InternalError("failed to get actors: " + err.Error()).WriteJSON(w)
+		return
+	}
+
+	// 转换 Actor 数据为 HTTP 响应格式
+	resp := BuildGetApplicationActorsResponse(actors)
 	response.Success(resp).WriteJSON(w)
 }
 
@@ -285,7 +310,7 @@ func (api *API) handleStopApplication(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 更新应用状态为已停止
-	if err := api.am.UpdateAppStatus(ctx, appID, types.AppStatusStopped); err != nil {
+	if err := api.am.UpdateAppStatus(ctx, appID, apptypes.AppStatusStopped); err != nil {
 		logrus.Errorf("Failed to update application status to stopped: %v", err)
 	}
 
@@ -313,13 +338,13 @@ func (api *API) handleGetApplicationStats(w http.ResponseWriter, r *http.Request
 
 	for _, app := range apps {
 		switch app.Status {
-		case types.AppStatusRunning:
+		case apptypes.AppStatusRunning:
 			stats.Running++
-		case types.AppStatusStopped:
+		case apptypes.AppStatusStopped:
 			stats.Stopped++
-		case types.AppStatusUndeployed:
+		case apptypes.AppStatusUndeployed:
 			stats.Undeployed++
-		case types.AppStatusFailed:
+		case apptypes.AppStatusFailed:
 			stats.Failed++
 		}
 	}
@@ -589,4 +614,31 @@ func (api *API) handleDeleteDirectory(w http.ResponseWriter, r *http.Request) {
 		DirPath: req.DirPath,
 	}
 	response.Success(resp).WriteJSON(w)
+}
+
+// handleGetExecutionResult 获取执行结果
+// TODO: 需要访问 store service 来获取实际数据
+// 建议方案：
+// 1. 修改 RegisterRoutes 接受 resource.Manager 参数
+// 2. 在 API 结构中存储 resource.Manager
+// 3. 通过 resource.Manager.GetObject 获取数据
+func (api *API) handleGetExecutionResult(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	appID := vars["id"]
+	objectID := r.URL.Query().Get("object_id")
+	_ = r.URL.Query().Get("source") // TODO: 使用 source 参数
+
+	if appID == "" || objectID == "" {
+		response.BadRequest("application id and object_id are required").WriteJSON(w)
+		return
+	}
+
+	// TODO: 实现获取执行结果的逻辑
+	// 1. 修改 RegisterRoutes 接受 resource.Manager 参数
+	// 2. 在 API 结构中存储 resource.Manager
+	// 3. 通过 resource.Manager.GetObject 获取 ObjectRef 对应的数据
+	// 4. 根据数据类型（pickle/json/bytes）进行解码
+	// 5. 返回格式化的数据
+
+	response.BadRequest("execution result retrieval not yet implemented").WriteJSON(w)
 }

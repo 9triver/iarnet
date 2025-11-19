@@ -79,6 +79,10 @@ func (a *Actor) GetCalcLatency() int64 {
 	return a.info.CalcLatency
 }
 
+func (a *Actor) GetComponent() *component.Component {
+	return a.component
+}
+
 type ActorGroup struct {
 	name   string
 	actors map[types.ActorID]*Actor

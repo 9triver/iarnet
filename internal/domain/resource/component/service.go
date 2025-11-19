@@ -6,12 +6,12 @@ import (
 
 	"github.com/9triver/iarnet/internal/domain/resource/provider"
 	"github.com/9triver/iarnet/internal/domain/resource/types"
-	"github.com/lithammer/shortuuid/v4"
+	"github.com/9triver/iarnet/internal/util"
 	"github.com/sirupsen/logrus"
 )
 
 type Service interface {
-	DeployComponent(ctx context.Context, name string, runtimeEnv types.RuntimeEnv, resourceRequest *types.Info) (*Component, error)
+	DeployComponent(ctx context.Context, runtimeEnv types.RuntimeEnv, resourceRequest *types.Info) (*Component, error)
 }
 
 type componentService struct {
@@ -28,7 +28,7 @@ func NewService(manager Manager, providerService provider.Service, componentImag
 	}
 }
 
-func (c *componentService) DeployComponent(ctx context.Context, name string, runtimeEnv types.RuntimeEnv, resourceRequest *types.Info) (*Component, error) {
+func (c *componentService) DeployComponent(ctx context.Context, runtimeEnv types.RuntimeEnv, resourceRequest *types.Info) (*Component, error) {
 	if resourceRequest == nil {
 		return nil, fmt.Errorf("resource request is required")
 	}
@@ -38,8 +38,8 @@ func (c *componentService) DeployComponent(ctx context.Context, name string, run
 		return nil, fmt.Errorf("image for runtime environment %s not found", runtimeEnv)
 	}
 
-	id := "comp-" + shortuuid.New()
-	component := NewComponent(id, name, image, resourceRequest)
+	id := util.GenIDWith("comp.")
+	component := NewComponent(id, image, resourceRequest)
 
 	if err := c.manager.AddComponent(ctx, component); err != nil {
 		return nil, fmt.Errorf("failed to add component to manager: %w", err)
@@ -50,11 +50,11 @@ func (c *componentService) DeployComponent(ctx context.Context, name string, run
 	if err != nil {
 		return nil, fmt.Errorf("failed to find available provider: %w", err)
 	}
-
 	logrus.Infof("Deploying component on provider %s", p.GetID())
 	if err := p.Deploy(ctx, id, image, resourceRequest); err != nil {
 		return nil, fmt.Errorf("failed to deploy component on provider %s: %w", p.GetID(), err)
 	}
+	component.SetProviderID(p.GetID())
 
 	// TODO: 保存到 repository
 

@@ -35,10 +35,11 @@ message GetAvailableResponse {
 }
 
 message DeployRequest {
-  string image = 1;
-  resource.Info resource_request = 2;
-  map<string, string> env_vars = 3;
-  string provider_id = 4; // 可选的 provider_id，用于鉴权
+  string instance_id = 1;
+  string image = 2;
+  resource.Info resource_request = 3;
+  map<string, string> env_vars = 4;
+  string provider_id = 5; // 可选的 provider_id，用于鉴权
 }
 
 message DeployResponse {

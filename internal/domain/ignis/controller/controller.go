@@ -188,7 +188,7 @@ func (c *Controller) handleAppendPyFunc(ctx context.Context, m *ctrlpb.AppendPyF
 		actorName := fmt.Sprintf("%s-%d", m.GetName(), i)
 		logrus.Infof("Deploying component for actor %s", actorName)
 		component, err := c.componentService.DeployComponent(
-			ctx, m.GetName(), resourceTypes.RuntimeEnvPython,
+			ctx, resourceTypes.RuntimeEnvPython,
 			&resourceTypes.Info{
 				CPU:    int64(m.GetResources().GetCPU()),
 				Memory: int64(m.GetResources().GetMemory()),
@@ -257,15 +257,8 @@ func (c *Controller) handleAppendArg(ctx context.Context, m *ctrlpb.AppendArg) e
 		return fmt.Errorf("Function not found for function name %s", controlNode.FunctionName)
 	}
 
-	dataNode, ok := dag.GetDataNode(m.InstanceID)
-	if !ok {
-		logrus.Errorf("DataNode not found for instance %s", m.InstanceID)
-		return fmt.Errorf("DataNode not found for instance %s", m.InstanceID)
-	}
-
 	switch v := m.Value.Object.(type) {
 	case *ctrlpb.Data_Ref:
-		dataNode.Done(v.Ref)
 		if err := function.AddArg(controlNode.RuntimeID, m.Param, v.Ref); err != nil {
 			logrus.Errorf("Failed to add runtime argument: %v", err)
 			ret := ctrlpb.NewReturnResult(m.SessionID, m.InstanceID, m.Name, nil, err)
@@ -278,7 +271,6 @@ func (c *Controller) handleAppendArg(ctx context.Context, m *ctrlpb.AppendArg) e
 	case *ctrlpb.Data_Encoded:
 		logrus.WithFields(logrus.Fields{"id": v.Encoded.ID, "session": m.SessionID, "instance": m.InstanceID}).Info("control: append encoded arg")
 		go func() {
-			dataNode.Start()
 			resp, err := c.storeService.SaveObject(ctx, v.Encoded)
 			if err != nil {
 				logrus.Errorf("Failed to save object: %v", err)
@@ -293,7 +285,6 @@ func (c *Controller) handleAppendArg(ctx context.Context, m *ctrlpb.AppendArg) e
 				c.PushToClient(ctx, ret)
 				return
 			}
-			dataNode.Done(resp)
 		}()
 	default:
 		logrus.Errorf("Unsupported data type: %T", v)
@@ -453,6 +444,11 @@ func (c *Controller) handleAppendDataNode(ctx context.Context, dag *task.DAG, pb
 	if pbNode.ParentNode != nil && *pbNode.ParentNode != "" {
 		parentNodeID := task.DAGNodeID(*pbNode.ParentNode)
 		dataNode.ParentNode = &parentNodeID
+	}
+
+	// 没有前驱控制节点，视为已准备好
+	if pbNode.PreControlNode == nil || (pbNode.PreControlNode != nil && *pbNode.PreControlNode == "") {
+		dataNode.Status = task.DAGNodeStatusDone
 	}
 
 	// 添加到 DAG

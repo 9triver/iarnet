@@ -13,17 +13,16 @@ type Sender func(componentID string, msg *componentpb.Message)
 type Component struct {
 	mu            sync.RWMutex
 	id            string
-	name          string
+	providerID    string
 	image         string
 	resourceUsage *types.Info
 	buffer        chan *componentpb.Message
 	sender        Sender
 }
 
-func NewComponent(id, name, image string, resourceUsage *types.Info) *Component {
+func NewComponent(id, image string, resourceUsage *types.Info) *Component {
 	comp := &Component{
 		id:            id,
-		name:          name,
 		image:         image,
 		resourceUsage: resourceUsage,
 		buffer:        make(chan *componentpb.Message, 100), // Buffered channel to avoid blocking
@@ -32,16 +31,30 @@ func NewComponent(id, name, image string, resourceUsage *types.Info) *Component 
 	return comp
 }
 
+func (c *Component) GetProviderID() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.providerID
+}
+
+func (c *Component) SetProviderID(providerID string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.providerID = providerID
+}
+
 func (c *Component) GetID() string {
 	return c.id
 }
 
-func (c *Component) GetName() string {
-	return c.name
-}
-
 func (c *Component) GetImage() string {
 	return c.image
+}
+
+func (c *Component) GetResourceUsage() *types.Info {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.resourceUsage
 }
 
 func (c *Component) SetSender(sender Sender) {

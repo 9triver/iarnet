@@ -348,10 +348,11 @@ func (x *GetAvailableResponse) GetAvailable() *resource.Info {
 
 type DeployRequest struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
-	Image           string                 `protobuf:"bytes,1,opt,name=image,proto3" json:"image,omitempty"`
-	ResourceRequest *resource.Info         `protobuf:"bytes,2,opt,name=resource_request,json=resourceRequest,proto3" json:"resource_request,omitempty"`
-	EnvVars         map[string]string      `protobuf:"bytes,3,rep,name=env_vars,json=envVars,proto3" json:"env_vars,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	ProviderId      string                 `protobuf:"bytes,4,opt,name=provider_id,json=providerId,proto3" json:"provider_id,omitempty"` // 可选的 provider_id，用于鉴权
+	InstanceId      string                 `protobuf:"bytes,1,opt,name=instance_id,json=instanceId,proto3" json:"instance_id,omitempty"`
+	Image           string                 `protobuf:"bytes,2,opt,name=image,proto3" json:"image,omitempty"`
+	ResourceRequest *resource.Info         `protobuf:"bytes,3,opt,name=resource_request,json=resourceRequest,proto3" json:"resource_request,omitempty"`
+	EnvVars         map[string]string      `protobuf:"bytes,4,rep,name=env_vars,json=envVars,proto3" json:"env_vars,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	ProviderId      string                 `protobuf:"bytes,5,opt,name=provider_id,json=providerId,proto3" json:"provider_id,omitempty"` // 可选的 provider_id，用于鉴权
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -384,6 +385,13 @@ func (x *DeployRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use DeployRequest.ProtoReflect.Descriptor instead.
 func (*DeployRequest) Descriptor() ([]byte, []int) {
 	return file_provider_provider_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *DeployRequest) GetInstanceId() string {
+	if x != nil {
+		return x.InstanceId
+	}
+	return ""
 }
 
 func (x *DeployRequest) GetImage() string {
@@ -641,12 +649,14 @@ const file_provider_provider_proto_rawDesc = "" +
 	"\vprovider_id\x18\x01 \x01(\tR\n" +
 	"providerId\"D\n" +
 	"\x14GetAvailableResponse\x12,\n" +
-	"\tavailable\x18\x01 \x01(\v2\x0e.resource.InfoR\tavailable\"\xfe\x01\n" +
-	"\rDeployRequest\x12\x14\n" +
-	"\x05image\x18\x01 \x01(\tR\x05image\x129\n" +
-	"\x10resource_request\x18\x02 \x01(\v2\x0e.resource.InfoR\x0fresourceRequest\x12?\n" +
-	"\benv_vars\x18\x03 \x03(\v2$.provider.DeployRequest.EnvVarsEntryR\aenvVars\x12\x1f\n" +
-	"\vprovider_id\x18\x04 \x01(\tR\n" +
+	"\tavailable\x18\x01 \x01(\v2\x0e.resource.InfoR\tavailable\"\x9f\x02\n" +
+	"\rDeployRequest\x12\x1f\n" +
+	"\vinstance_id\x18\x01 \x01(\tR\n" +
+	"instanceId\x12\x14\n" +
+	"\x05image\x18\x02 \x01(\tR\x05image\x129\n" +
+	"\x10resource_request\x18\x03 \x01(\v2\x0e.resource.InfoR\x0fresourceRequest\x12?\n" +
+	"\benv_vars\x18\x04 \x03(\v2$.provider.DeployRequest.EnvVarsEntryR\aenvVars\x12\x1f\n" +
+	"\vprovider_id\x18\x05 \x01(\tR\n" +
 	"providerId\x1a:\n" +
 	"\fEnvVarsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +

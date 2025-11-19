@@ -259,3 +259,7 @@ func (m *Manager) RunApplication(ctx context.Context, appID string) error {
 func (m *Manager) GetApplicationDAGs(ctx context.Context, appID string) (map[string]*task.DAG, error) {
 	return m.platform.GetDAGs(appID)
 }
+
+func (m *Manager) GetApplicationActors(ctx context.Context, appID string) (map[string][]*task.Actor, error) {
+	return m.platform.GetActors(appID)
+}

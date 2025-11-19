@@ -1,6 +1,7 @@
 package application
 
 import (
+	"sort"
 	"time"
 
 	"github.com/9triver/iarnet/internal/domain/application/types"
@@ -262,7 +263,8 @@ type DeleteDirectoryResponse struct {
 
 // GetApplicationDAGRequest 获取应用 DAG 请求
 type GetApplicationDAGRequest struct {
-	AppID string `json:"app_id"`
+	AppID     string `json:"app_id"`
+	SessionID string `json:"session_id,omitempty"`
 }
 
 // ControlNodeResponse 控制节点响应
@@ -275,9 +277,16 @@ type ControlNodeResponse struct {
 
 // DataNodeResponse 数据节点响应
 type DataNodeResponse struct {
-	ID     string `json:"id"`
-	Status string `json:"status"`
-	Lambda string `json:"lambda"`
+	ID        string             `json:"id"`
+	Status    string             `json:"status"`
+	Lambda    string             `json:"lambda"`
+	ObjectRef *DataNodeObjectRef `json:"object_ref,omitempty"` // 数据对象的引用（当数据就绪时）
+}
+
+// DataNodeObjectRef 数据节点对象引用
+type DataNodeObjectRef struct {
+	ID     string `json:"id,omitempty"`     // Object ID
+	Source string `json:"source,omitempty"` // Source store ID
 }
 
 // DAGNodeResponse DAG 节点响应
@@ -301,19 +310,44 @@ type DAGResponse struct {
 
 // GetApplicationDAGResponse 获取应用 DAG 响应
 type GetApplicationDAGResponse struct {
-	DAG DAGResponse `json:"dag"`
+	DAG               DAGResponse `json:"dag"`
+	Sessions          []string    `json:"sessions"`
+	SelectedSessionID string      `json:"selected_session_id"`
 }
 
 // BuildGetApplicationDAGResponse 构建 DAG 响应
-func BuildGetApplicationDAGResponse(dags map[string]*taskpkg.DAG) GetApplicationDAGResponse {
+func BuildGetApplicationDAGResponse(dags map[string]*taskpkg.DAG, requestedSession string) GetApplicationDAGResponse {
 	resp := GetApplicationDAGResponse{
 		DAG: DAGResponse{
 			Nodes: make([]DAGNodeResponse, 0),
 			Edges: make([]DAGEdgeResponse, 0),
 		},
+		Sessions: make([]string, 0, len(dags)),
 	}
 
 	if len(dags) == 0 {
+		resp.SelectedSessionID = ""
+		return resp
+	}
+
+	sessionIDs := make([]string, 0, len(dags))
+	for sessionID := range dags {
+		sessionIDs = append(sessionIDs, sessionID)
+	}
+	sort.Strings(sessionIDs)
+	resp.Sessions = sessionIDs
+
+	selectedSession := requestedSession
+	if selectedSession == "" || dags[selectedSession] == nil {
+		if len(sessionIDs) > 0 {
+			selectedSession = sessionIDs[len(sessionIDs)-1]
+		} else {
+			selectedSession = ""
+		}
+	}
+	resp.SelectedSessionID = selectedSession
+
+	if selectedSession == "" {
 		return resp
 	}
 
@@ -334,37 +368,48 @@ func BuildGetApplicationDAGResponse(dags map[string]*taskpkg.DAG) GetApplication
 		edgeSet[key] = struct{}{}
 	}
 
-	for _, dag := range dags {
-		for _, controlNode := range dag.ControlNodes {
-			nodeResp := ControlNodeResponse{
-				ID:           string(controlNode.ID),
-				Status:       string(controlNode.Status),
-				FunctionName: controlNode.FunctionName,
-				Params:       copyStringMap(controlNode.Params),
+	dag, ok := dags[selectedSession]
+	if !ok {
+		return resp
+	}
+
+	for _, controlNode := range dag.ControlNodes {
+		nodeResp := ControlNodeResponse{
+			ID:           string(controlNode.ID),
+			Status:       string(controlNode.Status),
+			FunctionName: controlNode.FunctionName,
+			Params:       copyStringMap(controlNode.Params),
+		}
+
+		resp.DAG.Nodes = append(resp.DAG.Nodes, DAGNodeResponse{
+			Type: "ControlNode",
+			Node: nodeResp,
+		})
+	}
+
+	for _, dataNode := range dag.DataNodes {
+		nodeResp := DataNodeResponse{
+			ID:     string(dataNode.ID),
+			Status: string(dataNode.Status),
+			Lambda: dataNode.Lambda,
+		}
+
+		// 如果数据节点有 ObjectRef，添加到响应中
+		if dataNode.ObjectRef != nil {
+			nodeResp.ObjectRef = &DataNodeObjectRef{
+				ID:     dataNode.ObjectRef.ID,
+				Source: dataNode.ObjectRef.Source,
 			}
-
-			resp.DAG.Nodes = append(resp.DAG.Nodes, DAGNodeResponse{
-				Type: "ControlNode",
-				Node: nodeResp,
-			})
 		}
 
-		for _, dataNode := range dag.DataNodes {
-			nodeResp := DataNodeResponse{
-				ID:     string(dataNode.ID),
-				Status: string(dataNode.Status),
-				Lambda: dataNode.Lambda,
-			}
+		resp.DAG.Nodes = append(resp.DAG.Nodes, DAGNodeResponse{
+			Type: "DataNode",
+			Node: nodeResp,
+		})
+	}
 
-			resp.DAG.Nodes = append(resp.DAG.Nodes, DAGNodeResponse{
-				Type: "DataNode",
-				Node: nodeResp,
-			})
-		}
-
-		for _, edge := range dag.Edges {
-			addEdge(string(edge.From), string(edge.To), edge.Label)
-		}
+	for _, edge := range dag.Edges {
+		addEdge(string(edge.From), string(edge.To), edge.Label)
 	}
 
 	return resp
@@ -379,4 +424,104 @@ func copyStringMap(src map[string]string) map[string]string {
 		dst[k] = v
 	}
 	return dst
+}
+
+// Actor 相关类型
+
+// ActorComponentInfo Actor 组件信息
+type ActorComponentInfo struct {
+	ID            string        `json:"id,omitempty"`
+	Image         string        `json:"image,omitempty"`
+	ProviderID    string        `json:"provider_id,omitempty"`
+	ResourceUsage *ResourceInfo `json:"resource_usage,omitempty"`
+}
+
+// ResourceInfo 资源信息
+type ResourceInfo struct {
+	CPU    int64 `json:"cpu,omitempty"`
+	Memory int64 `json:"memory,omitempty"`
+	GPU    int64 `json:"gpu,omitempty"`
+}
+
+// ActorLatencyInfo Actor 延迟信息
+type ActorLatencyInfo struct {
+	CalcLatency int64 `json:"calc_latency"` // 计算延迟（毫秒），0也是有效值
+	LinkLatency int64 `json:"link_latency"` // 链路延迟（毫秒），0也是有效值
+}
+
+// ActorResponse Actor 响应
+type ActorResponse struct {
+	ID        string              `json:"id,omitempty"`
+	Component *ActorComponentInfo `json:"component,omitempty"`
+	Info      *ActorLatencyInfo   `json:"info,omitempty"`
+}
+
+// GetApplicationActorsResponse 获取应用 Actors 响应
+type GetApplicationActorsResponse map[string][]ActorResponse
+
+// GetExecutionResultRequest 获取执行结果请求
+type GetExecutionResultRequest struct {
+	AppID     string `json:"app_id"`           // 应用 ID
+	SessionID string `json:"session_id"`       // Session ID
+	ObjectID  string `json:"object_id"`        // Object ID
+	Source    string `json:"source,omitempty"` // Source store ID (可选)
+}
+
+// GetExecutionResultResponse 获取执行结果响应
+type GetExecutionResultResponse struct {
+	ObjectID string `json:"object_id"`           // Object ID
+	Source   string `json:"source,omitempty"`    // Source store ID
+	Data     string `json:"data,omitempty"`      // 数据内容（JSON 字符串或 base64 编码）
+	DataType string `json:"data_type,omitempty"` // 数据类型（如 "json", "pickle", "bytes"）
+	Size     int64  `json:"size,omitempty"`      // 数据大小（字节）
+}
+
+// BuildGetApplicationActorsResponse 构建 Actor 响应
+func BuildGetApplicationActorsResponse(actors map[string][]*taskpkg.Actor) GetApplicationActorsResponse {
+	resp := make(GetApplicationActorsResponse)
+
+	for functionName, actorList := range actors {
+		actorResponses := make([]ActorResponse, 0, len(actorList))
+		for _, actor := range actorList {
+			actorResp := ActorResponse{
+				ID: string(actor.GetID()),
+			}
+
+			// 获取延迟信息
+			info := actor.GetInfo()
+			if info != nil {
+				actorResp.Info = &ActorLatencyInfo{
+					CalcLatency: info.CalcLatency,
+					LinkLatency: info.LinkLatency,
+				}
+			}
+
+			// 获取组件信息
+			component := actor.GetComponent()
+			if component != nil {
+				componentInfo := &ActorComponentInfo{
+					ID:         component.GetID(),
+					Image:      component.GetImage(),
+					ProviderID: component.GetProviderID(),
+				}
+
+				// 获取资源使用信息
+				resourceUsage := component.GetResourceUsage()
+				if resourceUsage != nil {
+					componentInfo.ResourceUsage = &ResourceInfo{
+						CPU:    resourceUsage.CPU,
+						Memory: resourceUsage.Memory,
+						GPU:    resourceUsage.GPU,
+					}
+				}
+
+				actorResp.Component = componentInfo
+			}
+
+			actorResponses = append(actorResponses, actorResp)
+		}
+		resp[functionName] = actorResponses
+	}
+
+	return resp
 }

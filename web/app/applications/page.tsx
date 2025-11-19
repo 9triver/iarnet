@@ -518,13 +518,12 @@ export default function ApplicationsPage() {
                           <FormItem>
                             <FormLabel>环境安装命令（可选）</FormLabel>
                             <FormControl>
-                              <Textarea 
-                                placeholder="输入环境安装命令，支持多行：&#10;pip install -r requirements.txt&#10;&#10;或者：&#10;npm install&#10;yarn install" 
-                                className="min-h-[80px]"
+                              <Input 
+                                placeholder="例如：pip install -r requirements.txt"
                                 {...field} 
                               />
                             </FormControl>
-                            <FormDescription>在运行应用前执行的依赖安装命令</FormDescription>
+                            <FormDescription>在运行应用前执行的依赖安装命令。若需要多行命令，请放在脚本文件中。</FormDescription>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -537,13 +536,12 @@ export default function ApplicationsPage() {
                           <FormItem>
                             <FormLabel>执行命令</FormLabel>
                             <FormControl>
-                              <Textarea 
-                                placeholder="输入应用启动命令，支持多行：&#10;npm install&#10;npm start&#10;&#10;或者：&#10;pip install -r requirements.txt&#10;python app.py" 
-                                className="min-h-[100px]"
+                              <Input 
+                                placeholder="例如：python app.py"
                                 {...field} 
                               />
                             </FormControl>
-                            <FormDescription>应用启动时执行的命令</FormDescription>
+                            <FormDescription>应用启动时执行的命令。若需要多行命令，请放在脚本文件中。</FormDescription>
                             <FormMessage />
                           </FormItem>
                         )}

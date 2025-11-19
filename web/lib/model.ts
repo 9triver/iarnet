@@ -215,6 +215,42 @@ export interface Component {
   updated_at: string
 }
 
+export interface ActorComponentInfo {
+  id?: string
+  name?: string
+  image?: string
+  provider_id?: string
+  providerId?: string
+  providerID?: string
+  resource_usage?: ComponentResourceUsage
+  resourceUsage?: ComponentResourceUsage
+  [key: string]: any
+}
+
+export interface ActorLatencyInfo {
+  CalcLatency?: number
+  LinkLatency?: number
+  calcLatency?: number
+  linkLatency?: number
+  calc_latency?: number
+  link_latency?: number
+  [key: string]: any
+}
+
+export interface ActorRecord {
+  id?: string
+  ID?: string
+  actor_id?: string
+  actorId?: string
+  actorID?: string
+  name?: string
+  component?: ActorComponentInfo
+  info?: ActorLatencyInfo
+  [key: string]: any
+}
+
+export type GetApplicationActorsResponse = Record<string, ActorRecord[] | undefined>
+
 export interface GetComponentsResponse {
   components: Component[]
 }
@@ -264,4 +300,6 @@ export interface DAG {
 
 export interface GetDAGResponse {
   dag: DAG
+  sessions: string[]
+  selectedSessionId?: string
 }

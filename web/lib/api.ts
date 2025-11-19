@@ -1,4 +1,4 @@
-import { Application, ApplicationStats, CreateDirectoryResponse, CreateFileResponse, DeleteDirectoryResponse, DeleteFileResponse, GetApplicationLogsParsedResponse, GetApplicationLogsResponse, GetApplicationsResponse, GetDAGResponse, GetFileContentResponse, GetFileTreeResponse, GetRunnerEnvironmentsResponse, SaveFileResponse } from "./model"
+import { Application, ApplicationStats, CreateDirectoryResponse, CreateFileResponse, DeleteDirectoryResponse, DeleteFileResponse, GetApplicationActorsResponse, GetApplicationLogsParsedResponse, GetApplicationLogsResponse, GetApplicationsResponse, GetDAGResponse, GetFileContentResponse, GetFileTreeResponse, GetRunnerEnvironmentsResponse, SaveFileResponse } from "./model"
 
 // API 客户端工具函数
 const API_BASE = "/api"
@@ -190,8 +190,10 @@ export const applicationsAPI = {
       body: JSON.stringify({ dirPath }),
     }),
   // Actor组件相关API
-  getAppDAG: (id: string) =>
-    apiRequest<GetDAGResponse>(`/application/apps/${id}/dag`),
+  getAppDAG: (id: string, sessionId?: string) =>
+    apiRequest<GetDAGResponse>(
+      `/application/apps/${id}/dag${sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : ""}`
+    ),
   analyzeApplication: (id: string) =>
     apiRequest(`/application/apps/${id}/analyze`, {
       method: "POST",
@@ -204,6 +206,8 @@ export const applicationsAPI = {
     apiRequest<GetRunnerEnvironmentsResponse>("/application/runner-environments"),
   getComponents: (id: string) =>
     apiRequest(`/application/apps/${id}/components`),
+  getActors: (id: string) =>
+    apiRequest<GetApplicationActorsResponse>(`/application/apps/${id}/actors`),
 }
 
 // Actor组件管理 API

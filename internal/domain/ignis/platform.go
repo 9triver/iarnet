@@ -35,3 +35,7 @@ func (p *Platform) Subscribe(eventType controller.EventType, handler controller.
 func (p *Platform) HandleSession(ctx context.Context, recv func() (*ctrlpb.Message, error), send func(*ctrlpb.Message) error) error {
 	return p.controllerService.HandleSession(ctx, recv, send)
 }
+
+func (p *Platform) GetActors(appID string) (map[string][]*task.Actor, error) {
+	return p.controllerService.GetActors(appID)
+}

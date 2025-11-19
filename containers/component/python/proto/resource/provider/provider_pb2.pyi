@@ -54,7 +54,7 @@ class GetAvailableResponse(_message.Message):
     def __init__(self, available: _Optional[_Union[_resource_pb2.Info, _Mapping]] = ...) -> None: ...
 
 class DeployRequest(_message.Message):
-    __slots__ = ("image", "resource_request", "env_vars", "provider_id")
+    __slots__ = ("instance_id", "image", "resource_request", "env_vars", "provider_id")
     class EnvVarsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -62,15 +62,17 @@ class DeployRequest(_message.Message):
         key: str
         value: str
         def __init__(self, key: _Optional[str] = ..., value: _Optional[str] = ...) -> None: ...
+    INSTANCE_ID_FIELD_NUMBER: _ClassVar[int]
     IMAGE_FIELD_NUMBER: _ClassVar[int]
     RESOURCE_REQUEST_FIELD_NUMBER: _ClassVar[int]
     ENV_VARS_FIELD_NUMBER: _ClassVar[int]
     PROVIDER_ID_FIELD_NUMBER: _ClassVar[int]
+    instance_id: str
     image: str
     resource_request: _resource_pb2.Info
     env_vars: _containers.ScalarMap[str, str]
     provider_id: str
-    def __init__(self, image: _Optional[str] = ..., resource_request: _Optional[_Union[_resource_pb2.Info, _Mapping]] = ..., env_vars: _Optional[_Mapping[str, str]] = ..., provider_id: _Optional[str] = ...) -> None: ...
+    def __init__(self, instance_id: _Optional[str] = ..., image: _Optional[str] = ..., resource_request: _Optional[_Union[_resource_pb2.Info, _Mapping]] = ..., env_vars: _Optional[_Mapping[str, str]] = ..., provider_id: _Optional[str] = ...) -> None: ...
 
 class DeployResponse(_message.Message):
     __slots__ = ("error",)

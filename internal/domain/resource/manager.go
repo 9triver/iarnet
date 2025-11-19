@@ -70,8 +70,13 @@ func (m *Manager) Start(ctx context.Context) error {
 	return nil
 }
 
-func (m *Manager) DeployComponent(ctx context.Context, name string, runtimeEnv types.RuntimeEnv, resourceRequest *types.Info) (*component.Component, error) {
-	return m.componentService.DeployComponent(ctx, name, runtimeEnv, resourceRequest)
+func (m *Manager) DeployComponent(ctx context.Context, runtimeEnv types.RuntimeEnv, resourceRequest *types.Info) (*component.Component, error) {
+	component, err := m.componentService.DeployComponent(ctx, runtimeEnv, resourceRequest)
+	if err != nil {
+		return nil, err
+	}
+	component.SetProviderID("local." + component.GetProviderID())
+	return component, nil
 }
 
 func (m *Manager) RegisterProvider(name string, host string, port int) (*provider.Provider, error) {

@@ -253,7 +253,8 @@ func (p *Provider) Deploy(ctx context.Context, id, image string, resourceRequest
 		return fmt.Errorf("provider not connected, please call Connect first")
 	}
 	req := &providerpb.DeployRequest{
-		Image: image,
+		InstanceId: id,
+		Image:      image,
 		ResourceRequest: &resourcepb.Info{
 			Cpu:    resourceRequest.CPU,
 			Memory: resourceRequest.Memory,

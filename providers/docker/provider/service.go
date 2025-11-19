@@ -363,7 +363,7 @@ func (s *Service) Deploy(ctx context.Context, req *providerpb.DeployRequest) (*p
 	}
 
 	// 创建容器
-	resp, err := s.client.ContainerCreate(ctx, containerConfig, hostConfig, nil, nil, "")
+	resp, err := s.client.ContainerCreate(ctx, containerConfig, hostConfig, nil, nil, req.InstanceId)
 	if err != nil {
 		logrus.Errorf("Failed to create container: %v", err)
 		return &providerpb.DeployResponse{
