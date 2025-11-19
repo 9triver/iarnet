@@ -30,7 +30,7 @@ message GetObjectResponse {
 
 message GetStreamChunkRequest {
   string ObjectID = 1;
-  string Offset = 2;
+  int64 Offset = 2;
 }
 
 message GetStreamChunkResponse {

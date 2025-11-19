@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { applicationsAPI, APIError } from "@/lib/api"
 import { getWebSocketManager, disconnectWebSocketManager } from "@/lib/websocket"
-import type { LogEntry, Application, DAG, DAGNode, DAGEdge, ControlNode, DataNode, DAGNodeStatus, GetApplicationActorsResponse, ActorRecord, ApplicationLogPayload } from "@/lib/model"
+import type { LogEntry, Application, DAG, DAGNode, DAGEdge, ControlNode, DataNode, DAGNodeStatus, GetApplicationActorsResponse, ActorRecord, ApplicationLogPayload, LogCallerInfo } from "@/lib/model"
 import { formatDateTime, formatMemory } from "@/lib/utils"
 import { Sidebar } from "@/components/sidebar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -201,6 +201,107 @@ const normalizeActorGroups = (data: GetApplicationActorsResponse | null | undefi
     .sort((a, b) => a.functionName.localeCompare(b.functionName))
 }
 
+const LOG_LEVEL_STYLES: Record<string, { badge: string; dot: string; label: string }> = {
+  error: { badge: "bg-red-100 text-red-800", dot: "bg-red-500", label: "错误" },
+  warn: { badge: "bg-amber-100 text-amber-800", dot: "bg-amber-500", label: "警告" },
+  debug: { badge: "bg-blue-100 text-blue-800", dot: "bg-blue-500", label: "调试" },
+  trace: { badge: "bg-slate-100 text-slate-800", dot: "bg-slate-400", label: "追踪" },
+  info: { badge: "bg-emerald-100 text-emerald-800", dot: "bg-emerald-500", label: "信息" },
+}
+
+type BasicLogEntry = {
+  id: string
+  timestamp?: string
+  level?: string
+  message: string
+  details?: string
+  caller?: LogCallerInfo
+}
+
+const LogListViewer = ({ logs }: { logs: BasicLogEntry[] }) => {
+  const cacheRef = useRef(
+    new CellMeasurerCache({
+      fixedWidth: true,
+      defaultHeight: 72,
+    })
+  )
+
+  useEffect(() => {
+    cacheRef.current.clearAll()
+  }, [logs])
+
+  if (logs.length === 0) {
+    return null
+  }
+
+  return (
+    <AutoSizer>
+      {({ height, width }: { height: number; width: number }) => (
+        <List
+          width={width}
+          height={height}
+          rowCount={logs.length}
+          deferredMeasurementCache={cacheRef.current}
+          rowHeight={cacheRef.current.rowHeight}
+          overscanRowCount={6}
+          rowRenderer={({ index, key, parent, style }: ListRowProps) => {
+            const log = logs[index]
+            const levelKey = (log.level || "info").toLowerCase()
+            const levelStyles = LOG_LEVEL_STYLES[levelKey] || LOG_LEVEL_STYLES.info
+
+            return (
+              <CellMeasurer
+                cache={cacheRef.current}
+                columnIndex={0}
+                key={key}
+                parent={parent}
+                rowIndex={index}
+              >
+                <div
+                  style={style}
+                  className="border-b border-gray-200/80 dark:border-gray-800/80 px-4 py-3 hover:bg-white dark:hover:bg-gray-900 transition-colors"
+                >
+                  <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wide ${levelStyles.badge}`}
+                      >
+                        {(log.level ?? "INFO").toUpperCase()}
+                      </span>
+                      <span className="text-xs text-muted-foreground font-mono">
+                        {log.timestamp ? formatDateTime(log.timestamp) : "—"}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-muted-foreground font-mono flex items-center gap-2">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white border text-gray-700 dark:text-gray-300 dark:bg-gray-900">
+                        <span className={`w-2 h-2 rounded-full ${levelStyles.dot}`} />
+                        {levelStyles.label}
+                      </span>
+                      {log.caller && (log.caller.file || log.caller.line || log.caller.function) && (
+                        <span className="hidden md:inline">
+                          {log.caller.file}{log.caller.line !== undefined ? `:${log.caller.line}` : ""}{log.caller.function ? ` (${log.caller.function})` : ""}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <p className="mt-2 text-sm text-gray-900 dark:text-gray-100 whitespace-pre-wrap break-words font-mono">
+                    {log.message}
+                  </p>
+                  {log.details && (
+                    <pre className="mt-2 bg-gray-100 dark:bg-gray-950 rounded-md p-2 text-xs text-gray-700 dark:text-gray-300 overflow-x-auto whitespace-pre-wrap break-words font-mono">
+                      {log.details}
+                    </pre>
+                  )}
+                </div>
+              </CellMeasurer>
+            )
+          }}
+        />
+      )}
+    </AutoSizer>
+  )
+}
+
 // 注册G6 React节点扩展
 register(ExtensionCategory.NODE, 'dag-react-node', ReactNode)
 
@@ -300,15 +401,28 @@ export default function ApplicationDetailPage() {
   const [actorLogLines, setActorLogLines] = useState(100)
   const [isLoadingActorLogs, setIsLoadingActorLogs] = useState(false)
   const [actorLogsError, setActorLogsError] = useState<string | null>(null)
+  const actorLogEntries = useMemo<BasicLogEntry[]>(() => {
+    return actorLogs.map((line, index) => {
+      const trimmed = line.trim()
+      const pattern = /^(\d{4}-\d{2}-\d{2}[^[]*)\s+\[([A-Za-z]+)\]\s*(.*)$/
+      const match = trimmed.match(pattern)
+      if (match) {
+        const [, timestampRaw, levelRaw, messageRaw] = match
+        return {
+          id: `actor-log-${index}`,
+          timestamp: timestampRaw.trim(),
+          level: levelRaw?.toLowerCase(),
+          message: messageRaw?.length ? messageRaw : trimmed,
+        }
+      }
+      return {
+        id: `actor-log-${index}`,
+        message: trimmed,
+      }
+    })
+  }, [actorLogs])
 
   const applicationId = params.id as string
-  const logLevelStyles: Record<string, { badge: string; dot: string; label: string }> = {
-    error: { badge: "bg-red-100 text-red-800", dot: "bg-red-500", label: "错误" },
-    warn: { badge: "bg-amber-100 text-amber-800", dot: "bg-amber-500", label: "警告" },
-    debug: { badge: "bg-blue-100 text-blue-800", dot: "bg-blue-500", label: "调试" },
-    trace: { badge: "bg-slate-100 text-slate-800", dot: "bg-slate-400", label: "追踪" },
-    info: { badge: "bg-emerald-100 text-emerald-800", dot: "bg-emerald-500", label: "信息" },
-  }
 
   // 编辑表单
   interface ApplicationFormData {
@@ -332,12 +446,6 @@ export default function ApplicationDetailPage() {
   // 标记 WebSocket 是否已初始化，避免重复连接
   const wsInitializedRef = useRef(false)
   const updateTimerRef = useRef<NodeJS.Timeout | null>(null)
-  const logViewerCacheRef = useRef(
-    new CellMeasurerCache({
-      fixedWidth: true,
-      defaultHeight: 72,
-    })
-  )
 
   const fetchRunnerEnvironments = async () => {
     try {
@@ -750,10 +858,6 @@ export default function ApplicationDetailPage() {
       return true
     })
   }, [logs, logLevelFilter, logSearchTerm])
-
-  useEffect(() => {
-    logViewerCacheRef.current.clearAll()
-  }, [filteredLogs])
 
 
   const loadApplicationDetail = async () => {
@@ -1332,32 +1436,23 @@ export default function ApplicationDetailPage() {
                   </Button>
                 </div>
 
-                <div className="flex-1 min-h-[260px]">
-                  <div className="h-full min-h-[260px] rounded-lg border bg-slate-950 text-slate-100 overflow-hidden">
+                <div className="flex-1 min-h-[300px]">
+                  <div className="h-[360px] w-full rounded-lg border bg-gray-50 dark:bg-gray-900">
                     {isLoadingActorLogs ? (
-                      <div className="h-full flex items-center justify-center space-x-2 text-sm text-slate-300">
+                      <div className="h-full flex items-center justify-center space-x-2 text-sm text-muted-foreground">
                         <RefreshCw className="h-5 w-5 animate-spin" />
                         <span>加载日志中...</span>
                       </div>
                     ) : actorLogsError ? (
-                      <div className="p-4 text-sm text-red-400">
+                      <div className="h-full flex items-center justify-center text-sm text-red-500">
                         {actorLogsError}
                       </div>
-                    ) : actorLogs.length === 0 ? (
-                      <div className="h-full flex items-center justify-center text-sm text-slate-400">
+                    ) : actorLogEntries.length === 0 ? (
+                      <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
                         暂无日志输出
                       </div>
                     ) : (
-                      <div className="max-h-[360px] overflow-y-auto divide-y divide-white/5">
-                        {actorLogs.map((line, index) => (
-                          <pre
-                            key={`${line}-${index}`}
-                            className="px-4 py-2 text-xs font-mono whitespace-pre-wrap break-words text-green-200"
-                          >
-                            {line}
-                          </pre>
-                        ))}
-                      </div>
+                      <LogListViewer logs={actorLogEntries} />
                     )}
                   </div>
                 </div>
@@ -1820,68 +1915,9 @@ export default function ApplicationDetailPage() {
                     </div>
                   ) : (
                     <div className="h-[500px] w-full border rounded-md bg-gray-50 dark:bg-gray-900">
-                      <AutoSizer>
-                        {({ height, width }: { height: number; width: number }) => (
-                          <List
-                            width={width}
-                            height={height}
-                            rowCount={filteredLogs.length}
-                            deferredMeasurementCache={logViewerCacheRef.current}
-                            rowHeight={logViewerCacheRef.current.rowHeight}
-                            overscanRowCount={6}
-                            rowRenderer={({ index, key, parent, style }: ListRowProps) => {
-                              const log = filteredLogs[index]
-                              const levelKey = (log.level || "info").toLowerCase()
-                              const levelStyles = logLevelStyles[levelKey] || logLevelStyles.info
-
-                        return (
-                                <CellMeasurer
-                                  cache={logViewerCacheRef.current}
-                                  columnIndex={0}
-                                  key={key}
-                                  parent={parent}
-                                  rowIndex={index}
-                                >
-                                  <div
-                                    style={style}
-                                    className="border-b border-gray-200/80 dark:border-gray-800/80 px-4 py-3 hover:bg-white dark:hover:bg-gray-900 transition-colors"
-                                  >
-                                    <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                                      <div className="flex items-center gap-3">
-                                        <span
-                                          className={`px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wide ${levelStyles.badge}`}
-                                        >
-                                          {log.level?.toUpperCase() || "INFO"}
-                                        </span>
-                                        <span className="text-xs text-muted-foreground font-mono">
-                                          {formatDateTime(log.timestamp)}
-                                        </span>
-                              </div>
-                                      <div className="text-[11px] text-muted-foreground font-mono flex items-center gap-2">
-                                        {log.caller && (log.caller.file || log.caller.line || log.caller.function) && (
-                                          <span className="hidden md:inline">
-                                            {log.caller.file}{log.caller.line !== undefined ? `:${log.caller.line}` : ""}{log.caller.function ? ` (${log.caller.function})` : ""}
-                                      </span>
-                                        )}
-                                    </div>
-                                  </div>
-                                    <p className="mt-2 text-sm text-gray-900 dark:text-gray-100 whitespace-pre-wrap break-words font-mono">
-                                      {log.message}
-                                    </p>
-                                  {log.details && (
-                                      <pre className="mt-2 bg-gray-100 dark:bg-gray-950 rounded-md p-2 text-xs text-gray-700 dark:text-gray-300 overflow-x-auto whitespace-pre-wrap break-words font-mono">
-                                        {log.details}
-                                      </pre>
-                                  )}
-                                </div>
-                                </CellMeasurer>
-                              )
-                            }}
-                          />
-                            )}
-                      </AutoSizer>
-                      </div>
-                    )}
+                      <LogListViewer logs={filteredLogs} />
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>

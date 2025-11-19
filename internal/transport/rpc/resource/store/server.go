@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"fmt"
 
 	domainstore "github.com/9triver/iarnet/internal/domain/resource/store"
 	storepb "github.com/9triver/iarnet/internal/proto/resource/store"
@@ -42,4 +43,14 @@ func (s *Server) GetStreamChunk(ctx context.Context, req *storepb.GetStreamChunk
 		return nil, err
 	}
 	return &storepb.GetStreamChunkResponse{Chunk: chunk}, nil
+}
+
+func (s *Server) SaveStreamChunk(ctx context.Context, req *storepb.SaveStreamChunkRequest) (*storepb.SaveStreamChunkResponse, error) {
+	if req == nil || req.Chunk == nil {
+		return nil, fmt.Errorf("chunk is required")
+	}
+	if err := s.svc.SaveStreamChunk(ctx, req.Chunk); err != nil {
+		return nil, err
+	}
+	return &storepb.SaveStreamChunkResponse{}, nil
 }

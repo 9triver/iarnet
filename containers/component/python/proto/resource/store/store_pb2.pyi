@@ -39,8 +39,8 @@ class GetStreamChunkRequest(_message.Message):
     OBJECTID_FIELD_NUMBER: _ClassVar[int]
     OFFSET_FIELD_NUMBER: _ClassVar[int]
     ObjectID: str
-    Offset: str
-    def __init__(self, ObjectID: _Optional[str] = ..., Offset: _Optional[str] = ...) -> None: ...
+    Offset: int
+    def __init__(self, ObjectID: _Optional[str] = ..., Offset: _Optional[int] = ...) -> None: ...
 
 class GetStreamChunkResponse(_message.Message):
     __slots__ = ("Chunk",)

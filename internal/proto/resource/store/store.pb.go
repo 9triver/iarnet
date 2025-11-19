@@ -217,7 +217,7 @@ func (x *GetObjectResponse) GetObject() *common.EncodedObject {
 type GetStreamChunkRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ObjectID      string                 `protobuf:"bytes,1,opt,name=ObjectID,proto3" json:"ObjectID,omitempty"`
-	Offset        string                 `protobuf:"bytes,2,opt,name=Offset,proto3" json:"Offset,omitempty"`
+	Offset        int64                  `protobuf:"varint,2,opt,name=Offset,proto3" json:"Offset,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -259,11 +259,11 @@ func (x *GetStreamChunkRequest) GetObjectID() string {
 	return ""
 }
 
-func (x *GetStreamChunkRequest) GetOffset() string {
+func (x *GetStreamChunkRequest) GetOffset() int64 {
 	if x != nil {
 		return x.Offset
 	}
-	return ""
+	return 0
 }
 
 type GetStreamChunkResponse struct {
@@ -407,7 +407,7 @@ const file_resource_store_store_proto_rawDesc = "" +
 	"\x06Object\x18\x01 \x01(\v2\x15.common.EncodedObjectR\x06Object\"K\n" +
 	"\x15GetStreamChunkRequest\x12\x1a\n" +
 	"\bObjectID\x18\x01 \x01(\tR\bObjectID\x12\x16\n" +
-	"\x06Offset\x18\x02 \x01(\tR\x06Offset\"C\n" +
+	"\x06Offset\x18\x02 \x01(\x03R\x06Offset\"C\n" +
 	"\x16GetStreamChunkResponse\x12)\n" +
 	"\x05Chunk\x18\x01 \x01(\v2\x13.common.StreamChunkR\x05Chunk\"C\n" +
 	"\x16SaveStreamChunkRequest\x12)\n" +

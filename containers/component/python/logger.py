@@ -2,6 +2,7 @@ import logging
 import queue
 import threading
 import time
+import traceback
 from typing import Optional
 
 import grpc
@@ -142,3 +143,8 @@ class RemoteLogHandler(logging.Handler):
             self._q.put(stream_msg)
         except Exception as e:
             print(f"Log emit error: {e}")
+
+    def formatException(self, exc_info):
+        if self.formatter:
+            return self.formatter.formatException(exc_info)
+        return "".join(traceback.format_exception(*exc_info))

@@ -11,7 +11,7 @@ type Service interface {
 	SaveObject(ctx context.Context, obj *commonpb.EncodedObject) (*commonpb.ObjectRef, error)
 	SaveStreamChunk(ctx context.Context, chunk *commonpb.StreamChunk) error
 	GetObject(ctx context.Context, ref *commonpb.ObjectRef) (*commonpb.EncodedObject, error)
-	GetStreamChunk(ctx context.Context, id string, offset string) (*commonpb.StreamChunk, error)
+	GetStreamChunk(ctx context.Context, id string, offset int64) (*commonpb.StreamChunk, error)
 }
 
 type service struct {
@@ -48,6 +48,6 @@ func (s *service) GetObject(ctx context.Context, ref *commonpb.ObjectRef) (*comm
 	return encodedObj, nil
 }
 
-func (s *service) GetStreamChunk(ctx context.Context, id string, offset string) (*commonpb.StreamChunk, error) {
-	panic("not implemented")
+func (s *service) GetStreamChunk(ctx context.Context, id string, offset int64) (*commonpb.StreamChunk, error) {
+	return s.store.GetStreamChunk(id, offset)
 }

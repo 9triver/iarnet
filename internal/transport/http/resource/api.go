@@ -24,6 +24,8 @@ func RegisterRoutes(router *mux.Router, resMgr *resource.Manager, cfg *config.Co
 	router.HandleFunc("/resource/provider", api.handleRegisterResourceProvider).Methods("POST")
 	router.HandleFunc("/resource/provider/{id}", api.handleUpdateResourceProvider).Methods("PUT")
 	router.HandleFunc("/resource/provider/{id}", api.handleUnregisterResourceProvider).Methods("DELETE")
+
+	router.HandleFunc("/resource/components/{id}/logs", api.handleGetComponentLogs).Methods("GET")
 }
 
 type API struct {
@@ -327,4 +329,13 @@ func (api *API) getAggregatedCapacity(ctx context.Context) (*types.Capacity, err
 			GPU:    availableGPU,
 		},
 	}, nil
+}
+
+func (api *API) handleGetComponentLogs(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	componentID := vars["id"]
+	if componentID == "" {
+		response.BadRequest("component id is required").WriteJSON(w)
+		return
+	}
 }

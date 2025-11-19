@@ -133,7 +133,7 @@ func (m *Manager) GetObject(ctx context.Context, ref *commonpb.ObjectRef) (*comm
 	return m.storeService.GetObject(ctx, ref)
 }
 
-func (m *Manager) GetStreamChunk(ctx context.Context, id string, offset string) (*commonpb.StreamChunk, error) {
+func (m *Manager) GetStreamChunk(ctx context.Context, id string, offset int64) (*commonpb.StreamChunk, error) {
 	return m.storeService.GetStreamChunk(ctx, id, offset)
 }
 
