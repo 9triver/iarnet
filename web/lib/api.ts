@@ -138,6 +138,14 @@ export interface GetApplicationLogsParams {
 }
 
 export interface GetComponentLogsParams {
+  limit?: number
+  offset?: number
+  level?: string
+  startTime?: string
+  endTime?: string
+  /**
+   * @deprecated 请使用 limit
+   */
   lines?: number
 }
 
@@ -239,22 +247,35 @@ export const applicationsAPI = {
     apiRequest(`/application/apps/${id}/components`),
   getActors: (id: string) =>
     apiRequest<GetApplicationActorsResponse>(`/application/apps/${id}/actors`),
-  getComponentLogs: async (id: string, componentId: string, params?: GetComponentLogsParams): Promise<GetComponentLogsResponse> => {
+  getComponentLogs: async (_id: string, componentId: string, params?: GetComponentLogsParams): Promise<GetComponentLogsResponse> => {
     const searchParams = new URLSearchParams()
-    if (params?.lines !== undefined) {
-      searchParams.set("lines", params.lines.toString())
+    const limit = params?.limit ?? params?.lines
+    if (limit !== undefined) {
+      searchParams.set("limit", limit.toString())
+    }
+    if (params?.offset !== undefined) {
+      searchParams.set("offset", params.offset.toString())
+    }
+    if (params?.level) {
+      searchParams.set("level", params.level)
+    }
+    if (params?.startTime) {
+      searchParams.set("start_time", params.startTime)
+    }
+    if (params?.endTime) {
+      searchParams.set("end_time", params.endTime)
     }
     const query = searchParams.toString()
     const endpoint = query
-      ? `/application/apps/${id}/components/${componentId}/logs?${query}`
-      : `/application/apps/${id}/components/${componentId}/logs`
+      ? `/resource/components/${componentId}/logs?${query}`
+      : `/resource/components/${componentId}/logs`
     const raw = await apiRequest<any>(endpoint)
     const logs = Array.isArray(raw.logs) ? raw.logs : []
     return {
       componentId: raw.component_id ?? raw.componentId ?? componentId,
       logs,
-      totalLines: raw.total_lines ?? raw.totalLines ?? logs.length,
-      requestedLines: raw.requested_lines ?? raw.requestedLines ?? params?.lines ?? logs.length,
+      total: raw.total ?? raw.total_lines ?? raw.totalLines ?? logs.length,
+      hasMore: Boolean(raw.has_more ?? raw.hasMore ?? false),
     }
   },
 }

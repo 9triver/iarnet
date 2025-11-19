@@ -3,10 +3,15 @@ package resource
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/9triver/iarnet/internal/config"
 	"github.com/9triver/iarnet/internal/domain/resource"
+	"github.com/9triver/iarnet/internal/domain/resource/logger"
 	"github.com/9triver/iarnet/internal/domain/resource/provider"
 	"github.com/9triver/iarnet/internal/domain/resource/types"
 	"github.com/9triver/iarnet/internal/transport/http/util/response"
@@ -337,5 +342,166 @@ func (api *API) handleGetComponentLogs(w http.ResponseWriter, r *http.Request) {
 	if componentID == "" {
 		response.BadRequest("component id is required").WriteJSON(w)
 		return
+	}
+
+	query := r.URL.Query()
+
+	limit, err := parsePositiveInt(query.Get("limit"), 100)
+	if err != nil {
+		response.BadRequest("invalid limit: " + err.Error()).WriteJSON(w)
+		return
+	}
+
+	offset, err := parseNonNegativeInt(query.Get("offset"), 0)
+	if err != nil {
+		response.BadRequest("invalid offset: " + err.Error()).WriteJSON(w)
+		return
+	}
+
+	opts := &logger.QueryOptions{
+		Limit:  limit,
+		Offset: offset,
+	}
+
+	if levelParam := strings.TrimSpace(query.Get("level")); levelParam != "" && strings.ToLower(levelParam) != "all" {
+		level, err := parseLogLevel(levelParam)
+		if err != nil {
+			response.BadRequest(err.Error()).WriteJSON(w)
+			return
+		}
+		opts.Level = level
+	}
+
+	if startParam := strings.TrimSpace(query.Get("start_time")); startParam != "" {
+		startTime, err := time.Parse(time.RFC3339, startParam)
+		if err != nil {
+			response.BadRequest("invalid start_time, must be RFC3339").WriteJSON(w)
+			return
+		}
+		opts.StartTime = &startTime
+	}
+
+	if endParam := strings.TrimSpace(query.Get("end_time")); endParam != "" {
+		endTime, err := time.Parse(time.RFC3339, endParam)
+		if err != nil {
+			response.BadRequest("invalid end_time, must be RFC3339").WriteJSON(w)
+			return
+		}
+		opts.EndTime = &endTime
+	}
+
+	result, err := api.resMgr.GetLogs(r.Context(), componentID, opts)
+	if err != nil {
+		logrus.Errorf("Failed to get application logs: %v", err)
+		response.InternalError("failed to get application logs: " + err.Error()).WriteJSON(w)
+		return
+	}
+
+	resp := BuildGetComponentLogsResponse(componentID, result)
+	response.Success(resp).WriteJSON(w)
+}
+
+func parsePositiveInt(raw string, defaultVal int) (int, error) {
+	if raw == "" {
+		return defaultVal, nil
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil || value <= 0 {
+		return 0, fmt.Errorf("must be positive integer")
+	}
+	return value, nil
+}
+
+func parseNonNegativeInt(raw string, defaultVal int) (int, error) {
+	if raw == "" {
+		return defaultVal, nil
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil || value < 0 {
+		return 0, fmt.Errorf("must be non-negative integer")
+	}
+	return value, nil
+}
+
+func parseLogLevel(level string) (logger.LogLevel, error) {
+	switch strings.ToLower(level) {
+	case "trace":
+		return logger.LogLevelTrace, nil
+	case "debug":
+		return logger.LogLevelDebug, nil
+	case "info":
+		return logger.LogLevelInfo, nil
+	case "warn", "warning":
+		return logger.LogLevelWarn, nil
+	case "error":
+		return logger.LogLevelError, nil
+	case "fatal":
+		return logger.LogLevelFatal, nil
+	case "panic":
+		return logger.LogLevelPanic, nil
+	default:
+		return "", fmt.Errorf("invalid level: %s", level)
+	}
+}
+
+type GetComponentLogsResponse struct {
+	ComponentID string         `json:"component_id"`
+	Logs        []ComponentLog `json:"logs"`
+	Total       int            `json:"total"`
+	HasMore     bool           `json:"has_more"`
+}
+
+type ComponentLog struct {
+	Timestamp time.Time           `json:"timestamp"`
+	Level     string              `json:"level"`
+	Message   string              `json:"message"`
+	Fields    []ComponentLogField `json:"fields,omitempty"`
+	Caller    *ComponentLogCaller `json:"caller,omitempty"`
+}
+
+type ComponentLogField struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+type ComponentLogCaller struct {
+	File     string `json:"file,omitempty"`
+	Line     int    `json:"line,omitempty"`
+	Function string `json:"function,omitempty"`
+}
+
+func BuildGetComponentLogsResponse(componentID string, result *logger.QueryResult) GetComponentLogsResponse {
+	logs := make([]ComponentLog, len(result.Entries))
+	for i, entry := range result.Entries {
+		fields := make([]ComponentLogField, len(entry.Fields))
+		for idx, field := range entry.Fields {
+			fields[idx] = ComponentLogField{
+				Key:   field.Key,
+				Value: field.Value,
+			}
+		}
+
+		var caller *ComponentLogCaller
+		if entry.Caller != nil {
+			caller = &ComponentLogCaller{
+				File:     entry.Caller.File,
+				Line:     entry.Caller.Line,
+				Function: entry.Caller.Function,
+			}
+		}
+
+		logs[i] = ComponentLog{
+			Timestamp: entry.Timestamp,
+			Level:     string(entry.Level),
+			Message:   entry.Message,
+			Fields:    fields,
+			Caller:    caller,
+		}
+	}
+	return GetComponentLogsResponse{
+		ComponentID: componentID,
+		Logs:        logs,
+		Total:       result.Total,
+		HasMore:     result.HasMore,
 	}
 }

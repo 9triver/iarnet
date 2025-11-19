@@ -71,19 +71,3 @@ class EncDec:
                 raise ValueError(f"Unsupported language: {language}")
         return data, False
 
-    @staticmethod
-    def platform_to_store_language(lang: common.Language) -> common.Language:
-        """
-        将平台语言类型转换为 Store 语言类型
-        
-        注意：现在 Language 统一在 common 中定义，所以直接返回即可
-        
-        Args:
-            lang: 平台语言类型（common.Language）
-            
-        Returns:
-            Store 语言类型（common.Language）
-        """
-        # Language 现在统一在 common 中定义，直接返回
-        return lang
-

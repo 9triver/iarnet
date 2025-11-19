@@ -267,11 +267,19 @@ export interface GetComponentsResponse {
   components: Component[]
 }
 
+export interface ComponentLogEntry {
+  timestamp?: string
+  level?: string
+  message: string
+  fields?: LogFieldKV[]
+  caller?: LogCallerInfo
+}
+
 export interface GetComponentLogsResponse {
   componentId?: string
-  logs: string[]
-  totalLines?: number
-  requestedLines?: number
+  logs: ComponentLogEntry[]
+  total?: number
+  hasMore?: boolean
 }
 
 export type DAGNodeStatus = "pending" | "ready" | "running" | "done" | "failed"

@@ -101,7 +101,7 @@ class RemoteLogHandler(logging.Handler):
                 'name', 'msg', 'args', 'created', 'filename', 'funcName',
                 'levelname', 'levelno', 'lineno', 'module', 'msecs', 'message',
                 'pathname', 'process', 'processName', 'relativeCreated', 'thread',
-                'threadName', 'exc_info', 'exc_text', 'stack_info', 'getMessage'
+                'threadName', 'exc_info', 'exc_text', 'stack_info', 'getMessage', "asctime"
             }
 
             # 遍历 LogRecord 的所有属性，找出自定义字段

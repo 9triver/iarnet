@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { applicationsAPI, APIError } from "@/lib/api"
 import { getWebSocketManager, disconnectWebSocketManager } from "@/lib/websocket"
-import type { LogEntry, Application, DAG, DAGNode, DAGEdge, ControlNode, DataNode, DAGNodeStatus, GetApplicationActorsResponse, ActorRecord, ApplicationLogPayload, LogCallerInfo } from "@/lib/model"
+import type { LogEntry, Application, DAG, DAGNode, DAGEdge, ControlNode, DataNode, DAGNodeStatus, GetApplicationActorsResponse, ActorRecord, ApplicationLogPayload, LogCallerInfo, ComponentLogEntry } from "@/lib/model"
 import { formatDateTime, formatMemory } from "@/lib/utils"
 import { Sidebar } from "@/components/sidebar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -273,10 +273,6 @@ const LogListViewer = ({ logs }: { logs: BasicLogEntry[] }) => {
                       </span>
                     </div>
                     <div className="text-[11px] text-muted-foreground font-mono flex items-center gap-2">
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white border text-gray-700 dark:text-gray-300 dark:bg-gray-900">
-                        <span className={`w-2 h-2 rounded-full ${levelStyles.dot}`} />
-                        {levelStyles.label}
-                      </span>
                       {log.caller && (log.caller.file || log.caller.line || log.caller.function) && (
                         <span className="hidden md:inline">
                           {log.caller.file}{log.caller.line !== undefined ? `:${log.caller.line}` : ""}{log.caller.function ? ` (${log.caller.function})` : ""}
@@ -397,27 +393,25 @@ export default function ApplicationDetailPage() {
   const [runnerEnvironments, setRunnerEnvironments] = useState<string[]>([])
   const [isActorLogDialogOpen, setIsActorLogDialogOpen] = useState(false)
   const [selectedActorLog, setSelectedActorLog] = useState<{ actorId: string; componentId?: string; functionName: string } | null>(null)
-  const [actorLogs, setActorLogs] = useState<string[]>([])
+  const [actorLogs, setActorLogs] = useState<ComponentLogEntry[]>([])
   const [actorLogLines, setActorLogLines] = useState(100)
   const [isLoadingActorLogs, setIsLoadingActorLogs] = useState(false)
   const [actorLogsError, setActorLogsError] = useState<string | null>(null)
   const actorLogEntries = useMemo<BasicLogEntry[]>(() => {
-    return actorLogs.map((line, index) => {
-      const trimmed = line.trim()
-      const pattern = /^(\d{4}-\d{2}-\d{2}[^[]*)\s+\[([A-Za-z]+)\]\s*(.*)$/
-      const match = trimmed.match(pattern)
-      if (match) {
-        const [, timestampRaw, levelRaw, messageRaw] = match
-        return {
-          id: `actor-log-${index}`,
-          timestamp: timestampRaw.trim(),
-          level: levelRaw?.toLowerCase(),
-          message: messageRaw?.length ? messageRaw : trimmed,
-        }
-      }
+    return actorLogs.map((entry, index) => {
+      const baseId = entry?.timestamp ? `${entry.timestamp}-${index}` : `actor-log-${index}`
+      const details = entry?.fields?.length
+        ? entry.fields
+            .map((field) => `${field.key}: ${field.value}`)
+            .join("\n")
+        : undefined
       return {
-        id: `actor-log-${index}`,
-        message: trimmed,
+        id: baseId,
+        timestamp: entry?.timestamp,
+        level: entry?.level?.toLowerCase(),
+        message: entry?.message ?? "",
+        details,
+        caller: entry?.caller,
       }
     })
   }, [actorLogs])
@@ -917,13 +911,7 @@ export default function ApplicationDetailPage() {
       setSelectedDagSession(resolvedSession || null)
       setAppDAG(dagResponse.dag)
     } catch (error) {
-      // DAG不存在是正常现象，应用只有在运行时才会有DAG
-      // 只在非404错误时才记录错误日志
-      if (error instanceof APIError && error.status === 404) {
-        // 404错误是正常的，不记录日志
-      } else {
-        console.error('Failed to load DAG:', error)
-      }
+      console.error('Failed to load DAG:', error)
       setDagSessions([])
       setSelectedDagSession(null)
       setAppDAG(null)
@@ -957,7 +945,7 @@ export default function ApplicationDetailPage() {
         setIsLoadingActorLogs(true)
         setActorLogsError(null)
         const response = await applicationsAPI.getComponentLogs(applicationId, componentId, {
-          lines: effectiveLines,
+          limit: effectiveLines,
         })
         setActorLogs(response.logs || [])
       } catch (error) {
