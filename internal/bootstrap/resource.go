@@ -38,6 +38,7 @@ func bootstrapResource(iarnet *Iarnet) error {
 			IarnetHost: iarnet.Config.Host,
 			ZMQPort:    iarnet.Config.Transport.ZMQ.Port,
 			StorePort:  iarnet.Config.Transport.RPC.Store.Port,
+			LoggerPort: iarnet.Config.Transport.RPC.ResourceLogger.Port,
 		},
 	)
 

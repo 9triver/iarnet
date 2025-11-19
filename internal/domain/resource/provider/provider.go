@@ -20,6 +20,7 @@ type EnvVariables struct {
 	IarnetHost string
 	ZMQPort    int
 	StorePort  int
+	LoggerPort int
 }
 
 // Provider 资源提供者
@@ -264,6 +265,7 @@ func (p *Provider) Deploy(ctx context.Context, id, image string, resourceRequest
 			"COMPONENT_ID": id,
 			"ZMQ_ADDR":     net.JoinHostPort(p.envVariables.IarnetHost, strconv.Itoa(p.envVariables.ZMQPort)),
 			"STORE_ADDR":   net.JoinHostPort(p.envVariables.IarnetHost, strconv.Itoa(p.envVariables.StorePort)),
+			"LOGGER_ADDR":  net.JoinHostPort(p.envVariables.IarnetHost, strconv.Itoa(p.envVariables.LoggerPort)),
 		},
 		ProviderId: p.id, // 必须传递 provider_id
 	}

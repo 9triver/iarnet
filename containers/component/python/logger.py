@@ -23,12 +23,6 @@ _GLOBAL_HANDLER: Optional["RemoteLogHandler"] = None
 _GLOBAL_HANDLER_LOCK = threading.Lock()
 
 
-def setup_logging(logger: logging.Logger, component_id: str, logger_addr: str):
-    handler = RemoteLogHandler(component_id, logger_addr)
-    logger.addHandler(handler)
-    return handler
-
-
 def setup_global_logging(component_id: str, logger_addr: str, level: int = logging.INFO):
     """
     将 RemoteLogHandler 安装到 root logger，确保所有日志都发送到远程服务。
@@ -108,7 +102,7 @@ class RemoteLogHandler(logging.Handler):
                 'pathname', 'process', 'processName', 'relativeCreated', 'thread',
                 'threadName', 'exc_info', 'exc_text', 'stack_info', 'getMessage'
             }
-            
+
             # 遍历 LogRecord 的所有属性，找出自定义字段
             import json
             for key, value in record.__dict__.items():
@@ -118,10 +112,11 @@ class RemoteLogHandler(logging.Handler):
                 # 将自定义字段添加到 fields
                 field = common_logger_pb2.LogField(
                     key=key,
-                    value=json.dumps(value) if not isinstance(value, str) else value
+                    value=json.dumps(value) if not isinstance(
+                        value, str) else value
                 )
                 fields.append(field)
-            
+
             # 添加异常信息（如果有）
             if record.exc_info:
                 exc_text = self.formatException(record.exc_info)
