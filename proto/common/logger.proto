@@ -1,0 +1,54 @@
+syntax = "proto3";
+
+package common;
+
+option go_package = "github.com/9triver/iarnet/internal/proto/common";
+
+// 日志级别，对应 logrus 的日志级别
+enum LogLevel {
+  LOG_LEVEL_UNKNOWN = 0;
+  LOG_LEVEL_TRACE = 1;    // Trace level
+  LOG_LEVEL_DEBUG = 2;    // Debug level
+  LOG_LEVEL_INFO = 3;     // Info level
+  LOG_LEVEL_WARN = 4;     // Warn level
+  LOG_LEVEL_ERROR = 5;    // Error level
+  LOG_LEVEL_FATAL = 6;    // Fatal level
+  LOG_LEVEL_PANIC = 7;    // Panic level
+}
+
+// 日志字段，用于存储 logrus Fields
+message LogField {
+  string key = 1;
+  string value = 2;  // JSON 编码的值，支持各种类型
+}
+
+// 调用栈信息
+message CallerInfo {
+  string file = 1;       // 文件名
+  int32 line = 2;        // 行号
+  string function = 3;   // 函数名
+}
+
+// 单条日志条目
+message LogEntry {
+  // 基础信息
+  int64 timestamp = 1;           // Unix 时间戳（纳秒）
+  LogLevel level = 2;            // 日志级别
+  string message = 3;             // 日志消息
+  
+  // 元数据
+  repeated LogField fields = 4;   // logrus Fields（键值对）
+  CallerInfo caller = 5;          // 调用栈信息（可选）
+}
+
+// 流式控制消息
+message StreamControl {
+  enum ControlType {
+    CONTROL_UNKNOWN = 0;
+    CONTROL_HEARTBEAT = 1;         // 心跳
+    CONTROL_FLUSH = 2;             // 刷新缓冲区
+    CONTROL_CLOSE = 3;             // 关闭流
+  }
+  ControlType type = 1;
+  map<string, string> metadata = 2; // 额外的元数据
+}

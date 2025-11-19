@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-import logger_pb2 as logger__pb2
+from logger import logger_pb2 as logger_dot_logger__pb2
 
 GRPC_GENERATED_VERSION = '1.76.0'
 GRPC_VERSION = grpc.__version__
@@ -18,16 +18,15 @@ except ImportError:
 if _version_not_supported:
     raise RuntimeError(
         f'The grpc package installed is at version {GRPC_VERSION},'
-        + ' but the generated code in logger_pb2_grpc.py depends on'
+        + ' but the generated code in logger/logger_pb2_grpc.py depends on'
         + f' grpcio>={GRPC_GENERATED_VERSION}.'
         + f' Please upgrade your grpc module to grpcio>={GRPC_GENERATED_VERSION}'
         + f' or downgrade your generated code using grpcio-tools<={GRPC_VERSION}.'
     )
 
 
-class LogServiceStub(object):
-    """LogService 日志服务
-    """
+class LoggerServiceStub(object):
+    """Missing associated documentation comment in .proto file."""
 
     def __init__(self, channel):
         """Constructor.
@@ -35,80 +34,75 @@ class LogServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.PushLog = channel.unary_unary(
-                '/logger.LogService/PushLog',
-                request_serializer=logger__pb2.PushLogRequest.SerializeToString,
-                response_deserializer=logger__pb2.PushLogResponse.FromString,
+        self.SubmitLog = channel.unary_unary(
+                '/logger.LoggerService/SubmitLog',
+                request_serializer=logger_dot_logger__pb2.SubmitLogRequest.SerializeToString,
+                response_deserializer=logger_dot_logger__pb2.SubmitLogResponse.FromString,
                 _registered_method=True)
-        self.PushLogsBatch = channel.unary_unary(
-                '/logger.LogService/PushLogsBatch',
-                request_serializer=logger__pb2.PushLogsBatchRequest.SerializeToString,
-                response_deserializer=logger__pb2.PushLogResponse.FromString,
+        self.SubmitLogBatch = channel.unary_unary(
+                '/logger.LoggerService/SubmitLogBatch',
+                request_serializer=logger_dot_logger__pb2.BatchSubmitLogRequest.SerializeToString,
+                response_deserializer=logger_dot_logger__pb2.BatchSubmitLogResponse.FromString,
                 _registered_method=True)
-        self.StreamLogs = channel.stream_unary(
-                '/logger.LogService/StreamLogs',
-                request_serializer=logger__pb2.PushLogRequest.SerializeToString,
-                response_deserializer=logger__pb2.PushLogResponse.FromString,
+        self.StreamLogs = channel.stream_stream(
+                '/logger.LoggerService/StreamLogs',
+                request_serializer=logger_dot_logger__pb2.LogStreamMessage.SerializeToString,
+                response_deserializer=logger_dot_logger__pb2.LogStreamResponse.FromString,
                 _registered_method=True)
 
 
-class LogServiceServicer(object):
-    """LogService 日志服务
-    """
+class LoggerServiceServicer(object):
+    """Missing associated documentation comment in .proto file."""
 
-    def PushLog(self, request, context):
-        """PushLogs 推送日志（单条）
-        """
+    def SubmitLog(self, request, context):
+        """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def PushLogsBatch(self, request, context):
-        """PushLogsBatch 批量推送日志
-        """
+    def SubmitLogBatch(self, request, context):
+        """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def StreamLogs(self, request_iterator, context):
-        """StreamLogs 流式推送日志
-        """
+        """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
 
-def add_LogServiceServicer_to_server(servicer, server):
+def add_LoggerServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'PushLog': grpc.unary_unary_rpc_method_handler(
-                    servicer.PushLog,
-                    request_deserializer=logger__pb2.PushLogRequest.FromString,
-                    response_serializer=logger__pb2.PushLogResponse.SerializeToString,
+            'SubmitLog': grpc.unary_unary_rpc_method_handler(
+                    servicer.SubmitLog,
+                    request_deserializer=logger_dot_logger__pb2.SubmitLogRequest.FromString,
+                    response_serializer=logger_dot_logger__pb2.SubmitLogResponse.SerializeToString,
             ),
-            'PushLogsBatch': grpc.unary_unary_rpc_method_handler(
-                    servicer.PushLogsBatch,
-                    request_deserializer=logger__pb2.PushLogsBatchRequest.FromString,
-                    response_serializer=logger__pb2.PushLogResponse.SerializeToString,
+            'SubmitLogBatch': grpc.unary_unary_rpc_method_handler(
+                    servicer.SubmitLogBatch,
+                    request_deserializer=logger_dot_logger__pb2.BatchSubmitLogRequest.FromString,
+                    response_serializer=logger_dot_logger__pb2.BatchSubmitLogResponse.SerializeToString,
             ),
-            'StreamLogs': grpc.stream_unary_rpc_method_handler(
+            'StreamLogs': grpc.stream_stream_rpc_method_handler(
                     servicer.StreamLogs,
-                    request_deserializer=logger__pb2.PushLogRequest.FromString,
-                    response_serializer=logger__pb2.PushLogResponse.SerializeToString,
+                    request_deserializer=logger_dot_logger__pb2.LogStreamMessage.FromString,
+                    response_serializer=logger_dot_logger__pb2.LogStreamResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'logger.LogService', rpc_method_handlers)
+            'logger.LoggerService', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
-    server.add_registered_method_handlers('logger.LogService', rpc_method_handlers)
+    server.add_registered_method_handlers('logger.LoggerService', rpc_method_handlers)
 
 
  # This class is part of an EXPERIMENTAL API.
-class LogService(object):
-    """LogService 日志服务
-    """
+class LoggerService(object):
+    """Missing associated documentation comment in .proto file."""
 
     @staticmethod
-    def PushLog(request,
+    def SubmitLog(request,
             target,
             options=(),
             channel_credentials=None,
@@ -121,9 +115,9 @@ class LogService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/logger.LogService/PushLog',
-            logger__pb2.PushLogRequest.SerializeToString,
-            logger__pb2.PushLogResponse.FromString,
+            '/logger.LoggerService/SubmitLog',
+            logger_dot_logger__pb2.SubmitLogRequest.SerializeToString,
+            logger_dot_logger__pb2.SubmitLogResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -135,7 +129,7 @@ class LogService(object):
             _registered_method=True)
 
     @staticmethod
-    def PushLogsBatch(request,
+    def SubmitLogBatch(request,
             target,
             options=(),
             channel_credentials=None,
@@ -148,9 +142,9 @@ class LogService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/logger.LogService/PushLogsBatch',
-            logger__pb2.PushLogsBatchRequest.SerializeToString,
-            logger__pb2.PushLogResponse.FromString,
+            '/logger.LoggerService/SubmitLogBatch',
+            logger_dot_logger__pb2.BatchSubmitLogRequest.SerializeToString,
+            logger_dot_logger__pb2.BatchSubmitLogResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -172,12 +166,12 @@ class LogService(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.stream_unary(
+        return grpc.experimental.stream_stream(
             request_iterator,
             target,
-            '/logger.LogService/StreamLogs',
-            logger__pb2.PushLogRequest.SerializeToString,
-            logger__pb2.PushLogResponse.FromString,
+            '/logger.LoggerService/StreamLogs',
+            logger_dot_logger__pb2.LogStreamMessage.SerializeToString,
+            logger_dot_logger__pb2.LogStreamResponse.FromString,
             options,
             channel_credentials,
             insecure,

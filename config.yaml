@@ -34,6 +34,8 @@ transport:
       port: 50001
     store:
       port: 50002
+    logger:
+      port: 50003
 
 logging:
   enabled: true

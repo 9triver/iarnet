@@ -26,14 +26,19 @@ func bootstrapTransport(iarnet *Iarnet) error {
 	// 构建 RPC 服务器地址
 	ignisAddr := fmt.Sprintf("0.0.0.0:%d", iarnet.Config.Transport.RPC.Ignis.Port)
 	storeAddr := fmt.Sprintf("0.0.0.0:%d", iarnet.Config.Transport.RPC.Store.Port)
+	loggerAddr := fmt.Sprintf("0.0.0.0:%d", iarnet.Config.Transport.RPC.Logger.Port)
 
 	// 创建 RPC 服务器管理器（不启动，启动操作在 Start 方法中统一执行）
-	iarnet.RPCManager = rpc.NewManager(rpc.Options{
+	opts := rpc.Options{
 		IgnisAddr:         ignisAddr,
 		StoreAddr:         storeAddr,
+		LoggerAddr:        loggerAddr,
 		ControllerService: iarnet.IgnisPlatform,
 		StoreService:      iarnet.ResourceManager,
-	})
+		LoggerService:     iarnet.ApplicationManager,
+	}
+
+	iarnet.RPCManager = rpc.NewManager(opts)
 
 	// 创建 HTTP 服务器
 	iarnet.HTTPServer = http.NewServer(http.Options{

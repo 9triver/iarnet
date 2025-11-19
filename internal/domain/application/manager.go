@@ -3,7 +3,9 @@ package application
 import (
 	"context"
 	"fmt"
+	"time"
 
+	"github.com/9triver/iarnet/internal/domain/application/logger"
 	"github.com/9triver/iarnet/internal/domain/application/metadata"
 	"github.com/9triver/iarnet/internal/domain/application/runner"
 	"github.com/9triver/iarnet/internal/domain/application/types"
@@ -17,6 +19,7 @@ var (
 	_ runner.Service    = (*Manager)(nil)
 	_ workspace.Service = (*Manager)(nil)
 	_ metadata.Service  = (*Manager)(nil)
+	_ logger.Service    = (*Manager)(nil)
 )
 
 type Manager struct {
@@ -24,6 +27,7 @@ type Manager struct {
 	workspaceSvc workspace.Service
 	metadataSvc  metadata.Service
 	platform     *ignis.Platform
+	loggerSvc    logger.Service
 }
 
 func NewManager() *Manager {
@@ -49,6 +53,11 @@ func (m *Manager) SetApplicationMetadataService(metadataSvc metadata.Service) *M
 
 func (m *Manager) SetIgnisPlatform(platform *ignis.Platform) *Manager {
 	m.platform = platform
+	return m
+}
+
+func (m *Manager) SetApplicationLoggerService(loggerSvc logger.Service) *Manager {
+	m.loggerSvc = loggerSvc
 	return m
 }
 
@@ -147,6 +156,23 @@ func (m *Manager) UpdateAppStatus(ctx context.Context, appID string, status type
 
 func (m *Manager) RemoveAppMetadata(ctx context.Context, appID string) error {
 	return m.metadataSvc.RemoveAppMetadata(ctx, appID)
+}
+
+// Logger methods
+func (m *Manager) SubmitLog(ctx context.Context, applicationID string, entry *logger.Entry) (*logger.SubmitLogResult, error) {
+	return m.loggerSvc.SubmitLog(ctx, applicationID, entry)
+}
+
+func (m *Manager) BatchSubmitLogs(ctx context.Context, applicationID string, entries []*logger.Entry) (*logger.BatchSubmitLogResult, error) {
+	return m.loggerSvc.BatchSubmitLogs(ctx, applicationID, entries)
+}
+
+func (m *Manager) GetLogs(ctx context.Context, applicationID string, options *logger.QueryOptions) (*logger.QueryResult, error) {
+	return m.loggerSvc.GetLogs(ctx, applicationID, options)
+}
+
+func (m *Manager) GetLogsByTimeRange(ctx context.Context, applicationID string, startTime, endTime time.Time, limit int) ([]*logger.Entry, error) {
+	return m.loggerSvc.GetLogsByTimeRange(ctx, applicationID, startTime, endTime, limit)
 }
 
 // application manager methods

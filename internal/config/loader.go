@@ -47,4 +47,9 @@ func ApplyDefaults(cfg *Config) {
 	if cfg.Database.ConnMaxLifetimeSeconds == 0 {
 		cfg.Database.ConnMaxLifetimeSeconds = 300
 	}
+
+	// RPC 配置默认值
+	if cfg.Transport.RPC.Logger.Port == 0 {
+		cfg.Transport.RPC.Logger.Port = 50003 // 默认日志服务端口
+	}
 }

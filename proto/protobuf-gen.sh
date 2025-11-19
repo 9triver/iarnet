@@ -141,7 +141,7 @@ cd "$BASE_DIR/resource"
 # Run from resource directory, so paths are relative to it
 # Use BASE_DIR for -I so that "common/types.proto" imports work correctly
 PROTOC_CMD="$PROTOC -I $BASE_DIR -I ."
-PROTO_SRC="*.proto provider/*.proto store/*.proto component/*.proto"
+PROTO_SRC="*.proto provider/*.proto store/*.proto component/*.proto logger/*.proto"
 
 IARNET_OUTPUT="$PROJECT_ROOT/internal/proto/resource"
 PY_OUTPUTS=("$PROJECT_ROOT/containers/component/python/proto/resource")
@@ -169,41 +169,40 @@ for PY_OUTPUT in "${PY_OUTPUTS[@]}"; do
 done
 
 # ============================================================================
-# 4. Generate logger (if exists)
+# 4. Generate application
 # ============================================================================
-if [ -d "$BASE_DIR/logger" ] && [ -n "$(find "$BASE_DIR/logger" -name "*.proto" 2>/dev/null)" ]; then
-  echo ""
-  echo ">>> Generating logger..."
-  cd "$BASE_DIR/logger"
-  
-  PROTOC_CMD="$PROTOC -I ."
-  PROTO_SRC="*.proto"
-  
-  GO_OUTPUT="$PROJECT_ROOT/internal/proto/logger"
-  PY_OUTPUTS=("$PROJECT_ROOT/containers/component/python/proto/logger")
-  
-  # Go generation
-  echo "  Generating Go files: $GO_OUTPUT"
-  if [ ! -d "$GO_OUTPUT" ]; then
-    mkdir -p "$GO_OUTPUT"
-  else
-    find "$GO_OUTPUT" -type f -name "*.pb.go" -delete
-  fi
-  $PROTOC_CMD --go_out="$GO_OUTPUT" --go_opt=paths=source_relative --go-grpc_out="$GO_OUTPUT" --go-grpc_opt=paths=source_relative $PROTO_SRC
-  
-  # Python generation
-  for PY_OUTPUT in "${PY_OUTPUTS[@]}"; do
-    echo "  Generating Python files: $PY_OUTPUT"
-    if [ ! -d "$PY_OUTPUT" ]; then
-      mkdir -p "$PY_OUTPUT"
-    else
-      find "$PY_OUTPUT" -type f -name "*_pb2.py" -delete
-      find "$PY_OUTPUT" -type f -name "*_pb2.pyi" -delete
-      find "$PY_OUTPUT" -type f -name "*_pb2_grpc.py" -delete
-    fi
-    $PROTOC_CMD --python_out="$PY_OUTPUT" --pyi_out="$PY_OUTPUT" --grpc_python_out="$PY_OUTPUT" $PROTO_SRC
-  done
+echo ""
+echo ">>> Generating application..."
+cd "$BASE_DIR/application"
+
+PROTO_SRC="logger/*.proto"
+
+IARNET_OUTPUT="$PROJECT_ROOT/internal/proto/application"
+
+# Go generation
+echo "  Generating Go files: $IARNET_OUTPUT"
+if [ ! -d "$IARNET_OUTPUT" ]; then
+  mkdir -p "$IARNET_OUTPUT"
+else
+  find "$IARNET_OUTPUT" -type f -name "*.pb.go" -delete
 fi
+$PROTOC_CMD --go_out="$IARNET_OUTPUT" --go_opt=paths=source_relative --go-grpc_out="$IARNET_OUTPUT" --go-grpc_opt=paths=source_relative $PROTO_SRC
+
+cd "$BASE_DIR/application/logger"
+PROTOC_CMD="$PROTOC -I . -I $BASE_DIR"
+LUCAS_PROTO_SRC="*.proto"
+LUCAS_PY_OUTPUT="$PROJECT_ROOT/containers/envs/python/libs/lucas/lucas/actorc/protos/logger"
+# Python generation for lucas
+mkdir -p "$LUCAS_PY_OUTPUT"
+echo "  Generating Python files for lucas: $LUCAS_PY_OUTPUT"
+if [ ! -d "$LUCAS_PY_OUTPUT" ]; then
+  mkdir -p "$LUCAS_PY_OUTPUT"
+else
+  find "$LUCAS_PY_OUTPUT" -type f -name "*_pb2.py" -delete
+  find "$LUCAS_PY_OUTPUT" -type f -name "*_pb2.pyi" -delete
+  find "$LUCAS_PY_OUTPUT" -type f -name "*_pb2_grpc.py" -delete
+fi
+$PROTOC_CMD --python_out="$LUCAS_PY_OUTPUT" --pyi_out="$LUCAS_PY_OUTPUT" --grpc_python_out="$LUCAS_PY_OUTPUT" $LUCAS_PROTO_SRC
 
 # ============================================================================
 # 5. Generate peer.proto (if exists)

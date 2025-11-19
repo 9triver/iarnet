@@ -44,8 +44,9 @@ type HTTPConfig struct {
 
 // RPCConfig RPC 配置
 type RPCConfig struct {
-	Ignis RPCIgnisConfig `yaml:"ignis"`
-	Store RPCStoreConfig `yaml:"store"`
+	Ignis  RPCIgnisConfig  `yaml:"ignis"`
+	Store  RPCStoreConfig  `yaml:"store"`
+	Logger RPCLoggerConfig `yaml:"logger"` // 应用日志服务配置
 }
 
 type RPCIgnisConfig struct {
@@ -54,6 +55,11 @@ type RPCIgnisConfig struct {
 
 type RPCStoreConfig struct {
 	Port int `yaml:"port"` // e.g., 50002
+}
+
+// RPCLoggerConfig 应用日志服务 RPC 配置
+type RPCLoggerConfig struct {
+	Port int `yaml:"port"` // e.g., 50003
 }
 
 // StoreConfig Store 服务配置

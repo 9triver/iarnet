@@ -5,9 +5,11 @@ import (
 	"fmt"
 
 	"github.com/9triver/iarnet/internal/domain/application"
+	"github.com/9triver/iarnet/internal/domain/application/logger"
 	"github.com/9triver/iarnet/internal/domain/application/metadata"
 	"github.com/9triver/iarnet/internal/domain/application/runner"
 	"github.com/9triver/iarnet/internal/domain/application/workspace"
+	apploggerrepo "github.com/9triver/iarnet/internal/infra/repository/application"
 	"github.com/moby/moby/client"
 	"github.com/sirupsen/logrus"
 )
@@ -53,12 +55,24 @@ func bootstrapApplication(iarnet *Iarnet) error {
 	metadataCache := metadata.NewCache()
 	metadataService := metadata.NewService(metadataCache)
 
+	var loggerService logger.Service
+	// 初始化 Logger 模块
+	loggerRepo, err := apploggerrepo.NewLoggerRepoSQLite(iarnet.Config.Database.ApplicationDBPath, iarnet.Config)
+	if err != nil {
+		logrus.Warnf("Failed to initialize logger repository: %v, continuing without logger persistence", err)
+		// 即使 repository 初始化失败，也创建一个空的 service，避免后续错误
+		loggerService = nil
+	} else {
+		loggerService = logger.NewService(loggerRepo)
+	}
+
 	// 组装 Application Manager
 	appManager := application.NewManager().
 		SetApplicationRunnerService(runnerService).
 		SetApplicationWorkspaceService(workspaceService).
 		SetApplicationMetadataService(metadataService).
-		SetIgnisPlatform(iarnet.IgnisPlatform)
+		SetIgnisPlatform(iarnet.IgnisPlatform).
+		SetApplicationLoggerService(loggerService)
 	iarnet.ApplicationManager = appManager
 
 	logrus.Info("Application module initialized")
