@@ -116,8 +116,12 @@ func (m *Manager) Start() error {
 	m.startOnce.Do(func() {
 		var startedServers []*server
 
+		// 配置 Ignis 服务器选项，添加最大接收消息大小限制，TODO: 加入配置文件
+		ignisOpts := append([]grpc.ServerOption{}, m.Options.IgnisServerOpts...)
+		ignisOpts = append(ignisOpts, grpc.MaxRecvMsgSize(512*1024*1024))
+
 		// 启动 Ignis 服务器
-		ignis, err := startServer(m.Options.IgnisAddr, m.Options.IgnisServerOpts, func(s *grpc.Server) {
+		ignis, err := startServer(m.Options.IgnisAddr, ignisOpts, func(s *grpc.Server) {
 			ctrlpb.RegisterServiceServer(s, controllerrpc.NewServer(m.Options.ControllerService))
 		})
 		if err != nil {
@@ -128,8 +132,12 @@ func (m *Manager) Start() error {
 			startedServers = append(startedServers, ignis)
 		}
 
+		// 配置 Store 服务器选项，添加最大接收消息大小限制，TODO: 加入配置文件
+		storeOpts := append([]grpc.ServerOption{}, m.Options.StoreServerOpts...)
+		storeOpts = append(storeOpts, grpc.MaxRecvMsgSize(512*1024*1024))
+
 		// 启动 Store 服务器
-		store, err := startServer(m.Options.StoreAddr, m.Options.StoreServerOpts, func(s *grpc.Server) {
+		store, err := startServer(m.Options.StoreAddr, storeOpts, func(s *grpc.Server) {
 			storepb.RegisterServiceServer(s, storerpc.NewServer(m.Options.StoreService))
 		})
 		if err != nil {
