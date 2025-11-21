@@ -1,3 +1,6 @@
+TODO: actor 之间的直接通信
+TODO: 跨域和委托调度机制
+
 TODO: 重构type
 
 # Container Peer Service

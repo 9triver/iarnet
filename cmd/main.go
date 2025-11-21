@@ -40,6 +40,8 @@ func main() {
 		logrus.Fatalf("Failed to start services: %v", err)
 	}
 
+	iarnet.IgnisPlatform.CreateController(ctx, "test")
+
 	logrus.Info("Iarnet started successfully")
 
 	// 优雅关闭
