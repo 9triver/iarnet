@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { applicationsAPI, APIError } from "@/lib/api"
-import { getWebSocketManager, disconnectWebSocketManager } from "@/lib/websocket"
 import type { LogEntry, Application, DAG, DAGNode, DAGEdge, ControlNode, DataNode, DAGNodeStatus, GetApplicationActorsResponse, ActorRecord, ApplicationLogPayload, LogCallerInfo, ComponentLogEntry } from "@/lib/model"
 import { formatDateTime, formatMemory } from "@/lib/utils"
 import { Sidebar } from "@/components/sidebar"
@@ -437,10 +436,6 @@ export default function ApplicationDetailPage() {
     },
   })
 
-  // 标记 WebSocket 是否已初始化，避免重复连接
-  const wsInitializedRef = useRef(false)
-  const updateTimerRef = useRef<NodeJS.Timeout | null>(null)
-
   const fetchRunnerEnvironments = async () => {
     try {
       const response = await applicationsAPI.getRunnerEnvironments()
@@ -455,53 +450,6 @@ export default function ApplicationDetailPage() {
     loadAppDAG()
     loadActors()
     fetchRunnerEnvironments()
-  }, [applicationId])
-
-  // WebSocket 连接独立管理，避免与数据加载冲突
-  useEffect(() => {
-    // 建立WebSocket连接以接收实时DAG状态更新
-    if (applicationId && !wsInitializedRef.current) {
-      wsInitializedRef.current = true
-      
-      const wsManager = getWebSocketManager(applicationId)
-      
-      // 监听DAG状态变化事件 - 添加防抖避免频繁更新
-      const handleDAGStateChange = (event: any) => {
-        console.log('收到 DAG 状态变化事件:', event)
-        
-        // 清除之前的定时器
-        if (updateTimerRef.current) {
-          clearTimeout(updateTimerRef.current)
-        }
-        
-        // 防抖：300ms 内的多次更新只执行最后一次
-        updateTimerRef.current = setTimeout(() => {
-          console.log('执行 DAG 数据更新')
-          loadAppDAG()
-          loadActors()
-        }, 300)
-      }
-      
-      wsManager.addHandler(handleDAGStateChange)
-      
-      // 延迟连接，确保组件已完全挂载
-      const connectTimer = setTimeout(() => {
-        wsManager.connect().catch((error) => {
-          console.log('WebSocket 连接失败（这不影响应用的其他功能）:', error.message)
-        })
-      }, 100)
-      
-      // 清理函数
-      return () => {
-        clearTimeout(connectTimer)
-        if (updateTimerRef.current) {
-          clearTimeout(updateTimerRef.current)
-        }
-        wsManager.removeHandler(handleDAGStateChange)
-        disconnectWebSocketManager(applicationId)
-        wsInitializedRef.current = false
-      }
-    }
   }, [applicationId])
 
   // 当日志行数改变时重新加载日志
@@ -531,9 +479,62 @@ export default function ApplicationDetailPage() {
   const DAGVisualization = ({ dag }: { dag: DAG }) => {
     const containerRef = useRef<HTMLDivElement>(null)
     const graphRef = useRef<Graph | null>(null)
+    const isRenderingRef = useRef(false)
+    const dagSignatureRef = useRef<string>('')
+
+    // 生成 DAG 的签名，用于判断数据是否真正变化
+    const dagSignature = useMemo(() => {
+      return JSON.stringify({
+        nodeCount: dag.nodes.length,
+        edgeCount: dag.edges.length,
+        nodeIds: dag.nodes.map((n, i) => {
+          if (n.type === "ControlNode") {
+            return (n.node as ControlNode)?.id || `control-${i}`
+          } else {
+            return (n.node as DataNode)?.id || `data-${i}`
+          }
+        }).sort().join(','),
+        edgeIds: dag.edges.map((e, i) => `${e.fromNodeId}-${e.toNodeId}`).sort().join(',')
+      })
+    }, [dag])
 
     useEffect(() => {
-      if (!containerRef.current || !dag.nodes.length) return
+      if (!containerRef.current || !dag.nodes.length) {
+        // 如果容器不存在或没有节点，清理现有图表
+        if (graphRef.current) {
+          try {
+            graphRef.current.destroy()
+          } catch (error) {
+            console.debug('清理图表时出错:', error)
+          }
+          graphRef.current = null
+        }
+        return
+      }
+
+      // 如果数据未变化且图表已存在，不重建
+      if (dagSignatureRef.current === dagSignature && graphRef.current) {
+        return
+      }
+
+      // 如果正在渲染，等待完成
+      if (isRenderingRef.current) {
+        return
+      }
+
+      // 标记开始渲染
+      isRenderingRef.current = true
+      dagSignatureRef.current = dagSignature
+
+      // 先清理旧图表
+      if (graphRef.current) {
+        try {
+          graphRef.current.destroy()
+        } catch (error) {
+          console.debug('清理旧图表时出错:', error)
+        }
+        graphRef.current = null
+      }
 
       // 获取节点ID辅助函数
       const getNodeId = (node: DAGNode, index: number): string => {
@@ -759,34 +760,70 @@ export default function ApplicationDetailPage() {
       graph.on('edge:mouseleave', handleLeave)
       graph.on('edge-label:mouseleave', handleLeave)
 
-      // 渲染图形 - 使用 try-catch 捕获可能的错误
-      try {
-        graph.render()
-      } catch (error) {
-        console.error('图表渲染失败:', error)
-        return
-      }
-
-      // 保存图实例引用
-      graphRef.current = graph
-
-      // 清理函数
-      return () => {
-        if (graphRef.current) {
-          try {
-            graphRef.current.destroy()
-            graphRef.current = null
-          } catch (error) {
-            // 忽略销毁时的错误，这通常不是问题
-            console.debug('图表销毁时出错:', error)
+      const destroyGraph = () => {
+        try {
+          if (graph && !graph.destroyed) {
+            graph.destroy()
           }
+        } catch (error) {
+          console.debug('图表销毁时出错:', error)
+        } finally {
+          if (graphRef.current === graph) {
+            graphRef.current = null
+          }
+          isRenderingRef.current = false
         }
         hideTooltip()
         if (tooltipEl.parentNode) {
           tooltipEl.parentNode.removeChild(tooltipEl)
         }
       }
-    }, [dag])
+
+      // 渲染图形 - 使用 Promise 以确保先完成渲染再销毁
+      const renderTask = (async () => {
+        try {
+          await graph.render()
+          // 只有在当前图表仍然是这个实例时才保存引用
+          if (graphRef.current === null || graphRef.current === graph) {
+            graphRef.current = graph
+          } else {
+            // 如果已经有新图表了，销毁这个
+            try {
+              if (!graph.destroyed) {
+                graph.destroy()
+              }
+            } catch (error) {
+              console.debug('清理过时图表时出错:', error)
+            }
+          }
+        } catch (error) {
+          console.error('图表渲染失败:', error)
+          destroyGraph()
+        } finally {
+          isRenderingRef.current = false
+        }
+      })()
+
+      // 清理函数
+      return () => {
+        // 只有在当前图表是这个实例时才销毁
+        if (graphRef.current === graph) {
+          if (renderTask && typeof renderTask.finally === 'function') {
+            renderTask.finally(() => {
+              // 再次检查，确保仍然是这个实例
+              if (graphRef.current === graph) {
+                destroyGraph()
+              }
+            })
+          } else {
+            destroyGraph()
+          }
+        } else {
+          // 如果不是当前图表，直接清理这个实例
+          destroyGraph()
+        }
+      }
+    }, [dag, dagSignature])
 
     return (
       <div 

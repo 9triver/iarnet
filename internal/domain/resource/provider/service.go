@@ -67,7 +67,6 @@ func (s *service) LoadProviders(ctx context.Context) error {
 		provider := NewProviderWithID(dao.ID, dao.Name, dao.Host, dao.Port, s.envVariables)
 		if err := provider.Connect(ctx); err != nil {
 			logrus.Warnf("Failed to connect to provider %s: %v", dao.ID, err)
-			continue
 		}
 		s.manager.Add(provider)
 	}
