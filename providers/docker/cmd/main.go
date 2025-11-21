@@ -38,7 +38,7 @@ func main() {
 	}
 	defer service.Close()
 
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.Server.Port))
+	lis, err := net.Listen("tcp4", fmt.Sprintf(":%d", cfg.Server.Port))
 	if err != nil {
 		logrus.Fatalf("Failed to listen: %v", err)
 	}
