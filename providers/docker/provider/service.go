@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -17,12 +18,13 @@ const providerType = "docker"
 
 type Service struct {
 	providerpb.UnimplementedServiceServer
-	mu      sync.RWMutex
-	client  *client.Client
-	manager *Manager // 健康检查状态管理器
+	mu           sync.RWMutex
+	client       *client.Client
+	manager      *Manager // 健康检查状态管理器
+	resourceTags *providerpb.ResourceTags
 }
 
-func NewService(host, tlsCertPath string, tlsVerify bool, apiVersion string) (*Service, error) {
+func NewService(host, tlsCertPath string, tlsVerify bool, apiVersion string, resourceTags []string) (*Service, error) {
 	var opts []client.Opt
 
 	if host != "" {
@@ -73,6 +75,12 @@ func NewService(host, tlsCertPath string, tlsVerify bool, apiVersion string) (*S
 	service := &Service{
 		client:  cli,
 		manager: manager,
+		resourceTags: &providerpb.ResourceTags{
+			Cpu:    slices.Contains(resourceTags, "cpu"),
+			Memory: slices.Contains(resourceTags, "memory"),
+			Gpu:    slices.Contains(resourceTags, "gpu"),
+			Camera: slices.Contains(resourceTags, "camera"),
+		},
 	}
 
 	// 启动健康检测超时监控
@@ -397,7 +405,55 @@ func (s *Service) HealthCheck(ctx context.Context, req *providerpb.HealthCheckRe
 		s.manager.UpdateHealthCheck()
 	}
 
-	return &providerpb.HealthCheckResponse{}, nil
+	// 获取资源容量信息（复用 GetCapacity 的逻辑）
+	info, err := s.client.Info(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get Docker info: %w", err)
+	}
+
+	totalMemory := info.MemTotal        // bytes
+	totalCPU := int64(info.NCPU) * 1000 // millicores
+
+	total := &resourcepb.Info{
+		Cpu:    totalCPU,
+		Memory: totalMemory,
+		Gpu:    0, // TODO: add GPU
+	}
+
+	// 获取当前已使用的资源
+	allocated, err := s.GetAllocated(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get allocated resources: %w", err)
+	}
+
+	available := &resourcepb.Info{
+		Cpu:    total.Cpu - allocated.Cpu,
+		Memory: total.Memory - allocated.Memory,
+		Gpu:    total.Gpu - allocated.Gpu,
+	}
+
+	capacity := &resourcepb.Capacity{
+		Total:     total,
+		Used:      allocated,
+		Available: available,
+	}
+
+	// // 设置资源标签
+	// // Docker provider 支持 CPU 和 Memory
+	// // GPU 支持取决于是否配置了 nvidia-docker（这里假设支持，实际可以检测）
+	// // Camera 不支持（Docker 通常不支持摄像头设备）
+	// resourceTags := &providerpb.ResourceTags{
+	// 	Cpu:    true,  // Docker 支持 CPU
+	// 	Memory: true,  // Docker 支持内存
+	// 	Gpu:    false, // GPU 需要 nvidia-docker，默认设为 false，可以根据实际情况检测
+	// 	Camera: false, // Docker 不支持摄像头
+	// }
+	resourceTags := s.resourceTags
+
+	return &providerpb.HealthCheckResponse{
+		Capacity:     capacity,
+		ResourceTags: resourceTags,
+	}, nil
 }
 
 func (s *Service) Disconnect(ctx context.Context, req *providerpb.DisconnectRequest) (*providerpb.DisconnectResponse, error) {

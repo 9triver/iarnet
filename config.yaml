@@ -12,6 +12,10 @@ application:
     "python:3.11-latest": "iarnet/runner:python_3.11-latest"
 
 resource:
+  global_registry_addr: "localhost:50010"
+  name: "node.1"
+  description: "node.1 description"
+  domain_id: "domain.AT9xbJe6RxzkPSL65bkwud"
   component_images:
     "python": "iarnet/component:python_3.11-latest"
 

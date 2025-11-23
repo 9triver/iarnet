@@ -40,6 +40,9 @@ func bootstrapResource(iarnet *Iarnet) error {
 			StorePort:  iarnet.Config.Transport.RPC.Store.Port,
 			LoggerPort: iarnet.Config.Transport.RPC.ResourceLogger.Port,
 		},
+		iarnet.Config.Resource.Name,
+		iarnet.Config.Resource.Description,
+		iarnet.Config.Resource.DomainID,
 	)
 
 	var resourceLoggerService logger.Service
@@ -51,6 +54,12 @@ func bootstrapResource(iarnet *Iarnet) error {
 		resourceLoggerService = logger.NewService(resourceLoggerRepo)
 	}
 	iarnet.ResourceManager = resourceManager.SetLoggerService(resourceLoggerService)
+
+	// 设置全局注册中心地址
+	if iarnet.Config.Resource.GlobalRegistryAddr != "" {
+		iarnet.ResourceManager.SetGlobalRegistryAddr(iarnet.Config.Resource.GlobalRegistryAddr)
+		logrus.Infof("Global registry address configured: %s", iarnet.Config.Resource.GlobalRegistryAddr)
+	}
 
 	logrus.Info("Resource module initialized")
 	return nil

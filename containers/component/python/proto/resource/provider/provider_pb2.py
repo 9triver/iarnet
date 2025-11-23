@@ -25,7 +25,7 @@ _sym_db = _symbol_database.Default()
 from resource import resource_pb2 as resource_dot_resource__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n resource/provider/provider.proto\x12\x08provider\x1a\x17resource/resource.proto\"\x1c\n\x0cProviderType\x12\x0c\n\x04name\x18\x01 \x01(\t\"%\n\x0e\x43onnectRequest\x12\x13\n\x0bprovider_id\x18\x01 \x01(\t\"`\n\x0f\x43onnectResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\r\n\x05\x65rror\x18\x02 \x01(\t\x12-\n\rprovider_type\x18\x03 \x01(\x0b\x32\x16.provider.ProviderType\")\n\x12GetCapacityRequest\x12\x13\n\x0bprovider_id\x18\x01 \x01(\t\";\n\x13GetCapacityResponse\x12$\n\x08\x63\x61pacity\x18\x01 \x01(\x0b\x32\x12.resource.Capacity\"*\n\x13GetAvailableRequest\x12\x13\n\x0bprovider_id\x18\x01 \x01(\t\"9\n\x14GetAvailableResponse\x12!\n\tavailable\x18\x01 \x01(\x0b\x32\x0e.resource.Info\"\xda\x01\n\rDeployRequest\x12\x13\n\x0binstance_id\x18\x01 \x01(\t\x12\r\n\x05image\x18\x02 \x01(\t\x12(\n\x10resource_request\x18\x03 \x01(\x0b\x32\x0e.resource.Info\x12\x36\n\x08\x65nv_vars\x18\x04 \x03(\x0b\x32$.provider.DeployRequest.EnvVarsEntry\x12\x13\n\x0bprovider_id\x18\x05 \x01(\t\x1a.\n\x0c\x45nvVarsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\x1f\n\x0e\x44\x65ployResponse\x12\r\n\x05\x65rror\x18\x01 \x01(\t\")\n\x12HealthCheckRequest\x12\x13\n\x0bprovider_id\x18\x01 \x01(\t\"\x15\n\x13HealthCheckResponse\"(\n\x11\x44isconnectRequest\x12\x13\n\x0bprovider_id\x18\x01 \x01(\t\"\x14\n\x12\x44isconnectResponse2\xb6\x03\n\x07Service\x12>\n\x07\x43onnect\x12\x18.provider.ConnectRequest\x1a\x19.provider.ConnectResponse\x12G\n\nDisconnect\x12\x1b.provider.DisconnectRequest\x1a\x1c.provider.DisconnectResponse\x12J\n\x0bGetCapacity\x12\x1c.provider.GetCapacityRequest\x1a\x1d.provider.GetCapacityResponse\x12M\n\x0cGetAvailable\x12\x1d.provider.GetAvailableRequest\x1a\x1e.provider.GetAvailableResponse\x12;\n\x06\x44\x65ploy\x12\x17.provider.DeployRequest\x1a\x18.provider.DeployResponse\x12J\n\x0bHealthCheck\x12\x1c.provider.HealthCheckRequest\x1a\x1d.provider.HealthCheckResponseB<Z:github.com/9triver/iarnet/internal/proto/resource/providerb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n resource/provider/provider.proto\x12\x08provider\x1a\x17resource/resource.proto\"\x1c\n\x0cProviderType\x12\x0c\n\x04name\x18\x01 \x01(\t\"%\n\x0e\x43onnectRequest\x12\x13\n\x0bprovider_id\x18\x01 \x01(\t\"`\n\x0f\x43onnectResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\r\n\x05\x65rror\x18\x02 \x01(\t\x12-\n\rprovider_type\x18\x03 \x01(\x0b\x32\x16.provider.ProviderType\")\n\x12GetCapacityRequest\x12\x13\n\x0bprovider_id\x18\x01 \x01(\t\";\n\x13GetCapacityResponse\x12$\n\x08\x63\x61pacity\x18\x01 \x01(\x0b\x32\x12.resource.Capacity\"*\n\x13GetAvailableRequest\x12\x13\n\x0bprovider_id\x18\x01 \x01(\t\"9\n\x14GetAvailableResponse\x12!\n\tavailable\x18\x01 \x01(\x0b\x32\x0e.resource.Info\"\xda\x01\n\rDeployRequest\x12\x13\n\x0binstance_id\x18\x01 \x01(\t\x12\r\n\x05image\x18\x02 \x01(\t\x12(\n\x10resource_request\x18\x03 \x01(\x0b\x32\x0e.resource.Info\x12\x36\n\x08\x65nv_vars\x18\x04 \x03(\x0b\x32$.provider.DeployRequest.EnvVarsEntry\x12\x13\n\x0bprovider_id\x18\x05 \x01(\t\x1a.\n\x0c\x45nvVarsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\x1f\n\x0e\x44\x65ployResponse\x12\r\n\x05\x65rror\x18\x01 \x01(\t\")\n\x12HealthCheckRequest\x12\x13\n\x0bprovider_id\x18\x01 \x01(\t\"H\n\x0cResourceTags\x12\x0b\n\x03\x63pu\x18\x01 \x01(\x08\x12\x0b\n\x03gpu\x18\x02 \x01(\x08\x12\x0e\n\x06memory\x18\x03 \x01(\x08\x12\x0e\n\x06\x63\x61mera\x18\x04 \x01(\x08\"j\n\x13HealthCheckResponse\x12$\n\x08\x63\x61pacity\x18\x01 \x01(\x0b\x32\x12.resource.Capacity\x12-\n\rresource_tags\x18\x02 \x01(\x0b\x32\x16.provider.ResourceTags\"(\n\x11\x44isconnectRequest\x12\x13\n\x0bprovider_id\x18\x01 \x01(\t\"\x14\n\x12\x44isconnectResponse2\xb6\x03\n\x07Service\x12>\n\x07\x43onnect\x12\x18.provider.ConnectRequest\x1a\x19.provider.ConnectResponse\x12G\n\nDisconnect\x12\x1b.provider.DisconnectRequest\x1a\x1c.provider.DisconnectResponse\x12J\n\x0bGetCapacity\x12\x1c.provider.GetCapacityRequest\x1a\x1d.provider.GetCapacityResponse\x12M\n\x0cGetAvailable\x12\x1d.provider.GetAvailableRequest\x1a\x1e.provider.GetAvailableResponse\x12;\n\x06\x44\x65ploy\x12\x17.provider.DeployRequest\x1a\x18.provider.DeployResponse\x12J\n\x0bHealthCheck\x12\x1c.provider.HealthCheckRequest\x1a\x1d.provider.HealthCheckResponseB<Z:github.com/9triver/iarnet/internal/proto/resource/providerb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -57,12 +57,14 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_DEPLOYRESPONSE']._serialized_end=697
   _globals['_HEALTHCHECKREQUEST']._serialized_start=699
   _globals['_HEALTHCHECKREQUEST']._serialized_end=740
-  _globals['_HEALTHCHECKRESPONSE']._serialized_start=742
-  _globals['_HEALTHCHECKRESPONSE']._serialized_end=763
-  _globals['_DISCONNECTREQUEST']._serialized_start=765
-  _globals['_DISCONNECTREQUEST']._serialized_end=805
-  _globals['_DISCONNECTRESPONSE']._serialized_start=807
-  _globals['_DISCONNECTRESPONSE']._serialized_end=827
-  _globals['_SERVICE']._serialized_start=830
-  _globals['_SERVICE']._serialized_end=1268
+  _globals['_RESOURCETAGS']._serialized_start=742
+  _globals['_RESOURCETAGS']._serialized_end=814
+  _globals['_HEALTHCHECKRESPONSE']._serialized_start=816
+  _globals['_HEALTHCHECKRESPONSE']._serialized_end=922
+  _globals['_DISCONNECTREQUEST']._serialized_start=924
+  _globals['_DISCONNECTREQUEST']._serialized_end=964
+  _globals['_DISCONNECTRESPONSE']._serialized_start=966
+  _globals['_DISCONNECTRESPONSE']._serialized_end=986
+  _globals['_SERVICE']._serialized_start=989
+  _globals['_SERVICE']._serialized_end=1427
 # @@protoc_insertion_point(module_scope)

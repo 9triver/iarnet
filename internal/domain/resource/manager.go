@@ -2,6 +2,7 @@ package resource
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/9triver/iarnet/internal/domain/resource/component"
@@ -11,8 +12,12 @@ import (
 	"github.com/9triver/iarnet/internal/domain/resource/types"
 	providerrepo "github.com/9triver/iarnet/internal/infra/repository/resource"
 	commonpb "github.com/9triver/iarnet/internal/proto/common"
+	registrypb "github.com/9triver/iarnet/internal/proto/global/registry"
 	storepb "github.com/9triver/iarnet/internal/proto/resource/store"
+	"github.com/9triver/iarnet/internal/util"
 	"github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 var (
@@ -23,15 +28,20 @@ var (
 
 type Manager struct {
 	storepb.UnimplementedServiceServer
-	componentService component.Service
-	storeService     store.Service
-	providerService  provider.Service
-	componentManager component.Manager
-	providerManager  *provider.Manager
-	loggerService    logger.Service
+	componentService   component.Service
+	storeService       store.Service
+	providerService    provider.Service
+	componentManager   component.Manager
+	providerManager    *provider.Manager
+	loggerService      logger.Service
+	nodeID             string
+	name               string
+	description        string
+	domainID           string
+	globalRegistryAddr string // 全局注册中心地址
 }
 
-func NewManager(channeler component.Channeler, s *store.Store, componentImages map[string]string, providerRepo providerrepo.ProviderRepo, envVariables *provider.EnvVariables) *Manager {
+func NewManager(channeler component.Channeler, s *store.Store, componentImages map[string]string, providerRepo providerrepo.ProviderRepo, envVariables *provider.EnvVariables, name string, description string, domainID string) *Manager {
 	componentManager := component.NewManager(channeler)
 
 	// 初始化 Provider 模块
@@ -44,6 +54,10 @@ func NewManager(channeler component.Channeler, s *store.Store, componentImages m
 		providerService:  providerService,
 		componentManager: componentManager,
 		providerManager:  providerManager,
+		nodeID:           util.GenIDWith("node."),
+		name:             name,
+		description:      description,
+		domainID:         domainID,
 	}
 }
 
@@ -58,6 +72,11 @@ func (m *Manager) SetLoggerService(loggerService logger.Service) *Manager {
 // 用于在 Transport 层初始化后注入真正的 channeler
 func (m *Manager) SetChanneler(channeler component.Channeler) {
 	m.componentManager.SetChanneler(channeler)
+}
+
+// SetGlobalRegistryAddr 设置全局注册中心地址
+func (m *Manager) SetGlobalRegistryAddr(addr string) {
+	m.globalRegistryAddr = addr
 }
 
 // Start starts the component manager to receive messages from components
@@ -76,6 +95,54 @@ func (m *Manager) Start(ctx context.Context) error {
 	// 启动 provider 健康检测
 	if m.providerManager != nil {
 		m.providerManager.Start()
+	}
+
+	// 注册节点到全局注册中心
+	if m.globalRegistryAddr != "" {
+		if err := m.registerToGlobalRegistry(ctx); err != nil {
+			logrus.Warnf("Failed to register node to global registry: %v", err)
+			// 不返回错误，允许节点在注册中心不可用时继续运行
+		} else {
+			logrus.Infof("Successfully registered node %s to global registry at %s", m.nodeID, m.globalRegistryAddr)
+		}
+	} else {
+		logrus.Debug("Global registry address not configured, skipping registration")
+	}
+
+	return nil
+}
+
+// registerToGlobalRegistry 通过 gRPC 注册节点到全局注册中心
+func (m *Manager) registerToGlobalRegistry(ctx context.Context) error {
+	if m.globalRegistryAddr == "" {
+		return fmt.Errorf("global registry address not configured")
+	}
+
+	// 创建 gRPC 连接
+	conn, err := grpc.NewClient(
+		m.globalRegistryAddr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to connect to global registry: %w", err)
+	}
+	defer conn.Close()
+
+	// 创建注册服务客户端
+	client := registrypb.NewServiceClient(conn)
+
+	// 构建注册请求
+	req := &registrypb.RegisterNodeRequest{
+		DomainId:        m.domainID,
+		NodeId:          m.nodeID,
+		NodeName:        m.name,
+		NodeDescription: m.description,
+	}
+
+	// 调用注册方法
+	_, err = client.RegisterNode(ctx, req)
+	if err != nil {
+		return fmt.Errorf("failed to register node: %w", err)
 	}
 
 	return nil

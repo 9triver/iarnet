@@ -229,6 +229,27 @@ fi
 $PROTOC_CMD --python_out="$LUCAS_PY_OUTPUT" --pyi_out="$LUCAS_PY_OUTPUT" --grpc_python_out="$LUCAS_PY_OUTPUT" $LUCAS_PROTO_SRC
 
 # ============================================================================
+# 5. Generate global
+# ============================================================================
+echo ""
+echo ">>> Generating global..."
+cd "$BASE_DIR/global"
+
+PROTOC_CMD="$PROTOC -I . -I $BASE_DIR"
+
+PROTO_SRC="registry/*.proto"
+
+IARNET_OUTPUT="$PROJECT_ROOT/internal/proto/global"
+
+# Go generation
+echo "  Generating Go files: $IARNET_OUTPUT"
+if [ ! -d "$IARNET_OUTPUT" ]; then
+  mkdir -p "$IARNET_OUTPUT"
+else
+  find "$IARNET_OUTPUT" -type f -name "*.pb.go" -delete
+fi
+$PROTOC_CMD --go_out="$IARNET_OUTPUT" --go_opt=paths=source_relative --go-grpc_out="$IARNET_OUTPUT" --go-grpc_opt=paths=source_relative $PROTO_SRC
+# ============================================================================
 # 5. Generate peer.proto (if exists)
 # ============================================================================
 if [ -f "$BASE_DIR/peer.proto" ]; then

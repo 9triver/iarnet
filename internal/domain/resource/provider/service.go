@@ -141,6 +141,7 @@ func (s *service) UnregisterProvider(ctx context.Context, id string) error {
 }
 
 // FindAvailableProvider 查找满足资源要求的可用 Provider
+// 优先使用缓存数据，如果找不到合适的 provider，会尝试强制刷新后重试
 func (s *service) FindAvailableProvider(ctx context.Context, resourceRequest *types.Info) (*Provider, error) {
 	if resourceRequest == nil {
 		return nil, fmt.Errorf("resource request is required")
@@ -149,6 +150,7 @@ func (s *service) FindAvailableProvider(ctx context.Context, resourceRequest *ty
 	// 获取所有已连接的 Provider
 	connectedProviders := s.manager.GetByStatus(types.ProviderStatusConnected)
 
+	// 第一轮：使用缓存数据查找
 	for _, provider := range connectedProviders {
 		// 检查 Provider 状态
 		if provider.GetStatus() != types.ProviderStatusConnected {
@@ -156,17 +158,41 @@ func (s *service) FindAvailableProvider(ctx context.Context, resourceRequest *ty
 			continue
 		}
 
-		// 获取可用资源
+		// 获取可用资源（优先使用缓存）
 		available, err := provider.GetAvailable(ctx)
 		if err != nil {
 			logrus.Warnf("Failed to get available resources from provider %s: %v", provider.GetID(), err)
 			continue
 		}
-		logrus.Debugf("Available resources from provider %s: %v", provider.GetID(), available)
+		logrus.Debugf("Available resources from provider %s (cached): %v", provider.GetID(), available)
 
 		// 检查是否满足资源要求
 		if !satisfiesResourceRequest(available, resourceRequest) {
-			logrus.Debugf("Provider %s does not have sufficient resources", provider.GetID())
+			logrus.Debugf("Provider %s does not have sufficient resources (cached data)", provider.GetID())
+			continue
+		}
+
+		return provider, nil
+	}
+
+	// 第二轮：如果第一轮没找到，强制刷新后重试
+	logrus.Debugf("No provider found with cached data, trying with fresh data...")
+	for _, provider := range connectedProviders {
+		if provider.GetStatus() != types.ProviderStatusConnected {
+			continue
+		}
+
+		// 强制刷新并获取可用资源
+		available, err := provider.GetAvailable(ctx, true) // forceRefresh = true
+		if err != nil {
+			logrus.Warnf("Failed to get available resources from provider %s (fresh): %v", provider.GetID(), err)
+			continue
+		}
+		logrus.Debugf("Available resources from provider %s (fresh): %v", provider.GetID(), available)
+
+		// 检查是否满足资源要求
+		if !satisfiesResourceRequest(available, resourceRequest) {
+			logrus.Debugf("Provider %s does not have sufficient resources (fresh data)", provider.GetID())
 			continue
 		}
 

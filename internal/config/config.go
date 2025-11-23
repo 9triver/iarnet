@@ -28,8 +28,12 @@ type ApplicationConfig struct {
 
 // ResourceConfig Resource 模块配置
 type ResourceConfig struct {
-	ComponentImages map[string]string `yaml:"component_images"` // e.g., "python:3.11-alpine" - image to use for actor containers
-	Store           StoreConfig       `yaml:"store"`            // Store configuration
+	GlobalRegistryAddr string            `yaml:"global_registry_addr"` // e.g., "localhost:50010" - address of the global registry
+	Name               string            `yaml:"name"`                 // e.g., "node.1" - name of the node
+	Description        string            `yaml:"description"`          // e.g., "node.1 description" - description of the node
+	DomainID           string            `yaml:"domain_id"`            // e.g., "domain.AT9xbJe6RxzkPSL65bkwud" - domain ID of the node
+	ComponentImages    map[string]string `yaml:"component_images"`     // e.g., "python:3.11-alpine" - image to use for actor containers
+	Store              StoreConfig       `yaml:"store"`                // Store configuration
 }
 
 type TransportConfig struct {

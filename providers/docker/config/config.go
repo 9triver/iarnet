@@ -9,8 +9,9 @@ import (
 
 // Config Docker provider 配置
 type Config struct {
-	Server ServerConfig `yaml:"server"`
-	Docker DockerConfig `yaml:"docker"`
+	Server       ServerConfig `yaml:"server"`
+	Docker       DockerConfig `yaml:"docker"`
+	ResourceTags []string     `yaml:"resource_tags"`
 }
 
 // ServerConfig gRPC 服务器配置
@@ -56,5 +57,6 @@ func getDefaultConfig() Config {
 			TLSVerify:   false,
 			APIVersion:  "",
 		},
+		ResourceTags: []string{"cpu", "memory"},
 	}
 }

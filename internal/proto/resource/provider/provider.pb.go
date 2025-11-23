@@ -510,15 +510,86 @@ func (x *HealthCheckRequest) GetProviderId() string {
 	return ""
 }
 
+// ResourceTags 资源标签（描述 provider 支持的计算资源类型）
+type ResourceTags struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Cpu           bool                   `protobuf:"varint,1,opt,name=cpu,proto3" json:"cpu,omitempty"`       // 是否支持 CPU
+	Gpu           bool                   `protobuf:"varint,2,opt,name=gpu,proto3" json:"gpu,omitempty"`       // 是否支持 GPU
+	Memory        bool                   `protobuf:"varint,3,opt,name=memory,proto3" json:"memory,omitempty"` // 是否支持内存
+	Camera        bool                   `protobuf:"varint,4,opt,name=camera,proto3" json:"camera,omitempty"` // 是否支持摄像头
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ResourceTags) Reset() {
+	*x = ResourceTags{}
+	mi := &file_resource_provider_provider_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResourceTags) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResourceTags) ProtoMessage() {}
+
+func (x *ResourceTags) ProtoReflect() protoreflect.Message {
+	mi := &file_resource_provider_provider_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResourceTags.ProtoReflect.Descriptor instead.
+func (*ResourceTags) Descriptor() ([]byte, []int) {
+	return file_resource_provider_provider_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *ResourceTags) GetCpu() bool {
+	if x != nil {
+		return x.Cpu
+	}
+	return false
+}
+
+func (x *ResourceTags) GetGpu() bool {
+	if x != nil {
+		return x.Gpu
+	}
+	return false
+}
+
+func (x *ResourceTags) GetMemory() bool {
+	if x != nil {
+		return x.Memory
+	}
+	return false
+}
+
+func (x *ResourceTags) GetCamera() bool {
+	if x != nil {
+		return x.Camera
+	}
+	return false
+}
+
 type HealthCheckResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Capacity      *resource.Capacity     `protobuf:"bytes,1,opt,name=capacity,proto3" json:"capacity,omitempty"`                             // 当前资源使用情况（总容量、已使用、可用）
+	ResourceTags  *ResourceTags          `protobuf:"bytes,2,opt,name=resource_tags,json=resourceTags,proto3" json:"resource_tags,omitempty"` // 所具有的资源类型
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *HealthCheckResponse) Reset() {
 	*x = HealthCheckResponse{}
-	mi := &file_resource_provider_provider_proto_msgTypes[10]
+	mi := &file_resource_provider_provider_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -530,7 +601,7 @@ func (x *HealthCheckResponse) String() string {
 func (*HealthCheckResponse) ProtoMessage() {}
 
 func (x *HealthCheckResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_provider_provider_proto_msgTypes[10]
+	mi := &file_resource_provider_provider_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -543,7 +614,21 @@ func (x *HealthCheckResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthCheckResponse.ProtoReflect.Descriptor instead.
 func (*HealthCheckResponse) Descriptor() ([]byte, []int) {
-	return file_resource_provider_provider_proto_rawDescGZIP(), []int{10}
+	return file_resource_provider_provider_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *HealthCheckResponse) GetCapacity() *resource.Capacity {
+	if x != nil {
+		return x.Capacity
+	}
+	return nil
+}
+
+func (x *HealthCheckResponse) GetResourceTags() *ResourceTags {
+	if x != nil {
+		return x.ResourceTags
+	}
+	return nil
 }
 
 type DisconnectRequest struct {
@@ -555,7 +640,7 @@ type DisconnectRequest struct {
 
 func (x *DisconnectRequest) Reset() {
 	*x = DisconnectRequest{}
-	mi := &file_resource_provider_provider_proto_msgTypes[11]
+	mi := &file_resource_provider_provider_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -567,7 +652,7 @@ func (x *DisconnectRequest) String() string {
 func (*DisconnectRequest) ProtoMessage() {}
 
 func (x *DisconnectRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_provider_provider_proto_msgTypes[11]
+	mi := &file_resource_provider_provider_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -580,7 +665,7 @@ func (x *DisconnectRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DisconnectRequest.ProtoReflect.Descriptor instead.
 func (*DisconnectRequest) Descriptor() ([]byte, []int) {
-	return file_resource_provider_provider_proto_rawDescGZIP(), []int{11}
+	return file_resource_provider_provider_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *DisconnectRequest) GetProviderId() string {
@@ -598,7 +683,7 @@ type DisconnectResponse struct {
 
 func (x *DisconnectResponse) Reset() {
 	*x = DisconnectResponse{}
-	mi := &file_resource_provider_provider_proto_msgTypes[12]
+	mi := &file_resource_provider_provider_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -610,7 +695,7 @@ func (x *DisconnectResponse) String() string {
 func (*DisconnectResponse) ProtoMessage() {}
 
 func (x *DisconnectResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_provider_provider_proto_msgTypes[12]
+	mi := &file_resource_provider_provider_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -623,7 +708,7 @@ func (x *DisconnectResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DisconnectResponse.ProtoReflect.Descriptor instead.
 func (*DisconnectResponse) Descriptor() ([]byte, []int) {
-	return file_resource_provider_provider_proto_rawDescGZIP(), []int{12}
+	return file_resource_provider_provider_proto_rawDescGZIP(), []int{13}
 }
 
 var File_resource_provider_provider_proto protoreflect.FileDescriptor
@@ -665,8 +750,15 @@ const file_resource_provider_provider_proto_rawDesc = "" +
 	"\x05error\x18\x01 \x01(\tR\x05error\"5\n" +
 	"\x12HealthCheckRequest\x12\x1f\n" +
 	"\vprovider_id\x18\x01 \x01(\tR\n" +
-	"providerId\"\x15\n" +
-	"\x13HealthCheckResponse\"4\n" +
+	"providerId\"b\n" +
+	"\fResourceTags\x12\x10\n" +
+	"\x03cpu\x18\x01 \x01(\bR\x03cpu\x12\x10\n" +
+	"\x03gpu\x18\x02 \x01(\bR\x03gpu\x12\x16\n" +
+	"\x06memory\x18\x03 \x01(\bR\x06memory\x12\x16\n" +
+	"\x06camera\x18\x04 \x01(\bR\x06camera\"\x82\x01\n" +
+	"\x13HealthCheckResponse\x12.\n" +
+	"\bcapacity\x18\x01 \x01(\v2\x12.resource.CapacityR\bcapacity\x12;\n" +
+	"\rresource_tags\x18\x02 \x01(\v2\x16.provider.ResourceTagsR\fresourceTags\"4\n" +
 	"\x11DisconnectRequest\x12\x1f\n" +
 	"\vprovider_id\x18\x01 \x01(\tR\n" +
 	"providerId\"\x14\n" +
@@ -692,7 +784,7 @@ func file_resource_provider_provider_proto_rawDescGZIP() []byte {
 	return file_resource_provider_provider_proto_rawDescData
 }
 
-var file_resource_provider_provider_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_resource_provider_provider_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_resource_provider_provider_proto_goTypes = []any{
 	(*ProviderType)(nil),         // 0: provider.ProviderType
 	(*ConnectRequest)(nil),       // 1: provider.ConnectRequest
@@ -704,36 +796,39 @@ var file_resource_provider_provider_proto_goTypes = []any{
 	(*DeployRequest)(nil),        // 7: provider.DeployRequest
 	(*DeployResponse)(nil),       // 8: provider.DeployResponse
 	(*HealthCheckRequest)(nil),   // 9: provider.HealthCheckRequest
-	(*HealthCheckResponse)(nil),  // 10: provider.HealthCheckResponse
-	(*DisconnectRequest)(nil),    // 11: provider.DisconnectRequest
-	(*DisconnectResponse)(nil),   // 12: provider.DisconnectResponse
-	nil,                          // 13: provider.DeployRequest.EnvVarsEntry
-	(*resource.Capacity)(nil),    // 14: resource.Capacity
-	(*resource.Info)(nil),        // 15: resource.Info
+	(*ResourceTags)(nil),         // 10: provider.ResourceTags
+	(*HealthCheckResponse)(nil),  // 11: provider.HealthCheckResponse
+	(*DisconnectRequest)(nil),    // 12: provider.DisconnectRequest
+	(*DisconnectResponse)(nil),   // 13: provider.DisconnectResponse
+	nil,                          // 14: provider.DeployRequest.EnvVarsEntry
+	(*resource.Capacity)(nil),    // 15: resource.Capacity
+	(*resource.Info)(nil),        // 16: resource.Info
 }
 var file_resource_provider_provider_proto_depIdxs = []int32{
 	0,  // 0: provider.ConnectResponse.provider_type:type_name -> provider.ProviderType
-	14, // 1: provider.GetCapacityResponse.capacity:type_name -> resource.Capacity
-	15, // 2: provider.GetAvailableResponse.available:type_name -> resource.Info
-	15, // 3: provider.DeployRequest.resource_request:type_name -> resource.Info
-	13, // 4: provider.DeployRequest.env_vars:type_name -> provider.DeployRequest.EnvVarsEntry
-	1,  // 5: provider.Service.Connect:input_type -> provider.ConnectRequest
-	11, // 6: provider.Service.Disconnect:input_type -> provider.DisconnectRequest
-	3,  // 7: provider.Service.GetCapacity:input_type -> provider.GetCapacityRequest
-	5,  // 8: provider.Service.GetAvailable:input_type -> provider.GetAvailableRequest
-	7,  // 9: provider.Service.Deploy:input_type -> provider.DeployRequest
-	9,  // 10: provider.Service.HealthCheck:input_type -> provider.HealthCheckRequest
-	2,  // 11: provider.Service.Connect:output_type -> provider.ConnectResponse
-	12, // 12: provider.Service.Disconnect:output_type -> provider.DisconnectResponse
-	4,  // 13: provider.Service.GetCapacity:output_type -> provider.GetCapacityResponse
-	6,  // 14: provider.Service.GetAvailable:output_type -> provider.GetAvailableResponse
-	8,  // 15: provider.Service.Deploy:output_type -> provider.DeployResponse
-	10, // 16: provider.Service.HealthCheck:output_type -> provider.HealthCheckResponse
-	11, // [11:17] is the sub-list for method output_type
-	5,  // [5:11] is the sub-list for method input_type
-	5,  // [5:5] is the sub-list for extension type_name
-	5,  // [5:5] is the sub-list for extension extendee
-	0,  // [0:5] is the sub-list for field type_name
+	15, // 1: provider.GetCapacityResponse.capacity:type_name -> resource.Capacity
+	16, // 2: provider.GetAvailableResponse.available:type_name -> resource.Info
+	16, // 3: provider.DeployRequest.resource_request:type_name -> resource.Info
+	14, // 4: provider.DeployRequest.env_vars:type_name -> provider.DeployRequest.EnvVarsEntry
+	15, // 5: provider.HealthCheckResponse.capacity:type_name -> resource.Capacity
+	10, // 6: provider.HealthCheckResponse.resource_tags:type_name -> provider.ResourceTags
+	1,  // 7: provider.Service.Connect:input_type -> provider.ConnectRequest
+	12, // 8: provider.Service.Disconnect:input_type -> provider.DisconnectRequest
+	3,  // 9: provider.Service.GetCapacity:input_type -> provider.GetCapacityRequest
+	5,  // 10: provider.Service.GetAvailable:input_type -> provider.GetAvailableRequest
+	7,  // 11: provider.Service.Deploy:input_type -> provider.DeployRequest
+	9,  // 12: provider.Service.HealthCheck:input_type -> provider.HealthCheckRequest
+	2,  // 13: provider.Service.Connect:output_type -> provider.ConnectResponse
+	13, // 14: provider.Service.Disconnect:output_type -> provider.DisconnectResponse
+	4,  // 15: provider.Service.GetCapacity:output_type -> provider.GetCapacityResponse
+	6,  // 16: provider.Service.GetAvailable:output_type -> provider.GetAvailableResponse
+	8,  // 17: provider.Service.Deploy:output_type -> provider.DeployResponse
+	11, // 18: provider.Service.HealthCheck:output_type -> provider.HealthCheckResponse
+	13, // [13:19] is the sub-list for method output_type
+	7,  // [7:13] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_resource_provider_provider_proto_init() }
@@ -747,7 +842,7 @@ func file_resource_provider_provider_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_resource_provider_provider_proto_rawDesc), len(file_resource_provider_provider_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   14,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

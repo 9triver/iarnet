@@ -124,7 +124,7 @@ func createTestService() (*provider.Service, error) {
 		host = "unix:///var/run/docker.sock"
 	}
 
-	return provider.NewService(host, "", false, "")
+	return provider.NewService(host, "", false, "", []string{"cpu", "memory", "camera"})
 }
 
 // isDockerAvailable 检查 Docker 是否可用

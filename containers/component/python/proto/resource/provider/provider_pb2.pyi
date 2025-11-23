@@ -86,9 +86,25 @@ class HealthCheckRequest(_message.Message):
     provider_id: str
     def __init__(self, provider_id: _Optional[str] = ...) -> None: ...
 
+class ResourceTags(_message.Message):
+    __slots__ = ("cpu", "gpu", "memory", "camera")
+    CPU_FIELD_NUMBER: _ClassVar[int]
+    GPU_FIELD_NUMBER: _ClassVar[int]
+    MEMORY_FIELD_NUMBER: _ClassVar[int]
+    CAMERA_FIELD_NUMBER: _ClassVar[int]
+    cpu: bool
+    gpu: bool
+    memory: bool
+    camera: bool
+    def __init__(self, cpu: bool = ..., gpu: bool = ..., memory: bool = ..., camera: bool = ...) -> None: ...
+
 class HealthCheckResponse(_message.Message):
-    __slots__ = ()
-    def __init__(self) -> None: ...
+    __slots__ = ("capacity", "resource_tags")
+    CAPACITY_FIELD_NUMBER: _ClassVar[int]
+    RESOURCE_TAGS_FIELD_NUMBER: _ClassVar[int]
+    capacity: _resource_pb2.Capacity
+    resource_tags: ResourceTags
+    def __init__(self, capacity: _Optional[_Union[_resource_pb2.Capacity, _Mapping]] = ..., resource_tags: _Optional[_Union[ResourceTags, _Mapping]] = ...) -> None: ...
 
 class DisconnectRequest(_message.Message):
     __slots__ = ("provider_id",)

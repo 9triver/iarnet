@@ -1,0 +1,86 @@
+syntax = "proto3";
+
+package registry;
+
+option go_package = "github.com/9triver/iarnet/internal/proto/global/registry";
+
+// ==================== 节点注册相关 ====================
+
+message RegisterNodeRequest {
+    string domain_id = 1;
+    string node_id = 2;
+    string node_name = 3;
+    string node_description = 4;
+}
+
+message RegisterNodeResponse {
+    string domain_name = 1;
+    string domain_description = 2;
+}
+
+// ==================== 资源信息相关 ====================
+
+// ResourceInfo 资源信息
+message ResourceInfo {
+    int64 cpu = 1;      // CPU millicores (毫核)
+    int64 memory = 2;   // Memory bytes (字节)
+    int64 gpu = 3;      // GPU count (数量)
+}
+
+// ResourceCapacity 资源容量（总容量、已使用、可用）
+message ResourceCapacity {
+    ResourceInfo total = 1;      // 总资源
+    ResourceInfo used = 2;       // 已使用资源
+    ResourceInfo available = 3;  // 可用资源
+}
+
+// ResourceTags 资源标签（描述节点支持的计算资源类型）
+message ResourceTags {
+    bool cpu = 1;     // 是否支持 CPU
+    bool gpu = 2;     // 是否支持 GPU
+    bool memory = 3;  // 是否支持内存
+    bool camera = 4; // 是否支持摄像头
+}
+
+// ==================== 节点状态枚举 ====================
+
+// NodeStatus 节点状态
+enum NodeStatus {
+    NODE_STATUS_UNKNOWN = 0;  // 未知状态
+    NODE_STATUS_ONLINE = 1;   // 在线
+    NODE_STATUS_OFFLINE = 2;  // 离线
+    NODE_STATUS_ERROR = 3;    // 错误
+}
+
+// ==================== 健康检查相关 ====================
+
+// HealthCheckRequest 健康检查请求
+message HealthCheckRequest {
+    string node_id = 1;                    // 节点 ID
+    string domain_id = 2;                  // 域 ID
+    NodeStatus status = 3;                 // 节点状态
+    ResourceCapacity resource_capacity = 4; // 资源容量信息
+    ResourceTags resource_tags = 5;        // 资源标签
+    string address = 6;                    // 节点地址 (host:port)
+    int64 timestamp = 7;                   // 时间戳 (Unix nanoseconds)
+    bool is_head = 8;                      // 是否为 head 节点
+}
+
+// HealthCheckResponse 健康检查响应
+message HealthCheckResponse {
+    int64 server_timestamp = 1;              // 服务器时间戳 (Unix nanoseconds)
+    int32 recommended_interval_seconds = 2; // 建议健康检查间隔（秒）
+    bool require_reregister = 3;            // 是否需要重新注册
+    string status_code = 4;                 // 状态码：success/warning/error
+    string message = 5;                     // 可选消息
+}
+
+// ==================== 服务定义 ====================
+
+service Service {
+    // RegisterNode 注册节点到全局注册中心
+    rpc RegisterNode(RegisterNodeRequest) returns (RegisterNodeResponse);
+    
+    // HealthCheck 节点健康检查，定期上报节点状态和资源使用情况
+    rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+}

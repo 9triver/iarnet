@@ -32,6 +32,7 @@ func main() {
 		cfg.Docker.TLSCertPath,
 		cfg.Docker.TLSVerify,
 		cfg.Docker.APIVersion,
+		cfg.ResourceTags,
 	)
 	if err != nil {
 		logrus.Fatalf("Failed to create service: %v", err)

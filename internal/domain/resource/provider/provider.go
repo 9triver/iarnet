@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/9triver/iarnet/internal/domain/resource/types"
@@ -23,6 +24,14 @@ type EnvVariables struct {
 	LoggerPort int
 }
 
+// ResourceTags 资源标签（描述 provider 支持的计算资源类型）
+type ResourceTags struct {
+	CPU    bool
+	GPU    bool
+	Memory bool
+	Camera bool
+}
+
 // Provider 资源提供者
 type Provider struct {
 	id             string
@@ -37,6 +46,12 @@ type Provider struct {
 	client providerpb.ServiceClient
 
 	envVariables *EnvVariables
+
+	// 资源缓存（从健康检测响应中获取）
+	cachedCapacity *types.Capacity
+	cachedTags     *ResourceTags
+	cacheTimestamp time.Time
+	cacheMu        sync.RWMutex
 }
 
 // NewProvider 创建新的 provider，如果未提供 ID，将通过 RPC 服务注册并获取分配的 ID
@@ -158,7 +173,7 @@ func (p *Provider) Disconnect() {
 	p.client = nil
 }
 
-// HealthCheck 健康检测，检查 provider 是否仍然连接
+// HealthCheck 健康检测，检查 provider 是否仍然连接，并更新资源缓存
 func (p *Provider) HealthCheck(ctx context.Context) error {
 	if p.client == nil || p.id == "" {
 		return fmt.Errorf("provider not connected")
@@ -166,15 +181,107 @@ func (p *Provider) HealthCheck(ctx context.Context) error {
 	req := &providerpb.HealthCheckRequest{
 		ProviderId: p.id,
 	}
-	_, err := p.client.HealthCheck(ctx, req)
+	resp, err := p.client.HealthCheck(ctx, req)
 	if err != nil {
 		return fmt.Errorf("failed to health check: %w", err)
 	}
+
+	// 更新资源缓存
+	p.updateCacheFromHealthCheckResponse(resp)
 	return nil
 }
 
-func (p *Provider) GetCapacity(ctx context.Context) (*types.Capacity, error) {
-	// 如果已经连接，使用现有连接；否则创建临时连接（用于测试场景）
+// updateCacheFromHealthCheckResponse 从健康检测响应更新缓存
+func (p *Provider) updateCacheFromHealthCheckResponse(resp *providerpb.HealthCheckResponse) {
+	p.cacheMu.Lock()
+	defer p.cacheMu.Unlock()
+
+	if resp.Capacity != nil {
+		p.cachedCapacity = &types.Capacity{
+			Total: &types.Info{
+				CPU:    resp.Capacity.Total.Cpu,
+				Memory: resp.Capacity.Total.Memory,
+				GPU:    resp.Capacity.Total.Gpu,
+			},
+			Used: &types.Info{
+				CPU:    resp.Capacity.Used.Cpu,
+				Memory: resp.Capacity.Used.Memory,
+				GPU:    resp.Capacity.Used.Gpu,
+			},
+			Available: &types.Info{
+				CPU:    resp.Capacity.Available.Cpu,
+				Memory: resp.Capacity.Available.Memory,
+				GPU:    resp.Capacity.Available.Gpu,
+			},
+		}
+	}
+
+	if resp.ResourceTags != nil {
+		p.cachedTags = &ResourceTags{
+			CPU:    resp.ResourceTags.Cpu,
+			GPU:    resp.ResourceTags.Gpu,
+			Memory: resp.ResourceTags.Memory,
+			Camera: resp.ResourceTags.Camera,
+		}
+	}
+
+	p.cacheTimestamp = time.Now()
+	logrus.Debugf("Updated resource cache for provider %s at %v", p.id, p.cacheTimestamp)
+}
+
+// getCachedCapacity 获取缓存的资源容量（返回副本以避免并发问题）
+func (p *Provider) getCachedCapacity() *types.Capacity {
+	p.cacheMu.RLock()
+	defer p.cacheMu.RUnlock()
+
+	if p.cachedCapacity == nil {
+		return nil
+	}
+
+	// 返回副本以避免并发修改
+	return &types.Capacity{
+		Total: &types.Info{
+			CPU:    p.cachedCapacity.Total.CPU,
+			Memory: p.cachedCapacity.Total.Memory,
+			GPU:    p.cachedCapacity.Total.GPU,
+		},
+		Used: &types.Info{
+			CPU:    p.cachedCapacity.Used.CPU,
+			Memory: p.cachedCapacity.Used.Memory,
+			GPU:    p.cachedCapacity.Used.GPU,
+		},
+		Available: &types.Info{
+			CPU:    p.cachedCapacity.Available.CPU,
+			Memory: p.cachedCapacity.Available.Memory,
+			GPU:    p.cachedCapacity.Available.GPU,
+		},
+	}
+}
+
+// refreshCapacityCache 刷新资源容量缓存（从 provider 实时获取）
+func (p *Provider) refreshCapacityCache(ctx context.Context) error {
+	if p.client == nil {
+		return fmt.Errorf("provider not connected")
+	}
+
+	// 实时获取容量
+	capacity, err := p.fetchCapacityFromProvider(ctx)
+	if err != nil {
+		return err
+	}
+
+	// 更新缓存
+	p.cacheMu.Lock()
+	p.cachedCapacity = capacity
+	p.cacheTimestamp = time.Now()
+	p.cacheMu.Unlock()
+
+	logrus.Debugf("Refreshed capacity cache for provider %s", p.id)
+	return nil
+}
+
+// fetchCapacityFromProvider 从 provider 实时获取资源容量并更新缓存
+func (p *Provider) fetchCapacityFromProvider(ctx context.Context) (*types.Capacity, error) {
 	var client providerpb.ServiceClient
 	var conn *grpc.ClientConn
 	var err error
@@ -182,7 +289,7 @@ func (p *Provider) GetCapacity(ctx context.Context) (*types.Capacity, error) {
 	if p.client != nil {
 		client = p.client
 	} else {
-		// 创建临时连接（不调用 AssignID）
+		// 创建临时连接（用于测试场景）
 		if p.host == "" || p.port == 0 {
 			return nil, fmt.Errorf("provider host and port are required")
 		}
@@ -194,51 +301,71 @@ func (p *Provider) GetCapacity(ctx context.Context) (*types.Capacity, error) {
 		defer conn.Close()
 	}
 
-	// 如果已连接，传递 provider_id；如果未连接，传递空字符串（允许未连接访问）
 	req := &providerpb.GetCapacityRequest{
-		ProviderId: p.id, // 如果未连接，p.id 为空字符串
+		ProviderId: p.id,
 	}
 	resp, err := client.GetCapacity(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get capacity: %w", err)
 	}
-	return &types.Capacity{
+
+	capacity := &types.Capacity{
 		Total:     &types.Info{CPU: resp.Capacity.Total.Cpu, Memory: resp.Capacity.Total.Memory, GPU: resp.Capacity.Total.Gpu},
 		Used:      &types.Info{CPU: resp.Capacity.Used.Cpu, Memory: resp.Capacity.Used.Memory, GPU: resp.Capacity.Used.Gpu},
 		Available: &types.Info{CPU: resp.Capacity.Available.Cpu, Memory: resp.Capacity.Available.Memory, GPU: resp.Capacity.Available.Gpu},
-	}, nil
+	}
+
+	// 更新缓存
+	p.cacheMu.Lock()
+	p.cachedCapacity = capacity
+	p.cacheTimestamp = time.Now()
+	p.cacheMu.Unlock()
+
+	return capacity, nil
 }
 
-func (p *Provider) GetAvailable(ctx context.Context) (*types.Info, error) {
-	// 如果已经连接，使用现有连接；否则创建临时连接（用于测试场景）
-	var client providerpb.ServiceClient
-	var conn *grpc.ClientConn
-	var err error
+// GetCapacity 获取资源容量，优先使用缓存
+// forceRefresh: 如果为 true，强制从 provider 实时获取
+func (p *Provider) GetCapacity(ctx context.Context, forceRefresh ...bool) (*types.Capacity, error) {
+	shouldRefresh := len(forceRefresh) > 0 && forceRefresh[0]
 
-	if p.client != nil {
-		client = p.client
-	} else {
-		// 创建临时连接（不调用 AssignID）
-		if p.host == "" || p.port == 0 {
-			return nil, fmt.Errorf("provider host and port are required")
+	// 如果不需要强制刷新，尝试使用缓存
+	if !shouldRefresh {
+		if cached := p.getCachedCapacity(); cached != nil {
+			return cached, nil
 		}
-		conn, err = grpc.NewClient(fmt.Sprintf("%s:%d", p.host, p.port), grpc.WithTransportCredentials(insecure.NewCredentials()))
-		if err != nil {
-			return nil, fmt.Errorf("failed to create provider connection: %w", err)
-		}
-		client = providerpb.NewServiceClient(conn)
-		defer conn.Close()
 	}
 
-	// 如果已连接，传递 provider_id；如果未连接，传递空字符串（允许未连接访问）
-	req := &providerpb.GetAvailableRequest{
-		ProviderId: p.id, // 如果未连接，p.id 为空字符串
+	// 缓存不存在或需要强制刷新，从 provider 实时获取
+	return p.fetchCapacityFromProvider(ctx)
+}
+
+// GetAvailable 获取可用资源，优先使用缓存
+// forceRefresh: 如果为 true，强制从 provider 实时获取
+func (p *Provider) GetAvailable(ctx context.Context, forceRefresh ...bool) (*types.Info, error) {
+	shouldRefresh := len(forceRefresh) > 0 && forceRefresh[0]
+
+	// 如果不需要强制刷新，尝试使用缓存
+	if !shouldRefresh {
+		if cached := p.getCachedCapacity(); cached != nil && cached.Available != nil {
+			// 返回缓存的可用资源副本
+			return &types.Info{
+				CPU:    cached.Available.CPU,
+				Memory: cached.Available.Memory,
+				GPU:    cached.Available.GPU,
+			}, nil
+		}
 	}
-	resp, err := client.GetAvailable(ctx, req)
+
+	// 缓存不存在或需要强制刷新，从 provider 实时获取
+	capacity, err := p.fetchCapacityFromProvider(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get available: %w", err)
+		return nil, err
 	}
-	return &types.Info{CPU: resp.Available.Cpu, Memory: resp.Available.Memory, GPU: resp.Available.Gpu}, nil
+	if capacity.Available == nil {
+		return nil, fmt.Errorf("available resources not found in capacity response")
+	}
+	return capacity.Available, nil
 }
 
 func (p *Provider) GetLogs(d string, lines int) ([]string, error) {
@@ -276,6 +403,13 @@ func (p *Provider) Deploy(ctx context.Context, id, image string, resourceRequest
 	if resp.Error != "" {
 		return fmt.Errorf("failed to deploy component: %s", resp.Error)
 	}
+
+	// 部署成功后，立即刷新资源缓存以确保数据准确性
+	if err := p.refreshCapacityCache(ctx); err != nil {
+		logrus.Warnf("Failed to refresh capacity cache after deployment for provider %s: %v", p.id, err)
+		// 不返回错误，因为部署已经成功，缓存刷新失败不应该影响部署结果
+	}
+
 	return nil
 }
 
