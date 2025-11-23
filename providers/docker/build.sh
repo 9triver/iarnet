@@ -15,7 +15,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-echo -e "${YELLOW}开始构建 Docker Provider 镜像（基于 docker:dind）...${NC}"
+echo -e "${YELLOW}开始构建 Docker Provider 镜像（使用 socket 映射方式）...${NC}"
 
 # 检查是否在正确的目录
 if [ ! -f "Dockerfile" ]; then
@@ -55,11 +55,15 @@ if [ $? -eq 0 ]; then
     docker images "$IMAGE_TAG"
     
     echo -e "${YELLOW}运行示例:${NC}"
-    echo "docker run -d --name docker-provider --privileged \\"
+    echo "docker run -d --name docker-provider \\"
+    echo "  -v /var/run/docker.sock:/var/run/docker.sock \\"
     echo "  -p 50051:50051 \\"
     echo "  $IMAGE_TAG"
     echo ""
-    echo -e "${YELLOW}注意: 需要 --privileged 标志以运行 Docker daemon${NC}"
+    echo -e "${YELLOW}注意:${NC}"
+    echo -e "${YELLOW}  - 需要挂载宿主机的 Docker socket: -v /var/run/docker.sock:/var/run/docker.sock${NC}"
+    echo -e "${YELLOW}  - docker provider 将使用宿主机的 Docker daemon${NC}"
+    echo -e "${YELLOW}  - 不需要 --privileged 标志${NC}"
 else
     echo -e "${RED}❌ Docker 镜像构建失败!${NC}"
     exit 1

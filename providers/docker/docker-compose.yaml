@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  # Docker Provider 服务（使用 socket 映射）
+  docker-provider:
+    image: iarnet/provider:docker
+    container_name: docker-provider
+    volumes:
+      # 挂载宿主机的 Docker socket
+      - /var/run/docker.sock:/var/run/docker.sock
+      # 挂载配置文件（可选，如果使用默认配置可以不挂载）
+      - ./config.yaml:/app/config.yaml:ro
+    ports:
+      - "50051:50051"  # gRPC 服务端口
+    networks:
+      - provider-network
+    restart: unless-stopped
+    # 注意：不需要 --privileged 标志
+
+networks:
+  provider-network:
+    driver: bridge
