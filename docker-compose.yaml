@@ -1,0 +1,37 @@
+services:
+  # Iarnet 服务（前后端一体化）
+  iarnet:
+    image: iarnet:latest
+    container_name: iarnet
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      # 挂载宿主机的 Docker socket
+      - /var/run/docker.sock:/var/run/docker.sock
+      # 挂载数据目录（持久化）
+      - ./data:/app/data
+      # 挂载工作空间目录
+      - ./workspaces:/app/workspaces
+      # 可选：挂载配置文件（如果需要自定义配置）
+      - ./config.yaml:/app/config.yaml:ro
+    ports:
+      - "3000:3000"  # 前端 Next.js 端口
+      - "8083:8083"  # 后端 HTTP API 端口
+    networks:
+      - iarnet-network
+    restart: unless-stopped
+    environment:
+      # 后端 URL（前端使用）
+      - BACKEND_URL=http://localhost:8083
+      # Docker host
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    labels:
+      - "app.name=iarnet"
+      - "app.type=fullstack"
+
+networks:
+  iarnet-network:
+    driver: bridge
+    name: iarnet-network
+

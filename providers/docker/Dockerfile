@@ -62,4 +62,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 
 # 直接运行 docker provider
 # 注意：运行时需要挂载宿主机的 Docker socket: -v /var/run/docker.sock:/var/run/docker.sock
-CMD ["/app/docker-provider", "-config", "/app/config.yaml"]
+CMD ["/app/docker-provider", "--config", "/app/config.yaml"]
