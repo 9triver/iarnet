@@ -38,7 +38,9 @@ type Manager struct {
 	name               string
 	description        string
 	domainID           string
-	globalRegistryAddr string // 全局注册中心地址
+	globalRegistryAddr string        // 全局注册中心地址
+	nodeAddress        string        // 节点地址 (host:port)，用于健康检查上报
+	healthCheckStop    chan struct{} // 用于停止健康检查 goroutine
 }
 
 func NewManager(channeler component.Channeler, s *store.Store, componentImages map[string]string, providerRepo providerrepo.ProviderRepo, envVariables *provider.EnvVariables, name string, description string, domainID string) *Manager {
@@ -58,6 +60,7 @@ func NewManager(channeler component.Channeler, s *store.Store, componentImages m
 		name:             name,
 		description:      description,
 		domainID:         domainID,
+		healthCheckStop:  make(chan struct{}),
 	}
 }
 
@@ -77,6 +80,11 @@ func (m *Manager) SetChanneler(channeler component.Channeler) {
 // SetGlobalRegistryAddr 设置全局注册中心地址
 func (m *Manager) SetGlobalRegistryAddr(addr string) {
 	m.globalRegistryAddr = addr
+}
+
+// SetNodeAddress 设置节点地址（用于健康检查上报）
+func (m *Manager) SetNodeAddress(addr string) {
+	m.nodeAddress = addr
 }
 
 // Start starts the component manager to receive messages from components
@@ -104,6 +112,9 @@ func (m *Manager) Start(ctx context.Context) error {
 			// 不返回错误，允许节点在注册中心不可用时继续运行
 		} else {
 			logrus.Infof("Successfully registered node %s to global registry at %s", m.nodeID, m.globalRegistryAddr)
+
+			// 启动健康检查 goroutine
+			go m.startHealthCheckLoop(ctx)
 		}
 	} else {
 		logrus.Debug("Global registry address not configured, skipping registration")
@@ -146,6 +157,207 @@ func (m *Manager) registerToGlobalRegistry(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// startHealthCheckLoop 启动健康检查循环，周期性向 global registry 上报节点状态
+func (m *Manager) startHealthCheckLoop(ctx context.Context) {
+	// 默认健康检查间隔：30 秒
+	interval := 30 * time.Second
+
+	// 创建 gRPC 连接（复用连接）
+	conn, err := grpc.NewClient(
+		m.globalRegistryAddr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		logrus.Errorf("Failed to create gRPC connection to global registry: %v", err)
+		return
+	}
+	defer conn.Close()
+
+	client := registrypb.NewServiceClient(conn)
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	// 立即执行一次健康检查
+	m.performHealthCheck(ctx, client, interval)
+
+	for {
+		select {
+		case <-ticker.C:
+			// 执行健康检查
+			recommendedInterval := m.performHealthCheck(ctx, client, interval)
+			// 如果服务器建议了新的间隔，更新 ticker
+			if recommendedInterval > 0 && recommendedInterval != interval {
+				interval = recommendedInterval
+				ticker.Reset(interval)
+				logrus.Debugf("Updated health check interval to %v", interval)
+			}
+		case <-m.healthCheckStop:
+			logrus.Info("Health check loop stopped")
+			return
+		case <-ctx.Done():
+			logrus.Info("Health check loop stopped due to context cancellation")
+			return
+		}
+	}
+}
+
+// performHealthCheck 执行一次健康检查，上报节点状态和资源信息
+// 返回服务器建议的健康检查间隔（秒），如果为 0 则使用默认值
+func (m *Manager) performHealthCheck(ctx context.Context, client registrypb.ServiceClient, defaultInterval time.Duration) time.Duration {
+	// 聚合所有 provider 的资源状态
+	resourceCapacity, resourceTags := m.aggregateResourceStatus(ctx)
+
+	// 确定节点状态
+	nodeStatus := registrypb.NodeStatus_NODE_STATUS_ONLINE
+	if resourceCapacity == nil {
+		// 如果没有可用资源，可能表示节点有问题
+		nodeStatus = registrypb.NodeStatus_NODE_STATUS_ERROR
+	}
+
+	// 构建健康检查请求
+	req := &registrypb.HealthCheckRequest{
+		NodeId:           m.nodeID,
+		DomainId:         m.domainID,
+		Status:           nodeStatus,
+		ResourceCapacity: resourceCapacity,
+		ResourceTags:     resourceTags,
+		Address:          m.nodeAddress,
+		Timestamp:        time.Now().UnixNano(),
+		IsHead:           false, // TODO: 从配置中读取是否为 head 节点
+	}
+
+	// 调用健康检查 RPC
+	resp, err := client.HealthCheck(ctx, req)
+	if err != nil {
+		logrus.Warnf("Failed to send health check to global registry: %v", err)
+		return 0
+	}
+
+	logrus.Debugf("Health check sent successfully, server timestamp: %d, recommended interval: %d seconds",
+		resp.GetServerTimestamp(), resp.GetRecommendedIntervalSeconds())
+
+	// 如果服务器要求重新注册
+	if resp.GetRequireReregister() {
+		logrus.Warn("Global registry requires re-registration, attempting to re-register...")
+		if err := m.registerToGlobalRegistry(ctx); err != nil {
+			logrus.Errorf("Failed to re-register node: %v", err)
+		} else {
+			logrus.Info("Successfully re-registered node")
+		}
+	}
+
+	// 返回服务器建议的间隔（转换为 time.Duration）
+	if resp.GetRecommendedIntervalSeconds() > 0 {
+		return time.Duration(resp.GetRecommendedIntervalSeconds()) * time.Second
+	}
+	return 0
+}
+
+// aggregateResourceStatus 聚合所有 provider 的资源状态
+// 返回聚合后的资源容量和资源标签
+func (m *Manager) aggregateResourceStatus(ctx context.Context) (*registrypb.ResourceCapacity, *registrypb.ResourceTags) {
+	providers := m.providerService.GetAllProviders()
+
+	if len(providers) == 0 {
+		return nil, nil
+	}
+
+	var totalCPU, totalMemory, totalGPU int64
+	var usedCPU, usedMemory, usedGPU int64
+	var availableCPU, availableMemory, availableGPU int64
+
+	hasCPU := false
+	hasGPU := false
+	hasMemory := false
+	hasCamera := false
+
+	// 遍历所有已连接的 provider，聚合资源
+	for _, p := range providers {
+		if p.GetStatus() != types.ProviderStatusConnected {
+			continue
+		}
+
+		// 获取 provider 的资源容量
+		capacity, err := p.GetCapacity(ctx)
+		if err != nil {
+			logrus.Debugf("Failed to get capacity from provider %s: %v", p.GetID(), err)
+			continue
+		}
+
+		if capacity == nil {
+			continue
+		}
+
+		// 聚合总资源
+		if capacity.Total != nil {
+			totalCPU += capacity.Total.CPU
+			totalMemory += capacity.Total.Memory
+			totalGPU += capacity.Total.GPU
+		}
+
+		// 聚合已使用资源
+		if capacity.Used != nil {
+			usedCPU += capacity.Used.CPU
+			usedMemory += capacity.Used.Memory
+			usedGPU += capacity.Used.GPU
+		}
+
+		// 聚合可用资源
+		if capacity.Available != nil {
+			availableCPU += capacity.Available.CPU
+			availableMemory += capacity.Available.Memory
+			availableGPU += capacity.Available.GPU
+		}
+
+		// 聚合资源标签（从 provider 的缓存标签获取）
+		tags := p.GetResourceTags()
+		if tags != nil {
+			if tags.CPU {
+				hasCPU = true
+			}
+			if tags.GPU {
+				hasGPU = true
+			}
+			if tags.Memory {
+				hasMemory = true
+			}
+			if tags.Camera {
+				hasCamera = true
+			}
+		}
+	}
+
+	// 构建资源容量
+	resourceCapacity := &registrypb.ResourceCapacity{
+		Total: &registrypb.ResourceInfo{
+			Cpu:    totalCPU,
+			Memory: totalMemory,
+			Gpu:    totalGPU,
+		},
+		Used: &registrypb.ResourceInfo{
+			Cpu:    usedCPU,
+			Memory: usedMemory,
+			Gpu:    usedGPU,
+		},
+		Available: &registrypb.ResourceInfo{
+			Cpu:    availableCPU,
+			Memory: availableMemory,
+			Gpu:    availableGPU,
+		},
+	}
+
+	// 构建资源标签
+	resourceTags := &registrypb.ResourceTags{
+		Cpu:    hasCPU,
+		Gpu:    hasGPU,
+		Memory: hasMemory,
+		Camera: hasCamera,
+	}
+
+	return resourceCapacity, resourceTags
 }
 
 func (m *Manager) SubmitLog(ctx context.Context, componentID string, entry *logger.Entry) (logger.LogID, error) {

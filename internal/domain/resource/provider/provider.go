@@ -229,6 +229,24 @@ func (p *Provider) updateCacheFromHealthCheckResponse(resp *providerpb.HealthChe
 	logrus.Debugf("Updated resource cache for provider %s at %v", p.id, p.cacheTimestamp)
 }
 
+// GetResourceTags 获取缓存的资源标签（返回副本以避免并发问题）
+func (p *Provider) GetResourceTags() *ResourceTags {
+	p.cacheMu.RLock()
+	defer p.cacheMu.RUnlock()
+
+	if p.cachedTags == nil {
+		return nil
+	}
+
+	// 返回副本以避免并发修改
+	return &ResourceTags{
+		CPU:    p.cachedTags.CPU,
+		GPU:    p.cachedTags.GPU,
+		Memory: p.cachedTags.Memory,
+		Camera: p.cachedTags.Camera,
+	}
+}
+
 // getCachedCapacity 获取缓存的资源容量（返回副本以避免并发问题）
 func (p *Provider) getCachedCapacity() *types.Capacity {
 	p.cacheMu.RLock()

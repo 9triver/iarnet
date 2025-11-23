@@ -1,13 +1,14 @@
 package bootstrap
 
 import (
+	"fmt"
+
 	"github.com/9triver/iarnet/internal/domain/resource"
 	"github.com/9triver/iarnet/internal/domain/resource/component"
 	"github.com/9triver/iarnet/internal/domain/resource/logger"
 	"github.com/9triver/iarnet/internal/domain/resource/provider"
 	"github.com/9triver/iarnet/internal/domain/resource/store"
 	providerrepo "github.com/9triver/iarnet/internal/infra/repository/resource"
-	resloggerrepo "github.com/9triver/iarnet/internal/infra/repository/resource"
 	"github.com/sirupsen/logrus"
 )
 
@@ -46,7 +47,7 @@ func bootstrapResource(iarnet *Iarnet) error {
 	)
 
 	var resourceLoggerService logger.Service
-	resourceLoggerRepo, err := resloggerrepo.NewLoggerRepoSQLite(iarnet.Config.Database.ResourceLoggerDBPath, iarnet.Config)
+	resourceLoggerRepo, err := providerrepo.NewLoggerRepoSQLite(iarnet.Config.Database.ResourceLoggerDBPath, iarnet.Config)
 	if err != nil {
 		logrus.Warnf("Failed to initialize resource logger repository: %v, continuing without resource logger persistence", err)
 		resourceLoggerService = nil
@@ -58,6 +59,21 @@ func bootstrapResource(iarnet *Iarnet) error {
 	// 设置全局注册中心地址
 	if iarnet.Config.Resource.GlobalRegistryAddr != "" {
 		iarnet.ResourceManager.SetGlobalRegistryAddr(iarnet.Config.Resource.GlobalRegistryAddr)
+
+		// 设置节点地址（用于健康检查上报）
+		// 使用 Host 和 transport.rpc.resource.port 构建节点地址
+		host := iarnet.Config.Host
+		if host == "" {
+			host = "localhost"
+		}
+		port := iarnet.Config.Transport.RPC.Resource.Port
+		if port == 0 {
+			// 如果未配置，使用默认值 50051
+			port = 50051
+		}
+		nodeAddr := fmt.Sprintf("%s:%d", host, port)
+		iarnet.ResourceManager.SetNodeAddress(nodeAddr)
+		logrus.Infof("Node address set to %s for health check reporting", nodeAddr)
 		logrus.Infof("Global registry address configured: %s", iarnet.Config.Resource.GlobalRegistryAddr)
 	}
 

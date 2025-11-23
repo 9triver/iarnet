@@ -35,6 +35,8 @@ transport:
   zmq:
     port: 5555
   rpc:
+    resource:
+      port: 50051
     ignis:
       port: 50001
     store:
