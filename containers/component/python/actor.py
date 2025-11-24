@@ -95,25 +95,25 @@ class Actor:
                 "--quiet",                    # 减少输出
                 "--no-cache-dir",             # 不缓存包
                 "--no-warn-script-location"   # 抑制警告
-            ] + requirements
+            ]
 
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=300  # 5 分钟超时
-            )
-
-            if result.returncode == 0:
-                logger.info(
-                    f"Successfully installed dependencies: {requirements}")
-                if result.stdout:
+            for r in requirements:
+                parts = r.split(" ")
+                cmd1 = cmd + parts
+                logger.info(f"Installing dependency: {parts}")
+                result = subprocess.run(
+                    cmd1,
+                    capture_output=True,
+                    text=True,
+                    timeout=300  # 5 分钟超时
+                )
+                if result.returncode != 0:
+                    logger.error(f"Failed to install dependency: {parts}, stderr: {result.stderr}, stdout: {result.stdout}")
+                    return False
+                elif result.stdout:
                     logger.debug(f"pip output: {result.stdout}")
-                return True
-            else:
-                logger.error(
-                    f"Failed to install dependencies. stderr: {result.stderr}, stdout: {result.stdout}")
-                return False
+            logger.info(f"Successfully installed dependencies: {requirements}")
+            return True
         except subprocess.TimeoutExpired:
             logger.error("Dependency installation timed out after 5 minutes")
             return False

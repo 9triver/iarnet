@@ -11,6 +11,7 @@ import type {
   GetResourceProviderCapacityResponse,
   TestResourceProviderResponse,
   DiscoveredNodeItem,
+  GetNodeInfoResponse,
 } from "@/lib/model"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -88,6 +89,7 @@ export default function ResourcesPage() {
   const [resources, setResources] = useState<Resource[]>([])
   const [discoveredNodes, setDiscoveredNodes] = useState<DiscoveredNodeItem[]>([])
   const [capacity, setCapacity] = useState<Capacity | null>(null)
+  const [nodeInfo, setNodeInfo] = useState<GetNodeInfoResponse | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isNodeDialogOpen, setIsNodeDialogOpen] = useState(false)
   const [editingResource, setEditingResource] = useState<Resource | null>(null)
@@ -166,6 +168,17 @@ export default function ResourcesPage() {
     }
   }
 
+  // 获取当前节点与域信息
+  const fetchNodeInfo = async () => {
+    try {
+      const data = await resourcesAPI.getNodeInfo()
+      setNodeInfo(data)
+    } catch (error) {
+      console.error('Failed to fetch node info:', error)
+      setNodeInfo(null)
+    }
+  }
+
   const fetchData = async () => {
     try {
       setLoading(true)
@@ -173,6 +186,7 @@ export default function ResourcesPage() {
         fetchProviders(),
         fetchCapacity(),
         fetchDiscoveredNodes(),
+        fetchNodeInfo(),
       ])
     } finally {
       setLoading(false)
@@ -824,6 +838,43 @@ export default function ResourcesPage() {
               </Dialog>
             </div>
           </div>
+
+          {/* Node & Domain info */}
+          <Card className="mb-6">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium">当前节点信息</CardTitle>
+              <CardDescription>展示本节点标识及所属域</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {nodeInfo ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <div className="text-xs text-muted-foreground mb-1">节点</div>
+                    <div className="text-xl font-semibold">
+                      {nodeInfo.node_name || "未命名节点"}
+                    </div>
+                    <div className="text-xs text-muted-foreground font-mono break-all mt-1">
+                      ID: {nodeInfo.node_id || "--"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground mb-1">所属域</div>
+                    <div className="text-xl font-semibold">
+                      {nodeInfo.domain_name || "未知域"}
+                    </div>
+                    <div className="text-xs text-muted-foreground font-mono break-all mt-1">
+                      ID: {nodeInfo.domain_id || "--"}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <Skeleton className="h-16 w-full" />
+                  <Skeleton className="h-16 w-full" />
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">

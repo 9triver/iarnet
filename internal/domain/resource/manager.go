@@ -45,6 +45,7 @@ type Manager struct {
 	name               string
 	description        string
 	domainID           string
+	domainName         string
 	isHead             bool
 	globalRegistryAddr string        // 全局注册中心地址
 	nodeAddress        string        // 节点地址 (host:port)，用于健康检查上报
@@ -151,6 +152,16 @@ func (m *Manager) GetNodeName() string {
 	return m.name
 }
 
+// GetDomainID 获取域 ID
+func (m *Manager) GetDomainID() string {
+	return m.domainID
+}
+
+// GetDomainName 获取域名称
+func (m *Manager) GetDomainName() string {
+	return m.domainName
+}
+
 // SetDiscoveryService 设置 Discovery 服务（用于同步资源状态和远程调度）
 func (m *Manager) SetDiscoveryService(discoveryService discovery.Service) {
 	m.discoveryService = discoveryService
@@ -225,9 +236,14 @@ func (m *Manager) registerToGlobalRegistry(ctx context.Context) error {
 	}
 
 	// 调用注册方法
-	_, err = client.RegisterNode(ctx, req)
+	resp, err := client.RegisterNode(ctx, req)
 	if err != nil {
 		return fmt.Errorf("failed to register node: %w", err)
+	}
+
+	// 保存域信息（如果返回）
+	if resp != nil {
+		m.domainName = resp.GetDomainName()
 	}
 
 	return nil

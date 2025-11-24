@@ -14,6 +14,14 @@ export interface GetResourceCapacityResponse {
   available: ResourceInfo // 可用资源
 }
 
+// GetNodeInfoResponse 当前节点与域信息
+export interface GetNodeInfoResponse {
+  node_id: string
+  node_name: string
+  domain_id: string
+  domain_name: string
+}
+
 // ProviderItem 资源提供者列表项
 export interface ProviderItem {
   id: string    // 提供者 ID

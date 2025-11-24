@@ -23,6 +23,7 @@ import (
 func RegisterRoutes(router *mux.Router, resMgr *resource.Manager, cfg *config.Config, discoveryService discovery.Service) {
 	api := NewAPI(resMgr, cfg, discoveryService)
 	router.HandleFunc("/resource/capacity", api.handleGetResourceCapacity).Methods("GET")
+	router.HandleFunc("/resource/node/info", api.handleGetNodeInfo).Methods("GET")
 	router.HandleFunc("/resource/provider", api.handleGetResourceProviders).Methods("GET")
 	router.HandleFunc("/resource/provider/{id}/info", api.handleGetResourceProviderInfo).Methods("GET")
 	router.HandleFunc("/resource/provider/{id}/capacity", api.handleGetResourceProviderCapacity).Methods("GET")
@@ -158,6 +159,14 @@ type DiscoveredNodeItem struct {
 	LastSeen     string            `json:"last_seen"` // RFC3339 格式
 }
 
+// GetNodeInfoResponse 返回当前节点与域信息
+type GetNodeInfoResponse struct {
+	NodeID     string `json:"node_id"`
+	NodeName   string `json:"node_name"`
+	DomainID   string `json:"domain_id"`
+	DomainName string `json:"domain_name"`
+}
+
 // ResourceUsage 资源使用情况
 type ResourceUsage struct {
 	Total     int64 `json:"total"`
@@ -194,6 +203,23 @@ func (api *API) handleGetResourceCapacity(w http.ResponseWriter, r *http.Request
 		return
 	}
 	response.Success((&GetResourceCapacityResponse{}).FromCapacity(capacity)).WriteJSON(w)
+}
+
+// handleGetNodeInfo 返回当前节点及域信息
+func (api *API) handleGetNodeInfo(w http.ResponseWriter, r *http.Request) {
+	if api.resMgr == nil {
+		response.InternalError("resource manager not initialized").WriteJSON(w)
+		return
+	}
+
+	resp := GetNodeInfoResponse{
+		NodeID:     api.resMgr.GetNodeID(),
+		NodeName:   api.resMgr.GetNodeName(),
+		DomainID:   api.resMgr.GetDomainID(),
+		DomainName: api.resMgr.GetDomainName(),
+	}
+
+	response.Success(resp).WriteJSON(w)
 }
 
 func (api *API) handleGetResourceProviders(w http.ResponseWriter, r *http.Request) {

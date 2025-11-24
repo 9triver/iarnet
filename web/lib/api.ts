@@ -84,11 +84,15 @@ import type {
   UpdateResourceProviderRequest,
   UpdateResourceProviderResponse,
   GetDiscoveredNodesResponse,
+  GetNodeInfoResponse,
 } from "./model"
 
 export const resourcesAPI = {
   // 获取资源容量
   getCapacity: () => apiRequest<GetResourceCapacityResponse>("/resource/capacity"),
+
+  // 获取当前节点与域信息
+  getNodeInfo: () => apiRequest<GetNodeInfoResponse>("/resource/node/info"),
 
   // 获取资源提供者列表
   getProviders: () => apiRequest<GetResourceProvidersResponse>("/resource/provider"),
