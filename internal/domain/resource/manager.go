@@ -45,6 +45,7 @@ type Manager struct {
 	name               string
 	description        string
 	domainID           string
+	isHead             bool
 	globalRegistryAddr string        // 全局注册中心地址
 	nodeAddress        string        // 节点地址 (host:port)，用于健康检查上报
 	healthCheckStop    chan struct{} // 用于停止健康检查 goroutine
@@ -133,6 +134,11 @@ func (m *Manager) SetGlobalRegistryAddr(addr string) {
 // SetNodeAddress 设置节点地址（用于健康检查上报）
 func (m *Manager) SetNodeAddress(addr string) {
 	m.nodeAddress = addr
+}
+
+// SetIsHead 设置当前节点是否为 head 节点
+func (m *Manager) SetIsHead(isHead bool) {
+	m.isHead = isHead
 }
 
 // GetNodeID 获取节点 ID
@@ -294,7 +300,7 @@ func (m *Manager) performHealthCheck(ctx context.Context, client registrypb.Serv
 		ResourceTags:     resourceTags,
 		Address:          m.nodeAddress,
 		Timestamp:        time.Now().UnixNano(),
-		IsHead:           false, // TODO: 从配置中读取是否为 head 节点
+		IsHead:           m.isHead,
 	}
 
 	// 调用健康检查 RPC

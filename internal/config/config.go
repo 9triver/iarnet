@@ -32,6 +32,7 @@ type ResourceConfig struct {
 	Name               string            `yaml:"name"`                 // e.g., "node.1" - name of the node
 	Description        string            `yaml:"description"`          // e.g., "node.1 description" - description of the node
 	DomainID           string            `yaml:"domain_id"`            // e.g., "domain.AT9xbJe6RxzkPSL65bkwud" - domain ID of the node
+	IsHead             bool              `yaml:"is_head"`              // 是否为 head 节点
 	ComponentImages    map[string]string `yaml:"component_images"`     // e.g., "python:3.11-alpine" - image to use for actor containers
 	Store              StoreConfig       `yaml:"store"`                // Store configuration
 	Discovery          DiscoveryConfig   `yaml:"discovery"`            // Gossip 节点发现配置

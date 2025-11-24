@@ -65,15 +65,15 @@ func bootstrapResource(iarnet *Iarnet) error {
 		iarnet.ResourceManager.SetGlobalRegistryAddr(iarnet.Config.Resource.GlobalRegistryAddr)
 
 		// 设置节点地址（用于健康检查上报）
-		// 使用 Host 和 transport.rpc.resource.port 构建节点地址
+		// 使用 Host 和 transport.rpc.scheduler.port 构建节点地址（供全局调度器访问）
 		host := iarnet.Config.Host
 		if host == "" {
 			host = "localhost"
 		}
-		port := iarnet.Config.Transport.RPC.Resource.Port
+		port := iarnet.Config.Transport.RPC.Scheduler.Port
 		if port == 0 {
-			// 如果未配置，使用默认值 50051
-			port = 50051
+			// 如果未配置，使用默认值 50006
+			port = 50006
 		}
 		nodeAddr := fmt.Sprintf("%s:%d", host, port)
 		iarnet.ResourceManager.SetNodeAddress(nodeAddr)
@@ -139,6 +139,7 @@ func bootstrapResource(iarnet *Iarnet) error {
 	)
 	resourceManager.SetSchedulerService(schedulerService)
 	iarnet.SchedulerService = schedulerService
+	resourceManager.SetIsHead(iarnet.Config.Resource.IsHead)
 
 	logrus.Info("Resource module initialized")
 	return nil
