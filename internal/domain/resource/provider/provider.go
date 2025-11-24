@@ -422,6 +422,21 @@ func (p *Provider) Deploy(ctx context.Context, id, image string, resourceRequest
 	if p.id == "" {
 		return fmt.Errorf("provider not connected, please call Connect first")
 	}
+	zmqAddr := net.JoinHostPort(p.envVariables.IarnetHost, strconv.Itoa(p.envVariables.ZMQPort))
+	storeAddr := net.JoinHostPort(p.envVariables.IarnetHost, strconv.Itoa(p.envVariables.StorePort))
+	loggerAddr := net.JoinHostPort(p.envVariables.IarnetHost, strconv.Itoa(p.envVariables.LoggerPort))
+	if override, ok := GetDeploymentEnvOverride(ctx); ok && override != nil {
+		if override.ZMQAddress != "" {
+			zmqAddr = override.ZMQAddress
+		}
+		if override.StoreAddress != "" {
+			storeAddr = override.StoreAddress
+		}
+		if override.LoggerAddress != "" {
+			loggerAddr = override.LoggerAddress
+		}
+	}
+
 	req := &providerpb.DeployRequest{
 		InstanceId: id,
 		Image:      image,
@@ -432,9 +447,9 @@ func (p *Provider) Deploy(ctx context.Context, id, image string, resourceRequest
 		},
 		EnvVars: map[string]string{
 			"COMPONENT_ID": id,
-			"ZMQ_ADDR":     net.JoinHostPort(p.envVariables.IarnetHost, strconv.Itoa(p.envVariables.ZMQPort)),
-			"STORE_ADDR":   net.JoinHostPort(p.envVariables.IarnetHost, strconv.Itoa(p.envVariables.StorePort)),
-			"LOGGER_ADDR":  net.JoinHostPort(p.envVariables.IarnetHost, strconv.Itoa(p.envVariables.LoggerPort)),
+			"ZMQ_ADDR":     zmqAddr,
+			"STORE_ADDR":   storeAddr,
+			"LOGGER_ADDR":  loggerAddr,
 		},
 		ProviderId: p.id, // 必须传递 provider_id
 	}

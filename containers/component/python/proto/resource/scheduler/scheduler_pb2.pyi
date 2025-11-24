@@ -21,16 +21,22 @@ COMPONENT_STATUS_STOPPED: ComponentStatus
 COMPONENT_STATUS_ERROR: ComponentStatus
 
 class DeployComponentRequest(_message.Message):
-    __slots__ = ("runtime_env", "resource_request", "target_node_id", "target_node_address")
+    __slots__ = ("runtime_env", "resource_request", "target_node_id", "target_node_address", "upstream_zmq_address", "upstream_store_address", "upstream_logger_address")
     RUNTIME_ENV_FIELD_NUMBER: _ClassVar[int]
     RESOURCE_REQUEST_FIELD_NUMBER: _ClassVar[int]
     TARGET_NODE_ID_FIELD_NUMBER: _ClassVar[int]
     TARGET_NODE_ADDRESS_FIELD_NUMBER: _ClassVar[int]
+    UPSTREAM_ZMQ_ADDRESS_FIELD_NUMBER: _ClassVar[int]
+    UPSTREAM_STORE_ADDRESS_FIELD_NUMBER: _ClassVar[int]
+    UPSTREAM_LOGGER_ADDRESS_FIELD_NUMBER: _ClassVar[int]
     runtime_env: str
     resource_request: _resource_pb2.Info
     target_node_id: str
     target_node_address: str
-    def __init__(self, runtime_env: _Optional[str] = ..., resource_request: _Optional[_Union[_resource_pb2.Info, _Mapping]] = ..., target_node_id: _Optional[str] = ..., target_node_address: _Optional[str] = ...) -> None: ...
+    upstream_zmq_address: str
+    upstream_store_address: str
+    upstream_logger_address: str
+    def __init__(self, runtime_env: _Optional[str] = ..., resource_request: _Optional[_Union[_resource_pb2.Info, _Mapping]] = ..., target_node_id: _Optional[str] = ..., target_node_address: _Optional[str] = ..., upstream_zmq_address: _Optional[str] = ..., upstream_store_address: _Optional[str] = ..., upstream_logger_address: _Optional[str] = ...) -> None: ...
 
 class DeployComponentResponse(_message.Message):
     __slots__ = ("success", "error", "component", "node_id", "node_name", "provider_id")

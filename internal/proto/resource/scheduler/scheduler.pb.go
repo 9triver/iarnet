@@ -90,8 +90,12 @@ type DeployComponentRequest struct {
 	TargetNodeId string `protobuf:"bytes,3,opt,name=target_node_id,json=targetNodeId,proto3" json:"target_node_id,omitempty"`
 	// 目标节点地址（可选，如果指定了 target_node_id 但需要直接连接）
 	TargetNodeAddress string `protobuf:"bytes,4,opt,name=target_node_address,json=targetNodeAddress,proto3" json:"target_node_address,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// 当由其它节点委托时，指定需要连接的上游 ZMQ/Store/Logger 地址
+	UpstreamZmqAddress    string `protobuf:"bytes,5,opt,name=upstream_zmq_address,json=upstreamZmqAddress,proto3" json:"upstream_zmq_address,omitempty"`
+	UpstreamStoreAddress  string `protobuf:"bytes,6,opt,name=upstream_store_address,json=upstreamStoreAddress,proto3" json:"upstream_store_address,omitempty"`
+	UpstreamLoggerAddress string `protobuf:"bytes,7,opt,name=upstream_logger_address,json=upstreamLoggerAddress,proto3" json:"upstream_logger_address,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *DeployComponentRequest) Reset() {
@@ -148,6 +152,27 @@ func (x *DeployComponentRequest) GetTargetNodeId() string {
 func (x *DeployComponentRequest) GetTargetNodeAddress() string {
 	if x != nil {
 		return x.TargetNodeAddress
+	}
+	return ""
+}
+
+func (x *DeployComponentRequest) GetUpstreamZmqAddress() string {
+	if x != nil {
+		return x.UpstreamZmqAddress
+	}
+	return ""
+}
+
+func (x *DeployComponentRequest) GetUpstreamStoreAddress() string {
+	if x != nil {
+		return x.UpstreamStoreAddress
+	}
+	return ""
+}
+
+func (x *DeployComponentRequest) GetUpstreamLoggerAddress() string {
+	if x != nil {
+		return x.UpstreamLoggerAddress
 	}
 	return ""
 }
@@ -448,13 +473,16 @@ var File_resource_scheduler_scheduler_proto protoreflect.FileDescriptor
 
 const file_resource_scheduler_scheduler_proto_rawDesc = "" +
 	"\n" +
-	"\"resource/scheduler/scheduler.proto\x12\tscheduler\x1a\x17resource/resource.proto\"\xca\x01\n" +
+	"\"resource/scheduler/scheduler.proto\x12\tscheduler\x1a\x17resource/resource.proto\"\xea\x02\n" +
 	"\x16DeployComponentRequest\x12\x1f\n" +
 	"\vruntime_env\x18\x01 \x01(\tR\n" +
 	"runtimeEnv\x129\n" +
 	"\x10resource_request\x18\x02 \x01(\v2\x0e.resource.InfoR\x0fresourceRequest\x12$\n" +
 	"\x0etarget_node_id\x18\x03 \x01(\tR\ftargetNodeId\x12.\n" +
-	"\x13target_node_address\x18\x04 \x01(\tR\x11targetNodeAddress\"\xd8\x01\n" +
+	"\x13target_node_address\x18\x04 \x01(\tR\x11targetNodeAddress\x120\n" +
+	"\x14upstream_zmq_address\x18\x05 \x01(\tR\x12upstreamZmqAddress\x124\n" +
+	"\x16upstream_store_address\x18\x06 \x01(\tR\x14upstreamStoreAddress\x126\n" +
+	"\x17upstream_logger_address\x18\a \x01(\tR\x15upstreamLoggerAddress\"\xd8\x01\n" +
 	"\x17DeployComponentResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
 	"\x05error\x18\x02 \x01(\tR\x05error\x126\n" +

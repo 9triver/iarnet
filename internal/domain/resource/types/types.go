@@ -3,9 +3,10 @@ package types
 type RuntimeEnv = string
 
 type Info struct {
-	CPU    int64 `json:"cpu"`    // millicores
-	Memory int64 `json:"memory"` // bytes
-	GPU    int64 `json:"gpu"`
+	CPU    int64    `json:"cpu"`    // millicores
+	Memory int64    `json:"memory"` // bytes
+	GPU    int64    `json:"gpu"`
+	Tags   []string `json:"tags,omitempty"`
 }
 
 type Capacity struct {

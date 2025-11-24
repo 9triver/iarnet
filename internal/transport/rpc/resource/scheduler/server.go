@@ -39,9 +39,13 @@ func (s *Server) DeployComponent(ctx context.Context, req *schedulerpb.DeployCom
 			CPU:    req.ResourceRequest.Cpu,
 			Memory: req.ResourceRequest.Memory,
 			GPU:    req.ResourceRequest.Gpu,
+			Tags:   req.ResourceRequest.Tags,
 		},
-		TargetNodeID:  req.TargetNodeId,
-		TargetAddress: req.TargetNodeAddress,
+		TargetNodeID:          req.TargetNodeId,
+		TargetAddress:         req.TargetNodeAddress,
+		UpstreamZMQAddress:    req.UpstreamZmqAddress,
+		UpstreamStoreAddress:  req.UpstreamStoreAddress,
+		UpstreamLoggerAddress: req.UpstreamLoggerAddress,
 	}
 
 	// 调用服务
@@ -72,6 +76,7 @@ func (s *Server) DeployComponent(ctx context.Context, req *schedulerpb.DeployCom
 				Cpu:    resourceUsage.CPU,
 				Memory: resourceUsage.Memory,
 				Gpu:    resourceUsage.GPU,
+				Tags:   resourceUsage.Tags,
 			},
 			ProviderId: resp.Component.GetProviderID(),
 		}
@@ -115,6 +120,7 @@ func (s *Server) GetDeploymentStatus(ctx context.Context, req *schedulerpb.GetDe
 				Cpu:    resourceUsage.CPU,
 				Memory: resourceUsage.Memory,
 				Gpu:    resourceUsage.GPU,
+				Tags:   resourceUsage.Tags,
 			},
 			ProviderId: status.Component.GetProviderID(),
 		}

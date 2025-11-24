@@ -26,6 +26,7 @@ type Info struct {
 	Cpu           int64                  `protobuf:"varint,1,opt,name=cpu,proto3" json:"cpu,omitempty"`
 	Memory        int64                  `protobuf:"varint,2,opt,name=memory,proto3" json:"memory,omitempty"`
 	Gpu           int64                  `protobuf:"varint,3,opt,name=gpu,proto3" json:"gpu,omitempty"`
+	Tags          []string               `protobuf:"bytes,4,rep,name=tags,proto3" json:"tags,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -79,6 +80,13 @@ func (x *Info) GetGpu() int64 {
 		return x.Gpu
 	}
 	return 0
+}
+
+func (x *Info) GetTags() []string {
+	if x != nil {
+		return x.Tags
+	}
+	return nil
 }
 
 type Capacity struct {
@@ -189,11 +197,12 @@ var File_resource_resource_proto protoreflect.FileDescriptor
 
 const file_resource_resource_proto_rawDesc = "" +
 	"\n" +
-	"\x17resource/resource.proto\x12\bresource\"B\n" +
+	"\x17resource/resource.proto\x12\bresource\"V\n" +
 	"\x04Info\x12\x10\n" +
 	"\x03cpu\x18\x01 \x01(\x03R\x03cpu\x12\x16\n" +
 	"\x06memory\x18\x02 \x01(\x03R\x06memory\x12\x10\n" +
-	"\x03gpu\x18\x03 \x01(\x03R\x03gpu\"\x82\x01\n" +
+	"\x03gpu\x18\x03 \x01(\x03R\x03gpu\x12\x12\n" +
+	"\x04tags\x18\x04 \x03(\tR\x04tags\"\x82\x01\n" +
 	"\bCapacity\x12$\n" +
 	"\x05total\x18\x01 \x01(\v2\x0e.resource.InfoR\x05total\x12\"\n" +
 	"\x04used\x18\x02 \x01(\v2\x0e.resource.InfoR\x04used\x12,\n" +

@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/9triver/iarnet/internal/domain/resource/types"
@@ -185,6 +186,11 @@ func (s *service) FindAvailableProvider(ctx context.Context, resourceRequest *ty
 			continue
 		}
 
+		if !providerHasRequiredTags(provider.GetResourceTags(), resourceRequest.Tags) {
+			logrus.Debugf("Provider %s does not satisfy required tags", provider.GetID())
+			continue
+		}
+
 		// 获取可用资源（优先使用缓存）
 		available, err := provider.GetAvailable(ctx)
 		if err != nil {
@@ -206,6 +212,11 @@ func (s *service) FindAvailableProvider(ctx context.Context, resourceRequest *ty
 	logrus.Debugf("No provider found with cached data, trying with fresh data...")
 	for _, provider := range connectedProviders {
 		if provider.GetStatus() != types.ProviderStatusConnected {
+			continue
+		}
+
+		if !providerHasRequiredTags(provider.GetResourceTags(), resourceRequest.Tags) {
+			logrus.Debugf("Provider %s does not satisfy required tags (fresh)", provider.GetID())
 			continue
 		}
 
@@ -260,5 +271,38 @@ func satisfiesResourceRequest(available *types.Info, request *types.Info) bool {
 		return false
 	}
 
+	return true
+}
+
+func providerHasRequiredTags(providerTags *ResourceTags, required []string) bool {
+	if len(required) == 0 {
+		return true
+	}
+	if providerTags == nil {
+		return false
+	}
+
+	for _, tag := range required {
+		switch strings.ToLower(tag) {
+		case "cpu":
+			if !providerTags.CPU {
+				return false
+			}
+		case "gpu":
+			if !providerTags.GPU {
+				return false
+			}
+		case "memory":
+			if !providerTags.Memory {
+				return false
+			}
+		case "camera":
+			if !providerTags.Camera {
+				return false
+			}
+		default:
+			return false
+		}
+	}
 	return true
 }

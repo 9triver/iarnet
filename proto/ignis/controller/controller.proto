@@ -60,6 +60,7 @@ message AppendPyFunc {
     common.Language Language = 6; // return type of function
     Resources Resources = 7; // resources required by function
   int32 Replicas = 8; // number of replicas
+  repeated string Tags = 9; // resource tags requirement
 }
 
 message AppendPyClass {

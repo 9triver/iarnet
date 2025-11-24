@@ -28,6 +28,11 @@ message DeployComponentRequest {
   
   // 目标节点地址（可选，如果指定了 target_node_id 但需要直接连接）
   string target_node_address = 4;
+
+  // 当由其它节点委托时，指定需要连接的上游 ZMQ/Store/Logger 地址
+  string upstream_zmq_address = 5;
+  string upstream_store_address = 6;
+  string upstream_logger_address = 7;
 }
 
 // DeployComponentResponse 部署 component 响应

@@ -417,6 +417,7 @@ type AppendPyFunc struct {
 	Language      common.Language        `protobuf:"varint,6,opt,name=Language,proto3,enum=common.Language" json:"Language,omitempty"` // return type of function
 	Resources     *Resources             `protobuf:"bytes,7,opt,name=Resources,proto3" json:"Resources,omitempty"`                     // resources required by function
 	Replicas      int32                  `protobuf:"varint,8,opt,name=Replicas,proto3" json:"Replicas,omitempty"`                      // number of replicas
+	Tags          []string               `protobuf:"bytes,9,rep,name=Tags,proto3" json:"Tags,omitempty"`                               // resource tags requirement
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -505,6 +506,13 @@ func (x *AppendPyFunc) GetReplicas() int32 {
 		return x.Replicas
 	}
 	return 0
+}
+
+func (x *AppendPyFunc) GetTags() []string {
+	if x != nil {
+		return x.Tags
+	}
+	return nil
 }
 
 type AppendPyClass struct {
@@ -1722,7 +1730,7 @@ const file_controller_controller_proto_rawDesc = "" +
 	"\tResources\x12\x10\n" +
 	"\x03CPU\x18\x01 \x01(\x03R\x03CPU\x12\x16\n" +
 	"\x06Memory\x18\x02 \x01(\x03R\x06Memory\x12\x10\n" +
-	"\x03GPU\x18\x03 \x01(\x03R\x03GPU\"\x97\x02\n" +
+	"\x03GPU\x18\x03 \x01(\x03R\x03GPU\"\xab\x02\n" +
 	"\fAppendPyFunc\x12\x12\n" +
 	"\x04Name\x18\x01 \x01(\tR\x04Name\x12\x16\n" +
 	"\x06Params\x18\x02 \x03(\tR\x06Params\x12\x12\n" +
@@ -1731,7 +1739,8 @@ const file_controller_controller_proto_rawDesc = "" +
 	"\rPickledObject\x18\x05 \x01(\fR\rPickledObject\x12,\n" +
 	"\bLanguage\x18\x06 \x01(\x0e2\x10.common.LanguageR\bLanguage\x123\n" +
 	"\tResources\x18\a \x01(\v2\x15.controller.ResourcesR\tResources\x12\x1a\n" +
-	"\bReplicas\x18\b \x01(\x05R\bReplicas\"\xfc\x02\n" +
+	"\bReplicas\x18\b \x01(\x05R\bReplicas\x12\x12\n" +
+	"\x04Tags\x18\t \x03(\tR\x04Tags\"\xfc\x02\n" +
 	"\rAppendPyClass\x12\x12\n" +
 	"\x04Name\x18\x01 \x01(\tR\x04Name\x12?\n" +
 	"\aMethods\x18\x02 \x03(\v2%.controller.AppendPyClass.ClassMethodR\aMethods\x12\x12\n" +

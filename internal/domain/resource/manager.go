@@ -41,6 +41,7 @@ type Manager struct {
 	componentManager   component.Manager
 	providerManager    *provider.Manager
 	loggerService      logger.Service
+	envVariables       *provider.EnvVariables
 	nodeID             string
 	name               string
 	description        string
@@ -110,6 +111,7 @@ func NewManager(channeler component.Channeler, s *store.Store, componentImages m
 		name:             name,
 		description:      description,
 		domainID:         domainID,
+		envVariables:     envVariables,
 		healthCheckStop:  make(chan struct{}),
 	}
 }
@@ -170,6 +172,57 @@ func (m *Manager) SetDiscoveryService(discoveryService discovery.Service) {
 // SetSchedulerService 设置 Scheduler 服务（用于跨节点调度）
 func (m *Manager) SetSchedulerService(schedulerService scheduler.Service) {
 	m.schedulerService = schedulerService
+}
+
+func (m *Manager) getZMQAddress() string {
+	if m.envVariables == nil {
+		return ""
+	}
+	return fmt.Sprintf("%s:%d", m.envVariables.IarnetHost, m.envVariables.ZMQPort)
+}
+
+func (m *Manager) getStoreAddress() string {
+	if m.envVariables == nil {
+		return ""
+	}
+	return fmt.Sprintf("%s:%d", m.envVariables.IarnetHost, m.envVariables.StorePort)
+}
+
+func (m *Manager) getLoggerAddress() string {
+	if m.envVariables == nil {
+		return ""
+	}
+	return fmt.Sprintf("%s:%d", m.envVariables.IarnetHost, m.envVariables.LoggerPort)
+}
+
+func convertStringsToDiscoveryTags(tags []string) *discovery.ResourceTags {
+	if len(tags) == 0 {
+		return nil
+	}
+
+	rt := discovery.NewEmptyResourceTags()
+	matched := false
+	for _, tag := range tags {
+		switch strings.ToLower(tag) {
+		case "cpu":
+			rt.CPU = true
+			matched = true
+		case "gpu":
+			rt.GPU = true
+			matched = true
+		case "memory":
+			rt.Memory = true
+			matched = true
+		case "camera":
+			rt.Camera = true
+			matched = true
+		}
+	}
+
+	if !matched {
+		return nil
+	}
+	return rt
 }
 
 // Start starts the component manager to receive messages from components
@@ -548,7 +601,8 @@ func (m *Manager) delegateToPeerNodes(ctx context.Context, runtimeEnv types.Runt
 		return nil, fmt.Errorf("resource request is nil")
 	}
 
-	nodes, err := m.discoveryService.QueryResources(ctx, resourceRequest, nil)
+	requiredTags := convertStringsToDiscoveryTags(resourceRequest.Tags)
+	nodes, err := m.discoveryService.QueryResources(ctx, resourceRequest, requiredTags)
 	if err != nil {
 		return nil, fmt.Errorf("query resources via discovery service failed: %w", err)
 	}
@@ -563,10 +617,13 @@ func (m *Manager) delegateToPeerNodes(ctx context.Context, runtimeEnv types.Runt
 		}
 
 		resp, deployErr := m.schedulerService.DeployComponent(ctx, &scheduler.DeployRequest{
-			RuntimeEnv:      runtimeEnv,
-			ResourceRequest: resourceRequest,
-			TargetNodeID:    node.NodeID,
-			TargetAddress:   targetAddr,
+			RuntimeEnv:            runtimeEnv,
+			ResourceRequest:       resourceRequest,
+			TargetNodeID:          node.NodeID,
+			TargetAddress:         targetAddr,
+			UpstreamZMQAddress:    m.getZMQAddress(),
+			UpstreamStoreAddress:  m.getStoreAddress(),
+			UpstreamLoggerAddress: m.getLoggerAddress(),
 		})
 		if deployErr != nil {
 			logrus.Warnf("Failed to delegate deployment to node %s (%s): %v", node.NodeName, node.NodeID, deployErr)
@@ -579,6 +636,10 @@ func (m *Manager) delegateToPeerNodes(ctx context.Context, runtimeEnv types.Runt
 			continue
 		}
 		if resp.Component != nil {
+			if err := m.componentManager.AddComponent(ctx, resp.Component); err != nil {
+				logrus.Errorf("Failed to register remote component %s locally: %v", resp.Component.GetID(), err)
+				continue
+			}
 			resp.Component.SetProviderID(fmt.Sprintf("remote.%s@%s", resp.ProviderID, resp.NodeID))
 		}
 		logrus.Infof("Delegated component deployment to node %s (%s)", node.NodeName, node.NodeID)
@@ -609,7 +670,11 @@ func (m *Manager) delegateToGlobalScheduler(ctx context.Context, runtimeEnv type
 			Cpu:    resourceRequest.CPU,
 			Memory: resourceRequest.Memory,
 			Gpu:    resourceRequest.GPU,
+			Tags:   resourceRequest.Tags,
 		},
+		UpstreamZmqAddress:    m.getZMQAddress(),
+		UpstreamStoreAddress:  m.getStoreAddress(),
+		UpstreamLoggerAddress: m.getLoggerAddress(),
 	}
 
 	protoResp, err := client.DeployComponent(ctx, protoReq)
@@ -628,6 +693,9 @@ func (m *Manager) delegateToGlobalScheduler(ctx context.Context, runtimeEnv type
 		return nil, fmt.Errorf("global scheduler response invalid: %w", convErr)
 	}
 	if component != nil {
+		if err := m.componentManager.AddComponent(ctx, component); err != nil {
+			return nil, fmt.Errorf("failed to register global component locally: %w", err)
+		}
 		component.SetProviderID(fmt.Sprintf("global.%s@%s", protoResp.ProviderId, protoResp.NodeId))
 	}
 
@@ -646,6 +714,7 @@ func convertProtoComponent(info *schedulerpb.ComponentInfo) (*component.Componen
 			CPU:    info.ResourceUsage.Cpu,
 			Memory: info.ResourceUsage.Memory,
 			GPU:    info.ResourceUsage.Gpu,
+			Tags:   append([]string(nil), info.ResourceUsage.Tags...),
 		}
 	} else {
 		usage = &types.Info{}

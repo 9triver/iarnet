@@ -6,6 +6,7 @@ import (
 
 	"github.com/9triver/iarnet/internal/domain/resource/component"
 	"github.com/9triver/iarnet/internal/domain/resource/discovery"
+	"github.com/9triver/iarnet/internal/domain/resource/provider"
 	"github.com/9triver/iarnet/internal/domain/resource/types"
 	resourcepb "github.com/9triver/iarnet/internal/proto/resource"
 	schedulerpb "github.com/9triver/iarnet/internal/proto/resource/scheduler"
@@ -24,10 +25,13 @@ type Service interface {
 
 // DeployRequest 部署请求
 type DeployRequest struct {
-	RuntimeEnv      types.RuntimeEnv
-	ResourceRequest *types.Info
-	TargetNodeID    string // 目标节点 ID，为空则在本地部署
-	TargetAddress   string // 目标节点地址（可选）
+	RuntimeEnv            types.RuntimeEnv
+	ResourceRequest       *types.Info
+	TargetNodeID          string // 目标节点 ID，为空则在本地部署
+	TargetAddress         string // 目标节点地址（可选）
+	UpstreamZMQAddress    string
+	UpstreamStoreAddress  string
+	UpstreamLoggerAddress string
 }
 
 // DeployResponse 部署响应
@@ -107,7 +111,17 @@ func (s *service) DeployComponent(ctx context.Context, req *DeployRequest) (*Dep
 
 // deployLocally 在本地节点部署
 func (s *service) deployLocally(ctx context.Context, req *DeployRequest) (*DeployResponse, error) {
-	comp, err := s.localResourceManager.DeployComponent(ctx, req.RuntimeEnv, req.ResourceRequest)
+	localCtx := ctx
+	if req.UpstreamZMQAddress != "" || req.UpstreamStoreAddress != "" || req.UpstreamLoggerAddress != "" {
+		override := &provider.DeploymentEnvOverride{
+			ZMQAddress:    req.UpstreamZMQAddress,
+			StoreAddress:  req.UpstreamStoreAddress,
+			LoggerAddress: req.UpstreamLoggerAddress,
+		}
+		localCtx = provider.WithDeploymentEnvOverride(ctx, override)
+	}
+
+	comp, err := s.localResourceManager.DeployComponent(localCtx, req.RuntimeEnv, req.ResourceRequest)
 	if err != nil {
 		return &DeployResponse{
 			Success: false,
@@ -187,8 +201,12 @@ func (s *service) deployRemotely(ctx context.Context, req *DeployRequest) (*Depl
 			Cpu:    req.ResourceRequest.CPU,
 			Memory: req.ResourceRequest.Memory,
 			Gpu:    req.ResourceRequest.GPU,
+			Tags:   req.ResourceRequest.Tags,
 		},
-		TargetNodeId: "", // 远程节点本地部署，不需要再指定目标
+		TargetNodeId:          "", // 远程节点本地部署，不需要再指定目标
+		UpstreamZmqAddress:    req.UpstreamZMQAddress,
+		UpstreamStoreAddress:  req.UpstreamStoreAddress,
+		UpstreamLoggerAddress: req.UpstreamLoggerAddress,
 	}
 
 	protoResp, err := client.DeployComponent(ctx, protoReq)
@@ -240,6 +258,7 @@ func convertComponentInfoFromProto(info *schedulerpb.ComponentInfo) *component.C
 			CPU:    info.ResourceUsage.Cpu,
 			Memory: info.ResourceUsage.Memory,
 			GPU:    info.ResourceUsage.Gpu,
+			Tags:   append([]string(nil), info.ResourceUsage.Tags...),
 		}
 	} else {
 		usage = &types.Info{}

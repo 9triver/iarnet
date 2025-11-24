@@ -184,16 +184,19 @@ func (c *Controller) handleAppendData(ctx context.Context, m *ctrlpb.AppendData)
 func (c *Controller) handleAppendPyFunc(ctx context.Context, m *ctrlpb.AppendPyFunc) error {
 	actorGroup := task.NewGroup(m.GetName())
 	replicas := int(m.GetReplicas())
+	resourceReq := &resourceTypes.Info{
+		CPU:    int64(m.GetResources().GetCPU()),
+		Memory: int64(m.GetResources().GetMemory()),
+		GPU:    int64(m.GetResources().GetGPU()),
+		Tags:   append([]string(nil), m.GetTags()...),
+	}
+
 	for i := 0; i < replicas; i++ {
 		actorName := fmt.Sprintf("%s-%d", m.GetName(), i)
 		logrus.Infof("Deploying component for actor %s", actorName)
 		component, err := c.componentService.DeployComponent(
 			ctx, resourceTypes.RuntimeEnvPython,
-			&resourceTypes.Info{
-				CPU:    int64(m.GetResources().GetCPU()),
-				Memory: int64(m.GetResources().GetMemory()),
-				GPU:    int64(m.GetResources().GetGPU()),
-			},
+			resourceReq,
 		)
 		if err != nil {
 			logrus.Errorf("Failed to deploy component: %v", err)
