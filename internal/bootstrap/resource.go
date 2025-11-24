@@ -44,6 +44,7 @@ func bootstrapResource(iarnet *Iarnet) error {
 		iarnet.Config.Resource.Name,
 		iarnet.Config.Resource.Description,
 		iarnet.Config.Resource.DomainID,
+		iarnet.Config.DataDir,
 	)
 
 	var resourceLoggerService logger.Service

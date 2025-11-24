@@ -3,6 +3,8 @@ package resource
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/9triver/iarnet/internal/domain/resource/component"
@@ -43,12 +45,51 @@ type Manager struct {
 	healthCheckStop    chan struct{} // 用于停止健康检查 goroutine
 }
 
-func NewManager(channeler component.Channeler, s *store.Store, componentImages map[string]string, providerRepo providerrepo.ProviderRepo, envVariables *provider.EnvVariables, name string, description string, domainID string) *Manager {
+// loadOrGenerateNodeID 从文件加载节点 ID，如果不存在则生成新的并保存
+func loadOrGenerateNodeID(dataDir string) string {
+	if dataDir == "" {
+		dataDir = "./data"
+	}
+
+	// 确保数据目录存在
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		logrus.Warnf("Failed to create data directory %s: %v, using generated node ID", dataDir, err)
+		return util.GenIDWith("node.")
+	}
+
+	nodeIDFile := filepath.Join(dataDir, "node_id")
+
+	// 尝试从文件加载节点 ID
+	if data, err := os.ReadFile(nodeIDFile); err == nil {
+		nodeID := string(data)
+		if nodeID != "" {
+			logrus.Infof("Loaded existing node ID from %s: %s", nodeIDFile, nodeID)
+			return nodeID
+		}
+	}
+
+	// 文件不存在或内容为空，生成新的节点 ID
+	nodeID := util.GenIDWith("node.")
+
+	// 保存节点 ID 到文件
+	if err := os.WriteFile(nodeIDFile, []byte(nodeID), 0644); err != nil {
+		logrus.Warnf("Failed to save node ID to %s: %v, node ID will be regenerated on next restart", nodeIDFile, err)
+	} else {
+		logrus.Infof("Generated and saved new node ID to %s: %s", nodeIDFile, nodeID)
+	}
+
+	return nodeID
+}
+
+func NewManager(channeler component.Channeler, s *store.Store, componentImages map[string]string, providerRepo providerrepo.ProviderRepo, envVariables *provider.EnvVariables, name string, description string, domainID string, dataDir string) *Manager {
 	componentManager := component.NewManager(channeler)
 
 	// 初始化 Provider 模块
 	providerManager := provider.NewManager()
 	providerService := provider.NewService(providerManager, providerRepo, envVariables)
+
+	// 加载或生成节点 ID
+	nodeID := loadOrGenerateNodeID(dataDir)
 
 	return &Manager{
 		componentService: component.NewService(componentManager, providerService, componentImages),
@@ -56,7 +97,7 @@ func NewManager(channeler component.Channeler, s *store.Store, componentImages m
 		providerService:  providerService,
 		componentManager: componentManager,
 		providerManager:  providerManager,
-		nodeID:           util.GenIDWith("node."),
+		nodeID:           nodeID,
 		name:             name,
 		description:      description,
 		domainID:         domainID,
@@ -211,11 +252,11 @@ func (m *Manager) performHealthCheck(ctx context.Context, client registrypb.Serv
 	resourceCapacity, resourceTags := m.aggregateResourceStatus(ctx)
 
 	// 确定节点状态
+	// 只要服务正常运行（能够发送健康检查），就认为节点是在线状态
+	// 没有资源不代表节点异常，可能是暂时没有可用的 provider 或资源
 	nodeStatus := registrypb.NodeStatus_NODE_STATUS_ONLINE
-	if resourceCapacity == nil {
-		// 如果没有可用资源，可能表示节点有问题
-		nodeStatus = registrypb.NodeStatus_NODE_STATUS_ERROR
-	}
+	// 注意：即使 resourceCapacity 为 nil（没有可用资源），节点状态仍然是 ONLINE
+	// 因为能够发送健康检查本身就说明服务正常运行
 
 	// 构建健康检查请求
 	req := &registrypb.HealthCheckRequest{
@@ -315,6 +356,8 @@ func (m *Manager) aggregateResourceStatus(ctx context.Context) (*registrypb.Reso
 		// 聚合资源标签（从 provider 的缓存标签获取）
 		tags := p.GetResourceTags()
 		if tags != nil {
+			logrus.Debugf("Aggregating resource tags from provider %s: CPU=%v, GPU=%v, Memory=%v, Camera=%v",
+				p.GetID(), tags.CPU, tags.GPU, tags.Memory, tags.Camera)
 			if tags.CPU {
 				hasCPU = true
 			}
@@ -327,6 +370,8 @@ func (m *Manager) aggregateResourceStatus(ctx context.Context) (*registrypb.Reso
 			if tags.Camera {
 				hasCamera = true
 			}
+		} else {
+			logrus.Debugf("Provider %s has no resource tags cached yet", p.GetID())
 		}
 	}
 
@@ -356,6 +401,9 @@ func (m *Manager) aggregateResourceStatus(ctx context.Context) (*registrypb.Reso
 		Memory: hasMemory,
 		Camera: hasCamera,
 	}
+
+	logrus.Infof("Aggregated resource status: providers=%d, tags=[CPU=%v, GPU=%v, Memory=%v, Camera=%v], capacity=[Total: CPU=%d, Memory=%d, GPU=%d]",
+		len(providers), hasCPU, hasGPU, hasMemory, hasCamera, totalCPU, totalMemory, totalGPU)
 
 	return resourceCapacity, resourceTags
 }

@@ -187,7 +187,27 @@ func (p *Provider) HealthCheck(ctx context.Context) error {
 	}
 
 	// 更新资源缓存
+	oldTags := p.GetResourceTags()
 	p.updateCacheFromHealthCheckResponse(resp)
+	newTags := p.GetResourceTags()
+
+	// 记录资源标签更新
+	if oldTags == nil && newTags != nil {
+		logrus.Infof("Provider %s resource tags initialized: CPU=%v, GPU=%v, Memory=%v, Camera=%v",
+			p.id, newTags.CPU, newTags.GPU, newTags.Memory, newTags.Camera)
+	} else if oldTags != nil && newTags != nil {
+		// 检查是否有变化
+		if oldTags.CPU != newTags.CPU || oldTags.GPU != newTags.GPU ||
+			oldTags.Memory != newTags.Memory || oldTags.Camera != newTags.Camera {
+			logrus.Infof("Provider %s resource tags updated: CPU=%v->%v, GPU=%v->%v, Memory=%v->%v, Camera=%v->%v",
+				p.id,
+				oldTags.CPU, newTags.CPU,
+				oldTags.GPU, newTags.GPU,
+				oldTags.Memory, newTags.Memory,
+				oldTags.Camera, newTags.Camera)
+		}
+	}
+
 	return nil
 }
 
@@ -223,6 +243,10 @@ func (p *Provider) updateCacheFromHealthCheckResponse(resp *providerpb.HealthChe
 			Memory: resp.ResourceTags.Memory,
 			Camera: resp.ResourceTags.Camera,
 		}
+		logrus.Debugf("Provider %s resource tags cached: CPU=%v, GPU=%v, Memory=%v, Camera=%v",
+			p.id, p.cachedTags.CPU, p.cachedTags.GPU, p.cachedTags.Memory, p.cachedTags.Camera)
+	} else {
+		logrus.Debugf("Provider %s health check response has no resource tags", p.id)
 	}
 
 	p.cacheTimestamp = time.Now()

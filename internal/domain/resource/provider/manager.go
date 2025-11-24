@@ -94,6 +94,15 @@ func (m *Manager) performHealthCheck() {
 			logrus.Warnf("Provider %s (host: %s:%d) health check failed: %v, updating status to disconnected",
 				providerID, provider.GetHost(), provider.GetPort(), err)
 			provider.SetStatus(types.ProviderStatusDisconnected)
+		} else {
+			// 健康检查成功，记录日志
+			tags := provider.GetResourceTags()
+			if tags != nil {
+				logrus.Debugf("Provider %s health check succeeded: CPU=%v, GPU=%v, Memory=%v, Camera=%v",
+					provider.GetID(), tags.CPU, tags.GPU, tags.Memory, tags.Camera)
+			} else {
+				logrus.Debugf("Provider %s health check succeeded (no resource tags yet)", provider.GetID())
+			}
 		}
 	}
 }

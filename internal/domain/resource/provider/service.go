@@ -67,8 +67,22 @@ func (s *service) LoadProviders(ctx context.Context) error {
 		provider := NewProviderWithID(dao.ID, dao.Name, dao.Host, dao.Port, s.envVariables)
 		if err := provider.Connect(ctx); err != nil {
 			logrus.Warnf("Failed to connect to provider %s: %v", dao.ID, err)
+			continue
 		}
 		s.manager.Add(provider)
+
+		// 连接成功后，立即执行一次健康检查以更新资源标签
+		healthCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		if err := provider.HealthCheck(healthCtx); err != nil {
+			logrus.Warnf("Failed to perform initial health check for provider %s: %v (will retry in next health check cycle)", dao.ID, err)
+		} else {
+			tags := provider.GetResourceTags()
+			if tags != nil {
+				logrus.Infof("Provider %s initial health check succeeded, resource tags: CPU=%v, GPU=%v, Memory=%v, Camera=%v",
+					dao.ID, tags.CPU, tags.GPU, tags.Memory, tags.Camera)
+			}
+		}
+		cancel()
 	}
 
 	logrus.Infof("Successfully loaded %d providers from repository", len(daos))
@@ -102,6 +116,19 @@ func (s *service) RegisterProvider(ctx context.Context, name string, host string
 	}
 
 	s.manager.Add(provider)
+
+	// 连接成功后，立即执行一次健康检查以更新资源标签
+	healthCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if err := provider.HealthCheck(healthCtx); err != nil {
+		logrus.Warnf("Failed to perform initial health check for provider %s: %v (will retry in next health check cycle)", provider.GetID(), err)
+	} else {
+		tags := provider.GetResourceTags()
+		if tags != nil {
+			logrus.Infof("Provider %s initial health check succeeded, resource tags: CPU=%v, GPU=%v, Memory=%v, Camera=%v",
+				provider.GetID(), tags.CPU, tags.GPU, tags.Memory, tags.Camera)
+		}
+	}
 
 	logrus.Infof("Provider %s registered and connected", provider.GetID())
 	return provider, nil

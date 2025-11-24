@@ -12,10 +12,12 @@ application:
     "python:3.11-latest": "iarnet/runner:python_3.11-latest"
 
 resource:
+  peer_port: 50051
+  schedule_port: 50051
   global_registry_addr: "localhost:50010"
   name: "node.1"
   description: "node.1 description"
-  domain_id: "domain.AT9xbJe6RxzkPSL65bkwud"
+  domain_id: "domain.nwwNPjSgUFM9DCv74J8LbM"
   component_images:
     "python": "iarnet/component:python_3.11-latest"
 
