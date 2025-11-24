@@ -137,6 +137,7 @@ func bootstrapResource(iarnet *Iarnet) error {
 		resourceManager,
 		iarnet.DiscoveryService,
 	)
+	resourceManager.SetSchedulerService(schedulerService)
 	iarnet.SchedulerService = schedulerService
 
 	logrus.Info("Resource module initialized")

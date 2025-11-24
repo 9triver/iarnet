@@ -5,16 +5,21 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/9triver/iarnet/internal/domain/resource/component"
+	"github.com/9triver/iarnet/internal/domain/resource/discovery"
 	"github.com/9triver/iarnet/internal/domain/resource/logger"
 	"github.com/9triver/iarnet/internal/domain/resource/provider"
+	"github.com/9triver/iarnet/internal/domain/resource/scheduler"
 	"github.com/9triver/iarnet/internal/domain/resource/store"
 	"github.com/9triver/iarnet/internal/domain/resource/types"
 	providerrepo "github.com/9triver/iarnet/internal/infra/repository/resource"
 	commonpb "github.com/9triver/iarnet/internal/proto/common"
 	registrypb "github.com/9triver/iarnet/internal/proto/global/registry"
+	resourcepb "github.com/9triver/iarnet/internal/proto/resource"
+	schedulerpb "github.com/9triver/iarnet/internal/proto/resource/scheduler"
 	storepb "github.com/9triver/iarnet/internal/proto/resource/store"
 	"github.com/9triver/iarnet/internal/util"
 	"github.com/sirupsen/logrus"
@@ -43,9 +48,8 @@ type Manager struct {
 	globalRegistryAddr string        // 全局注册中心地址
 	nodeAddress        string        // 节点地址 (host:port)，用于健康检查上报
 	healthCheckStop    chan struct{} // 用于停止健康检查 goroutine
-	discoveryService   interface {   // Discovery 服务接口（避免循环依赖）
-		UpdateLocalNode(resourceCapacity *types.Capacity, resourceTags interface{})
-	}
+	discoveryService   discovery.Service
+	schedulerService   scheduler.Service
 }
 
 // loadOrGenerateNodeID 从文件加载节点 ID，如果不存在则生成新的并保存
@@ -141,11 +145,14 @@ func (m *Manager) GetNodeName() string {
 	return m.name
 }
 
-// SetDiscoveryService 设置 Discovery 服务（用于同步资源状态）
-func (m *Manager) SetDiscoveryService(discoveryService interface {
-	UpdateLocalNode(resourceCapacity *types.Capacity, resourceTags interface{})
-}) {
+// SetDiscoveryService 设置 Discovery 服务（用于同步资源状态和远程调度）
+func (m *Manager) SetDiscoveryService(discoveryService discovery.Service) {
 	m.discoveryService = discoveryService
+}
+
+// SetSchedulerService 设置 Scheduler 服务（用于跨节点调度）
+func (m *Manager) SetSchedulerService(schedulerService scheduler.Service) {
+	m.schedulerService = schedulerService
 }
 
 // Start starts the component manager to receive messages from components
@@ -478,11 +485,146 @@ func (m *Manager) GetLogsByTimeRange(ctx context.Context, componentID string, st
 
 func (m *Manager) DeployComponent(ctx context.Context, runtimeEnv types.RuntimeEnv, resourceRequest *types.Info) (*component.Component, error) {
 	component, err := m.componentService.DeployComponent(ctx, runtimeEnv, resourceRequest)
-	if err != nil {
+	if err == nil {
+		component.SetProviderID("local." + component.GetProviderID())
+		return component, nil
+	}
+
+	if !m.shouldDelegateDeployment(err) {
 		return nil, err
 	}
-	component.SetProviderID("local." + component.GetProviderID())
+
+	logrus.Warnf("Local deployment failed (%v), attempting to delegate to peer nodes", err)
+	peerComponent, peerErr := m.delegateToPeerNodes(ctx, runtimeEnv, resourceRequest)
+	if peerErr == nil {
+		return peerComponent, nil
+	}
+	logrus.Warnf("Delegation to peer nodes failed: %v", peerErr)
+
+	globalComponent, globalErr := m.delegateToGlobalScheduler(ctx, runtimeEnv, resourceRequest)
+	if globalErr == nil {
+		return globalComponent, nil
+	}
+
+	return nil, fmt.Errorf("local deployment failed: %w; peer delegation failed: %v; global delegation failed: %v", err, peerErr, globalErr)
+}
+
+func (m *Manager) shouldDelegateDeployment(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "failed to find available provider") ||
+		strings.Contains(msg, "no available provider")
+}
+
+func (m *Manager) delegateToPeerNodes(ctx context.Context, runtimeEnv types.RuntimeEnv, resourceRequest *types.Info) (*component.Component, error) {
+	if m.discoveryService == nil || m.schedulerService == nil {
+		return nil, fmt.Errorf("discovery service or scheduler service not configured")
+	}
+	if resourceRequest == nil {
+		return nil, fmt.Errorf("resource request is nil")
+	}
+
+	nodes, err := m.discoveryService.QueryResources(ctx, resourceRequest, nil)
+	if err != nil {
+		return nil, fmt.Errorf("query resources via discovery service failed: %w", err)
+	}
+	if len(nodes) == 0 {
+		return nil, fmt.Errorf("no in-domain nodes have sufficient resources")
+	}
+
+	for _, node := range nodes {
+		resp, deployErr := m.schedulerService.DeployComponent(ctx, &scheduler.DeployRequest{
+			RuntimeEnv:      runtimeEnv,
+			ResourceRequest: resourceRequest,
+			TargetNodeID:    node.NodeID,
+		})
+		if deployErr != nil {
+			logrus.Warnf("Failed to delegate deployment to node %s (%s): %v", node.NodeName, node.NodeID, deployErr)
+			continue
+		}
+		if resp == nil || !resp.Success {
+			if resp != nil && resp.Error != "" {
+				logrus.Warnf("Node %s rejected deployment: %s", node.NodeID, resp.Error)
+			}
+			continue
+		}
+		if resp.Component != nil {
+			resp.Component.SetProviderID(fmt.Sprintf("remote.%s@%s", resp.ProviderID, resp.NodeID))
+		}
+		logrus.Infof("Delegated component deployment to node %s (%s)", node.NodeName, node.NodeID)
+		return resp.Component, nil
+	}
+
+	return nil, fmt.Errorf("all candidate nodes rejected the deployment request")
+}
+
+func (m *Manager) delegateToGlobalScheduler(ctx context.Context, runtimeEnv types.RuntimeEnv, resourceRequest *types.Info) (*component.Component, error) {
+	if m.globalRegistryAddr == "" {
+		return nil, fmt.Errorf("global scheduler address is not configured")
+	}
+	if resourceRequest == nil {
+		return nil, fmt.Errorf("resource request is nil")
+	}
+
+	conn, err := grpc.NewClient(m.globalRegistryAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect global scheduler: %w", err)
+	}
+	defer conn.Close()
+
+	client := schedulerpb.NewSchedulerServiceClient(conn)
+	protoReq := &schedulerpb.DeployComponentRequest{
+		RuntimeEnv: string(runtimeEnv),
+		ResourceRequest: &resourcepb.Info{
+			Cpu:    resourceRequest.CPU,
+			Memory: resourceRequest.Memory,
+			Gpu:    resourceRequest.GPU,
+		},
+	}
+
+	protoResp, err := client.DeployComponent(ctx, protoReq)
+	if err != nil {
+		return nil, fmt.Errorf("global scheduler RPC failed: %w", err)
+	}
+	if protoResp == nil {
+		return nil, fmt.Errorf("global scheduler returned empty response")
+	}
+	if !protoResp.Success {
+		return nil, fmt.Errorf("global scheduler rejected deployment: %s", protoResp.Error)
+	}
+
+	component, convErr := convertProtoComponent(protoResp.Component)
+	if convErr != nil {
+		return nil, fmt.Errorf("global scheduler response invalid: %w", convErr)
+	}
+	if component != nil {
+		component.SetProviderID(fmt.Sprintf("global.%s@%s", protoResp.ProviderId, protoResp.NodeId))
+	}
+
+	logrus.Infof("Delegated component deployment to global scheduler node %s", protoResp.NodeId)
 	return component, nil
+}
+
+func convertProtoComponent(info *schedulerpb.ComponentInfo) (*component.Component, error) {
+	if info == nil {
+		return nil, fmt.Errorf("component info is empty")
+	}
+
+	var usage *types.Info
+	if info.ResourceUsage != nil {
+		usage = &types.Info{
+			CPU:    info.ResourceUsage.Cpu,
+			Memory: info.ResourceUsage.Memory,
+			GPU:    info.ResourceUsage.Gpu,
+		}
+	} else {
+		usage = &types.Info{}
+	}
+
+	comp := component.NewComponent(info.ComponentId, info.Image, usage)
+	return comp, nil
 }
 
 func (m *Manager) RegisterProvider(name string, host string, port int) (*provider.Provider, error) {

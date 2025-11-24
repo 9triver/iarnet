@@ -195,15 +195,14 @@ func (s *service) deployRemotely(ctx context.Context, req *DeployRequest) (*Depl
 		}, nil
 	}
 
-	// 转换响应
-	comp := &component.Component{}
-	// 注意：这里需要从 proto 响应中重建 Component 对象
-	// 由于 Component 是内部对象，这里简化处理
-	// 实际实现中可能需要通过其他方式获取完整的 Component 信息
+	comp := convertComponentInfoFromProto(protoResp.Component)
+	if comp != nil {
+		comp.SetProviderID(protoResp.ProviderId)
+	}
 
 	return &DeployResponse{
 		Success:    true,
-		Component:  comp, // TODO: 从 proto 响应中重建
+		Component:  comp,
 		NodeID:     protoResp.NodeId,
 		NodeName:   protoResp.NodeName,
 		ProviderID: protoResp.ProviderId,
@@ -217,4 +216,24 @@ func (s *service) GetDeploymentStatus(ctx context.Context, componentID string, n
 		Success: false,
 		Error:   "not implemented",
 	}, nil
+}
+
+func convertComponentInfoFromProto(info *schedulerpb.ComponentInfo) *component.Component {
+	if info == nil {
+		return nil
+	}
+
+	var usage *types.Info
+	if info.ResourceUsage != nil {
+		usage = &types.Info{
+			CPU:    info.ResourceUsage.Cpu,
+			Memory: info.ResourceUsage.Memory,
+			GPU:    info.ResourceUsage.Gpu,
+		}
+	} else {
+		usage = &types.Info{}
+	}
+
+	comp := component.NewComponent(info.ComponentId, info.Image, usage)
+	return comp
 }

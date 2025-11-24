@@ -71,12 +71,8 @@ func (cc *ComponentChanneler) Send(componentID string, data []byte) {
 		cc.mu.Unlock()
 
 		logrus.Infof("Component %s is connected, sending message immediately", componentID)
-		select {
-		case ch.SendChan <- [][]byte{[]byte(componentID), data}:
-			logrus.Debugf("Sent message to component %s via ZMQ SendChan", componentID)
-		default:
-			logrus.Warnf("Failed to send message to component %s: SendChan is full or closed", componentID)
-		}
+		ch.SendChan <- [][]byte{[]byte(componentID), data}
+		logrus.Debugf("Sent message to component %s via ZMQ SendChan", componentID)
 	} else {
 		// Component not connected yet, queue the message
 		cc.pendingMessages[componentID] = append(cc.pendingMessages[componentID], data)
@@ -129,14 +125,8 @@ func (cc *ComponentChanneler) MarkConnected(componentID string) {
 					logrus.Warnf("Channeler closed while sending pending messages to component %s", compID)
 					return
 				}
-
-				select {
-				case ch.SendChan <- [][]byte{[]byte(compID), data}:
-					logrus.Debugf("Sent pending message %d/%d to component %s", i+1, len(msgs), compID)
-				default:
-					logrus.Warnf("Failed to send pending message %d/%d to component %s: SendChan is full or closed", i+1, len(msgs), compID)
-					return
-				}
+				ch.SendChan <- [][]byte{[]byte(compID), data}
+				logrus.Debugf("Sent pending message %d/%d to component %s", i+1, len(msgs), compID)
 			}
 			logrus.Infof("Finished sending all %d pending messages to component %s", len(msgs), compID)
 		}(componentID, pending)
