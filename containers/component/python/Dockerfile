@@ -1,20 +1,23 @@
 # Python Component Dockerfile
 # 用于运行 Python 组件的容器镜像
 
-FROM python:3.11-alpine
+FROM python:3.11-slim
 
 # 安装系统依赖
-RUN apk add --no-cache \
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     ca-certificates \
     tzdata \
-    zeromq \
-    czmq \
-    zeromq-dev \
-    czmq-dev \
-    pkgconfig \
+    libzmq5 \
+    libczmq4 \
+    libzmq3-dev \
+    libczmq-dev \
+    pkg-config \
     gcc \
-    musl-dev \
-    python3-dev
+    libc6-dev \
+    python3-dev \
+    libgomp1 && \
+    rm -rf /var/lib/apt/lists/*
 
 # 设置工作目录
 WORKDIR /app
@@ -39,8 +42,10 @@ COPY proto /app/proto
 COPY *.py /app/
 
 # 创建非 root 用户
-RUN addgroup -S appuser && adduser -S -G appuser appuser
-RUN chown -R appuser:appuser /app
+RUN addgroup --system appuser && \
+    adduser --system --ingroup appuser appuser && \
+    chown -R appuser:appuser /app
+
 
 # 切换到非 root 用户
 USER appuser
@@ -52,4 +57,3 @@ ENV PATH="/app/venv/bin:$PATH"
 
 # 入口点 - 使用虚拟环境中的 Python
 ENTRYPOINT ["/app/venv/bin/python", "main.py"]
-

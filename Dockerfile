@@ -105,29 +105,44 @@ if [ ! -S /var/run/docker.sock ]; then
     echo "警告: Docker socket 不存在，请确保挂载了 /var/run/docker.sock"
 fi
 
-# 启动后端服务（后台运行）
-echo "启动 iarnet 后端服务..."
+# 启动后端服务（后台运行，输出到 stdout/stderr，这样 docker logs 可以看到）
+echo "[启动脚本] 启动 iarnet 后端服务..."
 cd /app
 /app/iarnet -config /app/config.yaml &
 BACKEND_PID=$!
 
 # 等待后端启动
-echo "等待后端服务启动..."
+echo "[启动脚本] 等待后端服务启动..."
 for i in $(seq 1 30); do
     if nc -z localhost 8083 2>/dev/null; then
-        echo "后端服务已启动"
+        echo "[启动脚本] 后端服务已启动"
         break
     fi
     if [ $i -eq 30 ]; then
-        echo "警告: 后端服务启动超时，继续启动前端..."
+        echo "[启动脚本] 警告: 后端服务启动超时，继续启动前端..."
     fi
     sleep 1
 done
 
-# 启动前端服务（前台运行，保持容器运行）
-echo "启动 iarnet 前端服务..."
+# 启动前端服务（后台运行，输出到 stdout/stderr，这样 docker logs 可以看到）
+echo "[启动脚本] 启动 iarnet 前端服务..."
 cd /app/web
-exec npm start
+npm start &
+FRONTEND_PID=$!
+
+# 定义清理函数
+cleanup() {
+    echo "[启动脚本] 收到退出信号，正在停止服务..."
+    kill $BACKEND_PID $FRONTEND_PID 2>/dev/null || true
+    wait $BACKEND_PID $FRONTEND_PID 2>/dev/null || true
+    exit 0
+}
+
+# 捕获退出信号
+trap cleanup SIGTERM SIGINT
+
+# 等待进程退出（如果任一进程退出，脚本也会退出）
+wait $BACKEND_PID $FRONTEND_PID
 EOF
 
 RUN chmod +x /app/entrypoint.sh

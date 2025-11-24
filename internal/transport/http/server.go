@@ -10,6 +10,7 @@ import (
 	"github.com/9triver/iarnet/internal/domain/application"
 	"github.com/9triver/iarnet/internal/domain/ignis"
 	"github.com/9triver/iarnet/internal/domain/resource"
+	"github.com/9triver/iarnet/internal/domain/resource/discovery"
 	applicationAPI "github.com/9triver/iarnet/internal/transport/http/application"
 	resourceAPI "github.com/9triver/iarnet/internal/transport/http/resource"
 	"github.com/gorilla/mux"
@@ -17,11 +18,12 @@ import (
 )
 
 type Options struct {
-	Port     int
-	Config   *config.Config
-	AppMgr   *application.Manager
-	ResMgr   *resource.Manager
-	Platform *ignis.Platform
+	Port             int
+	Config           *config.Config
+	AppMgr           *application.Manager
+	ResMgr           *resource.Manager
+	Platform         *ignis.Platform
+	DiscoveryService discovery.Service
 }
 
 type Server struct {
@@ -32,7 +34,7 @@ type Server struct {
 func NewServer(opts Options) *Server {
 	router := mux.NewRouter()
 	applicationAPI.RegisterRoutes(router, opts.AppMgr)
-	resourceAPI.RegisterRoutes(router, opts.ResMgr, opts.Config)
+	resourceAPI.RegisterRoutes(router, opts.ResMgr, opts.Config, opts.DiscoveryService)
 
 	return &Server{Server: &http.Server{Addr: fmt.Sprintf("0.0.0.0:%d", opts.Port), Handler: router}, Router: router}
 }

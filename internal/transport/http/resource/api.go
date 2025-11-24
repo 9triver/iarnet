@@ -11,6 +11,7 @@ import (
 
 	"github.com/9triver/iarnet/internal/config"
 	"github.com/9triver/iarnet/internal/domain/resource"
+	"github.com/9triver/iarnet/internal/domain/resource/discovery"
 	"github.com/9triver/iarnet/internal/domain/resource/logger"
 	"github.com/9triver/iarnet/internal/domain/resource/provider"
 	"github.com/9triver/iarnet/internal/domain/resource/types"
@@ -19,8 +20,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func RegisterRoutes(router *mux.Router, resMgr *resource.Manager, cfg *config.Config) {
-	api := NewAPI(resMgr, cfg)
+func RegisterRoutes(router *mux.Router, resMgr *resource.Manager, cfg *config.Config, discoveryService discovery.Service) {
+	api := NewAPI(resMgr, cfg, discoveryService)
 	router.HandleFunc("/resource/capacity", api.handleGetResourceCapacity).Methods("GET")
 	router.HandleFunc("/resource/provider", api.handleGetResourceProviders).Methods("GET")
 	router.HandleFunc("/resource/provider/{id}/info", api.handleGetResourceProviderInfo).Methods("GET")
@@ -30,18 +31,159 @@ func RegisterRoutes(router *mux.Router, resMgr *resource.Manager, cfg *config.Co
 	router.HandleFunc("/resource/provider/{id}", api.handleUpdateResourceProvider).Methods("PUT")
 	router.HandleFunc("/resource/provider/{id}", api.handleUnregisterResourceProvider).Methods("DELETE")
 
+	// Discovery 相关路由
+	router.HandleFunc("/resource/discovery/nodes", api.handleGetDiscoveredNodes).Methods("GET")
+
 	router.HandleFunc("/resource/components/{id}/logs", api.handleGetComponentLogs).Methods("GET")
 }
 
-type API struct {
-	resMgr *resource.Manager
-	cfg    *config.Config
+// handleGetDiscoveredNodes 获取通过 gossip 发现的节点列表
+func (api *API) handleGetDiscoveredNodes(w http.ResponseWriter, r *http.Request) {
+	if api.discoveryService == nil {
+		// Discovery 服务未启用，返回空列表
+		resp := GetDiscoveredNodesResponse{
+			Nodes: []DiscoveredNodeItem{},
+			Total: 0,
+		}
+		response.Success(resp).WriteJSON(w)
+		return
+	}
+
+	// 获取已知节点
+	knownNodes := api.discoveryService.GetKnownNodes()
+	items := make([]DiscoveredNodeItem, 0, len(knownNodes))
+
+	for _, node := range knownNodes {
+		item := DiscoveredNodeItem{
+			NodeID:   node.NodeID,
+			NodeName: node.NodeName,
+			Address:  node.Address,
+			DomainID: node.DomainID,
+			Status:   string(node.Status),
+			LastSeen: node.LastSeen.Format(time.RFC3339),
+		}
+
+		// 转换资源容量
+		if node.ResourceCapacity != nil {
+			if node.ResourceCapacity.Total != nil {
+				item.CPU = &ResourceUsage{
+					Total:     node.ResourceCapacity.Total.CPU,
+					Used:      0, // 如果 Used 存在则使用，否则计算
+					Available: 0,
+				}
+				if node.ResourceCapacity.Used != nil {
+					item.CPU.Used = node.ResourceCapacity.Used.CPU
+				}
+				if node.ResourceCapacity.Available != nil {
+					item.CPU.Available = node.ResourceCapacity.Available.CPU
+					// 如果 Used 不存在，通过 Total - Available 计算
+					if node.ResourceCapacity.Used == nil {
+						item.CPU.Used = item.CPU.Total - item.CPU.Available
+					}
+				}
+			}
+
+			if node.ResourceCapacity.Total != nil {
+				item.Memory = &ResourceUsage{
+					Total:     node.ResourceCapacity.Total.Memory,
+					Used:      0,
+					Available: 0,
+				}
+				if node.ResourceCapacity.Used != nil {
+					item.Memory.Used = node.ResourceCapacity.Used.Memory
+				}
+				if node.ResourceCapacity.Available != nil {
+					item.Memory.Available = node.ResourceCapacity.Available.Memory
+					if node.ResourceCapacity.Used == nil {
+						item.Memory.Used = item.Memory.Total - item.Memory.Available
+					}
+				}
+			}
+
+			if node.ResourceCapacity.Total != nil {
+				item.GPU = &ResourceUsage{
+					Total:     node.ResourceCapacity.Total.GPU,
+					Used:      0,
+					Available: 0,
+				}
+				if node.ResourceCapacity.Used != nil {
+					item.GPU.Used = node.ResourceCapacity.Used.GPU
+				}
+				if node.ResourceCapacity.Available != nil {
+					item.GPU.Available = node.ResourceCapacity.Available.GPU
+					if node.ResourceCapacity.Used == nil {
+						item.GPU.Used = item.GPU.Total - item.GPU.Available
+					}
+				}
+			}
+		}
+
+		// 转换资源标签
+		if node.ResourceTags != nil {
+			item.ResourceTags = &ResourceTagsInfo{
+				CPU:    node.ResourceTags.CPU,
+				GPU:    node.ResourceTags.GPU,
+				Memory: node.ResourceTags.Memory,
+				Camera: node.ResourceTags.Camera,
+			}
+		}
+
+		items = append(items, item)
+	}
+
+	resp := GetDiscoveredNodesResponse{
+		Nodes: items,
+		Total: len(items),
+	}
+	response.Success(resp).WriteJSON(w)
 }
 
-func NewAPI(resMgr *resource.Manager, cfg *config.Config) *API {
+// GetDiscoveredNodesResponse 获取发现的节点列表响应
+type GetDiscoveredNodesResponse struct {
+	Nodes []DiscoveredNodeItem `json:"nodes"`
+	Total int                  `json:"total"`
+}
+
+// DiscoveredNodeItem 发现的节点项
+type DiscoveredNodeItem struct {
+	NodeID       string            `json:"node_id"`
+	NodeName     string            `json:"node_name"`
+	Address      string            `json:"address"`
+	DomainID     string            `json:"domain_id"`
+	Status       string            `json:"status"` // online/offline/error
+	CPU          *ResourceUsage    `json:"cpu,omitempty"`
+	Memory       *ResourceUsage    `json:"memory,omitempty"`
+	GPU          *ResourceUsage    `json:"gpu,omitempty"`
+	ResourceTags *ResourceTagsInfo `json:"resource_tags,omitempty"`
+	LastSeen     string            `json:"last_seen"` // RFC3339 格式
+}
+
+// ResourceUsage 资源使用情况
+type ResourceUsage struct {
+	Total     int64 `json:"total"`
+	Used      int64 `json:"used"`
+	Available int64 `json:"available"`
+}
+
+// ResourceTagsInfo 资源标签信息
+type ResourceTagsInfo struct {
+	CPU    bool `json:"cpu"`
+	GPU    bool `json:"gpu"`
+	Memory bool `json:"memory"`
+	Camera bool `json:"camera"`
+}
+
+type API struct {
+	resMgr           *resource.Manager
+	cfg              *config.Config
+	discoveryService discovery.Service
+}
+
+func NewAPI(resMgr *resource.Manager, cfg *config.Config, discoveryService discovery.Service) *API {
 	return &API{
-		resMgr: resMgr,
-		cfg:    cfg,
+		resMgr:           resMgr,
+		cfg:              cfg,
+		discoveryService: discoveryService,
 	}
 }
 

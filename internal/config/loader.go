@@ -52,4 +52,30 @@ func ApplyDefaults(cfg *Config) {
 	if cfg.Transport.RPC.Logger.Port == 0 {
 		cfg.Transport.RPC.Logger.Port = 50003 // 默认日志服务端口
 	}
+	if cfg.Transport.RPC.Discovery.Port == 0 {
+		cfg.Transport.RPC.Discovery.Port = 50005 // 默认节点发现服务端口
+	}
+	if cfg.Transport.RPC.Scheduler.Port == 0 {
+		cfg.Transport.RPC.Scheduler.Port = 50006 // 默认调度服务端口
+	}
+
+	// Discovery 配置默认值
+	if cfg.Resource.Discovery.GossipIntervalSeconds == 0 {
+		cfg.Resource.Discovery.GossipIntervalSeconds = 30 // 默认 30 秒
+	}
+	if cfg.Resource.Discovery.NodeTTLSeconds == 0 {
+		cfg.Resource.Discovery.NodeTTLSeconds = 180 // 默认 180 秒（3 分钟）
+	}
+	if cfg.Resource.Discovery.MaxGossipPeers == 0 {
+		cfg.Resource.Discovery.MaxGossipPeers = 10 // 默认 10 个
+	}
+	if cfg.Resource.Discovery.MaxHops == 0 {
+		cfg.Resource.Discovery.MaxHops = 5 // 默认 5 跳
+	}
+	if cfg.Resource.Discovery.QueryTimeoutSeconds == 0 {
+		cfg.Resource.Discovery.QueryTimeoutSeconds = 5 // 默认 5 秒
+	}
+	if cfg.Resource.Discovery.Fanout == 0 {
+		cfg.Resource.Discovery.Fanout = 3 // 默认 3 个
+	}
 }

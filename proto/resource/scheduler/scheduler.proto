@@ -1,0 +1,101 @@
+syntax = "proto3";
+package scheduler;
+option go_package = "github.com/9triver/iarnet/internal/proto/resource/scheduler";
+
+import "resource/resource.proto";
+
+// SchedulerService 提供远程调度服务，支持跨节点部署 component
+service SchedulerService {
+  // DeployComponent 在指定节点上部署 component
+  // 如果 target_node_id 为空，则在本地节点部署
+  rpc DeployComponent(DeployComponentRequest) returns (DeployComponentResponse);
+  
+  // GetDeploymentStatus 获取部署状态
+  rpc GetDeploymentStatus(GetDeploymentStatusRequest) returns (GetDeploymentStatusResponse);
+}
+
+// DeployComponentRequest 部署 component 请求
+message DeployComponentRequest {
+  // 运行时环境（如 "python"）
+  string runtime_env = 1;
+  
+  // 资源请求
+  resource.Info resource_request = 2;
+  
+  // 目标节点 ID（可选，为空则在本地节点部署）
+  // 如果指定，将在该节点上部署 component
+  string target_node_id = 3;
+  
+  // 目标节点地址（可选，如果指定了 target_node_id 但需要直接连接）
+  string target_node_address = 4;
+}
+
+// DeployComponentResponse 部署 component 响应
+message DeployComponentResponse {
+  // 是否成功
+  bool success = 1;
+  
+  // 错误信息（如果失败）
+  string error = 2;
+  
+  // Component 信息
+  ComponentInfo component = 3;
+  
+  // 部署的节点 ID
+  string node_id = 4;
+  
+  // 部署的节点名称
+  string node_name = 5;
+  
+  // Provider ID（实际部署的 provider）
+  string provider_id = 6;
+}
+
+// ComponentInfo Component 信息
+message ComponentInfo {
+  // Component ID
+  string component_id = 1;
+  
+  // 镜像名称
+  string image = 2;
+  
+  // 资源使用情况
+  resource.Info resource_usage = 3;
+  
+  // Provider ID
+  string provider_id = 4;
+}
+
+// GetDeploymentStatusRequest 获取部署状态请求
+message GetDeploymentStatusRequest {
+  // Component ID
+  string component_id = 1;
+  
+  // 节点 ID（可选，如果指定则从该节点查询）
+  string node_id = 2;
+}
+
+// GetDeploymentStatusResponse 获取部署状态响应
+message GetDeploymentStatusResponse {
+  // 是否成功
+  bool success = 1;
+  
+  // 错误信息（如果失败）
+  string error = 2;
+  
+  // Component 状态
+  ComponentStatus status = 3;
+  
+  // Component 信息
+  ComponentInfo component = 4;
+}
+
+// ComponentStatus Component 状态
+enum ComponentStatus {
+  COMPONENT_STATUS_UNKNOWN = 0;
+  COMPONENT_STATUS_DEPLOYING = 1;
+  COMPONENT_STATUS_RUNNING = 2;
+  COMPONENT_STATUS_STOPPED = 3;
+  COMPONENT_STATUS_ERROR = 4;
+}
+

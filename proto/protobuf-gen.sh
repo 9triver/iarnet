@@ -151,7 +151,7 @@ cd "$BASE_DIR"
 # Run from resource directory, so paths are relative to it
 # Use BASE_DIR for -I so that "common/types.proto" imports work correctly
 PROTOC_CMD="$PROTOC -I ."
-PROTO_SRC="resource/*.proto resource/provider/*.proto resource/store/*.proto resource/component/*.proto resource/logger/*.proto"
+PROTO_SRC="resource/*.proto resource/provider/*.proto resource/store/*.proto resource/component/*.proto resource/logger/*.proto resource/discovery/*.proto resource/scheduler/*.proto"
 
 IARNET_OUTPUT="$PROJECT_ROOT/internal/proto/"
 PY_OUTPUTS=("$PROJECT_ROOT/containers/component/python/proto/")

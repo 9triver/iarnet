@@ -34,6 +34,20 @@ type ResourceConfig struct {
 	DomainID           string            `yaml:"domain_id"`            // e.g., "domain.AT9xbJe6RxzkPSL65bkwud" - domain ID of the node
 	ComponentImages    map[string]string `yaml:"component_images"`     // e.g., "python:3.11-alpine" - image to use for actor containers
 	Store              StoreConfig       `yaml:"store"`                // Store configuration
+	Discovery          DiscoveryConfig   `yaml:"discovery"`            // Gossip 节点发现配置
+}
+
+// DiscoveryConfig Gossip 节点发现配置
+type DiscoveryConfig struct {
+	Enabled                    bool `yaml:"enabled"`                       // 是否启用 gossip 发现
+	GossipIntervalSeconds      int  `yaml:"gossip_interval_seconds"`       // Gossip 间隔（秒）
+	NodeTTLSeconds             int  `yaml:"node_ttl_seconds"`              // 节点信息过期时间（秒）
+	MaxGossipPeers             int  `yaml:"max_gossip_peers"`              // 每次 gossip 的最大 peer 数量
+	MaxHops                    int  `yaml:"max_hops"`                      // 最大跳数
+	QueryTimeoutSeconds        int  `yaml:"query_timeout_seconds"`         // 资源查询超时时间（秒）
+	Fanout                     int  `yaml:"fanout"`                        // 每次传播的节点数（fanout）
+	UseAntiEntropy             bool `yaml:"use_anti_entropy"`              // 是否使用反熵机制
+	AntiEntropyIntervalSeconds int  `yaml:"anti_entropy_interval_seconds"` // 反熵间隔（秒）
 }
 
 type TransportConfig struct {
@@ -53,6 +67,8 @@ type RPCConfig struct {
 	Store          RPCStoreConfig          `yaml:"store"`
 	Logger         RPCLoggerConfig         `yaml:"logger"`          // 应用日志服务配置
 	ResourceLogger RPCResourceLoggerConfig `yaml:"resource_logger"` // 资源日志服务配置
+	Discovery      RPCDiscoveryConfig      `yaml:"discovery"`       // 节点发现服务 RPC 配置
+	Scheduler      RPCSchedulerConfig      `yaml:"scheduler"`       // 调度服务 RPC 配置
 }
 
 // RPCResourceConfig 资源服务 RPC 配置
@@ -76,6 +92,16 @@ type RPCLoggerConfig struct {
 // RPCResourceLoggerConfig 资源日志服务 RPC 配置
 type RPCResourceLoggerConfig struct {
 	Port int `yaml:"port"` // e.g., 50004
+}
+
+// RPCDiscoveryConfig 节点发现服务 RPC 配置
+type RPCDiscoveryConfig struct {
+	Port int `yaml:"port"` // e.g., 50005
+}
+
+// RPCSchedulerConfig 调度服务 RPC 配置
+type RPCSchedulerConfig struct {
+	Port int `yaml:"port"` // e.g., 50006
 }
 
 // StoreConfig Store 服务配置

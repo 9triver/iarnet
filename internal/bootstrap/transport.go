@@ -28,6 +28,8 @@ func bootstrapTransport(iarnet *Iarnet) error {
 	storeAddr := fmt.Sprintf("0.0.0.0:%d", iarnet.Config.Transport.RPC.Store.Port)
 	loggerAddr := fmt.Sprintf("0.0.0.0:%d", iarnet.Config.Transport.RPC.Logger.Port)
 	resourceLoggerAddr := fmt.Sprintf("0.0.0.0:%d", iarnet.Config.Transport.RPC.ResourceLogger.Port)
+	discoveryAddr := fmt.Sprintf("0.0.0.0:%d", iarnet.Config.Transport.RPC.Discovery.Port)
+	schedulerAddr := fmt.Sprintf("0.0.0.0:%d", iarnet.Config.Transport.RPC.Scheduler.Port)
 
 	// 创建 RPC 服务器管理器（不启动，启动操作在 Start 方法中统一执行）
 	opts := rpc.Options{
@@ -39,17 +41,23 @@ func bootstrapTransport(iarnet *Iarnet) error {
 		LoggerService:         iarnet.ApplicationManager,
 		ResourceLoggerAddr:    resourceLoggerAddr,
 		ResourceLoggerService: iarnet.ResourceManager,
+		DiscoveryAddr:         discoveryAddr,
+		DiscoveryService:      iarnet.DiscoveryService,
+		DiscoveryManager:      iarnet.DiscoveryManager,
+		SchedulerAddr:         schedulerAddr,
+		SchedulerService:      iarnet.SchedulerService,
 	}
 
 	iarnet.RPCManager = rpc.NewManager(opts)
 
 	// 创建 HTTP 服务器
 	iarnet.HTTPServer = http.NewServer(http.Options{
-		Port:     iarnet.Config.Transport.HTTP.Port,
-		AppMgr:   iarnet.ApplicationManager,
-		ResMgr:   iarnet.ResourceManager,
-		Platform: iarnet.IgnisPlatform,
-		Config:   iarnet.Config,
+		Port:             iarnet.Config.Transport.HTTP.Port,
+		AppMgr:           iarnet.ApplicationManager,
+		ResMgr:           iarnet.ResourceManager,
+		Platform:         iarnet.IgnisPlatform,
+		Config:           iarnet.Config,
+		DiscoveryService: iarnet.DiscoveryService,
 	})
 
 	logrus.Info("Transport layer initialized")

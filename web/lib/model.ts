@@ -95,6 +95,43 @@ export interface UpdateResourceProviderResponse {
   message: string // 响应消息
 }
 
+// ========== Discovery 相关类型 ==========
+
+// ResourceUsage 资源使用情况
+export interface ResourceUsage {
+  total: number     // 总资源（CPU: millicores, Memory: bytes, GPU: count）
+  used: number      // 已使用资源
+  available: number // 可用资源
+}
+
+// ResourceTagsInfo 资源标签信息
+export interface ResourceTagsInfo {
+  cpu: boolean
+  gpu: boolean
+  memory: boolean
+  camera: boolean
+}
+
+// DiscoveredNodeItem 发现的节点项
+export interface DiscoveredNodeItem {
+  node_id: string           // 节点 ID
+  node_name: string         // 节点名称
+  address: string           // 节点地址 (host:port)
+  domain_id: string         // 域 ID
+  status: "online" | "offline" | "error" // 节点状态
+  cpu?: ResourceUsage       // CPU 使用情况（可选）
+  memory?: ResourceUsage    // 内存使用情况（可选）
+  gpu?: ResourceUsage       // GPU 使用情况（可选）
+  resource_tags?: ResourceTagsInfo // 资源标签（可选）
+  last_seen: string         // 最后活跃时间（RFC3339 格式）
+}
+
+// GetDiscoveredNodesResponse 获取发现的节点列表响应
+export interface GetDiscoveredNodesResponse {
+  nodes: DiscoveredNodeItem[] // 节点列表
+  total: number                // 总数
+}
+
 export interface Application {
   id: string
   name: string

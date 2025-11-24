@@ -11,15 +11,21 @@ import (
 
 	applogger "github.com/9triver/iarnet/internal/domain/application/logger"
 	"github.com/9triver/iarnet/internal/domain/ignis/controller"
+	resdiscovery "github.com/9triver/iarnet/internal/domain/resource/discovery"
 	reslogger "github.com/9triver/iarnet/internal/domain/resource/logger"
+	resscheduler "github.com/9triver/iarnet/internal/domain/resource/scheduler"
 	"github.com/9triver/iarnet/internal/domain/resource/store"
 	appLoggerPB "github.com/9triver/iarnet/internal/proto/application/logger"
 	ctrlpb "github.com/9triver/iarnet/internal/proto/ignis/controller"
+	discoverypb "github.com/9triver/iarnet/internal/proto/resource/discovery"
 	resLoggerPB "github.com/9triver/iarnet/internal/proto/resource/logger"
+	schedulerpb "github.com/9triver/iarnet/internal/proto/resource/scheduler"
 	storepb "github.com/9triver/iarnet/internal/proto/resource/store"
 	appLoggerRPC "github.com/9triver/iarnet/internal/transport/rpc/application/logger"
 	controllerrpc "github.com/9triver/iarnet/internal/transport/rpc/ignis/controller"
+	discoveryrpc "github.com/9triver/iarnet/internal/transport/rpc/resource/discovery"
 	resLoggerRPC "github.com/9triver/iarnet/internal/transport/rpc/resource/logger"
+	schedulerrpc "github.com/9triver/iarnet/internal/transport/rpc/resource/scheduler"
 	storerpc "github.com/9triver/iarnet/internal/transport/rpc/resource/store"
 )
 
@@ -58,14 +64,21 @@ type Options struct {
 	StoreAddr                string
 	LoggerAddr               string
 	ResourceLoggerAddr       string
+	DiscoveryAddr            string
+	SchedulerAddr            string
 	ControllerService        controller.Service
 	StoreService             store.Service
 	LoggerService            applogger.Service
 	ResourceLoggerService    reslogger.Service
+	DiscoveryService         resdiscovery.Service
+	DiscoveryManager         *resdiscovery.NodeDiscoveryManager
+	SchedulerService         resscheduler.Service
 	IgnisServerOpts          []grpc.ServerOption
 	StoreServerOpts          []grpc.ServerOption
 	LoggerServerOpts         []grpc.ServerOption
 	ResourceLoggerServerOpts []grpc.ServerOption
+	DiscoveryServerOpts      []grpc.ServerOption
+	SchedulerServerOpts      []grpc.ServerOption
 }
 
 // Manager manages the lifecycle of RPC servers.
@@ -74,6 +87,8 @@ type Manager struct {
 	Store          *server
 	Logger         *server
 	ResourceLogger *server
+	Discovery      *server
+	Scheduler      *server
 	Options        Options
 	startOnce      sync.Once
 	stopOnce       sync.Once
@@ -86,6 +101,8 @@ func NewManager(opts Options) *Manager {
 		Store:          nil,
 		Logger:         nil,
 		ResourceLogger: nil,
+		Discovery:      nil,
+		Scheduler:      nil,
 		Options:        opts,
 		startOnce:      sync.Once{},
 		stopOnce:       sync.Once{},
@@ -187,6 +204,48 @@ func (m *Manager) Start() error {
 		} else if m.Options.ResourceLoggerAddr != "" {
 			logrus.Warn("Resource logger address is configured but service is not provided, skipping resource logger server")
 		}
+
+		// 启动 Discovery 服务器（如果配置了）
+		if m.Options.DiscoveryAddr != "" && m.Options.DiscoveryService != nil && m.Options.DiscoveryManager != nil {
+			discoveryOpts := append([]grpc.ServerOption{}, m.Options.DiscoveryServerOpts...)
+			discoveryOpts = append(discoveryOpts, grpc.MaxRecvMsgSize(512*1024*1024))
+
+			discovery, err := startServer(m.Options.DiscoveryAddr, discoveryOpts, func(s *grpc.Server) {
+				discoverypb.RegisterDiscoveryServiceServer(s, discoveryrpc.NewServer(m.Options.DiscoveryService, m.Options.DiscoveryManager))
+			})
+			if err != nil {
+				logrus.WithError(err).Error("failed to start discovery server")
+				for _, s := range startedServers {
+					s.Stop()
+				}
+			} else {
+				logrus.Infof("Discovery server listening on %s", m.Options.DiscoveryAddr)
+				m.Discovery = discovery
+			}
+		} else if m.Options.DiscoveryAddr != "" {
+			logrus.Warn("Discovery address is configured but service or manager is not provided, skipping discovery server")
+		}
+
+		// 启动 Scheduler 服务器（如果配置了）
+		if m.Options.SchedulerAddr != "" && m.Options.SchedulerService != nil {
+			schedulerOpts := append([]grpc.ServerOption{}, m.Options.SchedulerServerOpts...)
+			schedulerOpts = append(schedulerOpts, grpc.MaxRecvMsgSize(512*1024*1024))
+
+			scheduler, err := startServer(m.Options.SchedulerAddr, schedulerOpts, func(s *grpc.Server) {
+				schedulerpb.RegisterSchedulerServiceServer(s, schedulerrpc.NewServer(m.Options.SchedulerService))
+			})
+			if err != nil {
+				logrus.WithError(err).Error("failed to start scheduler server")
+				for _, s := range startedServers {
+					s.Stop()
+				}
+			} else {
+				logrus.Infof("Scheduler server listening on %s", m.Options.SchedulerAddr)
+				m.Scheduler = scheduler
+			}
+		} else if m.Options.SchedulerAddr != "" {
+			logrus.Warn("Scheduler address is configured but service is not provided, skipping scheduler server")
+		}
 	})
 
 	return nil
@@ -199,6 +258,8 @@ func (m *Manager) Stop() {
 		shutdownWithTimeout(m.Store, 30*time.Second)
 		shutdownWithTimeout(m.Logger, 30*time.Second)
 		shutdownWithTimeout(m.ResourceLogger, 30*time.Second)
+		shutdownWithTimeout(m.Discovery, 30*time.Second)
+		shutdownWithTimeout(m.Scheduler, 30*time.Second)
 	})
 }
 

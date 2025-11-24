@@ -2,11 +2,14 @@ package bootstrap
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/9triver/iarnet/internal/domain/resource"
 	"github.com/9triver/iarnet/internal/domain/resource/component"
+	"github.com/9triver/iarnet/internal/domain/resource/discovery"
 	"github.com/9triver/iarnet/internal/domain/resource/logger"
 	"github.com/9triver/iarnet/internal/domain/resource/provider"
+	"github.com/9triver/iarnet/internal/domain/resource/scheduler"
 	"github.com/9triver/iarnet/internal/domain/resource/store"
 	providerrepo "github.com/9triver/iarnet/internal/infra/repository/resource"
 	"github.com/sirupsen/logrus"
@@ -77,6 +80,64 @@ func bootstrapResource(iarnet *Iarnet) error {
 		logrus.Infof("Node address set to %s for health check reporting", nodeAddr)
 		logrus.Infof("Global registry address configured: %s", iarnet.Config.Resource.GlobalRegistryAddr)
 	}
+
+	// 初始化 Discovery 服务（如果启用）
+	if iarnet.Config.Resource.Discovery.Enabled {
+		// 获取节点信息
+		nodeID := resourceManager.GetNodeID()
+		nodeName := iarnet.Config.Resource.Name
+		domainID := iarnet.Config.Resource.DomainID
+
+		// 构建节点地址（用于 discovery）
+		host := iarnet.Config.Host
+		if host == "" {
+			host = "localhost"
+		}
+		discoveryPort := iarnet.Config.Transport.RPC.Discovery.Port
+		if discoveryPort == 0 {
+			discoveryPort = 50005 // 默认端口
+		}
+		nodeAddr := fmt.Sprintf("%s:%d", host, discoveryPort)
+
+		// 创建节点发现管理器
+		gossipInterval := time.Duration(iarnet.Config.Resource.Discovery.GossipIntervalSeconds) * time.Second
+		nodeTTL := time.Duration(iarnet.Config.Resource.Discovery.NodeTTLSeconds) * time.Second
+
+		discoveryManager := discovery.NewNodeDiscoveryManager(
+			nodeID,
+			nodeName,
+			nodeAddr,
+			domainID,
+			iarnet.Config.InitialPeers,
+			gossipInterval,
+			nodeTTL,
+		)
+
+		// 设置配置参数
+		discoveryManager.SetMaxGossipPeers(iarnet.Config.Resource.Discovery.MaxGossipPeers)
+		discoveryManager.SetMaxHops(iarnet.Config.Resource.Discovery.MaxHops)
+
+		// 创建 discovery 服务
+		discoveryService := discovery.NewService(discoveryManager)
+
+		// 保存到 iarnet 结构
+		iarnet.DiscoveryManager = discoveryManager
+		iarnet.DiscoveryService = discoveryService
+
+		// 将 discovery service 设置到 resource manager，用于同步资源状态
+		resourceManager.SetDiscoveryService(discoveryService)
+
+		logrus.Infof("Discovery service initialized: node_id=%s, address=%s, domain=%s", nodeID, nodeAddr, domainID)
+	} else {
+		logrus.Debug("Discovery service is disabled")
+	}
+
+	// 初始化 Scheduler 服务
+	schedulerService := scheduler.NewService(
+		resourceManager,
+		iarnet.DiscoveryService,
+	)
+	iarnet.SchedulerService = schedulerService
 
 	logrus.Info("Resource module initialized")
 	return nil

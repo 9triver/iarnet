@@ -9,6 +9,8 @@ import (
 	"github.com/9triver/iarnet/internal/domain/ignis"
 	"github.com/9triver/iarnet/internal/domain/resource"
 	"github.com/9triver/iarnet/internal/domain/resource/component"
+	"github.com/9triver/iarnet/internal/domain/resource/discovery"
+	"github.com/9triver/iarnet/internal/domain/resource/scheduler"
 	"github.com/9triver/iarnet/internal/transport/http"
 	"github.com/9triver/iarnet/internal/transport/rpc"
 	"github.com/moby/moby/client"
@@ -28,6 +30,13 @@ type Iarnet struct {
 	// Resource 模块
 	ResourceManager *resource.Manager
 
+	// Discovery 模块
+	DiscoveryManager *discovery.NodeDiscoveryManager
+	DiscoveryService discovery.Service
+
+	// Scheduler 模块
+	SchedulerService scheduler.Service
+
 	// Application 模块
 	ApplicationManager *application.Manager
 
@@ -44,6 +53,14 @@ func (iarnet *Iarnet) Start(ctx context.Context) error {
 		logrus.Info("Component manager started")
 	} else {
 		return fmt.Errorf("resource manager is not initialized")
+	}
+
+	// 1.5. 启动 Discovery 服务（如果启用）
+	if iarnet.DiscoveryService != nil {
+		if err := iarnet.DiscoveryService.Start(ctx); err != nil {
+			return fmt.Errorf("failed to start discovery service: %w", err)
+		}
+		logrus.Info("Discovery service started")
 	}
 
 	// 2. 启动 Application 管理器
@@ -100,6 +117,12 @@ func (iarnet *Iarnet) Stop() error {
 		// 通过 providerManager 停止健康检测
 		// 注意：这里需要通过反射或添加方法访问 providerManager
 		// 暂时先不处理，因为 providerManager 是私有字段
+	}
+
+	// 停止 Discovery 服务
+	if iarnet.DiscoveryService != nil {
+		iarnet.DiscoveryService.Stop()
+		logrus.Info("Discovery service stopped")
 	}
 
 	logrus.Info("All services stopped")

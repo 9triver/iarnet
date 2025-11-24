@@ -83,6 +83,7 @@ import type {
   TestResourceProviderResponse,
   UpdateResourceProviderRequest,
   UpdateResourceProviderResponse,
+  GetDiscoveredNodesResponse,
 } from "./model"
 
 export const resourcesAPI = {
@@ -125,6 +126,12 @@ export const resourcesAPI = {
     apiRequest<TestResourceProviderResponse>("/resource/provider/test", {
       method: "POST",
       body: JSON.stringify(request),
+    }),
+
+  // 获取发现的节点列表（通过 gossip）
+  getDiscoveredNodes: () =>
+    apiRequest<GetDiscoveredNodesResponse>("/resource/discovery/nodes", {
+      method: "GET",
     }),
 }
 

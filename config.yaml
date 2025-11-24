@@ -20,6 +20,16 @@ resource:
   domain_id: "domain.nwwNPjSgUFM9DCv74J8LbM"
   component_images:
     "python": "iarnet/component:python_3.11-latest"
+  discovery:
+    enabled: true
+    gossip_interval_seconds: 30
+    node_ttl_seconds: 180
+    max_gossip_peers: 10
+    max_hops: 5
+    query_timeout_seconds: 5
+    fanout: 3
+    use_anti_entropy: true
+    anti_entropy_interval_seconds: 300
 
 enable_local_docker: true
 
@@ -47,6 +57,8 @@ transport:
       port: 50003
     resource_logger:
       port: 50004
+    discovery:
+      port: 50005
 
 logging:
   enabled: true

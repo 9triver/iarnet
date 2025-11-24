@@ -43,6 +43,9 @@ type Manager struct {
 	globalRegistryAddr string        // 全局注册中心地址
 	nodeAddress        string        // 节点地址 (host:port)，用于健康检查上报
 	healthCheckStop    chan struct{} // 用于停止健康检查 goroutine
+	discoveryService   interface {   // Discovery 服务接口（避免循环依赖）
+		UpdateLocalNode(resourceCapacity *types.Capacity, resourceTags interface{})
+	}
 }
 
 // loadOrGenerateNodeID 从文件加载节点 ID，如果不存在则生成新的并保存
@@ -126,6 +129,23 @@ func (m *Manager) SetGlobalRegistryAddr(addr string) {
 // SetNodeAddress 设置节点地址（用于健康检查上报）
 func (m *Manager) SetNodeAddress(addr string) {
 	m.nodeAddress = addr
+}
+
+// GetNodeID 获取节点 ID
+func (m *Manager) GetNodeID() string {
+	return m.nodeID
+}
+
+// GetNodeName 获取节点名称
+func (m *Manager) GetNodeName() string {
+	return m.name
+}
+
+// SetDiscoveryService 设置 Discovery 服务（用于同步资源状态）
+func (m *Manager) SetDiscoveryService(discoveryService interface {
+	UpdateLocalNode(resourceCapacity *types.Capacity, resourceTags interface{})
+}) {
+	m.discoveryService = discoveryService
 }
 
 // Start starts the component manager to receive messages from components
@@ -279,6 +299,42 @@ func (m *Manager) performHealthCheck(ctx context.Context, client registrypb.Serv
 
 	logrus.Debugf("Health check sent successfully, server timestamp: %d, recommended interval: %d seconds",
 		resp.GetServerTimestamp(), resp.GetRecommendedIntervalSeconds())
+
+	// 同步更新 discovery 服务的本地节点信息
+	if m.discoveryService != nil {
+		// 转换 resourceCapacity 和 resourceTags
+		var discoveryCapacity *types.Capacity
+		if resourceCapacity != nil {
+			discoveryCapacity = &types.Capacity{
+				Total: &types.Info{
+					CPU:    resourceCapacity.Total.Cpu,
+					Memory: resourceCapacity.Total.Memory,
+					GPU:    resourceCapacity.Total.Gpu,
+				},
+				Used: &types.Info{
+					CPU:    resourceCapacity.Used.Cpu,
+					Memory: resourceCapacity.Used.Memory,
+					GPU:    resourceCapacity.Used.Gpu,
+				},
+				Available: &types.Info{
+					CPU:    resourceCapacity.Available.Cpu,
+					Memory: resourceCapacity.Available.Memory,
+					GPU:    resourceCapacity.Available.Gpu,
+				},
+			}
+		}
+
+		var discoveryTags interface{}
+		if resourceTags != nil {
+			// 使用类型断言，discovery service 会处理转换
+			// 这里传递 registrypb.ResourceTags，discovery service 需要自己转换
+			discoveryTags = resourceTags
+		}
+
+		// 调用 discovery service 更新本地节点信息
+		// 注意：这里使用 interface{} 避免循环依赖，discovery service 需要处理类型转换
+		m.discoveryService.UpdateLocalNode(discoveryCapacity, discoveryTags)
+	}
 
 	// 如果服务器要求重新注册
 	if resp.GetRequireReregister() {

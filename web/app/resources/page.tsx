@@ -10,6 +10,7 @@ import type {
   RegisterResourceProviderRequest,
   GetResourceProviderCapacityResponse,
   TestResourceProviderResponse,
+  DiscoveredNodeItem,
 } from "@/lib/model"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -29,7 +30,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { useForm } from "react-hook-form"
-import { Plus, Server, Cpu, HardDrive, Activity, Trash2, Edit, RefreshCw, MemoryStick } from "lucide-react"
+import { Plus, Server, Cpu, HardDrive, Activity, Trash2, Edit, RefreshCw, MemoryStick, Network } from "lucide-react"
 import { formatMemory, formatNumber, formatDateTime } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
 
@@ -85,6 +86,7 @@ interface Capacity {
 
 export default function ResourcesPage() {
   const [resources, setResources] = useState<Resource[]>([])
+  const [discoveredNodes, setDiscoveredNodes] = useState<DiscoveredNodeItem[]>([])
   const [capacity, setCapacity] = useState<Capacity | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isNodeDialogOpen, setIsNodeDialogOpen] = useState(false)
@@ -153,11 +155,25 @@ export default function ResourcesPage() {
     }
   }
 
+  // 获取发现的节点数据
+  const fetchDiscoveredNodes = async () => {
+    try {
+      const response = await resourcesAPI.getDiscoveredNodes()
+      setDiscoveredNodes(response.nodes || [])
+    } catch (error) {
+      console.error('Failed to fetch discovered nodes:', error)
+      setDiscoveredNodes([])
+    }
+  }
+
   const fetchData = async () => {
     try {
       setLoading(true)
-      await fetchProviders()
-      await fetchCapacity()
+      await Promise.all([
+        fetchProviders(),
+        fetchCapacity(),
+        fetchDiscoveredNodes(),
+      ])
     } finally {
       setLoading(false)
     }
@@ -810,10 +826,10 @@ export default function ResourcesPage() {
           </div>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">总资源数</CardTitle>
+                <CardTitle className="text-sm font-medium">本地资源数</CardTitle>
                 <Server className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
@@ -837,30 +853,81 @@ export default function ResourcesPage() {
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">总CPU核心</CardTitle>
-                <Cpu className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">域内节点数</CardTitle>
+                <Network className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">
-                  {loading ? "加载中..." : capacity ? formatNumber(capacity.total.cpu) : "--"}
+                <div className="text-2xl font-bold text-purple-600">
+                  {discoveredNodes.filter((n) => n.status === "online").length + 1}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  已使用 {loading ? "--" : capacity ? formatNumber(capacity.used.cpu) : "--"} 核心
+                  已发现 {discoveredNodes.length} 个节点
                 </p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">总内存</CardTitle>
+                <CardTitle className="text-sm font-medium">域内总CPU核心</CardTitle>
+                <Cpu className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {(() => {
+                    if (loading) return "加载中..."
+                    // 计算本地资源
+                    const localCPU = capacity ? capacity.total.cpu : 0
+                    // 计算远程节点资源（CPU单位是millicores，需要转换为cores）
+                    const remoteCPU = discoveredNodes
+                      .filter((n) => n.status === "online" && n.cpu)
+                      .reduce((sum, n) => sum + (n.cpu?.total || 0) / 1000, 0)
+                    const totalCPU = localCPU + remoteCPU
+                    return formatNumber(totalCPU)
+                  })()}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  已使用 {(() => {
+                    if (loading) return "--"
+                    const localUsedCPU = capacity ? capacity.used.cpu : 0
+                    const remoteUsedCPU = discoveredNodes
+                      .filter((n) => n.status === "online" && n.cpu)
+                      .reduce((sum, n) => sum + (n.cpu?.used || 0) / 1000, 0)
+                    const totalUsedCPU = localUsedCPU + remoteUsedCPU
+                    return formatNumber(totalUsedCPU)
+                  })()} 核心
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">域内总内存</CardTitle>
                 <MemoryStick className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {loading ? "加载中..." : capacity ? formatMemory(capacity.total.memory) : "--"}
+                  {(() => {
+                    if (loading) return "加载中..."
+                    // 计算本地资源
+                    const localMemory = capacity ? capacity.total.memory : 0
+                    // 计算远程节点资源（内存单位是bytes）
+                    const remoteMemory = discoveredNodes
+                      .filter((n) => n.status === "online" && n.memory)
+                      .reduce((sum, n) => sum + (n.memory?.total || 0), 0)
+                    const totalMemory = localMemory + remoteMemory
+                    return formatMemory(totalMemory)
+                  })()}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  已使用 {loading ? "--" : capacity ? formatMemory(capacity.used.memory) : "--"}
+                  已使用 {(() => {
+                    if (loading) return "--"
+                    const localUsedMemory = capacity ? capacity.used.memory : 0
+                    const remoteUsedMemory = discoveredNodes
+                      .filter((n) => n.status === "online" && n.memory)
+                      .reduce((sum, n) => sum + (n.memory?.used || 0), 0)
+                    const totalUsedMemory = localUsedMemory + remoteUsedMemory
+                    return formatMemory(totalUsedMemory)
+                  })()}
                 </p>
               </CardContent>
             </Card>
@@ -990,7 +1057,7 @@ export default function ResourcesPage() {
                 </div>
                 <div className="flex items-center space-x-4">
                   <div className="text-sm text-muted-foreground">
-                    {resources.filter(r => r.category === 'remote_providers').length} 个资源
+                    {discoveredNodes.length} 个节点
                   </div>
                 </div>
               </div>
@@ -999,8 +1066,8 @@ export default function ResourcesPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-64">资源名称</TableHead>
-                    <TableHead className="w-20">类型</TableHead>
+                    <TableHead className="w-64">节点名称</TableHead>
+                    <TableHead className="w-32">地址</TableHead>
                     <TableHead className="w-20">状态</TableHead>
                     <TableHead className="w-32">CPU使用率</TableHead>
                     <TableHead className="w-32">内存使用率</TableHead>
@@ -1013,75 +1080,93 @@ export default function ResourcesPage() {
                     Array.from({ length: 1 }).map((_, index) => (
                       <ResourceTableSkeleton key={`remote-skeleton-${index}`} />
                     ))
-                  ) : resources.filter(r => r.category === 'remote_providers').length === 0 ? (
+                  ) : discoveredNodes.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                         暂无远程资源，系统将自动发现网络中节点提供的资源，点击上方"接入节点"按钮可以接入新节点到网络中
                       </TableCell>
                     </TableRow>
                   ) : (
-                    resources.filter(r => r.category === 'remote_providers').map((resource) => (
-                      <TableRow key={resource.id}>
-                        <TableCell className="w-64">
-                          <div className="flex items-center space-x-2">
-                            {getTypeIcon(resource.type)}
-                            <div>
-                              <div className="font-medium">{resource.name}</div>
-                              <div className="text-sm text-muted-foreground">{resource.host}:{resource.port}</div>
+                    discoveredNodes.map((node) => {
+                      // 计算 CPU 使用率（CPU 单位是 millicores，需要转换为 cores）
+                      const cpuTotal = node.cpu ? node.cpu.total / 1000 : 0
+                      const cpuUsed = node.cpu ? node.cpu.used / 1000 : 0
+                      const cpuUsage = cpuTotal > 0 ? Math.round((cpuUsed / cpuTotal) * 100) : 0
+                      
+                      // 计算内存使用率
+                      const memoryTotal = node.memory ? node.memory.total : 0
+                      const memoryUsed = node.memory ? node.memory.used : 0
+                      const memoryUsage = memoryTotal > 0 ? Math.round((memoryUsed / memoryTotal) * 100) : 0
+
+                      return (
+                        <TableRow key={node.node_id}>
+                          <TableCell className="w-64">
+                            <div className="flex items-center space-x-2">
+                              <Server className="h-4 w-4 text-purple-500" />
+                              <div>
+                                <div className="font-medium">{node.node_name}</div>
+                                <div className="text-xs text-muted-foreground font-mono">{node.node_id}</div>
+                              </div>
                             </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="w-20">
-                          <Badge variant="outline">
-                            {resource.type === "kubernetes" ? "K8s" : resource.type === "docker" ? "Docker" : "VM"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="w-20">{getStatusBadge(resource.status)}</TableCell>
-                        <TableCell className="w-32">
-                          <div className="flex items-center space-x-2">
-                            <div className="text-sm">
-                              {resource.cpu.total > 0
-                                ? `${Math.round((resource.cpu.used / resource.cpu.total) * 100)}%`
-                                : "0%"}
+                          </TableCell>
+                          <TableCell className="w-32">
+                            <div className="text-sm font-mono">{node.address}</div>
+                          </TableCell>
+                          <TableCell className="w-20">
+                            {node.status === "online" ? (
+                              <Badge variant="default" className="bg-green-500">在线</Badge>
+                            ) : node.status === "offline" ? (
+                              <Badge variant="secondary">离线</Badge>
+                            ) : (
+                              <Badge variant="destructive">错误</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="w-32">
+                            {node.cpu ? (
+                              <div className="flex items-center space-x-2">
+                                <div className="text-sm">
+                                  {cpuUsage}%
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {formatNumber(cpuUsed)}/{formatNumber(cpuTotal)} 核
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-sm text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="w-32">
+                            {node.memory ? (
+                              <div className="flex items-center space-x-2">
+                                <div className="text-sm">
+                                  {memoryUsage}%
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {formatMemory(memoryUsed)}/{formatMemory(memoryTotal)}
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-sm text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="w-40 text-xs text-muted-foreground">
+                            {formatDateTime(node.last_seen)}
+                          </TableCell>
+                          <TableCell className="w-32">
+                            <div className="flex items-center space-x-2">
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => fetchDiscoveredNodes()}
+                                title="刷新节点信息"
+                              >
+                                <RefreshCw className="h-4 w-4" />
+                              </Button>
                             </div>
-                            <div className="text-xs text-muted-foreground">
-                              {formatNumber(resource.cpu.used)}/{formatNumber(resource.cpu.total)} 核
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="w-32">
-                          <div className="flex items-center space-x-2">
-                            <div className="text-sm">
-                              {resource.memory.total > 0
-                                ? `${Math.round((resource.memory.used / resource.memory.total) * 100)}%`
-                                : "0%"}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {formatMemory(resource.memory.used)}/{formatMemory(resource.memory.total)}
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="w-40 text-xs text-muted-foreground">{formatDateTime(resource.lastUpdated)}</TableCell>
-                        <TableCell className="w-32">
-                          <div className="flex items-center space-x-2">
-                            <Button variant="ghost" size="sm" onClick={() => handleEdit(resource)}>
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleDelete(resource.id)}>
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              onClick={() => handleRefreshProvider(resource.id)}
-                              disabled={refreshingIds.has(resource.id)}
-                            >
-                              <RefreshCw className={`h-4 w-4 ${refreshingIds.has(resource.id) ? 'animate-spin' : ''}`} />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })
                   )}
                 </TableBody>
               </Table>
