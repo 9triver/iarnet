@@ -7,8 +7,6 @@ services:
       context: .
       dockerfile: Dockerfile
     volumes:
-      # 挂载宿主机的 Docker socket
-      - /var/run/docker.sock:/var/run/docker.sock
       # 挂载数据目录（持久化）
       - ./data:/app/data
       # 挂载工作空间目录

@@ -97,9 +97,9 @@ func (s *Server) QueryResources(ctx context.Context, req *discoverypb.ResourceQu
 	// 检查 TTL
 	if req.Ttl <= 0 || req.CurrentHops >= req.MaxHops {
 		return &discoverypb.ResourceQueryResponse{
-			QueryId:    req.QueryId,
-			Timestamp:  time.Now().UnixNano(),
-			IsFinal:    true,
+			QueryId:        req.QueryId,
+			Timestamp:      time.Now().UnixNano(),
+			IsFinal:        true,
 			AvailableNodes: []*discoverypb.PeerNodeInfo{},
 		}, nil
 	}
@@ -109,9 +109,9 @@ func (s *Server) QueryResources(ctx context.Context, req *discoverypb.ResourceQu
 	if req.RequesterDomainId != localNode.DomainID {
 		logrus.Debugf("Ignoring resource query from different domain: %s (local: %s)", req.RequesterDomainId, localNode.DomainID)
 		return &discoverypb.ResourceQueryResponse{
-			QueryId:    req.QueryId,
-			Timestamp:  time.Now().UnixNano(),
-			IsFinal:    true,
+			QueryId:        req.QueryId,
+			Timestamp:      time.Now().UnixNano(),
+			IsFinal:        true,
 			AvailableNodes: []*discoverypb.PeerNodeInfo{},
 		}, nil
 	}
@@ -143,12 +143,12 @@ func (s *Server) QueryResources(ctx context.Context, req *discoverypb.ResourceQu
 	}
 
 	return &discoverypb.ResourceQueryResponse{
-		QueryId:         req.QueryId,
-		ResponderNodeId: localNode.NodeID,
+		QueryId:          req.QueryId,
+		ResponderNodeId:  localNode.NodeID,
 		ResponderAddress: localNode.Address,
-		AvailableNodes:  protoNodes,
-		Timestamp:       time.Now().UnixNano(),
-		IsFinal:         req.Ttl <= 1 || req.CurrentHops >= req.MaxHops-1,
+		AvailableNodes:   protoNodes,
+		Timestamp:        time.Now().UnixNano(),
+		IsFinal:          req.Ttl <= 1 || req.CurrentHops >= req.MaxHops-1,
 	}, nil
 }
 
@@ -222,15 +222,16 @@ func convertPeerNodeToProto(node *discovery.PeerNode, gossipCount int) *discover
 	}
 
 	protoNode := &discoverypb.PeerNodeInfo{
-		NodeId:      node.NodeID,
-		NodeName:    node.NodeName,
-		Address:     node.Address,
-		DomainId:    node.DomainID,
-		Status:      convertNodeStatusToProto(node.Status),
-		LastSeen:    node.LastSeen.UnixNano(),
-		LastUpdated: node.LastUpdated.UnixNano(),
-		Version:     node.Version,
-		GossipCount: int32(gossipCount),
+		NodeId:           node.NodeID,
+		NodeName:         node.NodeName,
+		Address:          node.Address,
+		DomainId:         node.DomainID,
+		SchedulerAddress: node.SchedulerAddress,
+		Status:           convertNodeStatusToProto(node.Status),
+		LastSeen:         node.LastSeen.UnixNano(),
+		LastUpdated:      node.LastUpdated.UnixNano(),
+		Version:          node.Version,
+		GossipCount:      int32(gossipCount),
 	}
 
 	// 转换资源容量
@@ -279,15 +280,16 @@ func convertProtoToPeerNode(proto *discoverypb.PeerNodeInfo) *discovery.PeerNode
 	}
 
 	node := &discovery.PeerNode{
-		NodeID:      proto.NodeId,
-		NodeName:    proto.NodeName,
-		Address:     proto.Address,
-		DomainID:    proto.DomainId,
-		Status:      convertProtoToNodeStatus(proto.Status),
-		LastSeen:    time.Unix(0, proto.LastSeen),
-		LastUpdated: time.Unix(0, proto.LastUpdated),
-		Version:     proto.Version,
-		GossipCount: int(proto.GossipCount),
+		NodeID:           proto.NodeId,
+		NodeName:         proto.NodeName,
+		Address:          proto.Address,
+		DomainID:         proto.DomainId,
+		SchedulerAddress: proto.SchedulerAddress,
+		Status:           convertProtoToNodeStatus(proto.Status),
+		LastSeen:         time.Unix(0, proto.LastSeen),
+		LastUpdated:      time.Unix(0, proto.LastUpdated),
+		Version:          proto.Version,
+		GossipCount:      int(proto.GossipCount),
 	}
 
 	// 转换资源容量
@@ -356,4 +358,3 @@ func convertProtoToNodeStatus(status discoverypb.NodeStatus) discovery.NodeStatu
 		return discovery.NodeStatusUnknown
 	}
 }
-

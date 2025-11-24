@@ -78,10 +78,11 @@ type ResourceRequest struct {
 // 复用 global registry 的 Node 概念，但用于 peer-to-peer 发现
 type PeerNode struct {
 	// 节点标识（与 global registry 保持一致）
-	NodeID   string // 节点唯一标识符（持久化的 node_id）
-	NodeName string // 节点名称（来自配置 resource.name）
-	Address  string // 节点地址，格式：host:port（用于 gRPC 通信）
-	DomainID string // 所属域 ID（只发现同域节点）
+	NodeID           string // 节点唯一标识符（持久化的 node_id）
+	NodeName         string // 节点名称（来自配置 resource.name）
+	Address          string // 节点地址，格式：host:port（用于 gRPC 通信）
+	SchedulerAddress string // Scheduler RPC 地址，格式：host:port
+	DomainID         string // 所属域 ID（只发现同域节点）
 
 	// 资源信息（复用现有类型）
 	ResourceCapacity *types.Capacity // 资源容量（Total/Used/Available）
@@ -121,6 +122,7 @@ func (n *PeerNode) UpdateFrom(other *PeerNode) bool {
 	// 更新信息
 	n.NodeName = other.NodeName
 	n.Address = other.Address
+	n.SchedulerAddress = other.SchedulerAddress
 	n.DomainID = other.DomainID
 	// 资源信息：始终更新（包括 nil），因为这是节点当前的真实状态
 	// 如果节点资源信息从 nil 变为有值，说明节点恢复了资源，应该更新

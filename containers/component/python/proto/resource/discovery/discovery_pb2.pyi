@@ -51,11 +51,12 @@ class ResourceTags(_message.Message):
     def __init__(self, cpu: bool = ..., gpu: bool = ..., memory: bool = ..., camera: bool = ...) -> None: ...
 
 class PeerNodeInfo(_message.Message):
-    __slots__ = ("node_id", "node_name", "address", "domain_id", "resource_capacity", "resource_tags", "status", "last_seen", "last_updated", "version", "gossip_count")
+    __slots__ = ("node_id", "node_name", "address", "domain_id", "scheduler_address", "resource_capacity", "resource_tags", "status", "last_seen", "last_updated", "version", "gossip_count")
     NODE_ID_FIELD_NUMBER: _ClassVar[int]
     NODE_NAME_FIELD_NUMBER: _ClassVar[int]
     ADDRESS_FIELD_NUMBER: _ClassVar[int]
     DOMAIN_ID_FIELD_NUMBER: _ClassVar[int]
+    SCHEDULER_ADDRESS_FIELD_NUMBER: _ClassVar[int]
     RESOURCE_CAPACITY_FIELD_NUMBER: _ClassVar[int]
     RESOURCE_TAGS_FIELD_NUMBER: _ClassVar[int]
     STATUS_FIELD_NUMBER: _ClassVar[int]
@@ -67,6 +68,7 @@ class PeerNodeInfo(_message.Message):
     node_name: str
     address: str
     domain_id: str
+    scheduler_address: str
     resource_capacity: ResourceCapacity
     resource_tags: ResourceTags
     status: NodeStatus
@@ -74,7 +76,7 @@ class PeerNodeInfo(_message.Message):
     last_updated: int
     version: int
     gossip_count: int
-    def __init__(self, node_id: _Optional[str] = ..., node_name: _Optional[str] = ..., address: _Optional[str] = ..., domain_id: _Optional[str] = ..., resource_capacity: _Optional[_Union[ResourceCapacity, _Mapping]] = ..., resource_tags: _Optional[_Union[ResourceTags, _Mapping]] = ..., status: _Optional[_Union[NodeStatus, str]] = ..., last_seen: _Optional[int] = ..., last_updated: _Optional[int] = ..., version: _Optional[int] = ..., gossip_count: _Optional[int] = ...) -> None: ...
+    def __init__(self, node_id: _Optional[str] = ..., node_name: _Optional[str] = ..., address: _Optional[str] = ..., domain_id: _Optional[str] = ..., scheduler_address: _Optional[str] = ..., resource_capacity: _Optional[_Union[ResourceCapacity, _Mapping]] = ..., resource_tags: _Optional[_Union[ResourceTags, _Mapping]] = ..., status: _Optional[_Union[NodeStatus, str]] = ..., last_seen: _Optional[int] = ..., last_updated: _Optional[int] = ..., version: _Optional[int] = ..., gossip_count: _Optional[int] = ...) -> None: ...
 
 class NodeInfoGossipMessage(_message.Message):
     __slots__ = ("sender_node_id", "sender_address", "sender_domain_id", "nodes", "message_id", "timestamp", "ttl", "max_hops")

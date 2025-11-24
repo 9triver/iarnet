@@ -42,8 +42,9 @@ enum NodeStatus {
 message PeerNodeInfo {
     string node_id = 1;
     string node_name = 2;
-    string address = 3;           // host:port
+    string address = 3;           // discovery RPC host:port
     string domain_id = 4;
+    string scheduler_address = 12; // Scheduler RPC host:port
     
     ResourceCapacity resource_capacity = 5;
     ResourceTags resource_tags = 6;

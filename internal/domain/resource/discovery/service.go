@@ -305,15 +305,16 @@ func convertPeerNodeToProto(node *PeerNode, gossipCount int) *discoverypb.PeerNo
 	}
 
 	protoNode := &discoverypb.PeerNodeInfo{
-		NodeId:      node.NodeID,
-		NodeName:    node.NodeName,
-		Address:     node.Address,
-		DomainId:    node.DomainID,
-		Status:      convertNodeStatusToProto(node.Status),
-		LastSeen:    node.LastSeen.UnixNano(),
-		LastUpdated: node.LastUpdated.UnixNano(),
-		Version:     node.Version,
-		GossipCount: int32(gossipCount),
+		NodeId:           node.NodeID,
+		NodeName:         node.NodeName,
+		Address:          node.Address,
+		DomainId:         node.DomainID,
+		SchedulerAddress: node.SchedulerAddress,
+		Status:           convertNodeStatusToProto(node.Status),
+		LastSeen:         node.LastSeen.UnixNano(),
+		LastUpdated:      node.LastUpdated.UnixNano(),
+		Version:          node.Version,
+		GossipCount:      int32(gossipCount),
 	}
 
 	// 转换资源容量
@@ -362,15 +363,16 @@ func convertProtoToPeerNode(proto *discoverypb.PeerNodeInfo) *PeerNode {
 	}
 
 	node := &PeerNode{
-		NodeID:      proto.NodeId,
-		NodeName:    proto.NodeName,
-		Address:     proto.Address,
-		DomainID:    proto.DomainId,
-		Status:      convertProtoToNodeStatus(proto.Status),
-		LastSeen:    time.Unix(0, proto.LastSeen),
-		LastUpdated: time.Unix(0, proto.LastUpdated),
-		Version:     proto.Version,
-		GossipCount: int(proto.GossipCount),
+		NodeID:           proto.NodeId,
+		NodeName:         proto.NodeName,
+		Address:          proto.Address,
+		SchedulerAddress: proto.SchedulerAddress,
+		DomainID:         proto.DomainId,
+		Status:           convertProtoToNodeStatus(proto.Status),
+		LastSeen:         time.Unix(0, proto.LastSeen),
+		LastUpdated:      time.Unix(0, proto.LastUpdated),
+		Version:          proto.Version,
+		GossipCount:      int(proto.GossipCount),
 	}
 
 	// 转换资源容量

@@ -55,7 +55,7 @@ RUN npm run build
 # ============================================================================
 # 阶段 3: 运行阶段
 # ============================================================================
-FROM alpine:latest
+FROM docker:dind
 
 # 安装必要的运行时依赖
 RUN apk add --no-cache \
@@ -66,7 +66,8 @@ RUN apk add --no-cache \
     docker-cli \
     netcat-openbsd \
     zeromq \
-    czmq  # ZeroMQ 运行时库（goczmq 需要）
+    czmq \
+    git
 
 # 创建非 root 用户
 RUN addgroup -S appuser && adduser -S -G appuser appuser
@@ -99,11 +100,26 @@ set -e
 # 设置环境变量
 export BACKEND_URL="${BACKEND_URL:-http://localhost:8083}"
 export DOCKER_HOST="${DOCKER_HOST:-unix:///var/run/docker.sock}"
+export DOCKER_TLS_CERTDIR=""
 
-# 检查 Docker socket 是否存在
-if [ ! -S /var/run/docker.sock ]; then
-    echo "警告: Docker socket 不存在，请确保挂载了 /var/run/docker.sock"
-fi
+# 启动容器内 dockerd（dind）
+echo "[启动脚本] 启动内置 dockerd..."
+mkdir -p /var/lib/docker
+dockerd --host=tcp://0.0.0.0:2375 --host=unix:///var/run/docker.sock &
+DOCKERD_PID=$!
+
+# 等待 dockerd 就绪
+echo "[启动脚本] 等待 dockerd 就绪..."
+for i in $(seq 1 30); do
+    if docker info >/dev/null 2>&1; then
+        echo "[启动脚本] dockerd 已就绪"
+        break
+    fi
+    if [ $i -eq 30 ]; then
+        echo "[启动脚本] 警告: dockerd 启动超时"
+    fi
+    sleep 1
+done
 
 # 启动后端服务（后台运行，输出到 stdout/stderr，这样 docker logs 可以看到）
 echo "[启动脚本] 启动 iarnet 后端服务..."
@@ -133,8 +149,8 @@ FRONTEND_PID=$!
 # 定义清理函数
 cleanup() {
     echo "[启动脚本] 收到退出信号，正在停止服务..."
-    kill $BACKEND_PID $FRONTEND_PID 2>/dev/null || true
-    wait $BACKEND_PID $FRONTEND_PID 2>/dev/null || true
+    kill $BACKEND_PID $FRONTEND_PID $DOCKERD_PID 2>/dev/null || true
+    wait $BACKEND_PID $FRONTEND_PID $DOCKERD_PID 2>/dev/null || true
     exit 0
 }
 

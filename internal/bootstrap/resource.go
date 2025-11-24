@@ -99,6 +99,12 @@ func bootstrapResource(iarnet *Iarnet) error {
 		}
 		nodeAddr := fmt.Sprintf("%s:%d", host, discoveryPort)
 
+		schedulerPort := iarnet.Config.Transport.RPC.Scheduler.Port
+		if schedulerPort == 0 {
+			schedulerPort = 50006
+		}
+		schedulerAddr := fmt.Sprintf("%s:%d", host, schedulerPort)
+
 		// 创建节点发现管理器
 		gossipInterval := time.Duration(iarnet.Config.Resource.Discovery.GossipIntervalSeconds) * time.Second
 		nodeTTL := time.Duration(iarnet.Config.Resource.Discovery.NodeTTLSeconds) * time.Second
@@ -107,6 +113,7 @@ func bootstrapResource(iarnet *Iarnet) error {
 			nodeID,
 			nodeName,
 			nodeAddr,
+			schedulerAddr,
 			domainID,
 			iarnet.Config.InitialPeers,
 			gossipInterval,

@@ -270,8 +270,9 @@ type PeerNodeInfo struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	NodeId           string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
 	NodeName         string                 `protobuf:"bytes,2,opt,name=node_name,json=nodeName,proto3" json:"node_name,omitempty"`
-	Address          string                 `protobuf:"bytes,3,opt,name=address,proto3" json:"address,omitempty"` // host:port
+	Address          string                 `protobuf:"bytes,3,opt,name=address,proto3" json:"address,omitempty"` // discovery RPC host:port
 	DomainId         string                 `protobuf:"bytes,4,opt,name=domain_id,json=domainId,proto3" json:"domain_id,omitempty"`
+	SchedulerAddress string                 `protobuf:"bytes,12,opt,name=scheduler_address,json=schedulerAddress,proto3" json:"scheduler_address,omitempty"` // Scheduler RPC host:port
 	ResourceCapacity *ResourceCapacity      `protobuf:"bytes,5,opt,name=resource_capacity,json=resourceCapacity,proto3" json:"resource_capacity,omitempty"`
 	ResourceTags     *ResourceTags          `protobuf:"bytes,6,opt,name=resource_tags,json=resourceTags,proto3" json:"resource_tags,omitempty"`
 	Status           NodeStatus             `protobuf:"varint,7,opt,name=status,proto3,enum=discovery.NodeStatus" json:"status,omitempty"`
@@ -338,6 +339,13 @@ func (x *PeerNodeInfo) GetAddress() string {
 func (x *PeerNodeInfo) GetDomainId() string {
 	if x != nil {
 		return x.DomainId
+	}
+	return ""
+}
+
+func (x *PeerNodeInfo) GetSchedulerAddress() string {
+	if x != nil {
+		return x.SchedulerAddress
 	}
 	return ""
 }
@@ -1056,12 +1064,13 @@ const file_resource_discovery_discovery_proto_rawDesc = "" +
 	"\x03cpu\x18\x01 \x01(\bR\x03cpu\x12\x10\n" +
 	"\x03gpu\x18\x02 \x01(\bR\x03gpu\x12\x16\n" +
 	"\x06memory\x18\x03 \x01(\bR\x06memory\x12\x16\n" +
-	"\x06camera\x18\x04 \x01(\bR\x06camera\"\xaf\x03\n" +
+	"\x06camera\x18\x04 \x01(\bR\x06camera\"\xdc\x03\n" +
 	"\fPeerNodeInfo\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x1b\n" +
 	"\tnode_name\x18\x02 \x01(\tR\bnodeName\x12\x18\n" +
 	"\aaddress\x18\x03 \x01(\tR\aaddress\x12\x1b\n" +
-	"\tdomain_id\x18\x04 \x01(\tR\bdomainId\x12H\n" +
+	"\tdomain_id\x18\x04 \x01(\tR\bdomainId\x12+\n" +
+	"\x11scheduler_address\x18\f \x01(\tR\x10schedulerAddress\x12H\n" +
 	"\x11resource_capacity\x18\x05 \x01(\v2\x1b.discovery.ResourceCapacityR\x10resourceCapacity\x12<\n" +
 	"\rresource_tags\x18\x06 \x01(\v2\x17.discovery.ResourceTagsR\fresourceTags\x12-\n" +
 	"\x06status\x18\a \x01(\x0e2\x15.discovery.NodeStatusR\x06status\x12\x1b\n" +

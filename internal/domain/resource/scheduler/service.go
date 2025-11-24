@@ -154,7 +154,18 @@ func (s *service) deployRemotely(ctx context.Context, req *DeployRequest) (*Depl
 			}, nil
 		}
 
-		targetAddress = targetNode.Address
+		if targetNode.SchedulerAddress != "" {
+			targetAddress = targetNode.SchedulerAddress
+		} else {
+			targetAddress = targetNode.Address
+		}
+	}
+
+	if targetAddress == "" {
+		return &DeployResponse{
+			Success: false,
+			Error:   "target address is empty",
+		}, nil
 	}
 
 	// 连接到远程节点的 scheduler RPC 服务

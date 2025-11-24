@@ -557,10 +557,16 @@ func (m *Manager) delegateToPeerNodes(ctx context.Context, runtimeEnv types.Runt
 	}
 
 	for _, node := range nodes {
+		targetAddr := node.SchedulerAddress
+		if targetAddr == "" {
+			targetAddr = node.Address
+		}
+
 		resp, deployErr := m.schedulerService.DeployComponent(ctx, &scheduler.DeployRequest{
 			RuntimeEnv:      runtimeEnv,
 			ResourceRequest: resourceRequest,
 			TargetNodeID:    node.NodeID,
+			TargetAddress:   targetAddr,
 		})
 		if deployErr != nil {
 			logrus.Warnf("Failed to delegate deployment to node %s (%s): %v", node.NodeName, node.NodeID, deployErr)

@@ -55,21 +55,23 @@ func NewNodeDiscoveryManager(
 	localNodeID string,
 	localNodeName string,
 	localAddress string,
+	localSchedulerAddress string,
 	domainID string,
 	initialPeers []string,
 	gossipInterval time.Duration,
 	nodeTTL time.Duration,
 ) *NodeDiscoveryManager {
 	localNode := &PeerNode{
-		NodeID:       localNodeID,
-		NodeName:     localNodeName,
-		Address:      localAddress,
-		DomainID:     domainID,
-		Status:       NodeStatusOnline,
-		DiscoveredAt: time.Now(),
-		LastSeen:     time.Now(),
-		LastUpdated:  time.Now(),
-		Version:      1,
+		NodeID:           localNodeID,
+		NodeName:         localNodeName,
+		Address:          localAddress,
+		SchedulerAddress: localSchedulerAddress,
+		DomainID:         domainID,
+		Status:           NodeStatusOnline,
+		DiscoveredAt:     time.Now(),
+		LastSeen:         time.Now(),
+		LastUpdated:      time.Now(),
+		Version:          1,
 	}
 
 	peerAddresses := make(map[string]struct{})
@@ -511,17 +513,18 @@ func (m *NodeDiscoveryManager) copyPeerNode(node *PeerNode) *PeerNode {
 	}
 
 	copy := &PeerNode{
-		NodeID:       node.NodeID,
-		NodeName:     node.NodeName,
-		Address:      node.Address,
-		DomainID:     node.DomainID,
-		Status:       node.Status,
-		LastSeen:     node.LastSeen,
-		LastUpdated:  node.LastUpdated,
-		DiscoveredAt: node.DiscoveredAt,
-		SourcePeer:   node.SourcePeer,
-		Version:      node.Version,
-		GossipCount:  node.GossipCount,
+		NodeID:           node.NodeID,
+		NodeName:         node.NodeName,
+		Address:          node.Address,
+		SchedulerAddress: node.SchedulerAddress,
+		DomainID:         node.DomainID,
+		Status:           node.Status,
+		LastSeen:         node.LastSeen,
+		LastUpdated:      node.LastUpdated,
+		DiscoveredAt:     node.DiscoveredAt,
+		SourcePeer:       node.SourcePeer,
+		Version:          node.Version,
+		GossipCount:      node.GossipCount,
 	}
 
 	// 复制资源容量
