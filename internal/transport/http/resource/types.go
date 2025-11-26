@@ -3,6 +3,7 @@ package resource
 import (
 	"time"
 
+	"github.com/9triver/iarnet/internal/domain/resource/provider"
 	"github.com/9triver/iarnet/internal/domain/resource/types"
 )
 
@@ -57,13 +58,14 @@ type GetResourceProvidersResponse struct {
 
 // ProviderItem 提供者列表项
 type ProviderItem struct {
-	ID             string    `json:"id"`               // 提供者 ID
-	Name           string    `json:"name"`             // 提供者名称
-	Type           string    `json:"type"`             // 提供者类型
-	Host           string    `json:"host"`             // 主机地址
-	Port           int       `json:"port"`             // 端口
-	Status         string    `json:"status"`           // 状态 (connected/disconnected)
-	LastUpdateTime time.Time `json:"last_update_time"` // 最后更新时间
+	ID             string            `json:"id"`                      // 提供者 ID
+	Name           string            `json:"name"`                    // 提供者名称
+	Type           string            `json:"type"`                    // 提供者类型
+	Host           string            `json:"host"`                    // 主机地址
+	Port           int               `json:"port"`                    // 端口
+	Status         string            `json:"status"`                  // 状态 (connected/disconnected)
+	LastUpdateTime time.Time         `json:"last_update_time"`        // 最后更新时间
+	ResourceTags   *ResourceTagsInfo `json:"resource_tags,omitempty"` // 资源标签
 }
 
 // FromProvider 从领域层 Provider 转换为 ProviderItem
@@ -75,6 +77,7 @@ func (p *ProviderItem) FromProvider(provider interface {
 	GetPort() int
 	GetStatus() types.ProviderStatus
 	GetLastUpdateTime() time.Time
+	GetResourceTags() *provider.ResourceTags
 }) *ProviderItem {
 	p.ID = provider.GetID()
 	p.Name = provider.GetName()
@@ -83,6 +86,7 @@ func (p *ProviderItem) FromProvider(provider interface {
 	p.Port = provider.GetPort()
 	p.Status = providerStatusToString(provider.GetStatus())
 	p.LastUpdateTime = provider.GetLastUpdateTime()
+	p.ResourceTags = resourceTagsToInfo(provider.GetResourceTags())
 	return p
 }
 
@@ -150,13 +154,14 @@ type TestResourceProviderResponse struct {
 
 // GetResourceProviderInfoResponse 获取资源提供者信息响应
 type GetResourceProviderInfoResponse struct {
-	ID             string    `json:"id"`               // 提供者 ID
-	Name           string    `json:"name"`             // 提供者名称
-	Type           string    `json:"type"`             // 提供者类型
-	Host           string    `json:"host"`             // 主机地址
-	Port           int       `json:"port"`             // 端口
-	Status         string    `json:"status"`           // 状态 (connected/disconnected/unknown)
-	LastUpdateTime time.Time `json:"last_update_time"` // 最后更新时间
+	ID             string            `json:"id"`                      // 提供者 ID
+	Name           string            `json:"name"`                    // 提供者名称
+	Type           string            `json:"type"`                    // 提供者类型
+	Host           string            `json:"host"`                    // 主机地址
+	Port           int               `json:"port"`                    // 端口
+	Status         string            `json:"status"`                  // 状态 (connected/disconnected/unknown)
+	LastUpdateTime time.Time         `json:"last_update_time"`        // 最后更新时间
+	ResourceTags   *ResourceTagsInfo `json:"resource_tags,omitempty"` // 资源标签
 }
 
 // FromProvider 从领域层 Provider 转换为 GetResourceProviderInfoResponse
@@ -168,6 +173,7 @@ func (r *GetResourceProviderInfoResponse) FromProvider(provider interface {
 	GetPort() int
 	GetStatus() types.ProviderStatus
 	GetLastUpdateTime() time.Time
+	GetResourceTags() *provider.ResourceTags
 }) *GetResourceProviderInfoResponse {
 	r.ID = provider.GetID()
 	r.Name = provider.GetName()
@@ -176,6 +182,7 @@ func (r *GetResourceProviderInfoResponse) FromProvider(provider interface {
 	r.Port = provider.GetPort()
 	r.Status = providerStatusToString(provider.GetStatus())
 	r.LastUpdateTime = provider.GetLastUpdateTime()
+	r.ResourceTags = resourceTagsToInfo(provider.GetResourceTags())
 	return r
 }
 
@@ -213,4 +220,16 @@ func (r *GetResourceProviderCapacityResponse) FromCapacity(capacity *types.Capac
 		}
 	}
 	return r
+}
+
+func resourceTagsToInfo(tags *provider.ResourceTags) *ResourceTagsInfo {
+	if tags == nil {
+		return nil
+	}
+	return &ResourceTagsInfo{
+		CPU:    tags.CPU,
+		GPU:    tags.GPU,
+		Memory: tags.Memory,
+		Camera: tags.Camera,
+	}
 }

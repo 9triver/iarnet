@@ -3,6 +3,7 @@ package workspace
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -31,7 +32,20 @@ func (w *Workspace) GetDir() string {
 }
 
 // CloneRepository 克隆 Git 仓库到工作空间
+const (
+	testRepoURL = "test.test"
+	testRepoDir = "testrepo"
+)
+
+// CloneRepository 克隆 Git 仓库到工作空间
 func (w *Workspace) CloneRepository(gitURL, branch string) error {
+	if gitURL == testRepoURL {
+		return w.cloneFromTestRepo()
+	}
+	return w.cloneFromGit(gitURL, branch)
+}
+
+func (w *Workspace) cloneFromGit(gitURL, branch string) error {
 	// 执行 git clone
 	cmd := exec.Command("git", "clone", "-b", branch, "--single-branch", gitURL, w.dir)
 	cmd.Stdout = os.Stdout
@@ -43,6 +57,82 @@ func (w *Workspace) CloneRepository(gitURL, branch string) error {
 	}
 
 	logrus.Infof("Successfully cloned repository to %s", w.dir)
+	return nil
+}
+
+func (w *Workspace) cloneFromTestRepo() error {
+	sourceDir, err := filepath.Abs(testRepoDir)
+	if err != nil {
+		return fmt.Errorf("failed to resolve test repo path: %w", err)
+	}
+
+	if _, err := os.Stat(sourceDir); err != nil {
+		return fmt.Errorf("test repo template not found: %w", err)
+	}
+
+	if err := os.RemoveAll(w.dir); err != nil {
+		return fmt.Errorf("failed to clean workspace directory: %w", err)
+	}
+
+	if err := os.MkdirAll(w.dir, 0755); err != nil {
+		return fmt.Errorf("failed to create workspace directory: %w", err)
+	}
+
+	if err := copyDirContents(sourceDir, w.dir); err != nil {
+		return fmt.Errorf("failed to copy test repo to workspace: %w", err)
+	}
+
+	logrus.Infof("Copied test repo template from %s to %s", sourceDir, w.dir)
+	return nil
+}
+
+func copyDirContents(src, dst string) error {
+	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		relPath, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+
+		if relPath == "." {
+			// 跳过根目录，避免创建嵌套目录
+			return nil
+		}
+
+		targetPath := filepath.Join(dst, relPath)
+
+		if info.IsDir() {
+			return os.MkdirAll(targetPath, info.Mode())
+		}
+
+		if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+			return err
+		}
+
+		return copyFile(path, targetPath, info.Mode())
+	})
+}
+
+func copyFile(src, dst string, perm os.FileMode) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, perm)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	if _, err := io.Copy(out, in); err != nil {
+		return err
+	}
+
 	return nil
 }
 

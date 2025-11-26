@@ -12,6 +12,7 @@ import type {
   TestResourceProviderResponse,
   DiscoveredNodeItem,
   GetNodeInfoResponse,
+  ResourceTagsInfo,
 } from "@/lib/model"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -55,6 +56,7 @@ interface Resource {
     used: number
   }
   lastUpdated: string
+  resourceTags?: ResourceTagsInfo
 }
 
 
@@ -235,6 +237,7 @@ export default function ResourcesPage() {
           cpu,
           memory,
           lastUpdated: provider.last_update_time,
+          resourceTags: provider.resource_tags,
         }
       }
       
@@ -397,6 +400,7 @@ export default function ResourcesPage() {
           used: capacity.used.memory,
         },
         lastUpdated: providerInfo.last_update_time,
+        resourceTags: providerInfo.resource_tags,
       }
       
       // 更新 resources 状态中对应的 provider
@@ -483,6 +487,30 @@ export default function ResourcesPage() {
     }
   }
 
+  const renderResourceTags = (tags?: ResourceTagsInfo) => {
+    const tagMap: { key: keyof ResourceTagsInfo; label: string }[] = [
+      { key: "cpu", label: "CPU" },
+      { key: "gpu", label: "GPU" },
+      { key: "memory", label: "Memory" },
+      { key: "camera", label: "Camera" },
+    ]
+
+    if (!tags) {
+      return <span className="text-xs text-muted-foreground">-</span>
+    }
+
+    const activeTags = tagMap.filter(tag => tags[tag.key])
+    if (activeTags.length === 0) {
+      return <span className="text-xs text-muted-foreground">-</span>
+    }
+
+    return activeTags.map(tag => (
+      <Badge key={tag.key} variant="outline" className="text-xs">
+        {tag.label}
+      </Badge>
+    ))
+  }
+
   // 骨架行组件
   const ResourceTableSkeleton = () => (
     <TableRow>
@@ -500,6 +528,12 @@ export default function ResourcesPage() {
       </TableCell>
       <TableCell className="w-20">
         <Skeleton className="h-6 w-16 bg-gray-200 dark:bg-gray-700" />
+      </TableCell>
+      <TableCell className="w-32">
+        <div className="flex items-center space-x-2">
+          <Skeleton className="h-4 w-10 bg-gray-200 dark:bg-gray-700" />
+          <Skeleton className="h-4 w-10 bg-gray-200 dark:bg-gray-700" />
+        </div>
       </TableCell>
       <TableCell className="w-32">
         <div className="flex items-center space-x-2">
@@ -1006,13 +1040,14 @@ export default function ResourcesPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-64">资源名称</TableHead>
-                    <TableHead className="w-20">类型</TableHead>
-                    <TableHead className="w-20">状态</TableHead>
-                    <TableHead className="w-32">CPU使用率</TableHead>
-                    <TableHead className="w-32">内存使用率</TableHead>
-                    <TableHead className="w-40">最后更新</TableHead>
-                    <TableHead className="w-32">操作</TableHead>
+                  <TableHead className="w-64">资源名称</TableHead>
+                  <TableHead className="w-20">类型</TableHead>
+                  <TableHead className="w-20">状态</TableHead>
+                  <TableHead className="w-32">资源标签</TableHead>
+                  <TableHead className="w-32">CPU使用率</TableHead>
+                  <TableHead className="w-32">内存使用率</TableHead>
+                  <TableHead className="w-40">最后更新</TableHead>
+                  <TableHead className="w-32">操作</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1022,7 +1057,7 @@ export default function ResourcesPage() {
                     ))
                   ) : resources.filter(r => r.category === 'local_providers').length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                         暂无本地资源，点击上方"接入资源"按钮开始配置
                       </TableCell>
                     </TableRow>
@@ -1044,6 +1079,11 @@ export default function ResourcesPage() {
                           </Badge>
                         </TableCell>
                         <TableCell className="w-20">{getStatusBadge(resource.status)}</TableCell>
+                        <TableCell className="w-32">
+                          <div className="flex flex-wrap gap-1">
+                            {renderResourceTags(resource.resourceTags)}
+                          </div>
+                        </TableCell>
                         <TableCell className="w-32">
                           <div className="flex items-center space-x-2">
                             <div className="text-sm">

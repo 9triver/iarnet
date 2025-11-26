@@ -31,6 +31,7 @@ export interface ProviderItem {
   port: number  // 端口
   status: string // 状态 (connected/disconnected/unknown)
   last_update_time: string // 最后更新时间（ISO 8601 格式）
+  resource_tags?: ResourceTagsInfo // 资源标签
 }
 
 // GetResourceProvidersResponse 获取资源提供者列表响应
@@ -67,6 +68,7 @@ export interface GetResourceProviderInfoResponse {
   port: number  // 端口
   status: string // 状态 (connected/disconnected/unknown)
   last_update_time: string // 最后更新时间（ISO 8601 格式）
+  resource_tags?: ResourceTagsInfo // 资源标签
 }
 
 // GetResourceProviderCapacityResponse 获取资源提供者容量响应

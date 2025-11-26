@@ -178,6 +178,17 @@ func (s *service) QueryResources(ctx context.Context, resourceRequest *types.Inf
 		GPU:    resourceRequest.GPU,
 	}
 
+	if requiredTags != nil {
+		logrus.WithFields(logrus.Fields{
+			"cpu":    requiredTags.CPU,
+			"gpu":    requiredTags.GPU,
+			"memory": requiredTags.Memory,
+			"camera": requiredTags.Camera,
+		}).Info("QueryResources with required tags")
+	} else {
+		logrus.Info("QueryResources without required tags")
+	}
+
 	// 先从本地已知节点查找
 	availableNodes := s.manager.FindAvailableNodes(req, requiredTags)
 	if len(availableNodes) > 0 {
