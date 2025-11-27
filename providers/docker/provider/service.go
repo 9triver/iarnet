@@ -247,8 +247,8 @@ func (s *Service) GetAllocated(ctx context.Context) (*resourcepb.Info, error) {
 		} else {
 			// If no CPU limit is set, assume the container can use all available CPUs
 			// For now, we'll count it as 1000 millicores (1 CPU core) per container without limits
-			cpuAlloc = 1000
-			logrus.Infof("Container %s: No CPU limit set, assuming %d millicores", containerName, cpuAlloc)
+			cpuAlloc = 0
+			// logrus.Infof("Container %s: No CPU limit set, assuming %d millicores", containerName, cpuAlloc)
 		}
 		totalCPU += cpuAlloc
 
@@ -260,8 +260,8 @@ func (s *Service) GetAllocated(ctx context.Context) (*resourcepb.Info, error) {
 		} else {
 			// If no memory limit is set, assume the container can use a default amount
 			// For now, we'll count it as 2GB per container without limits
-			memAlloc = 1024 * 1024 * 128 // 128MB
-			logrus.Infof("Container %s: No memory limit set, assuming %d Bytes", containerName, memAlloc)
+			memAlloc = 0 // 1024 * 1024 * 128 // 128MB
+			// logrus.Infof("Container %s: No memory limit set, assuming %d Bytes", containerName, memAlloc)
 		}
 		totalMemory += memAlloc
 
