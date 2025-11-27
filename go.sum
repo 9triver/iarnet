@@ -1,5 +1,3 @@
-github.com/9triver/iarnet/providers/docker v0.0.0-20251126062709-64b62ab00a26 h1:4XxG1sP1dyPVY8PaKSkEeJ5H4R4O5jHIlz5x135N0+0=
-github.com/9triver/iarnet/providers/docker v0.0.0-20251126062709-64b62ab00a26/go.mod h1:w7ncyJ9p74iGrTxZD+mBY8W2HtjBctZ1bg87XHd8vrw=
 github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERoyfY=
 github.com/Microsoft/go-winio v0.6.2/go.mod h1:yd8OoFMLzJbo9gZq8j5qaps8bJ9aShtEA8Ipt1oGCvU=
 github.com/Workiva/go-datastructures v1.1.5 h1:5YfhQ4ry7bZc2Mc7R0YZyYwpf5c6t1cEFvdAhd6Mkf4=

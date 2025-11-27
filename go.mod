@@ -2,8 +2,10 @@ module github.com/9triver/iarnet
 
 go 1.25.0
 
+replace github.com/9triver/iarnet/providers/docker => ./providers/docker
+
 require (
-	github.com/9triver/iarnet/providers/docker v0.0.0-20251126062709-64b62ab00a26
+	github.com/9triver/iarnet/providers/docker v0.0.0-00010101000000-000000000000
 	github.com/asynkron/protoactor-go v0.0.0-20240822202345-3c0e61ca19c9
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674

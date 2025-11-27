@@ -15,32 +15,44 @@
 
 本测试用例主要验证 Docker provider 的资源态势感知能力，包括：
 
-1. **资源容量感知** (`GetCapacity`)
+1. **Provider 注册** (`Connect`)
+   - 接入 Docker provider 时必须首先调用 Connect 进行注册
+   - ProviderId 不能为空
+   - 注册成功后才能进行其他操作
+
+2. **资源容量感知** (`GetCapacity`)
    - 总资源容量（CPU、内存、GPU）
    - 已使用资源
    - 可用资源
    - 容量计算的正确性
+   - **注意**：必须先调用 Connect 注册，且 ProviderId 不能为空
 
-2. **可用资源感知** (`GetAvailable`)
+3. **可用资源感知** (`GetAvailable`)
    - 实时可用资源查询
    - 资源可用性验证
+   - **注意**：必须先调用 Connect 注册，且 ProviderId 不能为空
 
-3. **已分配资源感知** (`GetAllocated`)
+4. **已分配资源感知** (`GetAllocated`)
    - 当前已分配的资源统计
    - 资源分配准确性
 
-4. **健康检查中的资源态势** (`HealthCheck`)
+5. **健康检查中的资源态势** (`HealthCheck`)
    - 健康检查接口返回的资源容量信息
    - 资源标签信息
    - 资源态势的完整性
+   - **注意**：必须先调用 Connect 注册，且 ProviderId 不能为空
 
-5. **资源态势一致性**
+6. **资源态势一致性**
    - 不同接口返回的资源信息一致性
    - 资源计算的准确性
 
-6. **资源态势实时性**
+7. **资源态势实时性**
    - 资源状态的实时更新能力
    - 接口调用的实时性
+
+8. **鉴权验证**
+   - 错误的 ProviderId 应该被拒绝
+   - 空的 ProviderId 应该被拒绝
 
 ## 测试环境要求
 
@@ -94,16 +106,16 @@ go test -v -short
 
 ### TestDockerProvider_ResourceSituationAwareness
 
-主要的资源态势感知测试，包括以下子测试：
+主要的资源态势感知测试，**所有测试都会在开始时先调用 Connect 注册 provider**，包括以下子测试：
 
 1. **GetCapacity - 获取资源容量信息**
-   - 测试未连接状态下获取容量（应该允许）
+   - 测试连接状态下获取容量（必须先注册）
    - 验证容量信息的完整性（Total、Used、Available）
    - 验证容量计算的正确性
    - 验证资源约束（已使用不超过总资源，可用资源不为负）
 
 2. **GetAvailable - 获取可用资源信息**
-   - 测试未连接状态下获取可用资源（应该允许）
+   - 测试连接状态下获取可用资源（必须先注册）
    - 验证可用资源不为负数
 
 3. **GetAllocated - 获取已分配资源信息**
@@ -111,7 +123,7 @@ go test -v -short
    - 验证已分配资源不为负数
 
 4. **HealthCheck - 健康检查包含资源态势信息**
-   - 测试连接后的健康检查
+   - 测试连接后的健康检查（provider 已在测试开始时注册）
    - 验证健康检查返回的资源容量信息
    - 验证资源标签信息
    - 验证容量计算的正确性
@@ -137,6 +149,14 @@ go test -v -short
 3. **GetCapacity with wrong ProviderID should fail**
    - 测试使用错误的 ProviderID 应该失败
    - 验证鉴权机制
+
+4. **GetCapacity with empty ProviderID should fail**
+   - 测试使用空的 ProviderID 应该失败
+   - 验证 ProviderId 不能为空的约束
+
+5. **GetAvailable with empty ProviderID should fail**
+   - 测试使用空的 ProviderID 应该失败
+   - 验证 ProviderId 不能为空的约束
 
 ## 预期结果
 
@@ -168,10 +188,18 @@ go test -v -short
 
 ## 注意事项
 
-1. 测试需要实际的 Docker 环境，不能使用 mock
-2. 测试可能会受到当前系统资源使用情况的影响
-3. 某些测试可能需要等待一小段时间以确保实时性
-4. 测试会自动清理资源，但建议在测试前后检查 Docker 容器状态
+1. **Provider 注册要求**
+   - 所有测试都会在开始时先调用 `Connect` 注册 provider
+   - ProviderId 不能为空，必须提供有效的 ProviderId
+   - 必须先注册才能调用其他接口（GetCapacity、GetAvailable、HealthCheck 等）
+
+2. 测试需要实际的 Docker 环境，不能使用 mock
+
+3. 测试可能会受到当前系统资源使用情况的影响
+
+4. 某些测试可能需要等待一小段时间以确保实时性
+
+5. 测试会自动清理资源，但建议在测试前后检查 Docker 容器状态
 
 ## 相关文档
 
