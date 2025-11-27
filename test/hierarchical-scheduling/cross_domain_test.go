@@ -1,0 +1,360 @@
+package hierarchical_scheduling
+
+import (
+	"errors"
+	"fmt"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/9triver/iarnet/internal/domain/resource/discovery"
+	"github.com/9triver/iarnet/internal/domain/resource/types"
+	testutil "github.com/9triver/iarnet/test/util"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// crossDomainScheduler 模拟分级调度中的跨域调度流程。
+// 说明：部分功能在主工程中尚未完全实现，这里通过 mock 方式提前验证调度策略。
+type crossDomainScheduler struct {
+	localExecutor  func(req *types.Info) (string, error)
+	peerSelector   func(req *types.Info) ([]*discovery.PeerNode, error)
+	peerExecutor   func(node *discovery.PeerNode, req *types.Info) (string, error)
+	globalExecutor func(req *types.Info) (string, error)
+	nodeTTL        time.Duration
+}
+
+type schedulingResult struct {
+	Path   string
+	NodeID string
+}
+
+func (d *crossDomainScheduler) schedule(req *types.Info) (schedulingResult, error) {
+	if req == nil {
+		return schedulingResult{}, fmt.Errorf("resource request is required")
+	}
+
+	// Step 1: 本地部署
+	if d.localExecutor != nil {
+		if providerID, err := d.localExecutor(req); err == nil {
+			return schedulingResult{Path: "local", NodeID: providerID}, nil
+		} else if !shouldEscalate(err) {
+			return schedulingResult{}, err
+		}
+	}
+
+	// Step 2: 跨域调度（域内 peers）
+	if d.peerSelector != nil && d.peerExecutor != nil {
+		nodes, err := d.peerSelector(req)
+		if err == nil && len(nodes) > 0 {
+			filtered := filterFreshNodes(nodes, d.nodeTTL)
+			if len(filtered) > 0 {
+				target := selectTargetNode(filtered)
+				if providerID, err := d.peerExecutor(target, req); err == nil {
+					return schedulingResult{Path: "peer", NodeID: fmt.Sprintf("%s@%s", providerID, target.NodeID)}, nil
+				}
+			}
+		}
+	}
+
+	// Step 3: 全局调度降级
+	if d.globalExecutor != nil {
+		if providerID, err := d.globalExecutor(req); err == nil {
+			return schedulingResult{Path: "global", NodeID: providerID}, nil
+		} else {
+			return schedulingResult{}, fmt.Errorf("global cross-domain scheduling failed: %w", err)
+		}
+	}
+
+	return schedulingResult{}, fmt.Errorf("all scheduling paths failed")
+}
+
+func shouldEscalate(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "failed to find available provider") ||
+		strings.Contains(msg, "no available provider")
+}
+
+func filterFreshNodes(nodes []*discovery.PeerNode, ttl time.Duration) []*discovery.PeerNode {
+	if ttl <= 0 {
+		return nodes
+	}
+	var result []*discovery.PeerNode
+	now := time.Now()
+	for _, node := range nodes {
+		if node == nil {
+			continue
+		}
+		if now.Sub(node.LastSeen) <= ttl {
+			result = append(result, node)
+		}
+	}
+	return result
+}
+
+func selectTargetNode(nodes []*discovery.PeerNode) *discovery.PeerNode {
+	if len(nodes) == 0 {
+		return nil
+	}
+
+	// 策略：优先使用带 SchedulerAddress 的在线节点，比较可用 CPU
+	var selected *discovery.PeerNode
+	var maxCPU int64 = -1
+
+	for _, node := range nodes {
+		if node.Status != discovery.NodeStatusOnline {
+			continue
+		}
+		if node.ResourceCapacity == nil || node.ResourceCapacity.Available == nil {
+			continue
+		}
+		candidateCPU := node.ResourceCapacity.Available.CPU
+		hasScheduler := node.SchedulerAddress != ""
+		if selected == nil ||
+			candidateCPU > maxCPU ||
+			(candidateCPU == maxCPU && hasScheduler && selected.SchedulerAddress == "") {
+			selected = node
+			maxCPU = candidateCPU
+		}
+	}
+
+	if selected == nil {
+		selected = nodes[0]
+	}
+	return selected
+}
+
+// ---------- 测试用 mock ----------
+
+type mockLocal struct {
+	result string
+	err    error
+	calls  int
+}
+
+func (m *mockLocal) exec(_ *types.Info) (string, error) {
+	m.calls++
+	return m.result, m.err
+}
+
+type mockPeerExecutor struct {
+	result string
+	err    error
+	calls  int
+	last   *discovery.PeerNode
+}
+
+func (m *mockPeerExecutor) exec(node *discovery.PeerNode, _ *types.Info) (string, error) {
+	m.calls++
+	m.last = node
+	return m.result, m.err
+}
+
+type mockGlobal struct {
+	result string
+	err    error
+	calls  int
+}
+
+func (m *mockGlobal) exec(_ *types.Info) (string, error) {
+	m.calls++
+	return m.result, m.err
+}
+
+// ---------- 测试用例 ----------
+
+// 触发条件：本地失败且错误满足条件时，自动尝试跨域调度。
+func TestCrossDomainScheduling_TriggerConditions(t *testing.T) {
+	testutil.PrintTestHeader(t, "跨域调度 - 触发条件", "本地资源不足时自动触发跨域调度")
+
+	local := &mockLocal{
+		err: fmt.Errorf("failed to find available provider"),
+	}
+	testutil.PrintTestSection(t, "步骤 1: 构造本地失败场景")
+	testutil.PrintInfo(t, fmt.Sprintf("本地执行器返回错误: %s", local.err))
+
+	peerExec := &mockPeerExecutor{
+		result: "peer-provider-1",
+	}
+
+	nodes := []*discovery.PeerNode{
+		{
+			NodeID:   "peer-node-1",
+			Status:   discovery.NodeStatusOnline,
+			LastSeen: time.Now(),
+			ResourceCapacity: &types.Capacity{
+				Available: &types.Info{CPU: 4000, Memory: 2 * 1024 * 1024 * 1024},
+			},
+		},
+	}
+	testutil.PrintTestSection(t, "步骤 2: 发现域内候选节点")
+	testutil.PrintPeerNodeOverview(t, nodes)
+
+	scheduler := &crossDomainScheduler{
+		localExecutor: local.exec,
+		peerSelector: func(_ *types.Info) ([]*discovery.PeerNode, error) {
+			return nodes, nil
+		},
+		peerExecutor: peerExec.exec,
+		nodeTTL:      10 * time.Minute,
+	}
+
+	req := &types.Info{CPU: 2000, Memory: 1024 * 1024 * 1024}
+	testutil.PrintTestSection(t, "步骤 3: 发起跨域调度请求")
+	testutil.PrintResourceRequest(t, req)
+
+	result, err := scheduler.schedule(req)
+	require.NoError(t, err)
+	assert.Equal(t, "peer", result.Path)
+	assert.Equal(t, "peer-provider-1@peer-node-1", result.NodeID)
+	assert.Equal(t, 1, local.calls)
+	assert.Equal(t, 1, peerExec.calls)
+
+	testutil.PrintTestSection(t, "步骤 4: 输出调度路径")
+	testutil.PrintSchedulingDecision(t, result.Path, true, fmt.Sprintf("完成在 %s", result.NodeID))
+	testutil.PrintSuccess(t, "满足触发条件时成功在域内节点完成跨域调度")
+}
+
+// 目标节点选择策略：优先选择带调度地址且可用资源更多的节点。
+func TestCrossDomainScheduling_TargetNodeSelection(t *testing.T) {
+	testutil.PrintTestHeader(t, "跨域调度 - 目标节点选择策略", "验证优先选择资源充足且可调度的节点")
+
+	local := &mockLocal{err: fmt.Errorf("no available provider in local domain")}
+	peerExec := &mockPeerExecutor{result: "peer-provider-X"}
+	testutil.PrintTestSection(t, "步骤 1: 构造本地失败场景")
+	testutil.PrintInfo(t, fmt.Sprintf("本地错误: %s", local.err))
+
+	nodeA := &discovery.PeerNode{
+		NodeID:           "node-A",
+		Status:           discovery.NodeStatusOnline,
+		SchedulerAddress: "",
+		LastSeen:         time.Now(),
+		ResourceCapacity: &types.Capacity{
+			Available: &types.Info{CPU: 2000, Memory: 2 * 1024 * 1024 * 1024},
+		},
+	}
+	nodeB := &discovery.PeerNode{
+		NodeID:           "node-B",
+		Status:           discovery.NodeStatusOnline,
+		SchedulerAddress: "10.0.0.2:50051",
+		LastSeen:         time.Now(),
+		ResourceCapacity: &types.Capacity{
+			Available: &types.Info{CPU: 3000, Memory: 3 * 1024 * 1024 * 1024},
+		},
+	}
+
+	scheduler := &crossDomainScheduler{
+		localExecutor: local.exec,
+		peerSelector: func(_ *types.Info) ([]*discovery.PeerNode, error) {
+			return []*discovery.PeerNode{nodeA, nodeB}, nil
+		},
+		peerExecutor: peerExec.exec,
+		nodeTTL:      5 * time.Minute,
+	}
+
+	req := &types.Info{CPU: 1000}
+	testutil.PrintTestSection(t, "步骤 2: 发起跨域调度并记录节点概览")
+	testutil.PrintPeerNodeOverview(t, []*discovery.PeerNode{nodeA, nodeB})
+	testutil.PrintResourceRequest(t, req)
+
+	result, err := scheduler.schedule(req)
+	require.NoError(t, err)
+	assert.Equal(t, "peer", result.Path)
+	assert.Equal(t, nodeB, peerExec.last, "Should pick node with scheduler address and more CPU")
+	testutil.PrintSchedulingDecision(t, result.Path, true, fmt.Sprintf("命中节点 %s", peerExec.last.NodeID))
+	testutil.PrintSuccess(t, "目标节点选择策略验证通过")
+}
+
+// 过期节点清理：超出 TTL 的节点会被过滤，不参与调度。
+func TestCrossDomainScheduling_ExpiredNodeCleanup(t *testing.T) {
+	testutil.PrintTestHeader(t, "跨域调度 - 过期节点清理", "验证过期节点不会被选中")
+
+	past := time.Now().Add(-20 * time.Minute)
+	fresh := time.Now()
+	testutil.PrintTestSection(t, "步骤 1: 构造新旧节点")
+	staleNode := &discovery.PeerNode{
+		NodeID:   "stale-node",
+		Status:   discovery.NodeStatusOnline,
+		LastSeen: past,
+		ResourceCapacity: &types.Capacity{
+			Available: &types.Info{CPU: 8000},
+		},
+	}
+	freshNode := &discovery.PeerNode{
+		NodeID:   "fresh-node",
+		Status:   discovery.NodeStatusOnline,
+		LastSeen: fresh,
+		ResourceCapacity: &types.Capacity{
+			Available: &types.Info{CPU: 2000},
+		},
+	}
+	testutil.PrintPeerNodeOverview(t, []*discovery.PeerNode{staleNode, freshNode})
+
+	scheduler := &crossDomainScheduler{
+		localExecutor: func(_ *types.Info) (string, error) {
+			return "", fmt.Errorf("failed to find available provider")
+		},
+		peerSelector: func(_ *types.Info) ([]*discovery.PeerNode, error) {
+			return []*discovery.PeerNode{staleNode, freshNode}, nil
+		},
+		peerExecutor: (&mockPeerExecutor{result: "peer-provider"}).exec,
+		nodeTTL:      10 * time.Minute,
+	}
+
+	req := &types.Info{CPU: 500}
+	testutil.PrintTestSection(t, "步骤 2: 发起调度请求")
+	testutil.PrintResourceRequest(t, req)
+
+	result, err := scheduler.schedule(req)
+	require.NoError(t, err)
+	assert.True(t, strings.Contains(result.NodeID, "fresh-node"))
+	testutil.PrintSchedulingDecision(t, result.Path, true, "成功过滤过期节点，命中新鲜节点")
+	testutil.PrintSuccess(t, "过期节点被过滤，调度落在最新的节点上")
+}
+
+// 跨域失败时的降级处理：域内调度失败后降级到全局调度。
+func TestCrossDomainScheduling_FallbackOnFailure(t *testing.T) {
+	testutil.PrintTestHeader(t, "跨域调度 - 失败降级处理", "验证域内失败后降级到全局调度")
+
+	local := &mockLocal{err: fmt.Errorf("failed to find available provider")}
+	peerExec := &mockPeerExecutor{err: errors.New("peer node busy")}
+	global := &mockGlobal{result: "global-provider"}
+
+	testutil.PrintTestSection(t, "步骤 1: 构造多阶段失败链路")
+	testutil.PrintInfo(t, fmt.Sprintf("本地错误: %s", local.err))
+	testutil.PrintInfo(t, fmt.Sprintf("域内执行错误: %s", peerExec.err))
+
+	scheduler := &crossDomainScheduler{
+		localExecutor: local.exec,
+		peerSelector: func(_ *types.Info) ([]*discovery.PeerNode, error) {
+			return []*discovery.PeerNode{
+				{
+					NodeID:   "peer-node-err",
+					Status:   discovery.NodeStatusOnline,
+					LastSeen: time.Now(),
+					ResourceCapacity: &types.Capacity{
+						Available: &types.Info{CPU: 1000},
+					},
+				},
+			}, nil
+		},
+		peerExecutor:   peerExec.exec,
+		globalExecutor: global.exec,
+		nodeTTL:        10 * time.Minute,
+	}
+
+	req := &types.Info{CPU: 800}
+	testutil.PrintTestSection(t, "步骤 2: 发起调度请求并观察降级")
+	testutil.PrintResourceRequest(t, req)
+
+	result, err := scheduler.schedule(req)
+	require.NoError(t, err)
+	assert.Equal(t, "global", result.Path)
+	assert.Equal(t, "global-provider", result.NodeID)
+	assert.Equal(t, 1, global.calls)
+	testutil.PrintSchedulingDecision(t, result.Path, true, "域内失败后降级到全局成功")
+	testutil.PrintSuccess(t, "域内跨域调度失败后成功降级到全局调度")
+}
