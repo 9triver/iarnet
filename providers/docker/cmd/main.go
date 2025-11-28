@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	resourcepb "github.com/9triver/iarnet/internal/proto/resource"
 	providerpb "github.com/9triver/iarnet/internal/proto/resource/provider"
 	"github.com/9triver/iarnet/internal/util"
 	"github.com/9triver/iarnet/providers/docker/config"
@@ -27,12 +28,31 @@ func main() {
 		logrus.Fatalf("Failed to load config: %v", err)
 	}
 
+	// 解析资源容量配置（必须配置）
+	if cfg.Resource.CPU == 0 && cfg.Resource.Memory == "" && cfg.Resource.GPU == 0 {
+		logrus.Fatalf("Resource capacity must be configured in config file. Please set resource.cpu, resource.memory, and/or resource.gpu")
+	}
+
+	memoryBytes, err := cfg.Resource.ParseMemory()
+	if err != nil {
+		logrus.Fatalf("Failed to parse memory config: %v", err)
+	}
+
+	totalCapacity := &resourcepb.Info{
+		Cpu:    cfg.Resource.CPU,
+		Memory: memoryBytes,
+		Gpu:    cfg.Resource.GPU,
+	}
+	logrus.Infof("Using configured resource capacity: CPU=%d millicores, Memory=%d bytes (%s), GPU=%d",
+		totalCapacity.Cpu, totalCapacity.Memory, cfg.Resource.Memory, totalCapacity.Gpu)
+
 	service, err := provider.NewService(
 		cfg.Docker.Host,
 		cfg.Docker.TLSCertPath,
 		cfg.Docker.TLSVerify,
 		cfg.Docker.APIVersion,
 		cfg.ResourceTags,
+		totalCapacity,
 	)
 	if err != nil {
 		logrus.Fatalf("Failed to create service: %v", err)

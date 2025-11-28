@@ -35,6 +35,7 @@ import { useForm } from "react-hook-form"
 import { Plus, Server, Cpu, HardDrive, Activity, Trash2, Edit, RefreshCw, MemoryStick, Network } from "lucide-react"
 import { formatMemory, formatNumber, formatDateTime } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
+import { AuthGuard } from "@/components/auth-guard"
 
 // 本地使用的资源类型（包含 CPU 和内存使用情况）
 // 注意：后端 ProviderItem 不包含 cpu_usage 和 memory_usage
@@ -561,7 +562,8 @@ export default function ResourcesPage() {
   )
 
   return (
-    <div className="flex h-screen bg-background">
+    <AuthGuard>
+      <div className="flex h-screen bg-background">
       <Sidebar />
 
       <main className="flex-1 overflow-auto">
@@ -1268,6 +1270,7 @@ export default function ResourcesPage() {
         </div>
       </main>
     </div>
+  </AuthGuard>
   )
 }
 

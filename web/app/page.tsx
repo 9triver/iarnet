@@ -1,15 +1,19 @@
+"use client"
+
 import { Sidebar } from "@/components/sidebar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Server, Package, Activity, ArrowRight, Cpu, HardDrive, Wifi } from "lucide-react"
+import { AuthGuard } from "@/components/auth-guard"
 
 export default function HomePage() {
   return (
-    <div className="flex h-screen bg-background">
-      <Sidebar />
+    <AuthGuard>
+      <div className="flex h-screen bg-background">
+        <Sidebar />
 
-      <main className="flex-1 overflow-auto">
-        <div className="p-8">
+        <main className="flex-1 overflow-auto">
+          <div className="p-8">
           {/* Header */}
           <div className="mb-8">
             <h1 className="text-4xl font-playfair font-bold text-foreground mb-2">欢迎使用 IARNet</h1>
@@ -153,5 +157,6 @@ export default function HomePage() {
         </div>
       </main>
     </div>
+  </AuthGuard>
   )
 }

@@ -385,7 +385,8 @@ export default function StatusPage() {
   const totalInstances = applications.reduce((sum, app) => sum + app.instances, 0)
 
   return (
-    <div className="flex h-screen bg-background">
+    <AuthGuard>
+      <div className="flex h-screen bg-background">
       <Sidebar />
 
       <main className="flex-1 overflow-auto">
@@ -814,5 +815,6 @@ export default function StatusPage() {
         </DialogContent>
       </Dialog>
     </div>
+  </AuthGuard>
   )
 }

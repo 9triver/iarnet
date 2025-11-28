@@ -22,9 +22,13 @@ type Service struct {
 	client       *client.Client
 	manager      *Manager // 健康检查状态管理器
 	resourceTags *providerpb.ResourceTags
+
+	// 资源容量管理（从配置文件读取）
+	totalCapacity *resourcepb.Info // 配置的总容量
+	allocated     *resourcepb.Info // 当前已分配的容量（内存中动态维护）
 }
 
-func NewService(host, tlsCertPath string, tlsVerify bool, apiVersion string, resourceTags []string) (*Service, error) {
+func NewService(host, tlsCertPath string, tlsVerify bool, apiVersion string, resourceTags []string, totalCapacity *resourcepb.Info) (*Service, error) {
 	var opts []client.Opt
 
 	if host != "" {
@@ -72,6 +76,13 @@ func NewService(host, tlsCertPath string, tlsVerify bool, apiVersion string, res
 		},
 	)
 
+	// 初始化已分配容量为 0
+	allocated := &resourcepb.Info{
+		Cpu:    0,
+		Memory: 0,
+		Gpu:    0,
+	}
+
 	service := &Service{
 		client:  cli,
 		manager: manager,
@@ -81,6 +92,8 @@ func NewService(host, tlsCertPath string, tlsVerify bool, apiVersion string, res
 			Gpu:    slices.Contains(resourceTags, "gpu"),
 			Camera: slices.Contains(resourceTags, "camera"),
 		},
+		totalCapacity: totalCapacity,
+		allocated:     allocated,
 	}
 
 	// 启动健康检测超时监控
@@ -148,24 +161,14 @@ func (s *Service) GetCapacity(ctx context.Context, req *providerpb.GetCapacityRe
 		return nil, fmt.Errorf("authentication failed: %w", err)
 	}
 
-	info, err := s.client.Info(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get Docker info: %w", err)
-	}
+	s.mu.RLock()
+	total := s.totalCapacity
+	allocated := s.allocated
+	s.mu.RUnlock()
 
-	totalMemory := info.MemTotal        // bytes
-	totalCPU := int64(info.NCPU) * 1000 // millicores
-
-	total := &resourcepb.Info{
-		Cpu:    totalCPU,
-		Memory: totalMemory,
-		Gpu:    0, // TODO: add GPU
-	}
-
-	// Get current usage
-	allocated, err := s.GetAllocated(context.Background())
-	if err != nil {
-		return nil, fmt.Errorf("failed to get current usage: %w", err)
+	// 必须从配置文件获取容量，如果未配置则返回错误
+	if total == nil {
+		return nil, fmt.Errorf("resource capacity not configured, please set resource capacity in config file")
 	}
 
 	available := &resourcepb.Info{
@@ -192,100 +195,36 @@ func (s *Service) GetAvailable(ctx context.Context, req *providerpb.GetAvailable
 		return nil, fmt.Errorf("authentication failed: %w", err)
 	}
 
-	capacity, err := s.client.Info(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get Docker info: %w", err)
-	}
-	totalMemory := capacity.MemTotal        // bytes
-	totalCPU := int64(capacity.NCPU) * 1000 // millicores
+	s.mu.RLock()
+	total := s.totalCapacity
+	allocated := s.allocated
+	s.mu.RUnlock()
 
-	total := &resourcepb.Info{
-		Cpu:    totalCPU,
-		Memory: totalMemory,
-		Gpu:    0, // TODO: add GPU
+	// 必须从配置文件获取容量，如果未配置则返回错误
+	if total == nil {
+		return nil, fmt.Errorf("resource capacity not configured, please set resource capacity in config file")
 	}
-	allocated, err := s.GetAllocated(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get allocated: %w", err)
-	}
+
 	return &providerpb.GetAvailableResponse{
-		Available: &resourcepb.Info{Cpu: total.Cpu - allocated.Cpu, Memory: total.Memory - allocated.Memory, Gpu: total.Gpu - allocated.Gpu},
+		Available: &resourcepb.Info{
+			Cpu:    total.Cpu - allocated.Cpu,
+			Memory: total.Memory - allocated.Memory,
+			Gpu:    total.Gpu - allocated.Gpu,
+		},
 	}, nil
 }
 
-// GetRealTimeUsage returns current resource usage by all Docker containers
+// GetAllocated returns current allocated resources (from memory)
+// 返回内存中维护的已分配资源
 func (s *Service) GetAllocated(ctx context.Context) (*resourcepb.Info, error) {
-	containers, err := s.client.ContainerList(ctx, container.ListOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to list containers: %w", err)
-	}
-	logrus.Infof("docker provider get allocated, container count: %d", len(containers))
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
-	var totalCPU, totalMemory int64
-
-	for _, container := range containers {
-		// Get container inspect to get resource limits
-		inspect, err := s.client.ContainerInspect(ctx, container.ID)
-		if err != nil {
-			logrus.Warnf("Failed to inspect container %s: %v", container.ID, err)
-			continue
-		}
-
-		containerName := inspect.Name
-		if len(containerName) > 0 && containerName[0] == '/' {
-			containerName = containerName[1:] // Remove leading slash
-		}
-
-		// Get CPU limit (convert from nano CPUs to millicores)
-		var cpuAlloc int64
-		if inspect.HostConfig.Resources.NanoCPUs > 0 {
-			// Docker NanoCPUs: 1 CPU core = 1e9 NanoCPUs
-			// Convert to millicores: 1 CPU core = 1000 millicores
-			// So: NanoCPUs / 1e9 * 1000 = NanoCPUs / 1e6
-			cpuAlloc = int64(inspect.HostConfig.Resources.NanoCPUs) / 1e6
-			logrus.Infof("Container %s: CPU limit set to %d millicores", containerName, cpuAlloc)
-		} else {
-			// If no CPU limit is set, assume the container can use all available CPUs
-			// For now, we'll count it as 1000 millicores (1 CPU core) per container without limits
-			cpuAlloc = 0
-			// logrus.Infof("Container %s: No CPU limit set, assuming %d millicores", containerName, cpuAlloc)
-		}
-		totalCPU += cpuAlloc
-
-		// Get memory limit (convert from bytes to GB)
-		var memAlloc int64
-		if inspect.HostConfig.Resources.Memory > 0 {
-			memAlloc = int64(inspect.HostConfig.Resources.Memory)
-			logrus.Infof("Container %s: Memory limit set to %d Bytes", containerName, memAlloc)
-		} else {
-			// If no memory limit is set, assume the container can use a default amount
-			// For now, we'll count it as 2GB per container without limits
-			memAlloc = 0 // 1024 * 1024 * 128 // 128MB
-			// logrus.Infof("Container %s: No memory limit set, assuming %d Bytes", containerName, memAlloc)
-		}
-		totalMemory += memAlloc
-
-		// // GPU usage - check for GPU device requests
-		// if inspect.HostConfig.Resources.DeviceRequests != nil {
-		// 	for _, req := range inspect.HostConfig.Resources.DeviceRequests {
-		// 		if req.Driver == "nvidia" {
-		// 			// Count GPU devices
-		// 			if req.Count > 0 {
-		// 				totalGPU += float64(req.Count)
-		// 			} else if len(req.DeviceIDs) > 0 {
-		// 				totalGPU += float64(len(req.DeviceIDs))
-		// 			}
-		// 		}
-		// 	}
-		// }
-	}
-
-	logrus.Infof("docker provider get allocated, allocatedCPU: %d, allocatedMemory: %d", totalCPU, totalMemory)
-
+	// 返回内存中维护的已分配资源
 	return &resourcepb.Info{
-		Cpu:    totalCPU,
-		Memory: totalMemory,
-		Gpu:    0, // TODO: add GPU
+		Cpu:    s.allocated.Cpu,
+		Memory: s.allocated.Memory,
+		Gpu:    s.allocated.Gpu,
 	}, nil
 }
 
@@ -388,7 +327,15 @@ func (s *Service) Deploy(ctx context.Context, req *providerpb.DeployRequest) (*p
 		}, nil
 	}
 
-	logrus.Infof("Container deployed successfully with ID: %s", resp.ID)
+	// 更新已分配的资源容量（在内存中维护）
+	s.mu.Lock()
+	s.allocated.Cpu += req.ResourceRequest.Cpu
+	s.allocated.Memory += req.ResourceRequest.Memory
+	s.allocated.Gpu += req.ResourceRequest.Gpu
+	s.mu.Unlock()
+
+	logrus.Infof("Container deployed successfully with ID: %s, allocated resources: CPU=%d, Memory=%d, GPU=%d",
+		resp.ID, req.ResourceRequest.Cpu, req.ResourceRequest.Memory, req.ResourceRequest.Gpu)
 	return &providerpb.DeployResponse{
 		Error: "",
 	}, nil
@@ -405,25 +352,14 @@ func (s *Service) HealthCheck(ctx context.Context, req *providerpb.HealthCheckRe
 		s.manager.UpdateHealthCheck()
 	}
 
-	// 获取资源容量信息（复用 GetCapacity 的逻辑）
-	info, err := s.client.Info(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get Docker info: %w", err)
-	}
+	s.mu.RLock()
+	total := s.totalCapacity
+	allocated := s.allocated
+	s.mu.RUnlock()
 
-	totalMemory := info.MemTotal        // bytes
-	totalCPU := int64(info.NCPU) * 1000 // millicores
-
-	total := &resourcepb.Info{
-		Cpu:    totalCPU,
-		Memory: totalMemory,
-		Gpu:    0, // TODO: add GPU
-	}
-
-	// 获取当前已使用的资源
-	allocated, err := s.GetAllocated(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get allocated resources: %w", err)
+	// 必须从配置文件获取容量，如果未配置则返回错误
+	if total == nil {
+		return nil, fmt.Errorf("resource capacity not configured, please set resource capacity in config file")
 	}
 
 	available := &resourcepb.Info{
@@ -472,4 +408,27 @@ func (s *Service) Disconnect(ctx context.Context, req *providerpb.DisconnectRequ
 	logrus.Infof("Provider disconnected: %s", req.ProviderId)
 
 	return &providerpb.DisconnectResponse{}, nil
+}
+
+// ReleaseResources 释放已分配的资源（当容器停止或删除时调用）
+// 这是一个内部方法，用于在容器停止/删除时释放资源
+func (s *Service) ReleaseResources(cpu, memory, gpu int64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.allocated.Cpu -= cpu
+	if s.allocated.Cpu < 0 {
+		s.allocated.Cpu = 0
+	}
+	s.allocated.Memory -= memory
+	if s.allocated.Memory < 0 {
+		s.allocated.Memory = 0
+	}
+	s.allocated.Gpu -= gpu
+	if s.allocated.Gpu < 0 {
+		s.allocated.Gpu = 0
+	}
+
+	logrus.Infof("Released resources: CPU=%d, Memory=%d, GPU=%d, remaining allocated: CPU=%d, Memory=%d, GPU=%d",
+		cpu, memory, gpu, s.allocated.Cpu, s.allocated.Memory, s.allocated.Gpu)
 }

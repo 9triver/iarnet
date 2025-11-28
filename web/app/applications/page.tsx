@@ -41,6 +41,7 @@ import {
 } from "lucide-react"
 import { Application, ApplicationStats, RunnerEnvironment } from "@/lib/model"
 import { formatDateTime } from "@/lib/utils"
+import { AuthGuard } from "@/components/auth-guard"
 
 interface ApplicationFormData {
   name: string
@@ -408,7 +409,8 @@ export default function ApplicationsPage() {
 
 
   return (
-    <div className="flex h-screen bg-background">
+    <AuthGuard>
+      <div className="flex h-screen bg-background">
       <Sidebar />
 
       <main className="flex-1 overflow-auto">
@@ -802,5 +804,6 @@ export default function ApplicationsPage() {
         </div>
       </main>
     </div>
+  </AuthGuard>
   )
 }

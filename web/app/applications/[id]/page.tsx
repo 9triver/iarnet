@@ -18,6 +18,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 import { CodeEditor } from "@/components/code-editor"
+import { AuthGuard } from "@/components/auth-guard"
 import {
   ArrowLeft,
   Package,
@@ -1248,7 +1249,8 @@ export default function ApplicationDetailPage() {
   }
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <AuthGuard>
+      <div className="flex h-screen bg-gray-50">
       <Sidebar />
       <main className="flex-1 overflow-auto">
         <div className="p-8 space-y-6">
@@ -1979,7 +1981,7 @@ export default function ApplicationDetailPage() {
           </Tabs>
         </div>
       </main>
-
     </div>
+  </AuthGuard>
   )
 }

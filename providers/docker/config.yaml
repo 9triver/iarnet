@@ -8,6 +8,11 @@ docker:
   tls_verify: false  # 是否启用 TLS 验证
   api_version: ""  # Docker API 版本（可选，留空使用版本协商）
 
+resource:
+  cpu: 8000 # 1000 millicores = 1 core
+  memory: "8Gi"
+  gpu: 4 # 4 GPUs
+
 resource_tags:
  - cpu
  - memory

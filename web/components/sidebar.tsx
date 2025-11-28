@@ -1,13 +1,14 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { Server, Package, Activity, Menu, X, Cpu } from "lucide-react"
+import { Server, Package, Activity, Menu, X, Cpu, Users, LogOut } from "lucide-react"
+import { useIARNetStore } from "@/lib/store"
 
-const navigation = [
+const baseNavigation = [
   {
     name: "算力资源管理",
     href: "/resources",
@@ -31,6 +32,29 @@ const navigation = [
 export function Sidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const pathname = usePathname()
+  const router = useRouter()
+  const currentUser = useIARNetStore((state) => state.currentUser)
+  const logout = useIARNetStore((state) => state.logout)
+
+  const navigation = useMemo(() => {
+    if (currentUser?.role === "admin") {
+      return [
+        ...baseNavigation,
+        {
+          name: "用户管理",
+          href: "/users",
+          icon: Users,
+          description: "维护平台用户",
+        },
+      ]
+    }
+    return baseNavigation
+  }, [currentUser])
+
+  const handleLogout = () => {
+    logout()
+    router.replace("/login")
+  }
 
   return (
     <div
@@ -58,7 +82,7 @@ export function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-2">
+      <nav className="flex-1 space-y-2 p-4">
         {navigation.map((item) => {
           const isActive = pathname === item.href
           return (
@@ -85,8 +109,25 @@ export function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="p-4 border-t border-sidebar-border">
-        {!isCollapsed && <div className="text-xs text-sidebar-foreground/60">IARNet v1.0.0</div>}
+      <div className="border-t border-sidebar-border p-4">
+        {!isCollapsed && currentUser && (
+          <div className="mb-3 space-y-1">
+            <div className="text-sm font-semibold text-sidebar-foreground">{currentUser.username}</div>
+            <div className="text-xs text-sidebar-foreground/70">
+              {currentUser.role === "admin" ? "管理员" : "普通用户"}
+            </div>
+          </div>
+        )}
+        <Button
+          variant="ghost"
+          size={isCollapsed ? "icon" : "sm"}
+          className="w-full text-sidebar-foreground hover:bg-sidebar-accent"
+          onClick={handleLogout}
+        >
+          <LogOut className="h-4 w-4" />
+          {!isCollapsed && <span className="ml-2">退出登录</span>}
+        </Button>
+        {!isCollapsed && <div className="mt-3 text-xs text-sidebar-foreground/60">IARNet v1.0.0</div>}
       </div>
     </div>
   )
