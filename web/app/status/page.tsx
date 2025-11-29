@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Sidebar } from "@/components/sidebar"
+import { AuthGuard } from "@/components/auth-guard"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -119,7 +120,7 @@ const generateLogEntry = (apps: string[]): LogEntry => {
     'Error processing request',
     'Service unavailable'
   ]
-  
+
   return {
     id: Math.random().toString(36).substr(2, 9),
     timestamp: new Date().toLocaleTimeString('zh-CN'),
@@ -243,7 +244,7 @@ export default function StatusPage() {
       )
       // 更新性能数据
       setPerformanceData(generatePerformanceData())
-      
+
       // 模拟实时日志生成
       if (showLogs) {
         const appNames = applications.map(app => app.name)
@@ -319,7 +320,7 @@ export default function StatusPage() {
   const filteredLogs = logs.filter(log => {
     const matchesLevel = logFilter === 'all' || log.level === logFilter
     const matchesApp = selectedLogApp === 'all' || log.app === selectedLogApp
-    const matchesSearch = logSearch === '' || 
+    const matchesSearch = logSearch === '' ||
       log.message.toLowerCase().includes(logSearch.toLowerCase()) ||
       log.app.toLowerCase().includes(logSearch.toLowerCase())
     return matchesLevel && matchesApp && matchesSearch
@@ -330,10 +331,10 @@ export default function StatusPage() {
       prev.map((app) =>
         app.id === id
           ? {
-              ...app,
-              lastRestart: new Date().toLocaleString(),
-              uptime: "0分钟",
-            }
+            ...app,
+            lastRestart: new Date().toLocaleString(),
+            uptime: "0分钟",
+          }
           : app,
       ),
     )
@@ -387,434 +388,434 @@ export default function StatusPage() {
   return (
     <AuthGuard>
       <div className="flex h-screen bg-background">
-      <Sidebar />
+        <Sidebar />
 
-      <main className="flex-1 overflow-auto">
-        <div className="p-8">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <h1 className="text-3xl font-playfair font-bold text-foreground mb-2">运行状态监控</h1>
-              <p className="text-muted-foreground">实时监控应用运行状态和资源使用情况</p>
+        <main className="flex-1 overflow-auto">
+          <div className="p-8">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h1 className="text-3xl font-playfair font-bold text-foreground mb-2">运行状态监控</h1>
+                <p className="text-muted-foreground">实时监控应用运行状态和资源使用情况</p>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowPerformanceCharts(!showPerformanceCharts)}
+                >
+                  <BarChart3 className="h-4 w-4" />
+                  {showPerformanceCharts ? "隐藏图表" : "显示图表"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowLogs(!showLogs)}
+                >
+                  <Activity className="h-4 w-4" />
+                  {showLogs ? "隐藏日志" : "显示日志"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setAutoRefresh(!autoRefresh)}
+                  className={autoRefresh ? "bg-green-50 border-green-200" : ""}
+                >
+                  <RefreshCw className={`h-4 w-4 ${autoRefresh ? "animate-spin" : ""}`} />
+                  {autoRefresh ? "自动刷新" : "手动刷新"}
+                </Button>
+              </div>
             </div>
 
-            <div className="flex items-center space-x-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowPerformanceCharts(!showPerformanceCharts)}
-              >
-                <BarChart3 className="h-4 w-4" />
-                {showPerformanceCharts ? "隐藏图表" : "显示图表"}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowLogs(!showLogs)}
-              >
-                <Activity className="h-4 w-4" />
-                {showLogs ? "隐藏日志" : "显示日志"}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setAutoRefresh(!autoRefresh)}
-                className={autoRefresh ? "bg-green-50 border-green-200" : ""}
-              >
-                <RefreshCw className={`h-4 w-4 ${autoRefresh ? "animate-spin" : ""}`} />
-                {autoRefresh ? "自动刷新" : "手动刷新"}
-              </Button>
-            </div>
-          </div>
-
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">运行中应用</CardTitle>
-                <Activity className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-green-600">{runningApps}</div>
-                <p className="text-xs text-muted-foreground">正常运行</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">警告状态</CardTitle>
-                <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-yellow-600">{warningApps}</div>
-                <p className="text-xs text-muted-foreground">需要关注</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">错误状态</CardTitle>
-                <XCircle className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-red-600">{errorApps}</div>
-                <p className="text-xs text-muted-foreground">需要处理</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">总实例数</CardTitle>
-                <Cpu className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{totalInstances}</div>
-                <p className="text-xs text-muted-foreground">运行实例</p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Performance Charts */}
-          {showPerformanceCharts && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
               <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">运行中应用</CardTitle>
+                  <Activity className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-green-600">{runningApps}</div>
+                  <p className="text-xs text-muted-foreground">正常运行</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">警告状态</CardTitle>
+                  <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-yellow-600">{warningApps}</div>
+                  <p className="text-xs text-muted-foreground">需要关注</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">错误状态</CardTitle>
+                  <XCircle className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-red-600">{errorApps}</div>
+                  <p className="text-xs text-muted-foreground">需要处理</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">总实例数</CardTitle>
+                  <Cpu className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{totalInstances}</div>
+                  <p className="text-xs text-muted-foreground">运行实例</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Performance Charts */}
+            {showPerformanceCharts && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle>系统性能趋势</CardTitle>
+                      <div className="flex items-center space-x-2">
+                        <Button
+                          variant={selectedMetric === 'cpu' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setSelectedMetric('cpu')}
+                        >
+                          CPU
+                        </Button>
+                        <Button
+                          variant={selectedMetric === 'memory' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setSelectedMetric('memory')}
+                        >
+                          内存
+                        </Button>
+                        <Button
+                          variant={selectedMetric === 'network' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setSelectedMetric('network')}
+                        >
+                          网络
+                        </Button>
+                        <Button
+                          variant={selectedMetric === 'requests' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setSelectedMetric('requests')}
+                        >
+                          请求
+                        </Button>
+                      </div>
+                    </div>
+                    <CardDescription>过去2小时的{chartConfig[selectedMetric].label}变化</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <LineChart data={performanceData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="time" />
+                        <YAxis />
+                        <Tooltip />
+                        <Legend />
+                        <Line
+                          type="monotone"
+                          dataKey={selectedMetric}
+                          stroke={chartConfig[selectedMetric].color}
+                          strokeWidth={2}
+                          dot={{ r: 4 }}
+                          activeDot={{ r: 6 }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>资源使用概览</CardTitle>
+                    <CardDescription>多指标综合视图</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <AreaChart data={performanceData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="time" />
+                        <YAxis />
+                        <Tooltip />
+                        <Legend />
+                        <Area
+                          type="monotone"
+                          dataKey="cpu"
+                          stackId="1"
+                          stroke={chartConfig.cpu.color}
+                          fill={chartConfig.cpu.color}
+                          fillOpacity={0.6}
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="memory"
+                          stackId="2"
+                          stroke={chartConfig.memory.color}
+                          fill={chartConfig.memory.color}
+                          fillOpacity={0.6}
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* Real-time Logs */}
+            {showLogs && (
+              <Card className="mb-8">
                 <CardHeader>
                   <div className="flex items-center justify-between">
-                    <CardTitle>系统性能趋势</CardTitle>
+                    <CardTitle>实时日志流</CardTitle>
                     <div className="flex items-center space-x-2">
-                      <Button
-                        variant={selectedMetric === 'cpu' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setSelectedMetric('cpu')}
-                      >
-                        CPU
-                      </Button>
-                      <Button
-                        variant={selectedMetric === 'memory' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setSelectedMetric('memory')}
-                      >
-                        内存
-                      </Button>
-                      <Button
-                        variant={selectedMetric === 'network' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setSelectedMetric('network')}
-                      >
-                        网络
-                      </Button>
-                      <Button
-                        variant={selectedMetric === 'requests' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setSelectedMetric('requests')}
-                      >
-                        请求
-                      </Button>
+                      <div className="flex items-center space-x-2">
+                        <Search className="h-4 w-4 text-gray-400" />
+                        <Input
+                          placeholder="搜索日志..."
+                          value={logSearch}
+                          onChange={(e) => setLogSearch(e.target.value)}
+                          className="w-48"
+                        />
+                      </div>
+                      <Select value={selectedLogApp} onValueChange={setSelectedLogApp}>
+                        <SelectTrigger className="w-32">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">所有应用</SelectItem>
+                          {applications.map((app) => (
+                            <SelectItem key={app.id} value={app.name}>
+                              {app.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select value={logFilter} onValueChange={(value: any) => setLogFilter(value)}>
+                        <SelectTrigger className="w-24">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">全部</SelectItem>
+                          <SelectItem value="error">错误</SelectItem>
+                          <SelectItem value="warn">警告</SelectItem>
+                          <SelectItem value="info">信息</SelectItem>
+                          <SelectItem value="debug">调试</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
-                  <CardDescription>过去2小时的{chartConfig[selectedMetric].label}变化</CardDescription>
+                  <CardDescription>
+                    实时显示应用日志，支持按级别和应用过滤 ({filteredLogs.length} 条记录)
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <LineChart data={performanceData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="time" />
-                      <YAxis />
-                      <Tooltip />
-                      <Legend />
-                      <Line
-                        type="monotone"
-                        dataKey={selectedMetric}
-                        stroke={chartConfig[selectedMetric].color}
-                        strokeWidth={2}
-                        dot={{ r: 4 }}
-                        activeDot={{ r: 6 }}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>资源使用概览</CardTitle>
-                  <CardDescription>多指标综合视图</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <AreaChart data={performanceData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="time" />
-                      <YAxis />
-                      <Tooltip />
-                      <Legend />
-                      <Area
-                        type="monotone"
-                        dataKey="cpu"
-                        stackId="1"
-                        stroke={chartConfig.cpu.color}
-                        fill={chartConfig.cpu.color}
-                        fillOpacity={0.6}
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="memory"
-                        stackId="2"
-                        stroke={chartConfig.memory.color}
-                        fill={chartConfig.memory.color}
-                        fillOpacity={0.6}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
-           {/* Real-time Logs */}
-           {showLogs && (
-             <Card className="mb-8">
-               <CardHeader>
-                 <div className="flex items-center justify-between">
-                   <CardTitle>实时日志流</CardTitle>
-                   <div className="flex items-center space-x-2">
-                     <div className="flex items-center space-x-2">
-                       <Search className="h-4 w-4 text-gray-400" />
-                       <Input
-                         placeholder="搜索日志..."
-                         value={logSearch}
-                         onChange={(e) => setLogSearch(e.target.value)}
-                         className="w-48"
-                       />
-                     </div>
-                     <Select value={selectedLogApp} onValueChange={setSelectedLogApp}>
-                       <SelectTrigger className="w-32">
-                         <SelectValue />
-                       </SelectTrigger>
-                       <SelectContent>
-                         <SelectItem value="all">所有应用</SelectItem>
-                         {applications.map((app) => (
-                           <SelectItem key={app.id} value={app.name}>
-                             {app.name}
-                           </SelectItem>
-                         ))}
-                       </SelectContent>
-                     </Select>
-                     <Select value={logFilter} onValueChange={(value: any) => setLogFilter(value)}>
-                       <SelectTrigger className="w-24">
-                         <SelectValue />
-                       </SelectTrigger>
-                       <SelectContent>
-                         <SelectItem value="all">全部</SelectItem>
-                         <SelectItem value="error">错误</SelectItem>
-                         <SelectItem value="warn">警告</SelectItem>
-                         <SelectItem value="info">信息</SelectItem>
-                         <SelectItem value="debug">调试</SelectItem>
-                       </SelectContent>
-                     </Select>
-                   </div>
-                 </div>
-                 <CardDescription>
-                   实时显示应用日志，支持按级别和应用过滤 ({filteredLogs.length} 条记录)
-                 </CardDescription>
-               </CardHeader>
-               <CardContent>
-                 <div className="max-h-96 overflow-y-auto space-y-2">
-                   {filteredLogs.length === 0 ? (
-                     <div className="text-center text-gray-500 py-8">
-                       暂无日志记录
-                     </div>
-                   ) : (
-                     filteredLogs.map((log) => (
-                       <div
-                         key={log.id}
-                         className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                       >
-                         <div className="text-xs text-gray-500 w-16 flex-shrink-0">
-                           {log.timestamp}
-                         </div>
-                         <div className="flex-shrink-0">
-                           {getLogLevelBadge(log.level)}
-                         </div>
-                         <div className="text-xs text-blue-600 w-20 flex-shrink-0">
-                           {log.app}
-                         </div>
-                         <div className="flex-1 text-sm">
-                           <div>{log.message}</div>
-                           {log.details && (
-                             <div className="text-xs text-gray-600 mt-1">
-                               {log.details}
-                             </div>
-                           )}
-                         </div>
-                       </div>
-                     ))
-                   )}
-                 </div>
-               </CardContent>
-             </Card>
-           )}
-
-           {/* Applications Status Table */}
-          <Card>
-            <CardHeader>
-              <CardTitle>应用状态列表</CardTitle>
-              <CardDescription>所有应用的实时运行状态</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>应用名称</TableHead>
-                    <TableHead>状态</TableHead>
-                    <TableHead>健康检查</TableHead>
-                    <TableHead>CPU</TableHead>
-                    <TableHead>内存</TableHead>
-                    <TableHead>实例数</TableHead>
-                    <TableHead>运行时间</TableHead>
-                    <TableHead>操作</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {applications.map((app) => (
-                    <TableRow key={app.id} className="cursor-pointer hover:bg-muted/50">
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          {getStatusIcon(app.status)}
-                          <div>
-                            <div className="font-medium">{app.name}</div>
-                            <div className="text-xs text-muted-foreground">运行在: {app.runningOn.join(", ")}</div>
+                  <div className="max-h-96 overflow-y-auto space-y-2">
+                    {filteredLogs.length === 0 ? (
+                      <div className="text-center text-gray-500 py-8">
+                        暂无日志记录
+                      </div>
+                    ) : (
+                      filteredLogs.map((log) => (
+                        <div
+                          key={log.id}
+                          className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                        >
+                          <div className="text-xs text-gray-500 w-16 flex-shrink-0">
+                            {log.timestamp}
+                          </div>
+                          <div className="flex-shrink-0">
+                            {getLogLevelBadge(log.level)}
+                          </div>
+                          <div className="text-xs text-blue-600 w-20 flex-shrink-0">
+                            {log.app}
+                          </div>
+                          <div className="flex-1 text-sm">
+                            <div>{log.message}</div>
+                            {log.details && (
+                              <div className="text-xs text-gray-600 mt-1">
+                                {log.details}
+                              </div>
+                            )}
                           </div>
                         </div>
-                      </TableCell>
-                      <TableCell>{getStatusBadge(app.status)}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          {getHealthIcon(app.healthCheck)}
-                          <span className="text-sm capitalize">{app.healthCheck}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <div className="text-sm">{app.cpu}%</div>
-                          {app.cpu > 80 ? (
-                            <TrendingUp className="h-3 w-3 text-red-500" />
-                          ) : (
-                            <TrendingDown className="h-3 w-3 text-green-500" />
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <div className="text-sm">{app.memory}%</div>
-                          {app.memory > 80 ? (
-                            <TrendingUp className="h-3 w-3 text-red-500" />
-                          ) : (
-                            <TrendingDown className="h-3 w-3 text-green-500" />
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>{app.instances}</TableCell>
-                      <TableCell className="text-xs">{app.uptime}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-1">
-                          <Button variant="ghost" size="sm" onClick={() => handleShowTopology(app)} title="查看详情">
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          {app.status === "running" ? (
-                            <Button variant="ghost" size="sm" onClick={() => handleStop(app.id)} title="停止应用">
-                              <Square className="h-4 w-4" />
-                            </Button>
-                          ) : (
-                            <Button variant="ghost" size="sm" onClick={() => handleStart(app.id)} title="启动应用">
-                              <Play className="h-4 w-4" />
-                            </Button>
-                          )}
-                          <Button variant="ghost" size="sm" onClick={() => handleRestart(app.id)} title="重启应用">
-                            <RotateCcw className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
+                      ))
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Applications Status Table */}
+            <Card>
+              <CardHeader>
+                <CardTitle>应用状态列表</CardTitle>
+                <CardDescription>所有应用的实时运行状态</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>应用名称</TableHead>
+                      <TableHead>状态</TableHead>
+                      <TableHead>健康检查</TableHead>
+                      <TableHead>CPU</TableHead>
+                      <TableHead>内存</TableHead>
+                      <TableHead>实例数</TableHead>
+                      <TableHead>运行时间</TableHead>
+                      <TableHead>操作</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </div>
-      </main>
-
-      {/* Topology Visualization Dialog */}
-      <Dialog open={showTopology} onOpenChange={setShowTopology}>
-        <DialogContent className="max-w-4xl max-h-[80vh]">
-          <DialogHeader>
-            <DialogTitle>{selectedAppForTopology?.name} - 应用拓扑图</DialogTitle>
-          </DialogHeader>
-          <div className="relative w-full h-[500px] bg-slate-50 rounded-lg overflow-hidden">
-            <svg width="100%" height="100%" className="absolute inset-0">
-              {topologyNodes.map((node, i) =>
-                topologyNodes.slice(i + 1).map((targetNode, j) => (
-                  <g key={`${i}-${j}`}>
-                    <line
-                      x1={node.x}
-                      y1={node.y}
-                      x2={targetNode.x}
-                      y2={targetNode.y}
-                      stroke="#e2e8f0"
-                      strokeWidth="2"
-                      className="opacity-60"
-                    />
-                    <circle r="3" fill="#3b82f6" className="opacity-80">
-                      <animateMotion
-                        dur="3s"
-                        repeatCount="indefinite"
-                        path={`M${node.x},${node.y} L${targetNode.x},${targetNode.y}`}
-                      />
-                    </circle>
-                  </g>
-                )),
-              )}
-
-              {topologyNodes.map((node, i) => (
-                <g key={i}>
-                  {/* Resource box (bottom rectangle) */}
-                  <rect
-                    x={node.x - 50}
-                    y={node.y + 10}
-                    width="100"
-                    height="40"
-                    fill="#f8fafc"
-                    stroke="#cbd5e1"
-                    strokeWidth="1"
-                  />
-                  <text x={node.x} y={node.y + 25} textAnchor="middle" className="text-xs fill-slate-600">
-                    CPU: {node.cpu}%
-                  </text>
-                  <text x={node.x} y={node.y + 38} textAnchor="middle" className="text-xs fill-slate-600">
-                    MEM: {node.memory}%
-                  </text>
-
-                  {/* Component box (top rounded rectangle) */}
-                  <rect
-                    x={node.x - 50}
-                    y={node.y - 30}
-                    width="100"
-                    height="35"
-                    rx="8"
-                    ry="8"
-                    fill="#3b82f6"
-                    className="opacity-90"
-                  />
-                  <text x={node.x} y={node.y - 8} textAnchor="middle" className="text-sm fill-white font-medium">
-                    {node.component}
-                  </text>
-                </g>
-              ))}
-            </svg>
+                  </TableHeader>
+                  <TableBody>
+                    {applications.map((app) => (
+                      <TableRow key={app.id} className="cursor-pointer hover:bg-muted/50">
+                        <TableCell>
+                          <div className="flex items-center space-x-2">
+                            {getStatusIcon(app.status)}
+                            <div>
+                              <div className="font-medium">{app.name}</div>
+                              <div className="text-xs text-muted-foreground">运行在: {app.runningOn.join(", ")}</div>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>{getStatusBadge(app.status)}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-2">
+                            {getHealthIcon(app.healthCheck)}
+                            <span className="text-sm capitalize">{app.healthCheck}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-2">
+                            <div className="text-sm">{app.cpu}%</div>
+                            {app.cpu > 80 ? (
+                              <TrendingUp className="h-3 w-3 text-red-500" />
+                            ) : (
+                              <TrendingDown className="h-3 w-3 text-green-500" />
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-2">
+                            <div className="text-sm">{app.memory}%</div>
+                            {app.memory > 80 ? (
+                              <TrendingUp className="h-3 w-3 text-red-500" />
+                            ) : (
+                              <TrendingDown className="h-3 w-3 text-green-500" />
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>{app.instances}</TableCell>
+                        <TableCell className="text-xs">{app.uptime}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-1">
+                            <Button variant="ghost" size="sm" onClick={() => handleShowTopology(app)} title="查看详情">
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            {app.status === "running" ? (
+                              <Button variant="ghost" size="sm" onClick={() => handleStop(app.id)} title="停止应用">
+                                <Square className="h-4 w-4" />
+                              </Button>
+                            ) : (
+                              <Button variant="ghost" size="sm" onClick={() => handleStart(app.id)} title="启动应用">
+                                <Play className="h-4 w-4" />
+                              </Button>
+                            )}
+                            <Button variant="ghost" size="sm" onClick={() => handleRestart(app.id)} title="重启应用">
+                              <RotateCcw className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
           </div>
-        </DialogContent>
-      </Dialog>
-    </div>
-  </AuthGuard>
+        </main>
+
+        {/* Topology Visualization Dialog */}
+        <Dialog open={showTopology} onOpenChange={setShowTopology}>
+          <DialogContent className="max-w-4xl max-h-[80vh]">
+            <DialogHeader>
+              <DialogTitle>{selectedAppForTopology?.name} - 应用拓扑图</DialogTitle>
+            </DialogHeader>
+            <div className="relative w-full h-[500px] bg-slate-50 rounded-lg overflow-hidden">
+              <svg width="100%" height="100%" className="absolute inset-0">
+                {topologyNodes.map((node, i) =>
+                  topologyNodes.slice(i + 1).map((targetNode, j) => (
+                    <g key={`${i}-${j}`}>
+                      <line
+                        x1={node.x}
+                        y1={node.y}
+                        x2={targetNode.x}
+                        y2={targetNode.y}
+                        stroke="#e2e8f0"
+                        strokeWidth="2"
+                        className="opacity-60"
+                      />
+                      <circle r="3" fill="#3b82f6" className="opacity-80">
+                        <animateMotion
+                          dur="3s"
+                          repeatCount="indefinite"
+                          path={`M${node.x},${node.y} L${targetNode.x},${targetNode.y}`}
+                        />
+                      </circle>
+                    </g>
+                  )),
+                )}
+
+                {topologyNodes.map((node, i) => (
+                  <g key={i}>
+                    {/* Resource box (bottom rectangle) */}
+                    <rect
+                      x={node.x - 50}
+                      y={node.y + 10}
+                      width="100"
+                      height="40"
+                      fill="#f8fafc"
+                      stroke="#cbd5e1"
+                      strokeWidth="1"
+                    />
+                    <text x={node.x} y={node.y + 25} textAnchor="middle" className="text-xs fill-slate-600">
+                      CPU: {node.cpu}%
+                    </text>
+                    <text x={node.x} y={node.y + 38} textAnchor="middle" className="text-xs fill-slate-600">
+                      MEM: {node.memory}%
+                    </text>
+
+                    {/* Component box (top rounded rectangle) */}
+                    <rect
+                      x={node.x - 50}
+                      y={node.y - 30}
+                      width="100"
+                      height="35"
+                      rx="8"
+                      ry="8"
+                      fill="#3b82f6"
+                      className="opacity-90"
+                    />
+                    <text x={node.x} y={node.y - 8} textAnchor="middle" className="text-sm fill-white font-medium">
+                      {node.component}
+                    </text>
+                  </g>
+                ))}
+              </svg>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </AuthGuard>
   )
 }
