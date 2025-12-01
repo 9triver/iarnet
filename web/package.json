@@ -9,6 +9,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@ant-design/charts": "^2.6.6",
     "@antv/g6": "^5.0.49",
     "@antv/g6-extension-react": "^0.2.4",
     "@hookform/resolvers": "^3.10.0",

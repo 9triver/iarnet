@@ -563,7 +563,11 @@ func createTestService() (*provider.Service, error) {
 	}
 
 	// 创建支持 CPU 和 Memory 的 provider
-	return provider.NewService(host, "", false, "", []string{"cpu", "memory"})
+	return provider.NewService(host, "", false, "", []string{"cpu", "memory"}, &resourcepb.Info{
+		Cpu:    1000,
+		Memory: 1024 * 1024 * 1024,
+		Gpu:    4,
+	})
 }
 
 // isDockerAvailable 检查 Docker 是否可用

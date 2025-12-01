@@ -29,6 +29,7 @@ type DockerConfig struct {
 	TLSCertPath string `yaml:"tls_cert_path"`
 	TLSVerify   bool   `yaml:"tls_verify"`
 	APIVersion  string `yaml:"api_version"`
+	Network     string `yaml:"network"` // 用于部署 component 容器的网络名称
 }
 
 // ResourceConfig 资源容量配置
@@ -118,6 +119,7 @@ func getDefaultConfig() Config {
 			TLSCertPath: "",
 			TLSVerify:   false,
 			APIVersion:  "",
+			Network:     "default",
 		},
 		Resource: ResourceConfig{
 			CPU:    0,

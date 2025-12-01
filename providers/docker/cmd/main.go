@@ -51,6 +51,7 @@ func main() {
 		cfg.Docker.TLSCertPath,
 		cfg.Docker.TLSVerify,
 		cfg.Docker.APIVersion,
+		cfg.Docker.Network,
 		cfg.ResourceTags,
 		totalCapacity,
 	)

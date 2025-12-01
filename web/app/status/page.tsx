@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { AuthGuard } from "@/components/auth-guard"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -18,7 +18,7 @@ import {
   Server,
   BarChart3,
 } from "lucide-react"
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from "recharts"
+import { Line, Area } from "@ant-design/charts"
 import { resourcesAPI } from "@/lib/api"
 import type { GetResourceCapacityResponse, GetResourceProviderCapacityResponse, GetResourceProviderUsageResponse, ProviderItem } from "@/lib/model"
 import { formatMemory } from "@/lib/utils"
@@ -64,6 +64,10 @@ export default function StatusPage() {
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [refreshInterval, setRefreshInterval] = useState(5000) // 默认 5 秒
   const [maxDataPoints, setMaxDataPoints] = useState(60) // 最多保留 60 个数据点（5分钟，5秒间隔）
+  
+  // 用于防止重复请求
+  const loadingRef = useRef(false)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   // 加载 provider 列表
   const loadProviders = useCallback(async () => {
@@ -95,6 +99,16 @@ export default function StatusPage() {
       }
 
       setAggregatedData(prev => {
+        // 避免不必要的更新：如果数据点相同，不更新状态
+        if (prev.length > 0) {
+          const last = prev[prev.length - 1]
+          if (last.timestamp === dataPoint.timestamp &&
+              last.cpu === dataPoint.cpu &&
+              last.memory === dataPoint.memory &&
+              last.gpu === dataPoint.gpu) {
+            return prev
+          }
+        }
         const newData = [...prev, dataPoint]
         return newData.slice(-maxDataPoints) // 只保留最近的数据点
       })
@@ -134,6 +148,18 @@ export default function StatusPage() {
           providerName,
           data: [],
         }
+        
+        // 避免不必要的更新：如果数据点相同，不更新状态
+        if (history.data.length > 0) {
+          const last = history.data[history.data.length - 1]
+          if (last.timestamp === dataPoint.timestamp &&
+              last.cpu === dataPoint.cpu &&
+              last.memory === dataPoint.memory &&
+              last.gpu === dataPoint.gpu) {
+            return prev
+          }
+        }
+        
         history.data = [...history.data, dataPoint].slice(-maxDataPoints)
         newMap.set(providerId, history)
         return newMap
@@ -143,19 +169,52 @@ export default function StatusPage() {
     }
   }, [maxDataPoints])
 
-  // 加载所有数据
+  // 加载所有数据（带防重复请求机制）
   const loadAllData = useCallback(async () => {
+    // 如果正在加载，取消之前的请求
+    if (loadingRef.current) {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+      return
+    }
+
+    loadingRef.current = true
     setIsLoading(true)
+    
+    // 创建新的 AbortController
+    const abortController = new AbortController()
+    abortControllerRef.current = abortController
+
     try {
+      // 检查是否已取消
+      if (abortController.signal.aborted) {
+        return
+      }
+
       await loadAggregatedCapacity()
       
+      // 检查是否已取消
+      if (abortController.signal.aborted) {
+        return
+      }
+
       // 只加载已连接的 provider
       const connectedProviders = providers.filter(p => p.status === 'connected')
       await Promise.all(
         connectedProviders.map(p => loadProviderCapacity(p.id, p.name))
       )
+    } catch (error) {
+      // 忽略取消错误
+      if (error instanceof Error && error.name !== 'AbortError') {
+        console.error('Failed to load data:', error)
+      }
     } finally {
+      loadingRef.current = false
       setIsLoading(false)
+      if (abortControllerRef.current === abortController) {
+        abortControllerRef.current = null
+      }
     }
   }, [loadAggregatedCapacity, loadProviderCapacity, providers])
 
@@ -171,15 +230,40 @@ export default function StatusPage() {
     }
   }, [providers.length]) // 只在 provider 数量变化时触发
 
-  // 自动刷新
+  // 自动刷新（带防抖机制）
   useEffect(() => {
     if (!autoRefresh) return
 
-    const interval = setInterval(() => {
-      loadAllData()
-    }, refreshInterval)
+    let timeoutId: NodeJS.Timeout | null = null
+    
+    const scheduleNext = () => {
+      timeoutId = setTimeout(() => {
+        // 只有在没有正在加载时才执行
+        if (!loadingRef.current) {
+          loadAllData().finally(() => {
+            scheduleNext()
+          })
+        } else {
+          // 如果正在加载，等待一段时间后重试
+          scheduleNext()
+        }
+      }, refreshInterval)
+    }
 
-    return () => clearInterval(interval)
+    // 立即执行一次
+    loadAllData().finally(() => {
+      scheduleNext()
+    })
+
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
+      // 清理时取消正在进行的请求
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+    }
   }, [autoRefresh, refreshInterval, loadAllData])
 
   // 获取当前显示的数据
@@ -408,42 +492,58 @@ export default function StatusPage() {
                       {isLoading ? "加载中..." : "暂无数据"}
                     </div>
                   ) : (
-                    <ResponsiveContainer width="100%" height={400}>
-                      <AreaChart data={currentData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="timestamp" />
-                        <YAxis domain={[0, 100]} />
-                        <Tooltip />
-                        <Legend />
-                        <Area
-                          type="monotone"
-                          dataKey="cpu"
-                          stackId="1"
-                          stroke="#8884d8"
-                          fill="#8884d8"
-                          fillOpacity={0.6}
-                          name="CPU (%)"
-                        />
-                        <Area
-                          type="monotone"
-                          dataKey="memory"
-                          stackId="1"
-                          stroke="#82ca9d"
-                          fill="#82ca9d"
-                          fillOpacity={0.6}
-                          name="内存 (%)"
-                        />
-                        <Area
-                          type="monotone"
-                          dataKey="gpu"
-                          stackId="1"
-                          stroke="#ffc658"
-                          fill="#ffc658"
-                          fillOpacity={0.6}
-                          name="GPU (%)"
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
+                    <Line
+                      {...useMemo(() => {
+                        const chartData = currentData.map((item) => [
+                          { timestamp: item.timestamp, type: "CPU", value: item.cpu },
+                          { timestamp: item.timestamp, type: "内存", value: item.memory },
+                          { timestamp: item.timestamp, type: "GPU", value: item.gpu },
+                        ]).flat()
+                        
+                        return {
+                          data: chartData,
+                          height: 400,
+                          xField: "timestamp",
+                          yField: "value",
+                          seriesField: "type",
+                          smooth: true,
+                          color: ["#8884d8", "#82ca9d", "#ffc658"],
+                          point: {
+                            size: 3,
+                          },
+                          legend: {
+                            position: "top",
+                          },
+                          tooltip: {
+                            shared: true,
+                            showCrosshairs: true,
+                            formatter: (datum: any) => {
+                              return {
+                                name: datum.type,
+                                value: `${datum.value.toFixed(3)}%`,
+                              }
+                            },
+                          },
+                          xAxis: {
+                            label: {
+                              autoRotate: false,
+                            },
+                          },
+                          yAxis: {
+                            min: 0,
+                            max: 100,
+                            nice: false,
+                            tickCount: 6,
+                            label: {
+                              formatter: (val: string | number) => {
+                                const num = typeof val === 'string' ? parseFloat(val) : val
+                                return `${num}%`
+                              },
+                            },
+                          },
+                        }
+                      }, [currentData])}
+                    />
                   )}
                 </CardContent>
               </Card>
@@ -461,24 +561,39 @@ export default function StatusPage() {
                       {isLoading ? "加载中..." : "暂无数据"}
                     </div>
                   ) : (
-                    <ResponsiveContainer width="100%" height={400}>
-                      <LineChart data={currentData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="timestamp" />
-                        <YAxis domain={[0, 100]} />
-                        <Tooltip />
-                        <Legend />
-                        <Line
-                          type="monotone"
-                          dataKey="cpu"
-                          stroke="#8884d8"
-                          strokeWidth={2}
-                          dot={{ r: 4 }}
-                          activeDot={{ r: 6 }}
-                          name="CPU 使用率 (%)"
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
+                    <Line
+                      {...{
+                        data: currentData,
+                        height: 400,
+                        xField: "timestamp",
+                        yField: "cpu",
+                        smooth: true,
+                        color: "#8884d8",
+                        point: {
+                          size: 4,
+                        },
+                        tooltip: {
+                          formatter: (datum: any) => {
+                            return {
+                              name: "CPU 使用率",
+                              value: `${datum.cpu.toFixed(3)}%`,
+                            }
+                          },
+                        },
+                        xAxis: {
+                          label: {
+                            autoRotate: false,
+                          },
+                        },
+                        yAxis: {
+                          min: 0,
+                          max: 100,
+                          label: {
+                            formatter: (text: string) => `${text}%`,
+                          },
+                        },
+                      }}
+                    />
                   )}
                 </CardContent>
               </Card>
@@ -496,24 +611,39 @@ export default function StatusPage() {
                       {isLoading ? "加载中..." : "暂无数据"}
                     </div>
                   ) : (
-                    <ResponsiveContainer width="100%" height={400}>
-                      <LineChart data={currentData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="timestamp" />
-                        <YAxis domain={[0, 100]} />
-                        <Tooltip />
-                        <Legend />
-                        <Line
-                          type="monotone"
-                          dataKey="memory"
-                          stroke="#82ca9d"
-                          strokeWidth={2}
-                          dot={{ r: 4 }}
-                          activeDot={{ r: 6 }}
-                          name="内存使用率 (%)"
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
+                    <Line
+                      {...{
+                        data: currentData,
+                        height: 400,
+                        xField: "timestamp",
+                        yField: "memory",
+                        smooth: true,
+                        color: "#82ca9d",
+                        point: {
+                          size: 4,
+                        },
+                        tooltip: {
+                          formatter: (datum: any) => {
+                            return {
+                              name: "内存使用率",
+                              value: `${datum.memory.toFixed(3)}%`,
+                            }
+                          },
+                        },
+                        xAxis: {
+                          label: {
+                            autoRotate: false,
+                          },
+                        },
+                        yAxis: {
+                          min: 0,
+                          max: 100,
+                          label: {
+                            formatter: (text: string) => `${text}%`,
+                          },
+                        },
+                      }}
+                    />
                   )}
                 </CardContent>
               </Card>
@@ -531,24 +661,39 @@ export default function StatusPage() {
                       {isLoading ? "加载中..." : "暂无数据"}
                     </div>
                   ) : (
-                    <ResponsiveContainer width="100%" height={400}>
-                      <LineChart data={currentData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="timestamp" />
-                        <YAxis domain={[0, 100]} />
-                        <Tooltip />
-                        <Legend />
-                        <Line
-                          type="monotone"
-                          dataKey="gpu"
-                          stroke="#ffc658"
-                          strokeWidth={2}
-                          dot={{ r: 4 }}
-                          activeDot={{ r: 6 }}
-                          name="GPU 使用率 (%)"
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
+                    <Line
+                      {...{
+                        data: currentData,
+                        height: 400,
+                        xField: "timestamp",
+                        yField: "gpu",
+                        smooth: true,
+                        color: "#ffc658",
+                        point: {
+                          size: 4,
+                        },
+                        tooltip: {
+                          formatter: (datum: any) => {
+                            return {
+                              name: "GPU 使用率",
+                              value: `${datum.gpu.toFixed(3)}%`,
+                            }
+                          },
+                        },
+                        xAxis: {
+                          label: {
+                            autoRotate: false,
+                          },
+                        },
+                        yAxis: {
+                          min: 0,
+                          max: 100,
+                          label: {
+                            formatter: (text: string) => `${text}%`,
+                          },
+                        },
+                      }}
+                    />
                   )}
                 </CardContent>
               </Card>

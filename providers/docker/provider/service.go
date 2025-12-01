@@ -11,6 +11,7 @@ import (
 	resourcepb "github.com/9triver/iarnet/internal/proto/resource"
 	providerpb "github.com/9triver/iarnet/internal/proto/resource/provider"
 	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/network"
 	"github.com/moby/moby/client"
 	"github.com/sirupsen/logrus"
 )
@@ -23,13 +24,14 @@ type Service struct {
 	client       *client.Client
 	manager      *Manager // 健康检查状态管理器
 	resourceTags *providerpb.ResourceTags
+	network      string // 用于部署 component 容器的网络名称
 
 	// 资源容量管理（从配置文件读取）
 	totalCapacity *resourcepb.Info // 配置的总容量
 	allocated     *resourcepb.Info // 当前已分配的容量（内存中动态维护）
 }
 
-func NewService(host, tlsCertPath string, tlsVerify bool, apiVersion string, resourceTags []string, totalCapacity *resourcepb.Info) (*Service, error) {
+func NewService(host, tlsCertPath string, tlsVerify bool, apiVersion string, network string, resourceTags []string, totalCapacity *resourcepb.Info) (*Service, error) {
 	var opts []client.Opt
 
 	if host != "" {
@@ -87,6 +89,7 @@ func NewService(host, tlsCertPath string, tlsVerify bool, apiVersion string, res
 	service := &Service{
 		client:  cli,
 		manager: manager,
+		network: network,
 		resourceTags: &providerpb.ResourceTags{
 			Cpu:    slices.Contains(resourceTags, "cpu"),
 			Memory: slices.Contains(resourceTags, "memory"),
@@ -319,8 +322,19 @@ func (s *Service) Deploy(ctx context.Context, req *providerpb.DeployRequest) (*p
 		// PortBindings: portBindings,
 	}
 
+	// 配置网络（如果指定了网络名称）
+	var networkingConfig *network.NetworkingConfig
+	if s.network != "" {
+		networkingConfig = &network.NetworkingConfig{
+			EndpointsConfig: map[string]*network.EndpointSettings{
+				s.network: {},
+			},
+		}
+		logrus.Infof("Deploying container to network: %s", s.network)
+	}
+
 	// 创建容器
-	resp, err := s.client.ContainerCreate(ctx, containerConfig, hostConfig, nil, nil, req.InstanceId)
+	resp, err := s.client.ContainerCreate(ctx, containerConfig, hostConfig, networkingConfig, nil, req.InstanceId)
 	if err != nil {
 		logrus.Errorf("Failed to create container: %v", err)
 		return &providerpb.DeployResponse{
