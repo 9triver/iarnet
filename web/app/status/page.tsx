@@ -18,7 +18,7 @@ import {
   Server,
   BarChart3,
 } from "lucide-react"
-import { Line, Area } from "@ant-design/charts"
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from "recharts"
 import { resourcesAPI } from "@/lib/api"
 import type { GetResourceCapacityResponse, GetResourceProviderCapacityResponse, GetResourceProviderUsageResponse, ProviderItem } from "@/lib/model"
 import { formatMemory } from "@/lib/utils"
@@ -492,58 +492,42 @@ export default function StatusPage() {
                       {isLoading ? "加载中..." : "暂无数据"}
                     </div>
                   ) : (
-                    <Line
-                      {...useMemo(() => {
-                        const chartData = currentData.map((item) => [
-                          { timestamp: item.timestamp, type: "CPU", value: item.cpu },
-                          { timestamp: item.timestamp, type: "内存", value: item.memory },
-                          { timestamp: item.timestamp, type: "GPU", value: item.gpu },
-                        ]).flat()
-                        
-                        return {
-                          data: chartData,
-                          height: 400,
-                          xField: "timestamp",
-                          yField: "value",
-                          seriesField: "type",
-                          smooth: true,
-                          color: ["#8884d8", "#82ca9d", "#ffc658"],
-                          point: {
-                            size: 3,
-                          },
-                          legend: {
-                            position: "top",
-                          },
-                          tooltip: {
-                            shared: true,
-                            showCrosshairs: true,
-                            formatter: (datum: any) => {
-                              return {
-                                name: datum.type,
-                                value: `${datum.value.toFixed(3)}%`,
-                              }
-                            },
-                          },
-                          xAxis: {
-                            label: {
-                              autoRotate: false,
-                            },
-                          },
-                          yAxis: {
-                            min: 0,
-                            max: 100,
-                            nice: false,
-                            tickCount: 6,
-                            label: {
-                              formatter: (val: string | number) => {
-                                const num = typeof val === 'string' ? parseFloat(val) : val
-                                return `${num}%`
-                              },
-                            },
-                          },
-                        }
-                      }, [currentData])}
-                    />
+                    <ResponsiveContainer width="100%" height={400}>
+                      <AreaChart data={currentData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="timestamp" />
+                        <YAxis domain={[0, 100]} />
+                        <Tooltip />
+                        <Legend />
+                        <Area
+                          type="monotone"
+                          dataKey="cpu"
+                          stackId="1"
+                          stroke="#8884d8"
+                          fill="#8884d8"
+                          fillOpacity={0.6}
+                          name="CPU (%)"
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="memory"
+                          stackId="1"
+                          stroke="#82ca9d"
+                          fill="#82ca9d"
+                          fillOpacity={0.6}
+                          name="内存 (%)"
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="gpu"
+                          stackId="1"
+                          stroke="#ffc658"
+                          fill="#ffc658"
+                          fillOpacity={0.6}
+                          name="GPU (%)"
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
                   )}
                 </CardContent>
               </Card>
@@ -561,39 +545,24 @@ export default function StatusPage() {
                       {isLoading ? "加载中..." : "暂无数据"}
                     </div>
                   ) : (
-                    <Line
-                      {...{
-                        data: currentData,
-                        height: 400,
-                        xField: "timestamp",
-                        yField: "cpu",
-                        smooth: true,
-                        color: "#8884d8",
-                        point: {
-                          size: 4,
-                        },
-                        tooltip: {
-                          formatter: (datum: any) => {
-                            return {
-                              name: "CPU 使用率",
-                              value: `${datum.cpu.toFixed(3)}%`,
-                            }
-                          },
-                        },
-                        xAxis: {
-                          label: {
-                            autoRotate: false,
-                          },
-                        },
-                        yAxis: {
-                          min: 0,
-                          max: 100,
-                          label: {
-                            formatter: (text: string) => `${text}%`,
-                          },
-                        },
-                      }}
-                    />
+                    <ResponsiveContainer width="100%" height={400}>
+                      <LineChart data={currentData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="timestamp" />
+                        <YAxis domain={[0, 100]} />
+                        <Tooltip />
+                        <Legend />
+                        <Line
+                          type="monotone"
+                          dataKey="cpu"
+                          stroke="#8884d8"
+                          strokeWidth={2}
+                          dot={{ r: 4 }}
+                          activeDot={{ r: 6 }}
+                          name="CPU 使用率 (%)"
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
                   )}
                 </CardContent>
               </Card>
@@ -611,39 +580,24 @@ export default function StatusPage() {
                       {isLoading ? "加载中..." : "暂无数据"}
                     </div>
                   ) : (
-                    <Line
-                      {...{
-                        data: currentData,
-                        height: 400,
-                        xField: "timestamp",
-                        yField: "memory",
-                        smooth: true,
-                        color: "#82ca9d",
-                        point: {
-                          size: 4,
-                        },
-                        tooltip: {
-                          formatter: (datum: any) => {
-                            return {
-                              name: "内存使用率",
-                              value: `${datum.memory.toFixed(3)}%`,
-                            }
-                          },
-                        },
-                        xAxis: {
-                          label: {
-                            autoRotate: false,
-                          },
-                        },
-                        yAxis: {
-                          min: 0,
-                          max: 100,
-                          label: {
-                            formatter: (text: string) => `${text}%`,
-                          },
-                        },
-                      }}
-                    />
+                    <ResponsiveContainer width="100%" height={400}>
+                      <LineChart data={currentData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="timestamp" />
+                        <YAxis domain={[0, 100]} />
+                        <Tooltip />
+                        <Legend />
+                        <Line
+                          type="monotone"
+                          dataKey="memory"
+                          stroke="#82ca9d"
+                          strokeWidth={2}
+                          dot={{ r: 4 }}
+                          activeDot={{ r: 6 }}
+                          name="内存使用率 (%)"
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
                   )}
                 </CardContent>
               </Card>
@@ -661,39 +615,24 @@ export default function StatusPage() {
                       {isLoading ? "加载中..." : "暂无数据"}
                     </div>
                   ) : (
-                    <Line
-                      {...{
-                        data: currentData,
-                        height: 400,
-                        xField: "timestamp",
-                        yField: "gpu",
-                        smooth: true,
-                        color: "#ffc658",
-                        point: {
-                          size: 4,
-                        },
-                        tooltip: {
-                          formatter: (datum: any) => {
-                            return {
-                              name: "GPU 使用率",
-                              value: `${datum.gpu.toFixed(3)}%`,
-                            }
-                          },
-                        },
-                        xAxis: {
-                          label: {
-                            autoRotate: false,
-                          },
-                        },
-                        yAxis: {
-                          min: 0,
-                          max: 100,
-                          label: {
-                            formatter: (text: string) => `${text}%`,
-                          },
-                        },
-                      }}
-                    />
+                    <ResponsiveContainer width="100%" height={400}>
+                      <LineChart data={currentData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="timestamp" />
+                        <YAxis domain={[0, 100]} />
+                        <Tooltip />
+                        <Legend />
+                        <Line
+                          type="monotone"
+                          dataKey="gpu"
+                          stroke="#ffc658"
+                          strokeWidth={2}
+                          dot={{ r: 4 }}
+                          activeDot={{ r: 6 }}
+                          name="GPU 使用率 (%)"
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
                   )}
                 </CardContent>
               </Card>
