@@ -315,6 +315,7 @@ func (s *Service) Deploy(ctx context.Context, req *providerpb.DeployRequest) (*p
 		ExtraHosts: []string{
 			"host.internal:host-gateway",
 		},
+		Runtime: "nvidia",
 		// PortBindings: portBindings,
 	}
 
