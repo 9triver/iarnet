@@ -4,7 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os/exec"
 	"slices"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -590,15 +593,9 @@ func (s *Service) GetRealTimeUsage(ctx context.Context, req *providerpb.GetRealT
 				containerMemory = int64(secondStats.MemoryStats.Usage)
 			}
 
-			// GPU 使用（通过设备数量统计）
-			var containerGpu int64
-			if containerInfo.HostConfig != nil && len(containerInfo.HostConfig.DeviceRequests) > 0 {
-				for _, dr := range containerInfo.HostConfig.DeviceRequests {
-					if dr.Count > 0 {
-						containerGpu += int64(dr.Count)
-					}
-				}
-			}
+			// GPU 使用：获取实际的 GPU 使用率（如果可用）
+			// 优先尝试从 nvidia-smi 获取实时 GPU 使用率
+			containerGpu := getContainerGPUUsage(containerID, containerInfo)
 
 			usageChan <- containerUsage{
 				cpu:    containerCpu,
@@ -674,4 +671,149 @@ func calculateRealTimeCPU(v *container.StatsResponse, containerInfo container.In
 	usedCPUMillicores := int64(usedCPUCores * 1000.0)
 
 	return usedCPUMillicores
+}
+
+// getContainerGPUUsage 获取容器的 GPU 使用情况
+// 如果安装了 nvidia-container-toolkit，尝试从 nvidia-smi 获取该容器进程的实际 GPU 使用量
+// 否则回退到统计分配的 GPU 设备数量
+func getContainerGPUUsage(containerID string, containerInfo container.InspectResponse) int64 {
+	// 首先检查容器是否分配了 GPU
+	var gpuCount int64
+	if containerInfo.HostConfig != nil && len(containerInfo.HostConfig.DeviceRequests) > 0 {
+		for _, dr := range containerInfo.HostConfig.DeviceRequests {
+			// 检查是否是 GPU 设备请求
+			if dr.Driver != "" && strings.Contains(strings.ToLower(dr.Driver), "nvidia") {
+				// 统计分配的 GPU 数量
+				if len(dr.DeviceIDs) > 0 {
+					gpuCount += int64(len(dr.DeviceIDs))
+				} else if dr.Count > 0 {
+					gpuCount += int64(dr.Count)
+				}
+			}
+		}
+	}
+
+	// 如果没有分配 GPU，返回 0
+	if gpuCount == 0 {
+		return 0
+	}
+
+	// 尝试通过 nvidia-smi 获取该容器进程的实际 GPU 使用量
+	// 通过查询容器内的进程 PID 来匹配 GPU 使用情况
+	containerGPUUsage, err := getContainerGPUUsageFromNvidiaSMI(containerID, containerInfo)
+	if err != nil {
+		// 如果无法获取实时使用量，回退到统计分配的 GPU 数量
+		logrus.Debugf("Failed to get GPU usage from nvidia-smi for container %s: %v, falling back to device count", containerID, err)
+		return gpuCount
+	}
+
+	return containerGPUUsage
+}
+
+// getContainerGPUUsageFromNvidiaSMI 通过 nvidia-smi 获取容器进程的实际 GPU 使用量
+// 通过查询容器内的进程 PID 来匹配 GPU 使用情况
+func getContainerGPUUsageFromNvidiaSMI(containerID string, containerInfo container.InspectResponse) (int64, error) {
+	// 获取容器内的进程 PID 列表
+	containerPIDs, err := getContainerPIDs(containerID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get container PIDs: %w", err)
+	}
+
+	if len(containerPIDs) == 0 {
+		// 容器内没有进程，返回 0
+		return 0, nil
+	}
+
+	// 执行 nvidia-smi 命令获取使用 GPU 的进程信息
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	// 查询所有使用 GPU 的进程：pid, gpu_uuid, used_memory
+	cmd := exec.CommandContext(ctx, "nvidia-smi", "--query-compute-apps=pid,gpu_uuid,used_memory", "--format=csv,noheader,nounits")
+	output, err := cmd.Output()
+	if err != nil {
+		return 0, fmt.Errorf("failed to execute nvidia-smi: %w", err)
+	}
+
+	// 解析输出，找出属于该容器的进程
+	// 格式示例：12345, GPU-12345678-1234-1234-1234-123456789abc, 1024\n
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+
+	// 统计该容器使用的 GPU 数量（基于进程使用的 GPU）
+	usedGPUs := make(map[string]bool) // GPU UUID -> 是否被使用
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		parts := strings.Split(line, ",")
+		if len(parts) < 2 {
+			continue
+		}
+
+		// 解析 PID
+		pidStr := strings.TrimSpace(parts[0])
+		pid, err := strconv.Atoi(pidStr)
+		if err != nil {
+			continue
+		}
+
+		// 检查这个 PID 是否属于该容器
+		isContainerPID := false
+		for _, containerPID := range containerPIDs {
+			if pid == containerPID {
+				isContainerPID = true
+				break
+			}
+		}
+
+		if isContainerPID {
+			// 这个进程属于该容器，记录它使用的 GPU
+			if len(parts) >= 2 {
+				gpuUUID := strings.TrimSpace(parts[1])
+				if gpuUUID != "" {
+					usedGPUs[gpuUUID] = true
+				}
+			}
+		}
+	}
+
+	// 返回该容器实际使用的 GPU 数量
+	return int64(len(usedGPUs)), nil
+}
+
+// getContainerPIDs 获取容器内的所有进程 PID
+func getContainerPIDs(containerID string) ([]int, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	// 使用 docker top 命令获取容器内的进程 PID
+	cmd := exec.CommandContext(ctx, "docker", "top", containerID, "-o", "pid")
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute docker top: %w", err)
+	}
+
+	// 解析输出，跳过第一行（表头）
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	var pids []int
+
+	for i, line := range lines {
+		if i == 0 {
+			// 跳过表头
+			continue
+		}
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		pid, err := strconv.Atoi(line)
+		if err != nil {
+			continue
+		}
+		pids = append(pids, pid)
+	}
+
+	return pids, nil
 }
