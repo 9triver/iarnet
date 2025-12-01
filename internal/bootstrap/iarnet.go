@@ -112,11 +112,10 @@ func (iarnet *Iarnet) Stop() error {
 		// 例如：停止所有 runner 的监听
 	}
 
-	// 停止 Provider 健康检测（如果存在）
+	// 停止 Resource Manager（包括健康检测和轮询服务）
 	if iarnet.ResourceManager != nil {
-		// 通过 providerManager 停止健康检测
-		// 注意：这里需要通过反射或添加方法访问 providerManager
-		// 暂时先不处理，因为 providerManager 是私有字段
+		iarnet.ResourceManager.Stop()
+		logrus.Info("Resource manager stopped")
 	}
 
 	// 停止 Discovery 服务

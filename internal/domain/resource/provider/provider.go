@@ -470,6 +470,30 @@ func (p *Provider) Deploy(ctx context.Context, id, image string, resourceRequest
 	return nil
 }
 
+// GetRealTimeUsage 获取实时资源使用情况
+func (p *Provider) GetRealTimeUsage(ctx context.Context) (*types.Info, error) {
+	if p.client == nil {
+		return nil, fmt.Errorf("provider not connected")
+	}
+	if p.id == "" {
+		return nil, fmt.Errorf("provider not connected, please call Connect first")
+	}
+
+	req := &providerpb.GetRealTimeUsageRequest{
+		ProviderId: p.id,
+	}
+	resp, err := p.client.GetRealTimeUsage(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get real-time usage: %w", err)
+	}
+
+	return &types.Info{
+		CPU:    resp.Usage.Cpu,
+		Memory: resp.Usage.Memory,
+		GPU:    resp.Usage.Gpu,
+	}, nil
+}
+
 func (p *Provider) Close() error {
 	if p.client != nil {
 		return p.conn.Close()

@@ -19,12 +19,13 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Service_Connect_FullMethodName      = "/provider.Service/Connect"
-	Service_Disconnect_FullMethodName   = "/provider.Service/Disconnect"
-	Service_GetCapacity_FullMethodName  = "/provider.Service/GetCapacity"
-	Service_GetAvailable_FullMethodName = "/provider.Service/GetAvailable"
-	Service_Deploy_FullMethodName       = "/provider.Service/Deploy"
-	Service_HealthCheck_FullMethodName  = "/provider.Service/HealthCheck"
+	Service_Connect_FullMethodName          = "/provider.Service/Connect"
+	Service_Disconnect_FullMethodName       = "/provider.Service/Disconnect"
+	Service_GetCapacity_FullMethodName      = "/provider.Service/GetCapacity"
+	Service_GetAvailable_FullMethodName     = "/provider.Service/GetAvailable"
+	Service_Deploy_FullMethodName           = "/provider.Service/Deploy"
+	Service_HealthCheck_FullMethodName      = "/provider.Service/HealthCheck"
+	Service_GetRealTimeUsage_FullMethodName = "/provider.Service/GetRealTimeUsage"
 )
 
 // ServiceClient is the client API for Service service.
@@ -37,6 +38,7 @@ type ServiceClient interface {
 	GetAvailable(ctx context.Context, in *GetAvailableRequest, opts ...grpc.CallOption) (*GetAvailableResponse, error)
 	Deploy(ctx context.Context, in *DeployRequest, opts ...grpc.CallOption) (*DeployResponse, error)
 	HealthCheck(ctx context.Context, in *HealthCheckRequest, opts ...grpc.CallOption) (*HealthCheckResponse, error)
+	GetRealTimeUsage(ctx context.Context, in *GetRealTimeUsageRequest, opts ...grpc.CallOption) (*GetRealTimeUsageResponse, error)
 }
 
 type serviceClient struct {
@@ -107,6 +109,16 @@ func (c *serviceClient) HealthCheck(ctx context.Context, in *HealthCheckRequest,
 	return out, nil
 }
 
+func (c *serviceClient) GetRealTimeUsage(ctx context.Context, in *GetRealTimeUsageRequest, opts ...grpc.CallOption) (*GetRealTimeUsageResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetRealTimeUsageResponse)
+	err := c.cc.Invoke(ctx, Service_GetRealTimeUsage_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ServiceServer is the server API for Service service.
 // All implementations must embed UnimplementedServiceServer
 // for forward compatibility.
@@ -117,6 +129,7 @@ type ServiceServer interface {
 	GetAvailable(context.Context, *GetAvailableRequest) (*GetAvailableResponse, error)
 	Deploy(context.Context, *DeployRequest) (*DeployResponse, error)
 	HealthCheck(context.Context, *HealthCheckRequest) (*HealthCheckResponse, error)
+	GetRealTimeUsage(context.Context, *GetRealTimeUsageRequest) (*GetRealTimeUsageResponse, error)
 	mustEmbedUnimplementedServiceServer()
 }
 
@@ -144,6 +157,9 @@ func (UnimplementedServiceServer) Deploy(context.Context, *DeployRequest) (*Depl
 }
 func (UnimplementedServiceServer) HealthCheck(context.Context, *HealthCheckRequest) (*HealthCheckResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method HealthCheck not implemented")
+}
+func (UnimplementedServiceServer) GetRealTimeUsage(context.Context, *GetRealTimeUsageRequest) (*GetRealTimeUsageResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetRealTimeUsage not implemented")
 }
 func (UnimplementedServiceServer) mustEmbedUnimplementedServiceServer() {}
 func (UnimplementedServiceServer) testEmbeddedByValue()                 {}
@@ -274,6 +290,24 @@ func _Service_HealthCheck_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Service_GetRealTimeUsage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetRealTimeUsageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ServiceServer).GetRealTimeUsage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Service_GetRealTimeUsage_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ServiceServer).GetRealTimeUsage(ctx, req.(*GetRealTimeUsageRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Service_ServiceDesc is the grpc.ServiceDesc for Service service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -304,6 +338,10 @@ var Service_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "HealthCheck",
 			Handler:    _Service_HealthCheck_Handler,
+		},
+		{
+			MethodName: "GetRealTimeUsage",
+			Handler:    _Service_GetRealTimeUsage_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

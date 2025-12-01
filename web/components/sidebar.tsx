@@ -22,10 +22,10 @@ const baseNavigation = [
     description: "导入和部署应用",
   },
   {
-    name: "运行状态",
+    name: "状态监控",
     href: "/status",
     icon: Activity,
-    description: "监控应用运行状态",
+    description: "监控本地资源运行状态",
   },
 ]
 

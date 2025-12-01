@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"slices"
 	"sync"
@@ -281,6 +282,10 @@ func (s *Service) Deploy(ctx context.Context, req *providerpb.DeployRequest) (*p
 		"env_vars":         req.EnvVars,
 		"resource_request": req.ResourceRequest,
 	}).Info("docker provider deploy component")
+
+	// 获取 provider ID 用于标记容器
+	providerID := s.manager.GetProviderID()
+
 	// 创建容器配置
 	containerConfig := &container.Config{
 		Image: req.Image,
@@ -291,6 +296,10 @@ func (s *Service) Deploy(ctx context.Context, req *providerpb.DeployRequest) (*p
 			}
 			return env
 		}(),
+		Labels: map[string]string{
+			"iarnet.provider_id": providerID,
+			"iarnet.managed":     "true",
+		},
 	}
 
 	// 创建主机配置
@@ -431,4 +440,223 @@ func (s *Service) ReleaseResources(cpu, memory, gpu int64) {
 
 	logrus.Infof("Released resources: CPU=%d, Memory=%d, GPU=%d, remaining allocated: CPU=%d, Memory=%d, GPU=%d",
 		cpu, memory, gpu, s.allocated.Cpu, s.allocated.Memory, s.allocated.Gpu)
+}
+
+// GetRealTimeUsage 获取实时资源使用情况
+// 统计该 provider 部署的所有 component 容器的实时负载
+// 使用 Docker 流式 Stats API 获取真实的实时数据
+func (s *Service) GetRealTimeUsage(ctx context.Context, req *providerpb.GetRealTimeUsageRequest) (*providerpb.GetRealTimeUsageResponse, error) {
+	// 鉴权：必须验证 provider_id
+	if err := s.checkAuth(req.ProviderId, false); err != nil {
+		return nil, fmt.Errorf("authentication failed: %w", err)
+	}
+
+	providerID := s.manager.GetProviderID()
+	if providerID == "" {
+		return nil, fmt.Errorf("provider not connected")
+	}
+
+	// 列出所有容器
+	containers, err := s.client.ContainerList(ctx, container.ListOptions{
+		All: false, // 只列出运行中的容器
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list containers: %w", err)
+	}
+
+	var totalCpu int64    // millicores
+	var totalMemory int64 // bytes
+	var totalGpu int64    // GPU 数量（Docker 中通常通过设备数量统计）
+
+	// 过滤出由该 provider 部署的容器
+	var targetContainers []container.Summary
+	for _, c := range containers {
+		if c.Labels["iarnet.provider_id"] == providerID {
+			targetContainers = append(targetContainers, c)
+		}
+	}
+
+	if len(targetContainers) == 0 {
+		return &providerpb.GetRealTimeUsageResponse{
+			Usage: &resourcepb.Info{
+				Cpu:    0,
+				Memory: 0,
+				Gpu:    0,
+			},
+		}, nil
+	}
+
+	// 使用并发处理容器，避免阻塞
+	type containerUsage struct {
+		cpu    int64
+		memory int64
+		gpu    int64
+	}
+
+	var wg sync.WaitGroup
+	usageChan := make(chan containerUsage, len(targetContainers))
+	// 限制并发数，避免过多 goroutine
+	maxConcurrency := 10
+	semaphore := make(chan struct{}, maxConcurrency)
+
+	for _, c := range targetContainers {
+		wg.Add(1)
+		semaphore <- struct{}{} // 获取信号量
+		go func(containerID string) {
+			defer wg.Done()
+			defer func() { <-semaphore }() // 释放信号量
+
+			// 创建独立的上下文，避免被取消影响其他容器
+			containerCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			// 获取容器信息（用于获取 CPU 限制和 GPU 设备）
+			containerInfo, err := s.client.ContainerInspect(containerCtx, containerID)
+			if err != nil {
+				logrus.Warnf("Failed to inspect container %s: %v", containerID, err)
+				usageChan <- containerUsage{0, 0, 0}
+				return
+			}
+
+			// 使用流式 API 获取实时统计信息
+			// 需要获取两个时间点的数据才能准确计算 CPU 使用率
+			stats, err := s.client.ContainerStats(containerCtx, containerID, true) // stream=true 启用流式 API
+			if err != nil {
+				logrus.Warnf("Failed to get stats for container %s: %v", containerID, err)
+				usageChan <- containerUsage{0, 0, 0}
+				return
+			}
+
+			// 创建带超时的上下文，用于读取统计流
+			statsCtx, statsCancel := context.WithTimeout(containerCtx, 3*time.Second)
+
+			decoder := json.NewDecoder(stats.Body)
+			var firstStats *container.StatsResponse
+			var secondStats *container.StatsResponse
+
+			// 读取第一个数据点
+			var v1 container.StatsResponse
+			if err := decoder.Decode(&v1); err != nil {
+				stats.Body.Close()
+				statsCancel()
+				logrus.Warnf("Failed to decode first stats for container %s: %v", containerID, err)
+				usageChan <- containerUsage{0, 0, 0}
+				return
+			}
+			firstStats = &v1
+
+			// 等待一段时间（1秒）以获取第二个数据点，用于计算 CPU 使用率
+			select {
+			case <-time.After(1 * time.Second):
+				// 读取第二个数据点
+				var v2 container.StatsResponse
+				if err := decoder.Decode(&v2); err != nil {
+					logrus.Warnf("Failed to decode second stats for container %s: %v", containerID, err)
+					// 如果无法获取第二个数据点，使用第一个数据点的内存信息
+					secondStats = firstStats
+				} else {
+					secondStats = &v2
+				}
+			case <-statsCtx.Done():
+				logrus.Warnf("Timeout waiting for second stats for container %s", containerID)
+				secondStats = firstStats
+			}
+
+			// 关闭统计流和取消上下文
+			stats.Body.Close()
+			statsCancel()
+
+			// 使用第二个数据点（包含 PreCPUStats）来计算 CPU 使用率
+			containerCpu := calculateRealTimeCPU(secondStats, containerInfo)
+
+			// 内存使用（bytes）- 使用实际占用的内存
+			var containerMemory int64
+			if secondStats.MemoryStats.Usage > 0 {
+				containerMemory = int64(secondStats.MemoryStats.Usage)
+			}
+
+			// GPU 使用（通过设备数量统计）
+			var containerGpu int64
+			if containerInfo.HostConfig != nil && len(containerInfo.HostConfig.DeviceRequests) > 0 {
+				for _, dr := range containerInfo.HostConfig.DeviceRequests {
+					if dr.Count > 0 {
+						containerGpu += int64(dr.Count)
+					}
+				}
+			}
+
+			usageChan <- containerUsage{
+				cpu:    containerCpu,
+				memory: containerMemory,
+				gpu:    containerGpu,
+			}
+		}(c.ID)
+	}
+
+	// 等待所有 goroutine 完成
+	go func() {
+		wg.Wait()
+		close(usageChan)
+	}()
+
+	// 聚合所有容器的使用量
+	for usage := range usageChan {
+		totalCpu += usage.cpu
+		totalMemory += usage.memory
+		totalGpu += usage.gpu
+	}
+
+	return &providerpb.GetRealTimeUsageResponse{
+		Usage: &resourcepb.Info{
+			Cpu:    totalCpu,
+			Memory: totalMemory,
+			Gpu:    totalGpu,
+		},
+	}, nil
+}
+
+// calculateRealTimeCPU 计算容器实时使用的 CPU（millicores）
+// 直接使用 Docker stats API 返回的实际 CPU 使用数据，不基于分配资源计算
+// 计算方式与 docker stats 命令和 Docker Desktop 完全一致
+func calculateRealTimeCPU(v *container.StatsResponse, containerInfo container.InspectResponse) int64 {
+	// 检查是否有 CPU 统计数据
+	if v.CPUStats.CPUUsage.TotalUsage == 0 || v.PreCPUStats.CPUUsage.TotalUsage == 0 {
+		return 0
+	}
+
+	// 计算 CPU 使用时间差（nanoseconds）
+	// cpuDelta: 容器在这段时间内实际使用的 CPU 时间
+	cpuDelta := float64(v.CPUStats.CPUUsage.TotalUsage) - float64(v.PreCPUStats.CPUUsage.TotalUsage)
+	// systemDelta: 系统在这段时间内的总 CPU 时间（所有核心的总和）
+	systemDelta := float64(v.CPUStats.SystemUsage) - float64(v.PreCPUStats.SystemUsage)
+
+	if systemDelta <= 0.0 || cpuDelta <= 0.0 {
+		return 0
+	}
+
+	// 获取系统 CPU 核心数（从统计信息中获取，这是实际可用的 CPU 核心数）
+	numCPU := len(v.CPUStats.CPUUsage.PercpuUsage)
+	if numCPU == 0 {
+		// 如果无法获取，尝试从 OnlineCPUs 获取
+		if v.CPUStats.OnlineCPUs > 0 {
+			numCPU = int(v.CPUStats.OnlineCPUs)
+		} else {
+			numCPU = 1 // 默认假设 1 个核心
+		}
+	}
+
+	// Docker stats 标准计算方式：
+	// CPU 使用率 = (cpuDelta / systemDelta) × numCPU
+	// 这个值表示容器实际使用的 CPU 核心数（相对于系统总 CPU）
+	// 例如：如果系统有 8 核，cpuDelta/systemDelta = 0.5，则容器使用了 0.5 × 8 = 4 个核心
+
+	// 计算实际使用的 CPU 核心数
+	cpuUsageRatio := cpuDelta / systemDelta
+	usedCPUCores := cpuUsageRatio * float64(numCPU)
+
+	// 转换为 millicores（1 core = 1000 millicores）
+	// 例如：0.5 核心 = 500 millicores, 4 核心 = 4000 millicores
+	usedCPUMillicores := int64(usedCPUCores * 1000.0)
+
+	return usedCPUMillicores
 }

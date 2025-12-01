@@ -711,6 +711,94 @@ func (*DisconnectResponse) Descriptor() ([]byte, []int) {
 	return file_resource_provider_provider_proto_rawDescGZIP(), []int{13}
 }
 
+type GetRealTimeUsageRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ProviderId    string                 `protobuf:"bytes,1,opt,name=provider_id,json=providerId,proto3" json:"provider_id,omitempty"` // provider_id，用于鉴权
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetRealTimeUsageRequest) Reset() {
+	*x = GetRealTimeUsageRequest{}
+	mi := &file_resource_provider_provider_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetRealTimeUsageRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetRealTimeUsageRequest) ProtoMessage() {}
+
+func (x *GetRealTimeUsageRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_resource_provider_provider_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetRealTimeUsageRequest.ProtoReflect.Descriptor instead.
+func (*GetRealTimeUsageRequest) Descriptor() ([]byte, []int) {
+	return file_resource_provider_provider_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *GetRealTimeUsageRequest) GetProviderId() string {
+	if x != nil {
+		return x.ProviderId
+	}
+	return ""
+}
+
+type GetRealTimeUsageResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Usage         *resource.Info         `protobuf:"bytes,1,opt,name=usage,proto3" json:"usage,omitempty"` // 实时资源使用情况（CPU、内存、GPU）
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetRealTimeUsageResponse) Reset() {
+	*x = GetRealTimeUsageResponse{}
+	mi := &file_resource_provider_provider_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetRealTimeUsageResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetRealTimeUsageResponse) ProtoMessage() {}
+
+func (x *GetRealTimeUsageResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_resource_provider_provider_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetRealTimeUsageResponse.ProtoReflect.Descriptor instead.
+func (*GetRealTimeUsageResponse) Descriptor() ([]byte, []int) {
+	return file_resource_provider_provider_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *GetRealTimeUsageResponse) GetUsage() *resource.Info {
+	if x != nil {
+		return x.Usage
+	}
+	return nil
+}
+
 var File_resource_provider_provider_proto protoreflect.FileDescriptor
 
 const file_resource_provider_provider_proto_rawDesc = "" +
@@ -762,7 +850,12 @@ const file_resource_provider_provider_proto_rawDesc = "" +
 	"\x11DisconnectRequest\x12\x1f\n" +
 	"\vprovider_id\x18\x01 \x01(\tR\n" +
 	"providerId\"\x14\n" +
-	"\x12DisconnectResponse2\xb6\x03\n" +
+	"\x12DisconnectResponse\":\n" +
+	"\x17GetRealTimeUsageRequest\x12\x1f\n" +
+	"\vprovider_id\x18\x01 \x01(\tR\n" +
+	"providerId\"@\n" +
+	"\x18GetRealTimeUsageResponse\x12$\n" +
+	"\x05usage\x18\x01 \x01(\v2\x0e.resource.InfoR\x05usage2\x91\x04\n" +
 	"\aService\x12>\n" +
 	"\aConnect\x12\x18.provider.ConnectRequest\x1a\x19.provider.ConnectResponse\x12G\n" +
 	"\n" +
@@ -770,7 +863,8 @@ const file_resource_provider_provider_proto_rawDesc = "" +
 	"\vGetCapacity\x12\x1c.provider.GetCapacityRequest\x1a\x1d.provider.GetCapacityResponse\x12M\n" +
 	"\fGetAvailable\x12\x1d.provider.GetAvailableRequest\x1a\x1e.provider.GetAvailableResponse\x12;\n" +
 	"\x06Deploy\x12\x17.provider.DeployRequest\x1a\x18.provider.DeployResponse\x12J\n" +
-	"\vHealthCheck\x12\x1c.provider.HealthCheckRequest\x1a\x1d.provider.HealthCheckResponseB<Z:github.com/9triver/iarnet/internal/proto/resource/providerb\x06proto3"
+	"\vHealthCheck\x12\x1c.provider.HealthCheckRequest\x1a\x1d.provider.HealthCheckResponse\x12Y\n" +
+	"\x10GetRealTimeUsage\x12!.provider.GetRealTimeUsageRequest\x1a\".provider.GetRealTimeUsageResponseB<Z:github.com/9triver/iarnet/internal/proto/resource/providerb\x06proto3"
 
 var (
 	file_resource_provider_provider_proto_rawDescOnce sync.Once
@@ -784,51 +878,56 @@ func file_resource_provider_provider_proto_rawDescGZIP() []byte {
 	return file_resource_provider_provider_proto_rawDescData
 }
 
-var file_resource_provider_provider_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_resource_provider_provider_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_resource_provider_provider_proto_goTypes = []any{
-	(*ProviderType)(nil),         // 0: provider.ProviderType
-	(*ConnectRequest)(nil),       // 1: provider.ConnectRequest
-	(*ConnectResponse)(nil),      // 2: provider.ConnectResponse
-	(*GetCapacityRequest)(nil),   // 3: provider.GetCapacityRequest
-	(*GetCapacityResponse)(nil),  // 4: provider.GetCapacityResponse
-	(*GetAvailableRequest)(nil),  // 5: provider.GetAvailableRequest
-	(*GetAvailableResponse)(nil), // 6: provider.GetAvailableResponse
-	(*DeployRequest)(nil),        // 7: provider.DeployRequest
-	(*DeployResponse)(nil),       // 8: provider.DeployResponse
-	(*HealthCheckRequest)(nil),   // 9: provider.HealthCheckRequest
-	(*ResourceTags)(nil),         // 10: provider.ResourceTags
-	(*HealthCheckResponse)(nil),  // 11: provider.HealthCheckResponse
-	(*DisconnectRequest)(nil),    // 12: provider.DisconnectRequest
-	(*DisconnectResponse)(nil),   // 13: provider.DisconnectResponse
-	nil,                          // 14: provider.DeployRequest.EnvVarsEntry
-	(*resource.Capacity)(nil),    // 15: resource.Capacity
-	(*resource.Info)(nil),        // 16: resource.Info
+	(*ProviderType)(nil),             // 0: provider.ProviderType
+	(*ConnectRequest)(nil),           // 1: provider.ConnectRequest
+	(*ConnectResponse)(nil),          // 2: provider.ConnectResponse
+	(*GetCapacityRequest)(nil),       // 3: provider.GetCapacityRequest
+	(*GetCapacityResponse)(nil),      // 4: provider.GetCapacityResponse
+	(*GetAvailableRequest)(nil),      // 5: provider.GetAvailableRequest
+	(*GetAvailableResponse)(nil),     // 6: provider.GetAvailableResponse
+	(*DeployRequest)(nil),            // 7: provider.DeployRequest
+	(*DeployResponse)(nil),           // 8: provider.DeployResponse
+	(*HealthCheckRequest)(nil),       // 9: provider.HealthCheckRequest
+	(*ResourceTags)(nil),             // 10: provider.ResourceTags
+	(*HealthCheckResponse)(nil),      // 11: provider.HealthCheckResponse
+	(*DisconnectRequest)(nil),        // 12: provider.DisconnectRequest
+	(*DisconnectResponse)(nil),       // 13: provider.DisconnectResponse
+	(*GetRealTimeUsageRequest)(nil),  // 14: provider.GetRealTimeUsageRequest
+	(*GetRealTimeUsageResponse)(nil), // 15: provider.GetRealTimeUsageResponse
+	nil,                              // 16: provider.DeployRequest.EnvVarsEntry
+	(*resource.Capacity)(nil),        // 17: resource.Capacity
+	(*resource.Info)(nil),            // 18: resource.Info
 }
 var file_resource_provider_provider_proto_depIdxs = []int32{
 	0,  // 0: provider.ConnectResponse.provider_type:type_name -> provider.ProviderType
-	15, // 1: provider.GetCapacityResponse.capacity:type_name -> resource.Capacity
-	16, // 2: provider.GetAvailableResponse.available:type_name -> resource.Info
-	16, // 3: provider.DeployRequest.resource_request:type_name -> resource.Info
-	14, // 4: provider.DeployRequest.env_vars:type_name -> provider.DeployRequest.EnvVarsEntry
-	15, // 5: provider.HealthCheckResponse.capacity:type_name -> resource.Capacity
+	17, // 1: provider.GetCapacityResponse.capacity:type_name -> resource.Capacity
+	18, // 2: provider.GetAvailableResponse.available:type_name -> resource.Info
+	18, // 3: provider.DeployRequest.resource_request:type_name -> resource.Info
+	16, // 4: provider.DeployRequest.env_vars:type_name -> provider.DeployRequest.EnvVarsEntry
+	17, // 5: provider.HealthCheckResponse.capacity:type_name -> resource.Capacity
 	10, // 6: provider.HealthCheckResponse.resource_tags:type_name -> provider.ResourceTags
-	1,  // 7: provider.Service.Connect:input_type -> provider.ConnectRequest
-	12, // 8: provider.Service.Disconnect:input_type -> provider.DisconnectRequest
-	3,  // 9: provider.Service.GetCapacity:input_type -> provider.GetCapacityRequest
-	5,  // 10: provider.Service.GetAvailable:input_type -> provider.GetAvailableRequest
-	7,  // 11: provider.Service.Deploy:input_type -> provider.DeployRequest
-	9,  // 12: provider.Service.HealthCheck:input_type -> provider.HealthCheckRequest
-	2,  // 13: provider.Service.Connect:output_type -> provider.ConnectResponse
-	13, // 14: provider.Service.Disconnect:output_type -> provider.DisconnectResponse
-	4,  // 15: provider.Service.GetCapacity:output_type -> provider.GetCapacityResponse
-	6,  // 16: provider.Service.GetAvailable:output_type -> provider.GetAvailableResponse
-	8,  // 17: provider.Service.Deploy:output_type -> provider.DeployResponse
-	11, // 18: provider.Service.HealthCheck:output_type -> provider.HealthCheckResponse
-	13, // [13:19] is the sub-list for method output_type
-	7,  // [7:13] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	18, // 7: provider.GetRealTimeUsageResponse.usage:type_name -> resource.Info
+	1,  // 8: provider.Service.Connect:input_type -> provider.ConnectRequest
+	12, // 9: provider.Service.Disconnect:input_type -> provider.DisconnectRequest
+	3,  // 10: provider.Service.GetCapacity:input_type -> provider.GetCapacityRequest
+	5,  // 11: provider.Service.GetAvailable:input_type -> provider.GetAvailableRequest
+	7,  // 12: provider.Service.Deploy:input_type -> provider.DeployRequest
+	9,  // 13: provider.Service.HealthCheck:input_type -> provider.HealthCheckRequest
+	14, // 14: provider.Service.GetRealTimeUsage:input_type -> provider.GetRealTimeUsageRequest
+	2,  // 15: provider.Service.Connect:output_type -> provider.ConnectResponse
+	13, // 16: provider.Service.Disconnect:output_type -> provider.DisconnectResponse
+	4,  // 17: provider.Service.GetCapacity:output_type -> provider.GetCapacityResponse
+	6,  // 18: provider.Service.GetAvailable:output_type -> provider.GetAvailableResponse
+	8,  // 19: provider.Service.Deploy:output_type -> provider.DeployResponse
+	11, // 20: provider.Service.HealthCheck:output_type -> provider.HealthCheckResponse
+	15, // 21: provider.Service.GetRealTimeUsage:output_type -> provider.GetRealTimeUsageResponse
+	15, // [15:22] is the sub-list for method output_type
+	8,  // [8:15] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_resource_provider_provider_proto_init() }
@@ -842,7 +941,7 @@ func file_resource_provider_provider_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_resource_provider_provider_proto_rawDesc), len(file_resource_provider_provider_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   15,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

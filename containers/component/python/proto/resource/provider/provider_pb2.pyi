@@ -115,3 +115,15 @@ class DisconnectRequest(_message.Message):
 class DisconnectResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
+
+class GetRealTimeUsageRequest(_message.Message):
+    __slots__ = ("provider_id",)
+    PROVIDER_ID_FIELD_NUMBER: _ClassVar[int]
+    provider_id: str
+    def __init__(self, provider_id: _Optional[str] = ...) -> None: ...
+
+class GetRealTimeUsageResponse(_message.Message):
+    __slots__ = ("usage",)
+    USAGE_FIELD_NUMBER: _ClassVar[int]
+    usage: _resource_pb2.Info
+    def __init__(self, usage: _Optional[_Union[_resource_pb2.Info, _Mapping]] = ...) -> None: ...

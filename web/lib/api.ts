@@ -76,6 +76,7 @@ import type {
   GetResourceProvidersResponse,
   GetResourceProviderInfoResponse,
   GetResourceProviderCapacityResponse,
+  GetResourceProviderUsageResponse,
   RegisterResourceProviderRequest,
   RegisterResourceProviderResponse,
   UnregisterResourceProviderResponse,
@@ -104,6 +105,10 @@ export const resourcesAPI = {
   // 获取资源提供者容量
   getProviderCapacity: (id: string) =>
     apiRequest<GetResourceProviderCapacityResponse>(`/resource/provider/${id}/capacity`),
+
+  // 获取资源提供者实时使用情况
+  getProviderUsage: (id: string) =>
+    apiRequest<GetResourceProviderUsageResponse>(`/resource/provider/${id}/usage`),
 
   // 注册资源提供者
   registerProvider: (request: RegisterResourceProviderRequest) =>

@@ -78,6 +78,11 @@ export interface GetResourceProviderCapacityResponse {
   available: ResourceInfo // 可用资源
 }
 
+// GetResourceProviderUsageResponse 获取资源提供者实时使用情况响应
+export interface GetResourceProviderUsageResponse {
+  usage: ResourceInfo     // 实时资源使用情况
+}
+
 // TestResourceProviderRequest 测试资源提供者连接请求
 export interface TestResourceProviderRequest {
   name: string  // 提供者名称

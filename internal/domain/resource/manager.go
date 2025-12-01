@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/9triver/iarnet/internal/domain/resource/component"
@@ -53,6 +54,12 @@ type Manager struct {
 	healthCheckStop    chan struct{} // 用于停止健康检查 goroutine
 	discoveryService   discovery.Service
 	schedulerService   scheduler.Service
+
+	// 实时负载轮询服务
+	usagePollingCtx    context.Context
+	usagePollingCancel context.CancelFunc
+	usagePollingWg     sync.WaitGroup
+	usagePollInterval  time.Duration // 轮询间隔，默认 5 秒
 }
 
 // loadOrGenerateNodeID 从文件加载节点 ID，如果不存在则生成新的并保存
@@ -101,18 +108,24 @@ func NewManager(channeler component.Channeler, s *store.Store, componentImages m
 	// 加载或生成节点 ID
 	nodeID := loadOrGenerateNodeID(dataDir)
 
+	// 初始化轮询上下文
+	usagePollingCtx, usagePollingCancel := context.WithCancel(context.Background())
+
 	return &Manager{
-		componentService: component.NewService(componentManager, providerService, componentImages),
-		storeService:     store.NewService(s),
-		providerService:  providerService,
-		componentManager: componentManager,
-		providerManager:  providerManager,
-		nodeID:           nodeID,
-		name:             name,
-		description:      description,
-		domainID:         domainID,
-		envVariables:     envVariables,
-		healthCheckStop:  make(chan struct{}),
+		componentService:   component.NewService(componentManager, providerService, componentImages),
+		storeService:       store.NewService(s),
+		providerService:    providerService,
+		componentManager:   componentManager,
+		providerManager:    providerManager,
+		nodeID:             nodeID,
+		name:               name,
+		description:        description,
+		domainID:           domainID,
+		envVariables:       envVariables,
+		healthCheckStop:    make(chan struct{}),
+		usagePollingCtx:    usagePollingCtx,
+		usagePollingCancel: usagePollingCancel,
+		usagePollInterval:  2 * time.Second, // 默认 2 秒轮询一次（与前端最小间隔一致）
 	}
 }
 
@@ -243,6 +256,9 @@ func (m *Manager) Start(ctx context.Context) error {
 		m.providerManager.Start()
 	}
 
+	// 启动实时负载轮询服务
+	m.startUsagePolling(ctx)
+
 	// 注册节点到全局注册中心
 	if m.globalRegistryAddr != "" {
 		if err := m.registerToGlobalRegistry(ctx); err != nil {
@@ -259,6 +275,138 @@ func (m *Manager) Start(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// startUsagePolling 启动实时负载轮询服务
+// 定期从所有已连接的 provider 获取实时使用量并记录
+func (m *Manager) startUsagePolling(ctx context.Context) {
+	m.usagePollingWg.Add(1)
+	go func() {
+		defer m.usagePollingWg.Done()
+
+		ticker := time.NewTicker(m.usagePollInterval)
+		defer ticker.Stop()
+
+		logrus.Infof("Real-time usage polling service started with interval %v", m.usagePollInterval)
+
+		// 立即执行一次轮询
+		m.pollProviderUsage(ctx)
+
+		for {
+			select {
+			case <-ticker.C:
+				m.pollProviderUsage(ctx)
+			case <-m.usagePollingCtx.Done():
+				logrus.Info("Real-time usage polling service stopped")
+				return
+			case <-ctx.Done():
+				logrus.Info("Real-time usage polling service stopped due to context cancellation")
+				return
+			}
+		}
+	}()
+}
+
+// pollProviderUsage 轮询所有已连接的 provider 获取实时使用量
+func (m *Manager) pollProviderUsage(ctx context.Context) {
+	providers := m.providerService.GetAllProviders()
+	if len(providers) == 0 {
+		return
+	}
+
+	// 创建带超时的上下文，避免单个 provider 阻塞太久
+	pollCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	// 并发轮询所有 provider
+	var wg sync.WaitGroup
+	for _, p := range providers {
+		if p.GetStatus() != types.ProviderStatusConnected {
+			continue
+		}
+
+		wg.Add(1)
+		go func(provider *provider.Provider) {
+			defer wg.Done()
+
+			// 获取实时使用量
+			usage, err := provider.GetRealTimeUsage(pollCtx)
+			if err != nil {
+				logrus.Debugf("Failed to get real-time usage from provider %s: %v", provider.GetID(), err)
+				return
+			}
+
+			// 获取容量信息（用于计算使用率）
+			capacity, err := provider.GetCapacity(pollCtx)
+			if err != nil {
+				logrus.Debugf("Failed to get capacity from provider %s: %v", provider.GetID(), err)
+				return
+			}
+
+			if capacity == nil || capacity.Total == nil {
+				return
+			}
+
+			// 计算使用率
+			var cpuRate, memoryRate, gpuRate float64
+			if capacity.Total.CPU > 0 {
+				cpuRate = float64(usage.CPU) / float64(capacity.Total.CPU) * 100
+			}
+			if capacity.Total.Memory > 0 {
+				memoryRate = float64(usage.Memory) / float64(capacity.Total.Memory) * 100
+			}
+			if capacity.Total.GPU > 0 {
+				gpuRate = float64(usage.GPU) / float64(capacity.Total.GPU) * 100
+			}
+
+			// 记录数据点（目前记录到日志，后续可以扩展为持久化存储）
+			logrus.Debugf("Provider %s usage: CPU=%.3f%% (%d/%d millicores), Memory=%.3f%% (%d/%d bytes), GPU=%.3f%% (%d/%d)",
+				provider.GetID(),
+				cpuRate, usage.CPU, capacity.Total.CPU,
+				memoryRate, usage.Memory, capacity.Total.Memory,
+				gpuRate, usage.GPU, capacity.Total.GPU,
+			)
+		}(p)
+	}
+
+	// 等待所有轮询完成，但设置超时避免阻塞太久
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// 所有轮询完成
+	case <-pollCtx.Done():
+		logrus.Warnf("Usage polling timeout, some providers may not have been polled")
+	}
+}
+
+// Stop 停止所有后台服务
+func (m *Manager) Stop() {
+	// 停止实时负载轮询服务
+	if m.usagePollingCancel != nil {
+		m.usagePollingCancel()
+		m.usagePollingWg.Wait()
+		logrus.Info("Real-time usage polling service stopped")
+	}
+
+	// 停止 provider 健康检测
+	if m.providerManager != nil {
+		m.providerManager.Stop()
+	}
+
+	// 停止健康检查循环
+	if m.healthCheckStop != nil {
+		select {
+		case <-m.healthCheckStop:
+			// 已经关闭
+		default:
+			close(m.healthCheckStop)
+		}
+	}
 }
 
 // registerToGlobalRegistry 通过 gRPC 注册节点到全局注册中心

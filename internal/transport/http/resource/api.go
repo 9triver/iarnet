@@ -27,6 +27,7 @@ func RegisterRoutes(router *mux.Router, resMgr *resource.Manager, cfg *config.Co
 	router.HandleFunc("/resource/provider", api.handleGetResourceProviders).Methods("GET")
 	router.HandleFunc("/resource/provider/{id}/info", api.handleGetResourceProviderInfo).Methods("GET")
 	router.HandleFunc("/resource/provider/{id}/capacity", api.handleGetResourceProviderCapacity).Methods("GET")
+	router.HandleFunc("/resource/provider/{id}/usage", api.handleGetResourceProviderUsage).Methods("GET")
 	router.HandleFunc("/resource/provider/test", api.handleTestResourceProvider).Methods("POST")
 	router.HandleFunc("/resource/provider", api.handleRegisterResourceProvider).Methods("POST")
 	router.HandleFunc("/resource/provider/{id}", api.handleUpdateResourceProvider).Methods("PUT")
@@ -385,6 +386,30 @@ func (api *API) handleGetResourceProviderCapacity(w http.ResponseWriter, r *http
 	response.Success(resp).WriteJSON(w)
 }
 
+func (api *API) handleGetResourceProviderUsage(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	providerID := vars["id"]
+	if providerID == "" {
+		response.BadRequest("provider id is required").WriteJSON(w)
+		return
+	}
+
+	provider := api.resMgr.GetProvider(providerID)
+	if provider == nil {
+		response.NotFound("provider not found").WriteJSON(w)
+		return
+	}
+
+	usage, err := provider.GetRealTimeUsage(r.Context())
+	if err != nil {
+		response.InternalError("failed to get provider usage: " + err.Error()).WriteJSON(w)
+		return
+	}
+
+	resp := (&GetResourceProviderUsageResponse{}).FromUsage(usage)
+	response.Success(resp).WriteJSON(w)
+}
+
 func (api *API) handleTestResourceProvider(w http.ResponseWriter, r *http.Request) {
 	req := TestResourceProviderRequest{}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -443,6 +468,7 @@ func (api *API) handleTestResourceProvider(w http.ResponseWriter, r *http.Reques
 }
 
 // getAggregatedCapacity 聚合所有 provider 的资源容量
+// 使用实时使用量（GetRealTimeUsage）而不是已分配资源（GetCapacity.Used）
 func (api *API) getAggregatedCapacity(ctx context.Context) (*types.Capacity, error) {
 	providers := api.resMgr.GetAllProviders()
 	if len(providers) == 0 {
@@ -455,34 +481,59 @@ func (api *API) getAggregatedCapacity(ctx context.Context) (*types.Capacity, err
 
 	var totalCPU, totalMemory, totalGPU int64
 	var usedCPU, usedMemory, usedGPU int64
-	var availableCPU, availableMemory, availableGPU int64
 
 	for _, p := range providers {
 		if p.GetStatus() != types.ProviderStatusConnected {
 			continue
 		}
 
+		// 获取容量（总量）
 		capacity, err := p.GetCapacity(ctx)
 		if err != nil {
 			// 跳过获取容量失败的 provider
+			logrus.Debugf("Failed to get capacity from provider %s: %v", p.GetID(), err)
 			continue
 		}
 
+		// 获取实时使用量
+		usage, err := p.GetRealTimeUsage(ctx)
+		if err != nil {
+			// 如果获取实时使用量失败，回退到使用已分配资源
+			logrus.Debugf("Failed to get real-time usage from provider %s: %v, falling back to allocated resources", p.GetID(), err)
+			if capacity.Used != nil {
+				usage = capacity.Used
+			} else {
+				usage = &types.Info{CPU: 0, Memory: 0, GPU: 0}
+			}
+		}
+
+		// 聚合总量
 		if capacity.Total != nil {
 			totalCPU += capacity.Total.CPU
 			totalMemory += capacity.Total.Memory
 			totalGPU += capacity.Total.GPU
 		}
-		if capacity.Used != nil {
-			usedCPU += capacity.Used.CPU
-			usedMemory += capacity.Used.Memory
-			usedGPU += capacity.Used.GPU
+
+		// 聚合实时使用量
+		if usage != nil {
+			usedCPU += usage.CPU
+			usedMemory += usage.Memory
+			usedGPU += usage.GPU
 		}
-		if capacity.Available != nil {
-			availableCPU += capacity.Available.CPU
-			availableMemory += capacity.Available.Memory
-			availableGPU += capacity.Available.GPU
-		}
+	}
+
+	// 计算可用资源
+	availableCPU := totalCPU - usedCPU
+	if availableCPU < 0 {
+		availableCPU = 0
+	}
+	availableMemory := totalMemory - usedMemory
+	if availableMemory < 0 {
+		availableMemory = 0
+	}
+	availableGPU := totalGPU - usedGPU
+	if availableGPU < 0 {
+		availableGPU = 0
 	}
 
 	return &types.Capacity{

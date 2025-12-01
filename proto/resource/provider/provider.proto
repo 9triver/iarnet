@@ -70,6 +70,14 @@ message DisconnectRequest {
 message DisconnectResponse {
 }
 
+message GetRealTimeUsageRequest {
+  string provider_id = 1; // provider_id，用于鉴权
+}
+
+message GetRealTimeUsageResponse {
+  resource.Info usage = 1; // 实时资源使用情况（CPU、内存、GPU）
+}
+
 service Service {
   rpc Connect(ConnectRequest) returns (ConnectResponse);
   rpc Disconnect(DisconnectRequest) returns (DisconnectResponse);
@@ -77,4 +85,5 @@ service Service {
   rpc GetAvailable(GetAvailableRequest) returns (GetAvailableResponse);
   rpc Deploy(DeployRequest) returns (DeployResponse);
   rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+  rpc GetRealTimeUsage(GetRealTimeUsageRequest) returns (GetRealTimeUsageResponse);
 }

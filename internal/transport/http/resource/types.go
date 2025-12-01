@@ -222,6 +222,24 @@ func (r *GetResourceProviderCapacityResponse) FromCapacity(capacity *types.Capac
 	return r
 }
 
+// GetResourceProviderUsageResponse 获取资源提供者实时使用情况响应
+type GetResourceProviderUsageResponse struct {
+	Usage ResourceInfo `json:"usage"` // 实时资源使用情况
+}
+
+// FromUsage 从领域层 Info 转换为 GetResourceProviderUsageResponse
+func (r *GetResourceProviderUsageResponse) FromUsage(usage *types.Info) *GetResourceProviderUsageResponse {
+	if usage == nil {
+		return r
+	}
+	r.Usage = ResourceInfo{
+		CPU:    usage.CPU,
+		Memory: usage.Memory,
+		GPU:    usage.GPU,
+	}
+	return r
+}
+
 func resourceTagsToInfo(tags *provider.ResourceTags) *ResourceTagsInfo {
 	if tags == nil {
 		return nil

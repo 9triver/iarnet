@@ -879,11 +879,11 @@ export default function ResourcesPage() {
           <Card className="mb-6">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium">当前节点信息</CardTitle>
-              <CardDescription>展示本节点标识及所属域</CardDescription>
+              <CardDescription>展示本节点标识</CardDescription>
             </CardHeader>
             <CardContent>
               {nodeInfo ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
                   <div>
                     <div className="text-xs text-muted-foreground mb-1">节点</div>
                     <div className="text-xl font-semibold">
@@ -893,19 +893,9 @@ export default function ResourcesPage() {
                       ID: {nodeInfo.node_id || "--"}
                     </div>
                   </div>
-                  <div>
-                    <div className="text-xs text-muted-foreground mb-1">所属域</div>
-                    <div className="text-xl font-semibold">
-                      {nodeInfo.domain_name || "未知域"}
-                    </div>
-                    <div className="text-xs text-muted-foreground font-mono break-all mt-1">
-                      ID: {nodeInfo.domain_id || "--"}
-                    </div>
-                  </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <Skeleton className="h-16 w-full" />
+                <div>
                   <Skeleton className="h-16 w-full" />
                 </div>
               )}
@@ -940,7 +930,7 @@ export default function ResourcesPage() {
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">域内节点数</CardTitle>
+                <CardTitle className="text-sm font-medium">已发现节点</CardTitle>
                 <Network className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
