@@ -69,7 +69,7 @@ func loadOrGenerateNodeID(dataDir string) string {
 	}
 
 	// 确保数据目录存在
-	if err := os.MkdirAll(dataDir, 0755); err != nil {
+	if err := os.MkdirAll(dataDir, 0o755); err != nil {
 		logrus.Warnf("Failed to create data directory %s: %v, using generated node ID", dataDir, err)
 		return util.GenIDWith("node.")
 	}
@@ -89,7 +89,7 @@ func loadOrGenerateNodeID(dataDir string) string {
 	nodeID := util.GenIDWith("node.")
 
 	// 保存节点 ID 到文件
-	if err := os.WriteFile(nodeIDFile, []byte(nodeID), 0644); err != nil {
+	if err := os.WriteFile(nodeIDFile, []byte(nodeID), 0o644); err != nil {
 		logrus.Warnf("Failed to save node ID to %s: %v, node ID will be regenerated on next restart", nodeIDFile, err)
 	} else {
 		logrus.Infof("Generated and saved new node ID to %s: %s", nodeIDFile, nodeID)
@@ -266,13 +266,13 @@ func (m *Manager) Start(ctx context.Context) error {
 			// 不返回错误，允许节点在注册中心不可用时继续运行
 		} else {
 			logrus.Infof("Successfully registered node %s to global registry at %s", m.nodeID, m.globalRegistryAddr)
-
-			// 启动健康检查 goroutine
-			go m.startHealthCheckLoop(ctx)
 		}
 	} else {
 		logrus.Debug("Global registry address not configured, skipping registration")
 	}
+
+	// 启动健康检查 goroutine（无论注册是否成功，因为它也负责更新本地资源发现信息）
+	go m.startHealthCheckLoop(ctx)
 
 	return nil
 }
@@ -455,18 +455,24 @@ func (m *Manager) startHealthCheckLoop(ctx context.Context) {
 	// 默认健康检查间隔：30 秒
 	interval := 30 * time.Second
 
-	// 创建 gRPC 连接（复用连接）
-	conn, err := grpc.NewClient(
-		m.globalRegistryAddr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-	)
-	if err != nil {
-		logrus.Errorf("Failed to create gRPC connection to global registry: %v", err)
-		return
-	}
-	defer conn.Close()
+	var client registrypb.ServiceClient
 
-	client := registrypb.NewServiceClient(conn)
+	// 创建 gRPC 连接（复用连接）
+	if m.globalRegistryAddr != "" {
+		conn, err := grpc.NewClient(
+			m.globalRegistryAddr,
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+		)
+		if err != nil {
+			logrus.Errorf("Failed to create gRPC connection to global registry: %v, health check will be skipped but local resource update will continue", err)
+			// 不返回，继续执行以确保本地资源更新
+		} else {
+			defer conn.Close()
+			client = registrypb.NewServiceClient(conn)
+		}
+	} else {
+		logrus.Debug("Global registry not configured, health check loop will only update local resources")
+	}
 
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -520,16 +526,6 @@ func (m *Manager) performHealthCheck(ctx context.Context, client registrypb.Serv
 		IsHead:           m.isHead,
 	}
 
-	// 调用健康检查 RPC
-	resp, err := client.HealthCheck(ctx, req)
-	if err != nil {
-		logrus.Warnf("Failed to send health check to global registry: %v", err)
-		return 0
-	}
-
-	logrus.Debugf("Health check sent successfully, server timestamp: %d, recommended interval: %d seconds",
-		resp.GetServerTimestamp(), resp.GetRecommendedIntervalSeconds())
-
 	// 同步更新 discovery 服务的本地节点信息
 	if m.discoveryService != nil {
 		// 转换 resourceCapacity 和 resourceTags
@@ -565,6 +561,21 @@ func (m *Manager) performHealthCheck(ctx context.Context, client registrypb.Serv
 		// 注意：这里使用 interface{} 避免循环依赖，discovery service 需要处理类型转换
 		m.discoveryService.UpdateLocalNode(discoveryCapacity, discoveryTags)
 	}
+
+	// 如果 client 为 nil，直接返回，不执行 RPC
+	if client == nil {
+		return 0
+	}
+
+	// 调用健康检查 RPC
+	resp, err := client.HealthCheck(ctx, req)
+	if err != nil {
+		logrus.Warnf("Failed to send health check to global registry: %v", err)
+		return 0
+	}
+
+	logrus.Debugf("Health check sent successfully, server timestamp: %d, recommended interval: %d seconds",
+		resp.GetServerTimestamp(), resp.GetRecommendedIntervalSeconds())
 
 	// 如果服务器要求重新注册
 	if resp.GetRequireReregister() {
