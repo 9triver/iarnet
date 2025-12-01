@@ -1,4 +1,0 @@
-"""
-Controller protobuf types
-"""
-
