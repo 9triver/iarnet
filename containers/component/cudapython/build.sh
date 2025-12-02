@@ -79,7 +79,7 @@ else
 fi
 
 if [ $? -eq 0 ]; then
-    echo -e "${GREEN}✅ Docker 镜像构建成功!${NC}"
+    echo -e "${GREEN}✔ Docker 镜像构建成功!${NC}"
     echo -e "${GREEN}镜像标签: $IMAGE_TAG${NC}"
     
     # 显示镜像信息
@@ -89,7 +89,7 @@ if [ $? -eq 0 ]; then
     echo -e "${YELLOW}运行示例:${NC}"
     echo "docker run -e ZMQ_ADDR=tcp://localhost:5555 -e STORE_ADDR=localhost:50051 $IMAGE_TAG"
 else
-    echo -e "${RED}❌ Docker 镜像构建失败!${NC}"
+    echo -e "${RED}✘ Docker 镜像构建失败!${NC}"
     exit 1
 fi
 

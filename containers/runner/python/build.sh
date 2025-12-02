@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
-set -e
 
-# ===============================
-# 使用说明
-# ===============================
-# ./build.sh [环境] [镜像标签]
-#  - 环境：可选值 dev | prod | test (默认 prod)
-#  - 镜像标签：镜像版本号 (默认 latest)
+# Runner Docker 镜像构建脚本
+# 使用方法: ./build.sh [环境] [镜像标签]
 #
 # 示例：
-#   ./build.sh dev v1.0.0
-#   ./build.sh prod latest
-# ===============================
+#   ./build.sh python_3.11 v1.0.0
+#   ./build.sh python_3.11 latest
+
+set -e
+
+# 颜色输出
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
 
 # 获取参数
 ENVIRONMENT=${1:-python_3.11}
@@ -23,27 +25,36 @@ IMAGE_NAME="iarnet/runner"
 # 选择镜像标签
 FULL_TAG="${IMAGE_NAME}:${ENVIRONMENT}-${TAG}"
 
-echo "============================================"
-echo "🚀 开始构建 Docker 镜像"
-echo "👉 环境:   ${ENVIRONMENT}"
-echo "👉 镜像:   ${FULL_TAG}"
-echo "============================================"
+echo -e "${YELLOW}开始构建 Runner Docker 镜像...${NC}"
+echo -e "${YELLOW}环境:   ${ENVIRONMENT}${NC}"
+echo -e "${YELLOW}镜像:   ${FULL_TAG}${NC}"
 
 # 切换到项目根目录进行构建（因为需要访问跨目录依赖）
 PROJECT_ROOT="../../.."
 cd "$PROJECT_ROOT"
 
+echo -e "${YELLOW}开始 Docker 构建...${NC}"
+
 # 构建镜像（使用新的 runner/python Dockerfile）
 if [ "$ENVIRONMENT" = "python_3.11" ]; then
   docker build \
     --target python_3.11 \
-    -t ${FULL_TAG} \
+    -t "${FULL_TAG}" \
     -f containers/runner/python/Dockerfile .
 else
   docker build \
-    --build-arg BUILD_ENV=${ENVIRONMENT} \
-    -t ${FULL_TAG} \
+    --build-arg BUILD_ENV="${ENVIRONMENT}" \
+    -t "${FULL_TAG}" \
     -f containers/runner/python/Dockerfile .
 fi
 
-echo "✅ 构建完成: ${FULL_TAG}"
+if [ $? -eq 0 ]; then
+  echo -e "${GREEN}✔ Docker 镜像构建成功!${NC}"
+  echo -e "${GREEN}镜像标签: ${FULL_TAG}${NC}"
+
+  echo -e "${YELLOW}镜像信息:${NC}"
+  docker images "${FULL_TAG}"
+else
+  echo -e "${RED}✘ Docker 镜像构建失败!${NC}"
+  exit 1
+fi
