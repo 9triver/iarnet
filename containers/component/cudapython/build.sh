@@ -43,12 +43,40 @@ cd "$SCRIPT_DIR"
 echo -e "${YELLOW}当前构建目录: $(pwd)${NC}"
 echo -e "${YELLOW}构建镜像标签: $IMAGE_TAG${NC}"
 
+# 检测代理是否可用（可选）
+PROXY_HOST="172.17.0.1"
+PROXY_PORT="7897"
+USE_PROXY=false
+
+# 检查代理是否可用（静默检测，避免错误输出）
+if command -v nc >/dev/null 2>&1; then
+    if nc -z -w 1 "$PROXY_HOST" "$PROXY_PORT" 2>/dev/null; then
+        USE_PROXY=true
+        echo -e "${GREEN}检测到可用代理: http://${PROXY_HOST}:${PROXY_PORT}${NC}"
+    fi
+elif command -v timeout >/dev/null 2>&1; then
+    # 使用 timeout 和 bash 内置的 TCP 连接测试
+    if timeout 1 bash -c "echo > /dev/tcp/${PROXY_HOST}/${PROXY_PORT}" 2>/dev/null; then
+        USE_PROXY=true
+        echo -e "${GREEN}检测到可用代理: http://${PROXY_HOST}:${PROXY_PORT}${NC}"
+    fi
+fi
+
+if [ "$USE_PROXY" = false ]; then
+    echo -e "${YELLOW}代理 ${PROXY_HOST}:${PROXY_PORT} 不可用或未检测到，将不使用代理${NC}"
+fi
+
 # 构建 Docker 镜像
 echo -e "${YELLOW}开始 Docker 构建...${NC}"
-docker build --build-arg HTTP_PROXY="http://172.17.0.1:7897" \
-             --build-arg HTTPS_PROXY="http://172.17.0.1:7897" \
-             --build-arg NO_PROXY="localhost,127.0.0.1" \
-             -t "$IMAGE_TAG" .
+if [ "$USE_PROXY" = true ]; then
+    docker build --build-arg HTTP_PROXY="http://${PROXY_HOST}:${PROXY_PORT}" \
+                 --build-arg HTTPS_PROXY="http://${PROXY_HOST}:${PROXY_PORT}" \
+                 --build-arg NO_PROXY="localhost,127.0.0.1" \
+                 -t "$IMAGE_TAG" .
+else
+    # 不使用代理
+    docker build -t "$IMAGE_TAG" .
+fi
 
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✅ Docker 镜像构建成功!${NC}"

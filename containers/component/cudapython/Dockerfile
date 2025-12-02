@@ -3,6 +3,16 @@
 
 FROM nvidia/cuda:12.9.1-cudnn-runtime-ubuntu24.04 AS python_cuda
 
+# 代理配置（可选，通过 build-arg 传入）
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ARG NO_PROXY
+
+# 设置代理环境变量（如果提供了代理）
+ENV HTTP_PROXY=${HTTP_PROXY}
+ENV HTTPS_PROXY=${HTTPS_PROXY}
+ENV NO_PROXY=${NO_PROXY}
+
 # 安装系统依赖
 RUN apt-get update && \
     # 1. 先安装添加源所需的工具

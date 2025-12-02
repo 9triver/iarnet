@@ -8,9 +8,9 @@ import (
 	"strings"
 
 	"github.com/9triver/iarnet/internal/domain/ignis/task"
+	"github.com/9triver/iarnet/internal/domain/ignis/types"
 	"github.com/9triver/iarnet/internal/domain/resource/component"
 	"github.com/9triver/iarnet/internal/domain/resource/store"
-	resourceTypes "github.com/9triver/iarnet/internal/domain/resource/types"
 	commonpb "github.com/9triver/iarnet/internal/proto/common"
 	actorpb "github.com/9triver/iarnet/internal/proto/ignis/actor"
 	ctrlpb "github.com/9triver/iarnet/internal/proto/ignis/controller"
@@ -184,7 +184,7 @@ func (c *Controller) handleAppendData(ctx context.Context, m *ctrlpb.AppendData)
 func (c *Controller) handleAppendPyFunc(ctx context.Context, m *ctrlpb.AppendPyFunc) error {
 	actorGroup := task.NewGroup(m.GetName())
 	replicas := int(m.GetReplicas())
-	resourceReq := &resourceTypes.Info{
+	resourceReq := &types.Info{
 		CPU:    int64(m.GetResources().GetCPU()),
 		Memory: int64(m.GetResources().GetMemory()),
 		GPU:    int64(m.GetResources().GetGPU()),
@@ -195,7 +195,7 @@ func (c *Controller) handleAppendPyFunc(ctx context.Context, m *ctrlpb.AppendPyF
 		actorName := fmt.Sprintf("%s-%d", m.GetName(), i)
 		logrus.Infof("Deploying component for actor %s", actorName)
 		component, err := c.componentService.DeployComponent(
-			ctx, resourceTypes.RuntimeEnvPython,
+			ctx, types.RuntimeEnvPython,
 			resourceReq,
 		)
 		if err != nil {
