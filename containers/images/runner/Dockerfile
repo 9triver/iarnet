@@ -26,8 +26,8 @@ RUN pip install grpcio
 RUN pip install grpcio-tools
 RUN pip install numpy
 
-# 安装 lucas 及其依赖
-COPY containers/envs/python/libs/lucas /tmp/lucas
+# 安装 lucas 及其依赖（从 third_party/lucas 子模块）
+COPY third_party/lucas /tmp/lucas
 RUN cd /tmp/lucas && pip install -e .
 
 COPY --from=builder /app/runner /usr/bin/runner

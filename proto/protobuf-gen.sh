@@ -1,293 +1,184 @@
 #!/bin/bash
 
-# Unified Protobuf generation script
-# Generates Go and Python code from all proto files in the project
+# iarnet 仓库的 Protobuf 生成脚本
+# 此脚本调用 iarnet-proto 仓库的生成脚本，并输出到 iarnet 仓库的指定目录
 # 
-# Usage: ./protobuf-gen.sh
-
-# TODO: refactor
-
-# This script generates protobuf files for:
-# - common: Common types and messages
-# - ignis: Ignis execution engine
-# - resource: Resource management
+# 使用方法:
+#   1. 确保 iarnet-proto 已通过 git submodule 或直接克隆到 third_party/iarnet-proto
+#   2. 运行: ./proto/protobuf-gen.sh
 
 set -e  # Exit on error
 
 PROTOC="python -m grpc_tools.protoc"
 export PATH="$PATH:$HOME/go/bin"
 
-# Base directory (proto root)
-BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$BASE_DIR/.." && pwd)"
-cd "$BASE_DIR"
+# 项目根目录
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PROTO_DIR="${PROJECT_ROOT}/proto"
+
+# iarnet-proto 目录（优先使用 submodule）
+IARNET_PROTO_DIR="${IARNET_PROTO_DIR:-${PROJECT_ROOT}/third_party/iarnet-proto}"
+if [ ! -d "$IARNET_PROTO_DIR" ]; then
+    # 回退到同级目录（用于开发环境）
+    IARNET_PROTO_DIR="${PROJECT_ROOT}/../iarnet-proto"
+fi
+
+if [ ! -d "$IARNET_PROTO_DIR" ]; then
+    cat >&2 <<EOF
+错误: 未找到 iarnet-proto 目录
+请确保:
+  1. 已通过 git submodule 添加 iarnet-proto 到 third_party/iarnet-proto，或
+  2. 已直接克隆 iarnet-proto 到 ../iarnet-proto，或
+  3. 通过环境变量 IARNET_PROTO_DIR 指定路径
+
+当前查找路径:
+  - ${PROJECT_ROOT}/../iarnet-proto
+  - ${PROJECT_ROOT}/third_party/iarnet-proto
+EOF
+    exit 1
+fi
+
+IARNET_PROTO_PROTO_DIR="${IARNET_PROTO_DIR}/proto"
+IARNET_PROTO_SCRIPTS_DIR="${IARNET_PROTO_DIR}/scripts"
+
+if [ ! -d "$IARNET_PROTO_PROTO_DIR" ] || [ ! -f "$IARNET_PROTO_SCRIPTS_DIR/gen_go.sh" ]; then
+    cat >&2 <<EOF
+错误: iarnet-proto 目录结构不正确
+期望的目录结构:
+  $IARNET_PROTO_DIR/
+    ├── proto/
+    └── scripts/
+        ├── gen_go.sh
+        └── gen_python.sh
+EOF
+    exit 1
+fi
 
 echo "=========================================="
-echo "Protobuf Generation Script"
-echo "Base directory: $BASE_DIR"
+echo "iarnet 仓库 Protobuf 生成"
+echo "项目根目录: $PROJECT_ROOT"
+echo "iarnet-proto 目录: $IARNET_PROTO_DIR"
 echo "=========================================="
 
 # ============================================================================
-# 1. Generate common types
+# 1. 生成 Go 代码
 # ============================================================================
 echo ""
-echo ">>> Generating common types..."
-# Run from BASE_DIR so that proto files are registered with full path (common/types.proto)
-# This ensures that when controller.proto imports "common/types.proto", the descriptor pool
-# can find the correct file
+echo ">>> 生成 Go 代码..."
 
-PROTOC_CMD="$PROTOC -I $BASE_DIR"
-PROTO_SRC="common/*.proto"
+GO_OUTPUT="${PROJECT_ROOT}/internal/proto"
+bash "$IARNET_PROTO_SCRIPTS_DIR/gen_go.sh" "$IARNET_PROTO_PROTO_DIR" "$GO_OUTPUT"
 
-GO_OUTPUT="$PROJECT_ROOT/internal/proto/"
-PY_OUTPUTS=("$PROJECT_ROOT/containers/envs/python/libs/lucas/lucas/actorc/protos/" "$PROJECT_ROOT/containers/component/python/proto/")
-RUNNER_COMMON_OUTPUT="$PROJECT_ROOT/containers/images/runner/proto"
-
-# Go generation
-echo "  Generating Go files: $GO_OUTPUT"
-if [ ! -d "$GO_OUTPUT" ]; then
-  mkdir -p "$GO_OUTPUT"
-else
-  find "$GO_OUTPUT" -type f -name "*.pb.go" -delete
+# Runner common Go generation (特殊输出目录)
+RUNNER_COMMON_OUTPUT="${PROJECT_ROOT}/containers/images/runner/proto"
+if [ -d "$IARNET_PROTO_PROTO_DIR/common" ]; then
+    echo ""
+    echo ">>> 生成 Runner Common Go 代码: $RUNNER_COMMON_OUTPUT"
+    mkdir -p "$RUNNER_COMMON_OUTPUT"
+    find "$RUNNER_COMMON_OUTPUT" -type f -name "*.pb.go" -delete 2>/dev/null || true
+    
+    pushd "$IARNET_PROTO_PROTO_DIR/common" >/dev/null
+    $PROTOC -I "$IARNET_PROTO_PROTO_DIR" \
+        --go_out="$RUNNER_COMMON_OUTPUT" --go_opt=paths=source_relative \
+        --go-grpc_out="$RUNNER_COMMON_OUTPUT" --go-grpc_opt=paths=source_relative \
+        *.proto
+    popd >/dev/null
 fi
-$PROTOC_CMD --go_out="$GO_OUTPUT" --go_opt=paths=source_relative --go-grpc_out="$GO_OUTPUT" --go-grpc_opt=paths=source_relative $PROTO_SRC
 
-# Runner common Go generation
-echo "  Generating Go files for runner (common): $RUNNER_COMMON_OUTPUT"
-if [ ! -d "$RUNNER_COMMON_OUTPUT" ]; then
-  mkdir -p "$RUNNER_COMMON_OUTPUT"
-else
-  find "$RUNNER_COMMON_OUTPUT" -type f -name "*.pb.go" -delete
+# Runner application logger Go generation
+RUNNER_LOGGER_OUTPUT="${PROJECT_ROOT}/containers/images/runner/proto/logger"
+if [ -d "$IARNET_PROTO_PROTO_DIR/application/logger" ]; then
+    echo ""
+    echo ">>> 生成 Runner Logger Go 代码: $RUNNER_LOGGER_OUTPUT"
+    mkdir -p "$RUNNER_LOGGER_OUTPUT"
+    find "$RUNNER_LOGGER_OUTPUT" -type f -name "*.pb.go" -delete 2>/dev/null || true
+    
+    pushd "$IARNET_PROTO_PROTO_DIR/application/logger" >/dev/null
+    $PROTOC -I "$IARNET_PROTO_PROTO_DIR" -I . \
+        --go_out="$RUNNER_LOGGER_OUTPUT" --go_opt=paths=source_relative \
+        --go-grpc_out="$RUNNER_LOGGER_OUTPUT" --go-grpc_opt=paths=source_relative \
+        *.proto
+    popd >/dev/null
+    
+    # 修复 import 路径（如果需要）
+    find "$RUNNER_LOGGER_OUTPUT" -type f -name "*.pb.go" -exec sed -i 's|github.com/9triver/iarnet/internal/proto/common|github.com/9triver/iarnet/runner/proto/common|g' {} + 2>/dev/null || true
 fi
-$PROTOC_CMD --go_out="$RUNNER_COMMON_OUTPUT" --go_opt=paths=source_relative --go-grpc_out="$RUNNER_COMMON_OUTPUT" --go-grpc_opt=paths=source_relative $PROTO_SRC
-
-# Python generation
-for PY_OUTPUT in "${PY_OUTPUTS[@]}"; do
-  echo "  Generating Python files: $PY_OUTPUT"
-  if [ ! -d "$PY_OUTPUT" ]; then
-    mkdir -p "$PY_OUTPUT"
-  else
-    find "$PY_OUTPUT" -type f -name "*_pb2.py" -delete
-    find "$PY_OUTPUT" -type f -name "*_pb2.pyi" -delete
-    find "$PY_OUTPUT" -type f -name "*_pb2_grpc.py" -delete
-  fi
-  $PROTOC_CMD --python_out="$PY_OUTPUT" --pyi_out="$PY_OUTPUT" --grpc_python_out="$PY_OUTPUT" $PROTO_SRC
-done
 
 # ============================================================================
-# 2. Generate ignis
+# 2. 生成 Python 代码
 # ============================================================================
 echo ""
-echo ">>> Generating ignis..."
-cd "$BASE_DIR/ignis"
+echo ">>> 生成 Python 代码..."
 
-# Include common proto directory
-# Run from ignis directory, so paths are relative to it
-# Use BASE_DIR for -I so that "common/types.proto" imports work correctly
-PROTOC_CMD="$PROTOC -I $BASE_DIR -I ."
-PROTO_SRC="controller/*.proto actor/*.proto"
+# Component Python 输出
+PY_OUTPUT_COMPONENT="${PROJECT_ROOT}/containers/component/python/proto"
+bash "$IARNET_PROTO_SCRIPTS_DIR/gen_python.sh" "$IARNET_PROTO_PROTO_DIR" "$PY_OUTPUT_COMPONENT"
 
-GO_OUTPUT="$PROJECT_ROOT/internal/proto/ignis"
-PY_OUTPUT_COMPONENT="$PROJECT_ROOT/containers/component/python/proto/ignis"
-PY_OUTPUT_LUCAS_COMMON="$PROJECT_ROOT/containers/envs/python/libs/lucas/lucas/actorc/protos/common"
-PY_OUTPUT_LUCAS_CONTROLLER="$PROJECT_ROOT/containers/envs/python/libs/lucas/lucas/actorc/protos/controller"
-
-# Go generation
-echo "  Generating Go files: $GO_OUTPUT"
-if [ ! -d "$GO_OUTPUT" ]; then
-  mkdir -p "$GO_OUTPUT"
-else
-  find "$GO_OUTPUT" -type f -name "*.pb.go" -delete
+# Lucas Python 输出（特殊处理，优先使用 third_party，其次兼容旧路径）
+LUCAS_BASE_DIR="${PROJECT_ROOT}/third_party/lucas"
+if [ ! -d "$LUCAS_BASE_DIR" ]; then
+    LUCAS_BASE_DIR="${PROJECT_ROOT}/containers/envs/python/libs/lucas"
 fi
-$PROTOC_CMD --go_out="$GO_OUTPUT" --go_opt=paths=source_relative --go-grpc_out="$GO_OUTPUT" --go-grpc_opt=paths=source_relative $PROTO_SRC
+PY_OUTPUT_LUCAS="${LUCAS_BASE_DIR}/lucas/actorc/protos"
 
-# Python generation for component
-echo "  Generating Python files: $PY_OUTPUT_COMPONENT"
-if [ ! -d "$PY_OUTPUT_COMPONENT" ]; then
-  mkdir -p "$PY_OUTPUT_COMPONENT"
-else
-  find "$PY_OUTPUT_COMPONENT" -type f -name "*_pb2.py" -delete
-  find "$PY_OUTPUT_COMPONENT" -type f -name "*_pb2.pyi" -delete
-  find "$PY_OUTPUT_COMPONENT" -type f -name "*_pb2_grpc.py" -delete
+# Common
+if [ -d "$IARNET_PROTO_PROTO_DIR/common" ]; then
+    echo ""
+    echo ">>> 生成 Lucas Common Python 代码: $PY_OUTPUT_LUCAS/common"
+    mkdir -p "$PY_OUTPUT_LUCAS/common"
+    find "$PY_OUTPUT_LUCAS/common" -type f -name "*_pb2.py" -delete 2>/dev/null || true
+    find "$PY_OUTPUT_LUCAS/common" -type f -name "*_pb2.pyi" -delete 2>/dev/null || true
+    find "$PY_OUTPUT_LUCAS/common" -type f -name "*_pb2_grpc.py" -delete 2>/dev/null || true
+    
+    pushd "$IARNET_PROTO_PROTO_DIR/common" >/dev/null
+    $PROTOC -I "$IARNET_PROTO_PROTO_DIR" \
+        --python_out="$PY_OUTPUT_LUCAS/common" \
+        --pyi_out="$PY_OUTPUT_LUCAS/common" \
+        --grpc_python_out="$PY_OUTPUT_LUCAS/common" \
+        *.proto
+    popd >/dev/null
+    touch "$PY_OUTPUT_LUCAS/common/__init__.py"
 fi
-# Create subdirectories for controller and actor
-mkdir -p "$PY_OUTPUT_COMPONENT/controller"
-mkdir -p "$PY_OUTPUT_COMPONENT/actor"
-# Generate controller and actor separately to avoid conflicts
-# Controller proto files - change to controller directory to avoid nested structure
-cd controller
-PROTOC_CMD_CONTROLLER="$PROTOC -I . -I $BASE_DIR"
-$PROTOC_CMD_CONTROLLER --python_out="$PY_OUTPUT_COMPONENT/controller" --pyi_out="$PY_OUTPUT_COMPONENT/controller" --grpc_python_out="$PY_OUTPUT_COMPONENT/controller" *.proto
-cd ..
-# Actor proto files - change to actor directory
-cd actor
-PROTOC_CMD_ACTOR="$PROTOC -I . -I $BASE_DIR"
-$PROTOC_CMD_ACTOR --python_out="$PY_OUTPUT_COMPONENT/actor" --pyi_out="$PY_OUTPUT_COMPONENT/actor" --grpc_python_out="$PY_OUTPUT_COMPONENT/actor" *.proto
-cd ..
 
-# Python generation for lucas (only controller, common is already generated)
-echo "  Generating Python files for lucas: $PY_OUTPUT_LUCAS_CONTROLLER"
-if [ ! -d "$PY_OUTPUT_LUCAS_CONTROLLER" ]; then
-  mkdir -p "$PY_OUTPUT_LUCAS_CONTROLLER"
-else
-  find "$PY_OUTPUT_LUCAS_CONTROLLER" -type f -name "*_pb2.py" -delete
-  find "$PY_OUTPUT_LUCAS_CONTROLLER" -type f -name "*_pb2.pyi" -delete
-  find "$PY_OUTPUT_LUCAS_CONTROLLER" -type f -name "*_pb2_grpc.py" -delete
+# Controller
+if [ -d "$IARNET_PROTO_PROTO_DIR/ignis/controller" ]; then
+    echo ""
+    echo ">>> 生成 Lucas Controller Python 代码: $PY_OUTPUT_LUCAS/controller"
+    mkdir -p "$PY_OUTPUT_LUCAS/controller"
+    find "$PY_OUTPUT_LUCAS/controller" -type f -name "*_pb2.py" -delete 2>/dev/null || true
+    find "$PY_OUTPUT_LUCAS/controller" -type f -name "*_pb2.pyi" -delete 2>/dev/null || true
+    find "$PY_OUTPUT_LUCAS/controller" -type f -name "*_pb2_grpc.py" -delete 2>/dev/null || true
+    
+    pushd "$IARNET_PROTO_PROTO_DIR/ignis/controller" >/dev/null
+    $PROTOC -I "$IARNET_PROTO_PROTO_DIR" -I . \
+        --python_out="$PY_OUTPUT_LUCAS/controller" \
+        --pyi_out="$PY_OUTPUT_LUCAS/controller" \
+        --grpc_python_out="$PY_OUTPUT_LUCAS/controller" \
+        *.proto
+    popd >/dev/null
+    touch "$PY_OUTPUT_LUCAS/controller/__init__.py"
 fi
-# Only generate controller for lucas, use module option to avoid nested directory
-# Change to controller directory to generate files directly in target directory
-cd controller
-PROTOC_CMD_LUCAS="$PROTOC -I . -I $BASE_DIR"
-$PROTOC_CMD_LUCAS --python_out="$PY_OUTPUT_LUCAS_CONTROLLER" --pyi_out="$PY_OUTPUT_LUCAS_CONTROLLER" --grpc_python_out="$PY_OUTPUT_LUCAS_CONTROLLER" *.proto
-cd ..
 
-# ============================================================================
-# 3. Generate resource
-# ============================================================================
-echo ""
-echo ">>> Generating resource..."
-
-cd "$BASE_DIR"
-# Run from resource directory, so paths are relative to it
-# Use BASE_DIR for -I so that "common/types.proto" imports work correctly
-PROTOC_CMD="$PROTOC -I ."
-PROTO_SRC="resource/*.proto resource/provider/*.proto resource/store/*.proto resource/component/*.proto resource/logger/*.proto resource/discovery/*.proto resource/scheduler/*.proto"
-
-IARNET_OUTPUT="$PROJECT_ROOT/internal/proto/"
-PY_OUTPUTS=("$PROJECT_ROOT/containers/component/python/proto/")
-
-# Go generation
-echo "  Generating Go files: $IARNET_OUTPUT"
-if [ ! -d "$IARNET_OUTPUT" ]; then
-  mkdir -p "$IARNET_OUTPUT"
-else
-  find "$IARNET_OUTPUT/resource" -type f -name "*.pb.go" -delete
-fi
-$PROTOC_CMD --go_out="$IARNET_OUTPUT" --go_opt=paths=source_relative --go-grpc_out="$IARNET_OUTPUT" --go-grpc_opt=paths=source_relative $PROTO_SRC
-
-# Python generation
-for PY_OUTPUT in "${PY_OUTPUTS[@]}"; do
-  echo "  Generating Python files: $PY_OUTPUT"
-  if [ ! -d "$PY_OUTPUT" ]; then
-    mkdir -p "$PY_OUTPUT"
-  else
-    find "$PY_OUTPUT/resource" -type f -name "*_pb2.py" -delete
-    find "$PY_OUTPUT/resource" -type f -name "*_pb2.pyi" -delete
-    find "$PY_OUTPUT/resource" -type f -name "*_pb2_grpc.py" -delete
-  fi
-  $PROTOC_CMD --python_out="$PY_OUTPUT" --pyi_out="$PY_OUTPUT" --grpc_python_out="$PY_OUTPUT" $PROTO_SRC
-done
-
-# ============================================================================
-# 4. Generate application
-# ============================================================================
-echo ""
-echo ">>> Generating application..."
-cd "$BASE_DIR/application"
-
-PROTOC_CMD="$PROTOC -I . -I $BASE_DIR"
-
-PROTO_SRC="logger/*.proto"
-
-IARNET_OUTPUT="$PROJECT_ROOT/internal/proto/application"
-RUNNER_OUTPUT="$PROJECT_ROOT/containers/images/runner/proto/logger"
-
-# Go generation
-echo "  Generating Go files: $IARNET_OUTPUT"
-if [ ! -d "$IARNET_OUTPUT" ]; then
-  mkdir -p "$IARNET_OUTPUT"
-else
-  find "$IARNET_OUTPUT" -type f -name "*.pb.go" -delete
-fi
-$PROTOC_CMD --go_out="$IARNET_OUTPUT" --go_opt=paths=source_relative --go-grpc_out="$IARNET_OUTPUT" --go-grpc_opt=paths=source_relative $PROTO_SRC
-
-cd "$BASE_DIR/application/logger"
-PROTOC_CMD="$PROTOC -I . -I $BASE_DIR"
-
-RUNNER_PROTO_SRC="*.proto"
-
-# Go generation for runner
-echo "  Generating Go files for runner: $RUNNER_OUTPUT"
-mkdir -p "$RUNNER_OUTPUT"
-find "$RUNNER_OUTPUT" -type f -name "*.pb.go" -delete || true
-$PROTOC_CMD --go_out="$RUNNER_OUTPUT" --go_opt=paths=source_relative --go-grpc_out="$RUNNER_OUTPUT" --go-grpc_opt=paths=source_relative $RUNNER_PROTO_SRC
-find "$RUNNER_OUTPUT" -type f -name "*.pb.go" -exec sed -i 's|github.com/9triver/iarnet/internal/proto/common|github.com/9triver/iarnet/runner/proto/common|g' {} +
-
-LUCAS_PROTO_SRC="*.proto"
-
-LUCAS_PY_OUTPUT="$PROJECT_ROOT/containers/envs/python/libs/lucas/lucas/actorc/protos/logger"
-# Python generation for lucas
-mkdir -p "$LUCAS_PY_OUTPUT"
-echo "  Generating Python files for lucas: $LUCAS_PY_OUTPUT"
-if [ ! -d "$LUCAS_PY_OUTPUT" ]; then
-  mkdir -p "$LUCAS_PY_OUTPUT"
-else
-  find "$LUCAS_PY_OUTPUT" -type f -name "*_pb2.py" -delete
-  find "$LUCAS_PY_OUTPUT" -type f -name "*_pb2.pyi" -delete
-  find "$LUCAS_PY_OUTPUT" -type f -name "*_pb2_grpc.py" -delete
-fi
-$PROTOC_CMD --python_out="$LUCAS_PY_OUTPUT" --pyi_out="$LUCAS_PY_OUTPUT" --grpc_python_out="$LUCAS_PY_OUTPUT" $LUCAS_PROTO_SRC
-
-# ============================================================================
-# 5. Generate global
-# ============================================================================
-echo ""
-echo ">>> Generating global..."
-cd "$BASE_DIR/global"
-
-PROTOC_CMD="$PROTOC -I . -I $BASE_DIR"
-
-PROTO_SRC="registry/*.proto"
-
-IARNET_OUTPUT="$PROJECT_ROOT/internal/proto/global"
-
-# Go generation
-echo "  Generating Go files: $IARNET_OUTPUT"
-if [ ! -d "$IARNET_OUTPUT" ]; then
-  mkdir -p "$IARNET_OUTPUT"
-else
-  find "$IARNET_OUTPUT" -type f -name "*.pb.go" -delete
-fi
-$PROTOC_CMD --go_out="$IARNET_OUTPUT" --go_opt=paths=source_relative --go-grpc_out="$IARNET_OUTPUT" --go-grpc_opt=paths=source_relative $PROTO_SRC
-# ============================================================================
-# 5. Generate peer.proto (if exists)
-# ============================================================================
-if [ -f "$BASE_DIR/peer.proto" ]; then
-  echo ""
-  echo ">>> Generating peer..."
-  cd "$BASE_DIR"
-  
-  PROTOC_CMD="$PROTOC -I ."
-  PROTO_SRC="peer.proto"
-  
-  GO_OUTPUT="$PROJECT_ROOT/internal/proto"
-  PY_OUTPUTS=("$PROJECT_ROOT/containers/component/python/proto")
-  
-  # Go generation
-  echo "  Generating Go files: $GO_OUTPUT"
-  if [ ! -d "$GO_OUTPUT" ]; then
-    mkdir -p "$GO_OUTPUT"
-  else
-    find "$GO_OUTPUT" -type f -name "peer*.pb.go" -delete
-  fi
-  $PROTOC_CMD --go_out="$GO_OUTPUT" --go_opt=paths=source_relative --go-grpc_out="$GO_OUTPUT" --go-grpc_opt=paths=source_relative $PROTO_SRC
-  
-  # Python generation
-  for PY_OUTPUT in "${PY_OUTPUTS[@]}"; do
-    echo "  Generating Python files: $PY_OUTPUT"
-    if [ ! -d "$PY_OUTPUT" ]; then
-      mkdir -p "$PY_OUTPUT"
-    else
-      find "$PY_OUTPUT" -type f -name "peer*_pb2.py" -delete
-      find "$PY_OUTPUT" -type f -name "peer*_pb2.pyi" -delete
-      find "$PY_OUTPUT" -type f -name "peer*_pb2_grpc.py" -delete
-    fi
-    $PROTOC_CMD --python_out="$PY_OUTPUT" --pyi_out="$PY_OUTPUT" --grpc_python_out="$PY_OUTPUT" $PROTO_SRC
-  done
+# Logger
+if [ -d "$IARNET_PROTO_PROTO_DIR/application/logger" ]; then
+    echo ""
+    echo ">>> 生成 Lucas Logger Python 代码: $PY_OUTPUT_LUCAS/logger"
+    mkdir -p "$PY_OUTPUT_LUCAS/logger"
+    find "$PY_OUTPUT_LUCAS/logger" -type f -name "*_pb2.py" -delete 2>/dev/null || true
+    find "$PY_OUTPUT_LUCAS/logger" -type f -name "*_pb2.pyi" -delete 2>/dev/null || true
+    find "$PY_OUTPUT_LUCAS/logger" -type f -name "*_pb2_grpc.py" -delete 2>/dev/null || true
+    
+    pushd "$IARNET_PROTO_PROTO_DIR/application/logger" >/dev/null
+    $PROTOC -I "$IARNET_PROTO_PROTO_DIR" -I . \
+        --python_out="$PY_OUTPUT_LUCAS/logger" \
+        --pyi_out="$PY_OUTPUT_LUCAS/logger" \
+        --grpc_python_out="$PY_OUTPUT_LUCAS/logger" \
+        *.proto
+    popd >/dev/null
+    touch "$PY_OUTPUT_LUCAS/logger/__init__.py"
 fi
 
 echo ""
 echo "=========================================="
-echo "Protobuf generation completed!"
+echo "Protobuf 生成完成！"
 echo "=========================================="
-

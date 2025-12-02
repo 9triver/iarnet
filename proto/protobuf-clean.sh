@@ -28,8 +28,12 @@ else
   echo "  ⚠ Go proto directory not found: $GO_PROTO_DIR"
 fi
 
-# Python generated files - lucas
-PY_LUCAS_PROTO_DIR="$PROJECT_ROOT/containers/envs/python/libs/lucas/lucas/actorc/protos"
+# Python generated files - lucas（优先 third_party，其次兼容旧路径）
+LUCAS_BASE_DIR="$PROJECT_ROOT/third_party/lucas"
+if [ ! -d "$LUCAS_BASE_DIR" ]; then
+  LUCAS_BASE_DIR="$PROJECT_ROOT/containers/envs/python/libs/lucas"
+fi
+PY_LUCAS_PROTO_DIR="$LUCAS_BASE_DIR/lucas/actorc/protos"
 if [ -d "$PY_LUCAS_PROTO_DIR" ]; then
   echo ">>> Cleaning Python generated files in $PY_LUCAS_PROTO_DIR..."
   find "$PY_LUCAS_PROTO_DIR" -type f -name "*_pb2.py" -delete
