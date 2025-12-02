@@ -136,7 +136,7 @@ func (m *NodeDiscoveryManager) GetLocalNode() *PeerNode {
 // UpdateLocalNode 更新本地节点信息（当资源状态变化时调用）
 func (m *NodeDiscoveryManager) UpdateLocalNode(
 	resourceCapacity *types.Capacity,
-	resourceTags *ResourceTags,
+	resourceTags *types.ResourceTags,
 ) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -346,24 +346,17 @@ func (m *NodeDiscoveryManager) ProcessNodeInfo(node *PeerNode, sourcePeer string
 
 // FindAvailableNodes 查找满足资源要求的可用节点
 func (m *NodeDiscoveryManager) FindAvailableNodes(
-	resourceRequest *ResourceRequest,
-	requiredTags *ResourceTags,
+	resourceRequest *types.Info,
+	requiredTags *types.ResourceTags,
 ) []*PeerNode {
 	if resourceRequest == nil {
 		return nil
 	}
 
-	// 转换为 types.Info
-	req := &types.Info{
-		CPU:    resourceRequest.CPU,
-		Memory: resourceRequest.Memory,
-		GPU:    resourceRequest.GPU,
-	}
-
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	return m.aggregateView.FindAvailableNodes(req, requiredTags)
+	return m.aggregateView.FindAvailableNodes(resourceRequest, requiredTags)
 }
 
 // GetAggregateView 获取资源聚合视图
@@ -555,7 +548,7 @@ func (m *NodeDiscoveryManager) copyPeerNode(node *PeerNode) *PeerNode {
 
 	// 复制资源标签
 	if node.ResourceTags != nil {
-		copy.ResourceTags = &ResourceTags{
+		copy.ResourceTags = &types.ResourceTags{
 			CPU:    node.ResourceTags.CPU,
 			GPU:    node.ResourceTags.GPU,
 			Memory: node.ResourceTags.Memory,

@@ -274,7 +274,7 @@ func satisfiesResourceRequest(available *types.Info, request *types.Info) bool {
 	return true
 }
 
-func providerHasRequiredTags(providerTags *ResourceTags, required []string) bool {
+func providerHasRequiredTags(providerTags *types.ResourceTags, required []string) bool {
 	if len(required) == 0 {
 		return true
 	}

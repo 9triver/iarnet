@@ -3,7 +3,6 @@ package resource
 import (
 	"time"
 
-	"github.com/9triver/iarnet/internal/domain/resource/provider"
 	"github.com/9triver/iarnet/internal/domain/resource/types"
 )
 
@@ -77,7 +76,7 @@ func (p *ProviderItem) FromProvider(provider interface {
 	GetPort() int
 	GetStatus() types.ProviderStatus
 	GetLastUpdateTime() time.Time
-	GetResourceTags() *provider.ResourceTags
+	GetResourceTags() *types.ResourceTags
 }) *ProviderItem {
 	p.ID = provider.GetID()
 	p.Name = provider.GetName()
@@ -173,7 +172,7 @@ func (r *GetResourceProviderInfoResponse) FromProvider(provider interface {
 	GetPort() int
 	GetStatus() types.ProviderStatus
 	GetLastUpdateTime() time.Time
-	GetResourceTags() *provider.ResourceTags
+	GetResourceTags() *types.ResourceTags
 }) *GetResourceProviderInfoResponse {
 	r.ID = provider.GetID()
 	r.Name = provider.GetName()
@@ -240,7 +239,7 @@ func (r *GetResourceProviderUsageResponse) FromUsage(usage *types.Info) *GetReso
 	return r
 }
 
-func resourceTagsToInfo(tags *provider.ResourceTags) *ResourceTagsInfo {
+func resourceTagsToInfo(tags *types.ResourceTags) *ResourceTagsInfo {
 	if tags == nil {
 		return nil
 	}

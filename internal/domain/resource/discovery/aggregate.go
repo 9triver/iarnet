@@ -16,13 +16,13 @@ type ResourceAggregateView struct {
 	AggregatedCapacity *types.Capacity
 
 	// 聚合资源标签（所有节点支持的资源类型）
-	AggregatedTags *ResourceTags
+	AggregatedTags *types.ResourceTags
 
 	// 节点统计
-	TotalNodes  int // 总节点数
-	OnlineNodes int // 在线节点数
+	TotalNodes   int // 总节点数
+	OnlineNodes  int // 在线节点数
 	OfflineNodes int // 离线节点数
-	ErrorNodes  int // 错误节点数
+	ErrorNodes   int // 错误节点数
 
 	// 按资源类型分组的节点（用于快速查找）
 	// key: "cpu", "gpu", "memory", "camera"
@@ -44,10 +44,10 @@ func NewResourceAggregateView() *ResourceAggregateView {
 			Used:      &types.Info{},
 			Available: &types.Info{},
 		},
-		AggregatedTags:        NewEmptyResourceTags(),
-		NodesByResourceType:   make(map[string][]*PeerNode),
-		NodesByAvailability:   make([]*PeerNode, 0),
-		LastUpdated:           time.Now(),
+		AggregatedTags:      types.NewEmptyResourceTags(),
+		NodesByResourceType: make(map[string][]*PeerNode),
+		NodesByAvailability: make([]*PeerNode, 0),
+		LastUpdated:         time.Now(),
 	}
 }
 
@@ -68,7 +68,7 @@ func (v *ResourceAggregateView) Update(nodes []*PeerNode) {
 		Used:      &types.Info{},
 		Available: &types.Info{},
 	}
-	v.AggregatedTags = NewEmptyResourceTags()
+	v.AggregatedTags = types.NewEmptyResourceTags()
 
 	// 重置分组
 	v.NodesByResourceType = make(map[string][]*PeerNode)
@@ -157,7 +157,7 @@ func (v *ResourceAggregateView) Update(nodes []*PeerNode) {
 // FindAvailableNodes 查找满足资源要求的可用节点
 func (v *ResourceAggregateView) FindAvailableNodes(
 	resourceRequest *types.Info,
-	requiredTags *ResourceTags,
+	requiredTags *types.ResourceTags,
 ) []*PeerNode {
 	v.mu.RLock()
 	defer v.mu.RUnlock()
@@ -229,20 +229,19 @@ func (v *ResourceAggregateView) GetAggregatedCapacity() *types.Capacity {
 }
 
 // GetAggregatedTags 获取聚合的资源标签
-func (v *ResourceAggregateView) GetAggregatedTags() *ResourceTags {
+func (v *ResourceAggregateView) GetAggregatedTags() *types.ResourceTags {
 	v.mu.RLock()
 	defer v.mu.RUnlock()
 
 	if v.AggregatedTags == nil {
-		return NewEmptyResourceTags()
+		return types.NewEmptyResourceTags()
 	}
 
 	// 返回副本
-	return &ResourceTags{
+	return &types.ResourceTags{
 		CPU:    v.AggregatedTags.CPU,
 		GPU:    v.AggregatedTags.GPU,
 		Memory: v.AggregatedTags.Memory,
 		Camera: v.AggregatedTags.Camera,
 	}
 }
-

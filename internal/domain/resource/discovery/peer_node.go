@@ -6,53 +6,6 @@ import (
 	"github.com/9triver/iarnet/internal/domain/resource/types"
 )
 
-// ResourceTags 资源标签（描述节点支持的计算资源类型）
-type ResourceTags struct {
-	CPU    bool
-	GPU    bool
-	Memory bool
-	Camera bool
-}
-
-// NewEmptyResourceTags 创建空的资源标签
-func NewEmptyResourceTags() *ResourceTags {
-	return &ResourceTags{
-		CPU:    false,
-		GPU:    false,
-		Memory: false,
-		Camera: false,
-	}
-}
-
-// NewResourceTags 创建资源标签
-func NewResourceTags(cpu, gpu, memory, camera bool) *ResourceTags {
-	return &ResourceTags{
-		CPU:    cpu,
-		GPU:    gpu,
-		Memory: memory,
-		Camera: camera,
-	}
-}
-
-// HasResource 检查是否支持指定的资源类型
-func (rt *ResourceTags) HasResource(resourceType string) bool {
-	if rt == nil {
-		return false
-	}
-	switch resourceType {
-	case "cpu":
-		return rt.CPU
-	case "gpu":
-		return rt.GPU
-	case "memory":
-		return rt.Memory
-	case "camera":
-		return rt.Camera
-	default:
-		return false
-	}
-}
-
 // NodeStatus 节点状态
 type NodeStatus string
 
@@ -67,13 +20,6 @@ const (
 	NodeStatusUnknown NodeStatus = "unknown"
 )
 
-// ResourceRequest 资源请求（用于查询）
-type ResourceRequest struct {
-	CPU    int64
-	Memory int64
-	GPU    int64
-}
-
 // PeerNode 表示通过 gossip 发现的同域节点
 // 复用 global registry 的 Node 概念，但用于 peer-to-peer 发现
 type PeerNode struct {
@@ -85,8 +31,8 @@ type PeerNode struct {
 	DomainID         string // 所属域 ID（只发现同域节点）
 
 	// 资源信息（复用现有类型）
-	ResourceCapacity *types.Capacity // 资源容量（Total/Used/Available）
-	ResourceTags     *ResourceTags   // 资源标签（CPU/GPU/Memory/Camera）
+	ResourceCapacity *types.Capacity     // 资源容量（Total/Used/Available）
+	ResourceTags     *types.ResourceTags // 资源标签（CPU/GPU/Memory/Camera）
 
 	// 状态信息
 	Status      NodeStatus // 节点状态（online/offline/error）

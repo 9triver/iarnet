@@ -2,6 +2,12 @@ package logger
 
 import "time"
 
+// 应用日志类型
+// application 和 resource 的 logger 在业务上是两种不同的 logger，且是分别存储的
+
+// LogID 日志标识符
+type LogID = string
+
 // LogLevel 日志级别，对应 logrus 的日志级别
 type LogLevel string
 
@@ -45,18 +51,16 @@ type Entry struct {
 type SubmitLogResult struct {
 	Success bool
 	Error   string // 错误信息（如果 success = false）
-	LogID   string // 日志 ID（用于追踪，可选）
+	LogID   LogID  // 日志 ID（用于追踪，可选）
 }
-
-type LogID = string
 
 // BatchSubmitLogResult 批量日志提交结果
 type BatchSubmitLogResult struct {
 	Success       bool
 	Error         string
-	AcceptedCount int      // 成功接受的日志数量
-	RejectedCount int      // 被拒绝的日志数量
-	LogIDs        []string // 日志 ID 列表（可选）
+	AcceptedCount int     // 成功接受的日志数量
+	RejectedCount int     // 被拒绝的日志数量
+	LogIDs        []LogID // 日志 ID 列表（可选）
 }
 
 // QueryOptions 日志查询选项

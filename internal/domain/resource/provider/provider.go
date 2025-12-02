@@ -24,14 +24,6 @@ type EnvVariables struct {
 	LoggerPort int
 }
 
-// ResourceTags 资源标签（描述 provider 支持的计算资源类型）
-type ResourceTags struct {
-	CPU    bool
-	GPU    bool
-	Memory bool
-	Camera bool
-}
-
 // Provider 资源提供者
 type Provider struct {
 	id             string
@@ -49,7 +41,7 @@ type Provider struct {
 
 	// 资源缓存（从健康检测响应中获取）
 	cachedCapacity *types.Capacity
-	cachedTags     *ResourceTags
+	cachedTags     *types.ResourceTags
 	cacheTimestamp time.Time
 	cacheMu        sync.RWMutex
 }
@@ -237,7 +229,7 @@ func (p *Provider) updateCacheFromHealthCheckResponse(resp *providerpb.HealthChe
 	}
 
 	if resp.ResourceTags != nil {
-		p.cachedTags = &ResourceTags{
+		p.cachedTags = &types.ResourceTags{
 			CPU:    resp.ResourceTags.Cpu,
 			GPU:    resp.ResourceTags.Gpu,
 			Memory: resp.ResourceTags.Memory,
@@ -254,7 +246,7 @@ func (p *Provider) updateCacheFromHealthCheckResponse(resp *providerpb.HealthChe
 }
 
 // GetResourceTags 获取缓存的资源标签（返回副本以避免并发问题）
-func (p *Provider) GetResourceTags() *ResourceTags {
+func (p *Provider) GetResourceTags() *types.ResourceTags {
 	p.cacheMu.RLock()
 	defer p.cacheMu.RUnlock()
 
@@ -263,7 +255,7 @@ func (p *Provider) GetResourceTags() *ResourceTags {
 	}
 
 	// 返回副本以避免并发修改
-	return &ResourceTags{
+	return &types.ResourceTags{
 		CPU:    p.cachedTags.CPU,
 		GPU:    p.cachedTags.GPU,
 		Memory: p.cachedTags.Memory,

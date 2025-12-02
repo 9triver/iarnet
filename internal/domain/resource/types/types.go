@@ -21,6 +21,53 @@ type Capacity struct {
 // ResourceRequest 资源请求（用于查询）
 type ResourceRequest Info
 
+// ResourceTags 资源标签（描述节点/provider 支持的计算资源类型）
+type ResourceTags struct {
+	CPU    bool
+	GPU    bool
+	Memory bool
+	Camera bool
+}
+
+// NewEmptyResourceTags 创建空的资源标签
+func NewEmptyResourceTags() *ResourceTags {
+	return &ResourceTags{
+		CPU:    false,
+		GPU:    false,
+		Memory: false,
+		Camera: false,
+	}
+}
+
+// NewResourceTags 创建资源标签
+func NewResourceTags(cpu, gpu, memory, camera bool) *ResourceTags {
+	return &ResourceTags{
+		CPU:    cpu,
+		GPU:    gpu,
+		Memory: memory,
+		Camera: camera,
+	}
+}
+
+// HasResource 检查是否支持指定的资源类型
+func (rt *ResourceTags) HasResource(resourceType string) bool {
+	if rt == nil {
+		return false
+	}
+	switch resourceType {
+	case "cpu":
+		return rt.CPU
+	case "gpu":
+		return rt.GPU
+	case "memory":
+		return rt.Memory
+	case "camera":
+		return rt.Camera
+	default:
+		return false
+	}
+}
+
 // RuntimeEnv 运行时环境类型
 type RuntimeEnv = string
 

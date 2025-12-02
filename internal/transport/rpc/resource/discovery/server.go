@@ -117,15 +117,15 @@ func (s *Server) QueryResources(ctx context.Context, req *discoverypb.ResourceQu
 	}
 
 	// 转换资源请求
-	resourceRequest := &discovery.ResourceRequest{
+	resourceRequest := &types.Info{
 		CPU:    req.ResourceRequest.Cpu,
 		Memory: req.ResourceRequest.Memory,
 		GPU:    req.ResourceRequest.Gpu,
 	}
 
-	var requiredTags *discovery.ResourceTags
+	var requiredTags *types.ResourceTags
 	if req.RequiredTags != nil {
-		requiredTags = &discovery.ResourceTags{
+		requiredTags = &types.ResourceTags{
 			CPU:    req.RequiredTags.Cpu,
 			GPU:    req.RequiredTags.Gpu,
 			Memory: req.RequiredTags.Memory,
@@ -320,7 +320,7 @@ func convertProtoToPeerNode(proto *discoverypb.PeerNodeInfo) *discovery.PeerNode
 
 	// 转换资源标签
 	if proto.ResourceTags != nil {
-		node.ResourceTags = &discovery.ResourceTags{
+		node.ResourceTags = &types.ResourceTags{
 			CPU:    proto.ResourceTags.Cpu,
 			GPU:    proto.ResourceTags.Gpu,
 			Memory: proto.ResourceTags.Memory,

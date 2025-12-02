@@ -208,12 +208,12 @@ func (m *Manager) getLoggerAddress() string {
 	return fmt.Sprintf("%s:%d", m.envVariables.IarnetHost, m.envVariables.LoggerPort)
 }
 
-func convertStringsToDiscoveryTags(tags []string) *discovery.ResourceTags {
+func convertStringsToDiscoveryTags(tags []string) *types.ResourceTags {
 	if len(tags) == 0 {
 		return nil
 	}
 
-	rt := discovery.NewEmptyResourceTags()
+	rt := types.NewEmptyResourceTags()
 	matched := false
 	for _, tag := range tags {
 		switch strings.ToLower(tag) {

@@ -26,7 +26,7 @@ type Service interface {
 	PerformGossip(ctx context.Context) error
 
 	// QueryResources 查询资源（主动查询）
-	QueryResources(ctx context.Context, resourceRequest *types.Info, requiredTags *ResourceTags) ([]*PeerNode, error)
+	QueryResources(ctx context.Context, resourceRequest *types.Info, requiredTags *types.ResourceTags) ([]*PeerNode, error)
 
 	// GetKnownNodes 获取所有已知节点
 	GetKnownNodes() []*PeerNode
@@ -35,7 +35,7 @@ type Service interface {
 	GetLocalNode() *PeerNode
 
 	// UpdateLocalNode 更新本地节点信息
-	// resourceTags 可以是 *ResourceTags 或 *registrypb.ResourceTags（来自 global registry）
+	// resourceTags 可以是 *types.ResourceTags 或 *registrypb.ResourceTags（来自 global registry）
 	UpdateLocalNode(resourceCapacity *types.Capacity, resourceTags interface{})
 }
 
@@ -166,16 +166,9 @@ func (s *service) gossipWithPeer(ctx context.Context, peerAddr string, nodesToSe
 }
 
 // QueryResources 查询资源
-func (s *service) QueryResources(ctx context.Context, resourceRequest *types.Info, requiredTags *ResourceTags) ([]*PeerNode, error) {
+func (s *service) QueryResources(ctx context.Context, resourceRequest *types.Info, requiredTags *types.ResourceTags) ([]*PeerNode, error) {
 	if resourceRequest == nil {
 		return nil, fmt.Errorf("resource request is required")
-	}
-
-	// 转换为内部类型
-	req := &ResourceRequest{
-		CPU:    resourceRequest.CPU,
-		Memory: resourceRequest.Memory,
-		GPU:    resourceRequest.GPU,
 	}
 
 	if requiredTags != nil {
@@ -190,7 +183,7 @@ func (s *service) QueryResources(ctx context.Context, resourceRequest *types.Inf
 	}
 
 	// 先从本地已知节点查找
-	availableNodes := s.manager.FindAvailableNodes(req, requiredTags)
+	availableNodes := s.manager.FindAvailableNodes(resourceRequest, requiredTags)
 	if len(availableNodes) > 0 {
 		return availableNodes, nil
 	}
@@ -257,7 +250,7 @@ func (s *service) QueryResources(ctx context.Context, resourceRequest *types.Inf
 				// 添加到已知节点
 				s.manager.ProcessNodeInfo(peerNode, peerAddr)
 				// 检查是否满足要求
-				if s.nodeSatisfiesRequest(peerNode, req, requiredTags) {
+				if s.nodeSatisfiesRequest(peerNode, resourceRequest, requiredTags) {
 					availableNodes = append(availableNodes, peerNode)
 				}
 			}
@@ -277,7 +270,7 @@ func (s *service) QueryResources(ctx context.Context, resourceRequest *types.Inf
 }
 
 // nodeSatisfiesRequest 检查节点是否满足资源请求
-func (s *service) nodeSatisfiesRequest(node *PeerNode, req *ResourceRequest, requiredTags *ResourceTags) bool {
+func (s *service) nodeSatisfiesRequest(node *PeerNode, resourceRequest *types.Info, requiredTags *types.ResourceTags) bool {
 	if node.Status != NodeStatusOnline {
 		return false
 	}
@@ -301,9 +294,9 @@ func (s *service) nodeSatisfiesRequest(node *PeerNode, req *ResourceRequest, req
 	// 检查资源容量
 	if node.ResourceCapacity != nil && node.ResourceCapacity.Available != nil {
 		available := node.ResourceCapacity.Available
-		return available.CPU >= req.CPU &&
-			available.Memory >= req.Memory &&
-			available.GPU >= req.GPU
+		return available.CPU >= resourceRequest.CPU &&
+			available.Memory >= resourceRequest.Memory &&
+			available.GPU >= resourceRequest.GPU
 	}
 
 	return false
@@ -414,7 +407,7 @@ func convertProtoToPeerNode(proto *discoverypb.PeerNodeInfo) *PeerNode {
 
 	// 转换资源标签
 	if proto.ResourceTags != nil {
-		node.ResourceTags = &ResourceTags{
+		node.ResourceTags = &types.ResourceTags{
 			CPU:    proto.ResourceTags.Cpu,
 			GPU:    proto.ResourceTags.Gpu,
 			Memory: proto.ResourceTags.Memory,
@@ -464,18 +457,18 @@ func (s *service) GetLocalNode() *PeerNode {
 }
 
 // UpdateLocalNode 更新本地节点信息
-// resourceTags 可以是 *ResourceTags 或 *registrypb.ResourceTags（来自 global registry）
+// resourceTags 可以是 *types.ResourceTags 或 *registrypb.ResourceTags（来自 global registry）
 func (s *service) UpdateLocalNode(resourceCapacity *types.Capacity, resourceTags interface{}) {
-	var tags *ResourceTags
+	var tags *types.ResourceTags
 
 	// 处理不同类型的 resourceTags
 	switch v := resourceTags.(type) {
-	case *ResourceTags:
+	case *types.ResourceTags:
 		tags = v
 	case *registrypb.ResourceTags:
 		// 从 registrypb.ResourceTags 转换
 		if v != nil {
-			tags = &ResourceTags{
+			tags = &types.ResourceTags{
 				CPU:    v.Cpu,
 				GPU:    v.Gpu,
 				Memory: v.Memory,
