@@ -1,7 +1,6 @@
-[submodule "containers/envs/python/libs/lucas"]
-	path = containers/envs/python/libs/lucas
+[submodule "third_party/iarnet-proto"]
+	path = third_party/iarnet-proto
+	url = git@github.com:9triver/iarnet-proto.git
+[submodule "third_party/lucas"]
+	path = third_party/lucas
 	url = git@github.com:Xdydy/Lucas.git
-# [submodule "ignis"]
-# 	path = ignis
-# 	url = git@github.com:9triver/ignis.git
-# 	branch = kekwy
