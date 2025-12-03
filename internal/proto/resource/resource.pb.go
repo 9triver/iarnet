@@ -149,50 +149,6 @@ func (x *Capacity) GetAvailable() *Info {
 	return nil
 }
 
-type ResourceRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Info          *Info                  `protobuf:"bytes,1,opt,name=info,proto3" json:"info,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ResourceRequest) Reset() {
-	*x = ResourceRequest{}
-	mi := &file_resource_resource_proto_msgTypes[2]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ResourceRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ResourceRequest) ProtoMessage() {}
-
-func (x *ResourceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_resource_proto_msgTypes[2]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ResourceRequest.ProtoReflect.Descriptor instead.
-func (*ResourceRequest) Descriptor() ([]byte, []int) {
-	return file_resource_resource_proto_rawDescGZIP(), []int{2}
-}
-
-func (x *ResourceRequest) GetInfo() *Info {
-	if x != nil {
-		return x.Info
-	}
-	return nil
-}
-
 var File_resource_resource_proto protoreflect.FileDescriptor
 
 const file_resource_resource_proto_rawDesc = "" +
@@ -206,9 +162,7 @@ const file_resource_resource_proto_rawDesc = "" +
 	"\bCapacity\x12$\n" +
 	"\x05total\x18\x01 \x01(\v2\x0e.resource.InfoR\x05total\x12\"\n" +
 	"\x04used\x18\x02 \x01(\v2\x0e.resource.InfoR\x04used\x12,\n" +
-	"\tavailable\x18\x03 \x01(\v2\x0e.resource.InfoR\tavailable\"5\n" +
-	"\x0fResourceRequest\x12\"\n" +
-	"\x04info\x18\x01 \x01(\v2\x0e.resource.InfoR\x04infoB3Z1github.com/9triver/iarnet/internal/proto/resourceb\x06proto3"
+	"\tavailable\x18\x03 \x01(\v2\x0e.resource.InfoR\tavailableB3Z1github.com/9triver/iarnet/internal/proto/resourceb\x06proto3"
 
 var (
 	file_resource_resource_proto_rawDescOnce sync.Once
@@ -222,22 +176,20 @@ func file_resource_resource_proto_rawDescGZIP() []byte {
 	return file_resource_resource_proto_rawDescData
 }
 
-var file_resource_resource_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_resource_resource_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_resource_resource_proto_goTypes = []any{
-	(*Info)(nil),            // 0: resource.Info
-	(*Capacity)(nil),        // 1: resource.Capacity
-	(*ResourceRequest)(nil), // 2: resource.ResourceRequest
+	(*Info)(nil),     // 0: resource.Info
+	(*Capacity)(nil), // 1: resource.Capacity
 }
 var file_resource_resource_proto_depIdxs = []int32{
 	0, // 0: resource.Capacity.total:type_name -> resource.Info
 	0, // 1: resource.Capacity.used:type_name -> resource.Info
 	0, // 2: resource.Capacity.available:type_name -> resource.Info
-	0, // 3: resource.ResourceRequest.info:type_name -> resource.Info
-	4, // [4:4] is the sub-list for method output_type
-	4, // [4:4] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	3, // [3:3] is the sub-list for method output_type
+	3, // [3:3] is the sub-list for method input_type
+	3, // [3:3] is the sub-list for extension type_name
+	3, // [3:3] is the sub-list for extension extendee
+	0, // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_resource_resource_proto_init() }
@@ -251,7 +203,7 @@ func file_resource_resource_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_resource_resource_proto_rawDesc), len(file_resource_resource_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   3,
+			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

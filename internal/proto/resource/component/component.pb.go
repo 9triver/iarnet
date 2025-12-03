@@ -74,7 +74,7 @@ func (MessageType) EnumDescriptor() ([]byte, []int) {
 
 type Message struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	Type  MessageType            `protobuf:"varint,1,opt,name=Type,proto3,enum=component.MessageType" json:"Type,omitempty"`
+	Type  MessageType            `protobuf:"varint,1,opt,name=Type,proto3,enum=resource.component.MessageType" json:"Type,omitempty"`
 	// Types that are valid to be assigned to Message:
 	//
 	//	*Message_Ready
@@ -166,9 +166,9 @@ var File_resource_component_component_proto protoreflect.FileDescriptor
 
 const file_resource_component_component_proto_rawDesc = "" +
 	"\n" +
-	"\"resource/component/component.proto\x12\tcomponent\x1a\x15common/messages.proto\x1a\x19google/protobuf/any.proto\"\x99\x01\n" +
-	"\aMessage\x12*\n" +
-	"\x04Type\x18\x01 \x01(\x0e2\x16.component.MessageTypeR\x04Type\x12%\n" +
+	"\"resource/component/component.proto\x12\x12resource.component\x1a\x15common/messages.proto\x1a\x19google/protobuf/any.proto\"\xa2\x01\n" +
+	"\aMessage\x123\n" +
+	"\x04Type\x18\x01 \x01(\x0e2\x1f.resource.component.MessageTypeR\x04Type\x12%\n" +
 	"\x05Ready\x18\x02 \x01(\v2\r.common.ReadyH\x00R\x05Ready\x120\n" +
 	"\aPayload\x18\x03 \x01(\v2\x14.google.protobuf.AnyH\x00R\aPayloadB\t\n" +
 	"\aMessage*6\n" +
@@ -192,15 +192,15 @@ func file_resource_component_component_proto_rawDescGZIP() []byte {
 var file_resource_component_component_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_resource_component_component_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_resource_component_component_proto_goTypes = []any{
-	(MessageType)(0),     // 0: component.MessageType
-	(*Message)(nil),      // 1: component.Message
+	(MessageType)(0),     // 0: resource.component.MessageType
+	(*Message)(nil),      // 1: resource.component.Message
 	(*common.Ready)(nil), // 2: common.Ready
 	(*anypb.Any)(nil),    // 3: google.protobuf.Any
 }
 var file_resource_component_component_proto_depIdxs = []int32{
-	0, // 0: component.Message.Type:type_name -> component.MessageType
-	2, // 1: component.Message.Ready:type_name -> common.Ready
-	3, // 2: component.Message.Payload:type_name -> google.protobuf.Any
+	0, // 0: resource.component.Message.Type:type_name -> resource.component.MessageType
+	2, // 1: resource.component.Message.Ready:type_name -> common.Ready
+	3, // 2: resource.component.Message.Payload:type_name -> google.protobuf.Any
 	3, // [3:3] is the sub-list for method output_type
 	3, // [3:3] is the sub-list for method input_type
 	3, // [3:3] is the sub-list for extension type_name

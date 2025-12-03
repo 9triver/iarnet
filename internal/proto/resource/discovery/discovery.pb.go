@@ -275,7 +275,7 @@ type PeerNodeInfo struct {
 	SchedulerAddress string                 `protobuf:"bytes,12,opt,name=scheduler_address,json=schedulerAddress,proto3" json:"scheduler_address,omitempty"` // Scheduler RPC host:port
 	ResourceCapacity *ResourceCapacity      `protobuf:"bytes,5,opt,name=resource_capacity,json=resourceCapacity,proto3" json:"resource_capacity,omitempty"`
 	ResourceTags     *ResourceTags          `protobuf:"bytes,6,opt,name=resource_tags,json=resourceTags,proto3" json:"resource_tags,omitempty"`
-	Status           NodeStatus             `protobuf:"varint,7,opt,name=status,proto3,enum=discovery.NodeStatus" json:"status,omitempty"`
+	Status           NodeStatus             `protobuf:"varint,7,opt,name=status,proto3,enum=resource.discovery.NodeStatus" json:"status,omitempty"`
 	LastSeen         int64                  `protobuf:"varint,8,opt,name=last_seen,json=lastSeen,proto3" json:"last_seen,omitempty"`          // Unix nanoseconds
 	LastUpdated      int64                  `protobuf:"varint,9,opt,name=last_updated,json=lastUpdated,proto3" json:"last_updated,omitempty"` // Unix nanoseconds
 	// Gossip 元数据
@@ -1051,70 +1051,70 @@ var File_resource_discovery_discovery_proto protoreflect.FileDescriptor
 
 const file_resource_discovery_discovery_proto_rawDesc = "" +
 	"\n" +
-	"\"resource/discovery/discovery.proto\x12\tdiscovery\"J\n" +
+	"\"resource/discovery/discovery.proto\x12\x12resource.discovery\"J\n" +
 	"\fResourceInfo\x12\x10\n" +
 	"\x03cpu\x18\x01 \x01(\x03R\x03cpu\x12\x16\n" +
 	"\x06memory\x18\x02 \x01(\x03R\x06memory\x12\x10\n" +
-	"\x03gpu\x18\x03 \x01(\x03R\x03gpu\"\xa5\x01\n" +
-	"\x10ResourceCapacity\x12-\n" +
-	"\x05total\x18\x01 \x01(\v2\x17.discovery.ResourceInfoR\x05total\x12+\n" +
-	"\x04used\x18\x02 \x01(\v2\x17.discovery.ResourceInfoR\x04used\x125\n" +
-	"\tavailable\x18\x03 \x01(\v2\x17.discovery.ResourceInfoR\tavailable\"b\n" +
+	"\x03gpu\x18\x03 \x01(\x03R\x03gpu\"\xc0\x01\n" +
+	"\x10ResourceCapacity\x126\n" +
+	"\x05total\x18\x01 \x01(\v2 .resource.discovery.ResourceInfoR\x05total\x124\n" +
+	"\x04used\x18\x02 \x01(\v2 .resource.discovery.ResourceInfoR\x04used\x12>\n" +
+	"\tavailable\x18\x03 \x01(\v2 .resource.discovery.ResourceInfoR\tavailable\"b\n" +
 	"\fResourceTags\x12\x10\n" +
 	"\x03cpu\x18\x01 \x01(\bR\x03cpu\x12\x10\n" +
 	"\x03gpu\x18\x02 \x01(\bR\x03gpu\x12\x16\n" +
 	"\x06memory\x18\x03 \x01(\bR\x06memory\x12\x16\n" +
-	"\x06camera\x18\x04 \x01(\bR\x06camera\"\xdc\x03\n" +
+	"\x06camera\x18\x04 \x01(\bR\x06camera\"\xf7\x03\n" +
 	"\fPeerNodeInfo\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x1b\n" +
 	"\tnode_name\x18\x02 \x01(\tR\bnodeName\x12\x18\n" +
 	"\aaddress\x18\x03 \x01(\tR\aaddress\x12\x1b\n" +
 	"\tdomain_id\x18\x04 \x01(\tR\bdomainId\x12+\n" +
-	"\x11scheduler_address\x18\f \x01(\tR\x10schedulerAddress\x12H\n" +
-	"\x11resource_capacity\x18\x05 \x01(\v2\x1b.discovery.ResourceCapacityR\x10resourceCapacity\x12<\n" +
-	"\rresource_tags\x18\x06 \x01(\v2\x17.discovery.ResourceTagsR\fresourceTags\x12-\n" +
-	"\x06status\x18\a \x01(\x0e2\x15.discovery.NodeStatusR\x06status\x12\x1b\n" +
+	"\x11scheduler_address\x18\f \x01(\tR\x10schedulerAddress\x12Q\n" +
+	"\x11resource_capacity\x18\x05 \x01(\v2$.resource.discovery.ResourceCapacityR\x10resourceCapacity\x12E\n" +
+	"\rresource_tags\x18\x06 \x01(\v2 .resource.discovery.ResourceTagsR\fresourceTags\x126\n" +
+	"\x06status\x18\a \x01(\x0e2\x1e.resource.discovery.NodeStatusR\x06status\x12\x1b\n" +
 	"\tlast_seen\x18\b \x01(\x03R\blastSeen\x12!\n" +
 	"\flast_updated\x18\t \x01(\x03R\vlastUpdated\x12\x18\n" +
 	"\aversion\x18\n" +
 	" \x01(\x04R\aversion\x12!\n" +
-	"\fgossip_count\x18\v \x01(\x05R\vgossipCount\"\xa7\x02\n" +
+	"\fgossip_count\x18\v \x01(\x05R\vgossipCount\"\xb0\x02\n" +
 	"\x15NodeInfoGossipMessage\x12$\n" +
 	"\x0esender_node_id\x18\x01 \x01(\tR\fsenderNodeId\x12%\n" +
 	"\x0esender_address\x18\x02 \x01(\tR\rsenderAddress\x12(\n" +
-	"\x10sender_domain_id\x18\x03 \x01(\tR\x0esenderDomainId\x12-\n" +
-	"\x05nodes\x18\x04 \x03(\v2\x17.discovery.PeerNodeInfoR\x05nodes\x12\x1d\n" +
+	"\x10sender_domain_id\x18\x03 \x01(\tR\x0esenderDomainId\x126\n" +
+	"\x05nodes\x18\x04 \x03(\v2 .resource.discovery.PeerNodeInfoR\x05nodes\x12\x1d\n" +
 	"\n" +
 	"message_id\x18\x05 \x01(\tR\tmessageId\x12\x1c\n" +
 	"\ttimestamp\x18\x06 \x01(\x03R\ttimestamp\x12\x10\n" +
 	"\x03ttl\x18\a \x01(\x05R\x03ttl\x12\x19\n" +
-	"\bmax_hops\x18\b \x01(\x05R\amaxHops\"\x84\x01\n" +
-	"\x16NodeInfoGossipResponse\x12-\n" +
-	"\x05nodes\x18\x01 \x03(\v2\x17.discovery.PeerNodeInfoR\x05nodes\x12\x1d\n" +
+	"\bmax_hops\x18\b \x01(\x05R\amaxHops\"\x8d\x01\n" +
+	"\x16NodeInfoGossipResponse\x126\n" +
+	"\x05nodes\x18\x01 \x03(\v2 .resource.discovery.PeerNodeInfoR\x05nodes\x12\x1d\n" +
 	"\n" +
 	"message_id\x18\x02 \x01(\tR\tmessageId\x12\x1c\n" +
 	"\ttimestamp\x18\x03 \x01(\x03R\ttimestamp\"M\n" +
 	"\x0fResourceRequest\x12\x10\n" +
 	"\x03cpu\x18\x01 \x01(\x03R\x03cpu\x12\x16\n" +
 	"\x06memory\x18\x02 \x01(\x03R\x06memory\x12\x10\n" +
-	"\x03gpu\x18\x03 \x01(\x03R\x03gpu\"\xad\x03\n" +
+	"\x03gpu\x18\x03 \x01(\x03R\x03gpu\"\xbf\x03\n" +
 	"\x14ResourceQueryRequest\x12\x19\n" +
 	"\bquery_id\x18\x01 \x01(\tR\aqueryId\x12*\n" +
 	"\x11requester_node_id\x18\x02 \x01(\tR\x0frequesterNodeId\x12+\n" +
 	"\x11requester_address\x18\x03 \x01(\tR\x10requesterAddress\x12.\n" +
-	"\x13requester_domain_id\x18\x04 \x01(\tR\x11requesterDomainId\x12E\n" +
-	"\x10resource_request\x18\x05 \x01(\v2\x1a.discovery.ResourceRequestR\x0fresourceRequest\x12<\n" +
-	"\rrequired_tags\x18\x06 \x01(\v2\x17.discovery.ResourceTagsR\frequiredTags\x12\x1c\n" +
+	"\x13requester_domain_id\x18\x04 \x01(\tR\x11requesterDomainId\x12N\n" +
+	"\x10resource_request\x18\x05 \x01(\v2#.resource.discovery.ResourceRequestR\x0fresourceRequest\x12E\n" +
+	"\rrequired_tags\x18\x06 \x01(\v2 .resource.discovery.ResourceTagsR\frequiredTags\x12\x1c\n" +
 	"\ttimestamp\x18\a \x01(\x03R\ttimestamp\x12\x19\n" +
 	"\bmax_hops\x18\b \x01(\x05R\amaxHops\x12\x10\n" +
 	"\x03ttl\x18\t \x01(\x05R\x03ttl\x12!\n" +
 	"\fcurrent_hops\x18\n" +
-	" \x01(\x05R\vcurrentHops\"\x86\x02\n" +
+	" \x01(\x05R\vcurrentHops\"\x8f\x02\n" +
 	"\x15ResourceQueryResponse\x12\x19\n" +
 	"\bquery_id\x18\x01 \x01(\tR\aqueryId\x12*\n" +
 	"\x11responder_node_id\x18\x02 \x01(\tR\x0fresponderNodeId\x12+\n" +
-	"\x11responder_address\x18\x03 \x01(\tR\x10responderAddress\x12@\n" +
-	"\x0favailable_nodes\x18\x04 \x03(\v2\x17.discovery.PeerNodeInfoR\x0eavailableNodes\x12\x1c\n" +
+	"\x11responder_address\x18\x03 \x01(\tR\x10responderAddress\x12I\n" +
+	"\x0favailable_nodes\x18\x04 \x03(\v2 .resource.discovery.PeerNodeInfoR\x0eavailableNodes\x12\x1c\n" +
 	"\ttimestamp\x18\x05 \x01(\x03R\ttimestamp\x12\x19\n" +
 	"\bis_final\x18\x06 \x01(\bR\aisFinal\"\xe1\x01\n" +
 	"\x17PeerListExchangeRequest\x12*\n" +
@@ -1128,20 +1128,20 @@ const file_resource_discovery_discovery_proto_rawDesc = "" +
 	"\vknown_peers\x18\x01 \x03(\tR\n" +
 	"knownPeers\x12\x1c\n" +
 	"\ttimestamp\x18\x02 \x01(\x03R\ttimestamp\"\x19\n" +
-	"\x17GetLocalNodeInfoRequest\"P\n" +
-	"\x18GetLocalNodeInfoResponse\x124\n" +
-	"\tnode_info\x18\x01 \x01(\v2\x17.discovery.PeerNodeInfoR\bnodeInfo*m\n" +
+	"\x17GetLocalNodeInfoRequest\"Y\n" +
+	"\x18GetLocalNodeInfoResponse\x12=\n" +
+	"\tnode_info\x18\x01 \x01(\v2 .resource.discovery.PeerNodeInfoR\bnodeInfo*m\n" +
 	"\n" +
 	"NodeStatus\x12\x17\n" +
 	"\x13NODE_STATUS_UNKNOWN\x10\x00\x12\x16\n" +
 	"\x12NODE_STATUS_ONLINE\x10\x01\x12\x17\n" +
 	"\x13NODE_STATUS_OFFLINE\x10\x02\x12\x15\n" +
-	"\x11NODE_STATUS_ERROR\x10\x032\xf8\x02\n" +
-	"\x10DiscoveryService\x12U\n" +
-	"\x0eGossipNodeInfo\x12 .discovery.NodeInfoGossipMessage\x1a!.discovery.NodeInfoGossipResponse\x12S\n" +
-	"\x0eQueryResources\x12\x1f.discovery.ResourceQueryRequest\x1a .discovery.ResourceQueryResponse\x12[\n" +
-	"\x10ExchangePeerList\x12\".discovery.PeerListExchangeRequest\x1a#.discovery.PeerListExchangeResponse\x12[\n" +
-	"\x10GetLocalNodeInfo\x12\".discovery.GetLocalNodeInfoRequest\x1a#.discovery.GetLocalNodeInfoResponseB=Z;github.com/9triver/iarnet/internal/proto/resource/discoveryb\x06proto3"
+	"\x11NODE_STATUS_ERROR\x10\x032\xc0\x03\n" +
+	"\x10DiscoveryService\x12g\n" +
+	"\x0eGossipNodeInfo\x12).resource.discovery.NodeInfoGossipMessage\x1a*.resource.discovery.NodeInfoGossipResponse\x12e\n" +
+	"\x0eQueryResources\x12(.resource.discovery.ResourceQueryRequest\x1a).resource.discovery.ResourceQueryResponse\x12m\n" +
+	"\x10ExchangePeerList\x12+.resource.discovery.PeerListExchangeRequest\x1a,.resource.discovery.PeerListExchangeResponse\x12m\n" +
+	"\x10GetLocalNodeInfo\x12+.resource.discovery.GetLocalNodeInfoRequest\x1a,.resource.discovery.GetLocalNodeInfoResponseB=Z;github.com/9triver/iarnet/internal/proto/resource/discoveryb\x06proto3"
 
 var (
 	file_resource_discovery_discovery_proto_rawDescOnce sync.Once
@@ -1158,42 +1158,42 @@ func file_resource_discovery_discovery_proto_rawDescGZIP() []byte {
 var file_resource_discovery_discovery_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_resource_discovery_discovery_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_resource_discovery_discovery_proto_goTypes = []any{
-	(NodeStatus)(0),                  // 0: discovery.NodeStatus
-	(*ResourceInfo)(nil),             // 1: discovery.ResourceInfo
-	(*ResourceCapacity)(nil),         // 2: discovery.ResourceCapacity
-	(*ResourceTags)(nil),             // 3: discovery.ResourceTags
-	(*PeerNodeInfo)(nil),             // 4: discovery.PeerNodeInfo
-	(*NodeInfoGossipMessage)(nil),    // 5: discovery.NodeInfoGossipMessage
-	(*NodeInfoGossipResponse)(nil),   // 6: discovery.NodeInfoGossipResponse
-	(*ResourceRequest)(nil),          // 7: discovery.ResourceRequest
-	(*ResourceQueryRequest)(nil),     // 8: discovery.ResourceQueryRequest
-	(*ResourceQueryResponse)(nil),    // 9: discovery.ResourceQueryResponse
-	(*PeerListExchangeRequest)(nil),  // 10: discovery.PeerListExchangeRequest
-	(*PeerListExchangeResponse)(nil), // 11: discovery.PeerListExchangeResponse
-	(*GetLocalNodeInfoRequest)(nil),  // 12: discovery.GetLocalNodeInfoRequest
-	(*GetLocalNodeInfoResponse)(nil), // 13: discovery.GetLocalNodeInfoResponse
+	(NodeStatus)(0),                  // 0: resource.discovery.NodeStatus
+	(*ResourceInfo)(nil),             // 1: resource.discovery.ResourceInfo
+	(*ResourceCapacity)(nil),         // 2: resource.discovery.ResourceCapacity
+	(*ResourceTags)(nil),             // 3: resource.discovery.ResourceTags
+	(*PeerNodeInfo)(nil),             // 4: resource.discovery.PeerNodeInfo
+	(*NodeInfoGossipMessage)(nil),    // 5: resource.discovery.NodeInfoGossipMessage
+	(*NodeInfoGossipResponse)(nil),   // 6: resource.discovery.NodeInfoGossipResponse
+	(*ResourceRequest)(nil),          // 7: resource.discovery.ResourceRequest
+	(*ResourceQueryRequest)(nil),     // 8: resource.discovery.ResourceQueryRequest
+	(*ResourceQueryResponse)(nil),    // 9: resource.discovery.ResourceQueryResponse
+	(*PeerListExchangeRequest)(nil),  // 10: resource.discovery.PeerListExchangeRequest
+	(*PeerListExchangeResponse)(nil), // 11: resource.discovery.PeerListExchangeResponse
+	(*GetLocalNodeInfoRequest)(nil),  // 12: resource.discovery.GetLocalNodeInfoRequest
+	(*GetLocalNodeInfoResponse)(nil), // 13: resource.discovery.GetLocalNodeInfoResponse
 }
 var file_resource_discovery_discovery_proto_depIdxs = []int32{
-	1,  // 0: discovery.ResourceCapacity.total:type_name -> discovery.ResourceInfo
-	1,  // 1: discovery.ResourceCapacity.used:type_name -> discovery.ResourceInfo
-	1,  // 2: discovery.ResourceCapacity.available:type_name -> discovery.ResourceInfo
-	2,  // 3: discovery.PeerNodeInfo.resource_capacity:type_name -> discovery.ResourceCapacity
-	3,  // 4: discovery.PeerNodeInfo.resource_tags:type_name -> discovery.ResourceTags
-	0,  // 5: discovery.PeerNodeInfo.status:type_name -> discovery.NodeStatus
-	4,  // 6: discovery.NodeInfoGossipMessage.nodes:type_name -> discovery.PeerNodeInfo
-	4,  // 7: discovery.NodeInfoGossipResponse.nodes:type_name -> discovery.PeerNodeInfo
-	7,  // 8: discovery.ResourceQueryRequest.resource_request:type_name -> discovery.ResourceRequest
-	3,  // 9: discovery.ResourceQueryRequest.required_tags:type_name -> discovery.ResourceTags
-	4,  // 10: discovery.ResourceQueryResponse.available_nodes:type_name -> discovery.PeerNodeInfo
-	4,  // 11: discovery.GetLocalNodeInfoResponse.node_info:type_name -> discovery.PeerNodeInfo
-	5,  // 12: discovery.DiscoveryService.GossipNodeInfo:input_type -> discovery.NodeInfoGossipMessage
-	8,  // 13: discovery.DiscoveryService.QueryResources:input_type -> discovery.ResourceQueryRequest
-	10, // 14: discovery.DiscoveryService.ExchangePeerList:input_type -> discovery.PeerListExchangeRequest
-	12, // 15: discovery.DiscoveryService.GetLocalNodeInfo:input_type -> discovery.GetLocalNodeInfoRequest
-	6,  // 16: discovery.DiscoveryService.GossipNodeInfo:output_type -> discovery.NodeInfoGossipResponse
-	9,  // 17: discovery.DiscoveryService.QueryResources:output_type -> discovery.ResourceQueryResponse
-	11, // 18: discovery.DiscoveryService.ExchangePeerList:output_type -> discovery.PeerListExchangeResponse
-	13, // 19: discovery.DiscoveryService.GetLocalNodeInfo:output_type -> discovery.GetLocalNodeInfoResponse
+	1,  // 0: resource.discovery.ResourceCapacity.total:type_name -> resource.discovery.ResourceInfo
+	1,  // 1: resource.discovery.ResourceCapacity.used:type_name -> resource.discovery.ResourceInfo
+	1,  // 2: resource.discovery.ResourceCapacity.available:type_name -> resource.discovery.ResourceInfo
+	2,  // 3: resource.discovery.PeerNodeInfo.resource_capacity:type_name -> resource.discovery.ResourceCapacity
+	3,  // 4: resource.discovery.PeerNodeInfo.resource_tags:type_name -> resource.discovery.ResourceTags
+	0,  // 5: resource.discovery.PeerNodeInfo.status:type_name -> resource.discovery.NodeStatus
+	4,  // 6: resource.discovery.NodeInfoGossipMessage.nodes:type_name -> resource.discovery.PeerNodeInfo
+	4,  // 7: resource.discovery.NodeInfoGossipResponse.nodes:type_name -> resource.discovery.PeerNodeInfo
+	7,  // 8: resource.discovery.ResourceQueryRequest.resource_request:type_name -> resource.discovery.ResourceRequest
+	3,  // 9: resource.discovery.ResourceQueryRequest.required_tags:type_name -> resource.discovery.ResourceTags
+	4,  // 10: resource.discovery.ResourceQueryResponse.available_nodes:type_name -> resource.discovery.PeerNodeInfo
+	4,  // 11: resource.discovery.GetLocalNodeInfoResponse.node_info:type_name -> resource.discovery.PeerNodeInfo
+	5,  // 12: resource.discovery.DiscoveryService.GossipNodeInfo:input_type -> resource.discovery.NodeInfoGossipMessage
+	8,  // 13: resource.discovery.DiscoveryService.QueryResources:input_type -> resource.discovery.ResourceQueryRequest
+	10, // 14: resource.discovery.DiscoveryService.ExchangePeerList:input_type -> resource.discovery.PeerListExchangeRequest
+	12, // 15: resource.discovery.DiscoveryService.GetLocalNodeInfo:input_type -> resource.discovery.GetLocalNodeInfoRequest
+	6,  // 16: resource.discovery.DiscoveryService.GossipNodeInfo:output_type -> resource.discovery.NodeInfoGossipResponse
+	9,  // 17: resource.discovery.DiscoveryService.QueryResources:output_type -> resource.discovery.ResourceQueryResponse
+	11, // 18: resource.discovery.DiscoveryService.ExchangePeerList:output_type -> resource.discovery.PeerListExchangeResponse
+	13, // 19: resource.discovery.DiscoveryService.GetLocalNodeInfo:output_type -> resource.discovery.GetLocalNodeInfoResponse
 	16, // [16:20] is the sub-list for method output_type
 	12, // [12:16] is the sub-list for method input_type
 	12, // [12:12] is the sub-list for extension type_name

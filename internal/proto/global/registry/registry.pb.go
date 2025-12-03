@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.10
 // 	protoc        v6.31.1
-// source: registry/registry.proto
+// source: global/registry/registry.proto
 
 package registry
 
@@ -58,11 +58,11 @@ func (x NodeStatus) String() string {
 }
 
 func (NodeStatus) Descriptor() protoreflect.EnumDescriptor {
-	return file_registry_registry_proto_enumTypes[0].Descriptor()
+	return file_global_registry_registry_proto_enumTypes[0].Descriptor()
 }
 
 func (NodeStatus) Type() protoreflect.EnumType {
-	return &file_registry_registry_proto_enumTypes[0]
+	return &file_global_registry_registry_proto_enumTypes[0]
 }
 
 func (x NodeStatus) Number() protoreflect.EnumNumber {
@@ -71,7 +71,7 @@ func (x NodeStatus) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use NodeStatus.Descriptor instead.
 func (NodeStatus) EnumDescriptor() ([]byte, []int) {
-	return file_registry_registry_proto_rawDescGZIP(), []int{0}
+	return file_global_registry_registry_proto_rawDescGZIP(), []int{0}
 }
 
 type RegisterNodeRequest struct {
@@ -86,7 +86,7 @@ type RegisterNodeRequest struct {
 
 func (x *RegisterNodeRequest) Reset() {
 	*x = RegisterNodeRequest{}
-	mi := &file_registry_registry_proto_msgTypes[0]
+	mi := &file_global_registry_registry_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -98,7 +98,7 @@ func (x *RegisterNodeRequest) String() string {
 func (*RegisterNodeRequest) ProtoMessage() {}
 
 func (x *RegisterNodeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_registry_registry_proto_msgTypes[0]
+	mi := &file_global_registry_registry_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -111,7 +111,7 @@ func (x *RegisterNodeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterNodeRequest.ProtoReflect.Descriptor instead.
 func (*RegisterNodeRequest) Descriptor() ([]byte, []int) {
-	return file_registry_registry_proto_rawDescGZIP(), []int{0}
+	return file_global_registry_registry_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *RegisterNodeRequest) GetDomainId() string {
@@ -152,7 +152,7 @@ type RegisterNodeResponse struct {
 
 func (x *RegisterNodeResponse) Reset() {
 	*x = RegisterNodeResponse{}
-	mi := &file_registry_registry_proto_msgTypes[1]
+	mi := &file_global_registry_registry_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -164,7 +164,7 @@ func (x *RegisterNodeResponse) String() string {
 func (*RegisterNodeResponse) ProtoMessage() {}
 
 func (x *RegisterNodeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_registry_registry_proto_msgTypes[1]
+	mi := &file_global_registry_registry_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -177,7 +177,7 @@ func (x *RegisterNodeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterNodeResponse.ProtoReflect.Descriptor instead.
 func (*RegisterNodeResponse) Descriptor() ([]byte, []int) {
-	return file_registry_registry_proto_rawDescGZIP(), []int{1}
+	return file_global_registry_registry_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *RegisterNodeResponse) GetDomainName() string {
@@ -206,7 +206,7 @@ type ResourceInfo struct {
 
 func (x *ResourceInfo) Reset() {
 	*x = ResourceInfo{}
-	mi := &file_registry_registry_proto_msgTypes[2]
+	mi := &file_global_registry_registry_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -218,7 +218,7 @@ func (x *ResourceInfo) String() string {
 func (*ResourceInfo) ProtoMessage() {}
 
 func (x *ResourceInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_registry_registry_proto_msgTypes[2]
+	mi := &file_global_registry_registry_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -231,7 +231,7 @@ func (x *ResourceInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResourceInfo.ProtoReflect.Descriptor instead.
 func (*ResourceInfo) Descriptor() ([]byte, []int) {
-	return file_registry_registry_proto_rawDescGZIP(), []int{2}
+	return file_global_registry_registry_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *ResourceInfo) GetCpu() int64 {
@@ -267,7 +267,7 @@ type ResourceCapacity struct {
 
 func (x *ResourceCapacity) Reset() {
 	*x = ResourceCapacity{}
-	mi := &file_registry_registry_proto_msgTypes[3]
+	mi := &file_global_registry_registry_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -279,7 +279,7 @@ func (x *ResourceCapacity) String() string {
 func (*ResourceCapacity) ProtoMessage() {}
 
 func (x *ResourceCapacity) ProtoReflect() protoreflect.Message {
-	mi := &file_registry_registry_proto_msgTypes[3]
+	mi := &file_global_registry_registry_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -292,7 +292,7 @@ func (x *ResourceCapacity) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResourceCapacity.ProtoReflect.Descriptor instead.
 func (*ResourceCapacity) Descriptor() ([]byte, []int) {
-	return file_registry_registry_proto_rawDescGZIP(), []int{3}
+	return file_global_registry_registry_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ResourceCapacity) GetTotal() *ResourceInfo {
@@ -329,7 +329,7 @@ type ResourceTags struct {
 
 func (x *ResourceTags) Reset() {
 	*x = ResourceTags{}
-	mi := &file_registry_registry_proto_msgTypes[4]
+	mi := &file_global_registry_registry_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -341,7 +341,7 @@ func (x *ResourceTags) String() string {
 func (*ResourceTags) ProtoMessage() {}
 
 func (x *ResourceTags) ProtoReflect() protoreflect.Message {
-	mi := &file_registry_registry_proto_msgTypes[4]
+	mi := &file_global_registry_registry_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -354,7 +354,7 @@ func (x *ResourceTags) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResourceTags.ProtoReflect.Descriptor instead.
 func (*ResourceTags) Descriptor() ([]byte, []int) {
-	return file_registry_registry_proto_rawDescGZIP(), []int{4}
+	return file_global_registry_registry_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ResourceTags) GetCpu() bool {
@@ -390,7 +390,7 @@ type HealthCheckRequest struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	NodeId           string                 `protobuf:"bytes,1,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`                               // 节点 ID
 	DomainId         string                 `protobuf:"bytes,2,opt,name=domain_id,json=domainId,proto3" json:"domain_id,omitempty"`                         // 域 ID
-	Status           NodeStatus             `protobuf:"varint,3,opt,name=status,proto3,enum=registry.NodeStatus" json:"status,omitempty"`                   // 节点状态
+	Status           NodeStatus             `protobuf:"varint,3,opt,name=status,proto3,enum=global.registry.NodeStatus" json:"status,omitempty"`            // 节点状态
 	ResourceCapacity *ResourceCapacity      `protobuf:"bytes,4,opt,name=resource_capacity,json=resourceCapacity,proto3" json:"resource_capacity,omitempty"` // 资源容量信息
 	ResourceTags     *ResourceTags          `protobuf:"bytes,5,opt,name=resource_tags,json=resourceTags,proto3" json:"resource_tags,omitempty"`             // 资源标签
 	Address          string                 `protobuf:"bytes,6,opt,name=address,proto3" json:"address,omitempty"`                                           // 节点地址 (host:port)
@@ -402,7 +402,7 @@ type HealthCheckRequest struct {
 
 func (x *HealthCheckRequest) Reset() {
 	*x = HealthCheckRequest{}
-	mi := &file_registry_registry_proto_msgTypes[5]
+	mi := &file_global_registry_registry_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -414,7 +414,7 @@ func (x *HealthCheckRequest) String() string {
 func (*HealthCheckRequest) ProtoMessage() {}
 
 func (x *HealthCheckRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_registry_registry_proto_msgTypes[5]
+	mi := &file_global_registry_registry_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -427,7 +427,7 @@ func (x *HealthCheckRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthCheckRequest.ProtoReflect.Descriptor instead.
 func (*HealthCheckRequest) Descriptor() ([]byte, []int) {
-	return file_registry_registry_proto_rawDescGZIP(), []int{5}
+	return file_global_registry_registry_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *HealthCheckRequest) GetNodeId() string {
@@ -500,7 +500,7 @@ type HealthCheckResponse struct {
 
 func (x *HealthCheckResponse) Reset() {
 	*x = HealthCheckResponse{}
-	mi := &file_registry_registry_proto_msgTypes[6]
+	mi := &file_global_registry_registry_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -512,7 +512,7 @@ func (x *HealthCheckResponse) String() string {
 func (*HealthCheckResponse) ProtoMessage() {}
 
 func (x *HealthCheckResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_registry_registry_proto_msgTypes[6]
+	mi := &file_global_registry_registry_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -525,7 +525,7 @@ func (x *HealthCheckResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthCheckResponse.ProtoReflect.Descriptor instead.
 func (*HealthCheckResponse) Descriptor() ([]byte, []int) {
-	return file_registry_registry_proto_rawDescGZIP(), []int{6}
+	return file_global_registry_registry_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *HealthCheckResponse) GetServerTimestamp() int64 {
@@ -563,11 +563,11 @@ func (x *HealthCheckResponse) GetMessage() string {
 	return ""
 }
 
-var File_registry_registry_proto protoreflect.FileDescriptor
+var File_global_registry_registry_proto protoreflect.FileDescriptor
 
-const file_registry_registry_proto_rawDesc = "" +
+const file_global_registry_registry_proto_rawDesc = "" +
 	"\n" +
-	"\x17registry/registry.proto\x12\bregistry\"\x93\x01\n" +
+	"\x1eglobal/registry/registry.proto\x12\x0fglobal.registry\"\x93\x01\n" +
 	"\x13RegisterNodeRequest\x12\x1b\n" +
 	"\tdomain_id\x18\x01 \x01(\tR\bdomainId\x12\x17\n" +
 	"\anode_id\x18\x02 \x01(\tR\x06nodeId\x12\x1b\n" +
@@ -580,22 +580,22 @@ const file_registry_registry_proto_rawDesc = "" +
 	"\fResourceInfo\x12\x10\n" +
 	"\x03cpu\x18\x01 \x01(\x03R\x03cpu\x12\x16\n" +
 	"\x06memory\x18\x02 \x01(\x03R\x06memory\x12\x10\n" +
-	"\x03gpu\x18\x03 \x01(\x03R\x03gpu\"\xa2\x01\n" +
-	"\x10ResourceCapacity\x12,\n" +
-	"\x05total\x18\x01 \x01(\v2\x16.registry.ResourceInfoR\x05total\x12*\n" +
-	"\x04used\x18\x02 \x01(\v2\x16.registry.ResourceInfoR\x04used\x124\n" +
-	"\tavailable\x18\x03 \x01(\v2\x16.registry.ResourceInfoR\tavailable\"b\n" +
+	"\x03gpu\x18\x03 \x01(\x03R\x03gpu\"\xb7\x01\n" +
+	"\x10ResourceCapacity\x123\n" +
+	"\x05total\x18\x01 \x01(\v2\x1d.global.registry.ResourceInfoR\x05total\x121\n" +
+	"\x04used\x18\x02 \x01(\v2\x1d.global.registry.ResourceInfoR\x04used\x12;\n" +
+	"\tavailable\x18\x03 \x01(\v2\x1d.global.registry.ResourceInfoR\tavailable\"b\n" +
 	"\fResourceTags\x12\x10\n" +
 	"\x03cpu\x18\x01 \x01(\bR\x03cpu\x12\x10\n" +
 	"\x03gpu\x18\x02 \x01(\bR\x03gpu\x12\x16\n" +
 	"\x06memory\x18\x03 \x01(\bR\x06memory\x12\x16\n" +
-	"\x06camera\x18\x04 \x01(\bR\x06camera\"\xcf\x02\n" +
+	"\x06camera\x18\x04 \x01(\bR\x06camera\"\xe4\x02\n" +
 	"\x12HealthCheckRequest\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x1b\n" +
-	"\tdomain_id\x18\x02 \x01(\tR\bdomainId\x12,\n" +
-	"\x06status\x18\x03 \x01(\x0e2\x14.registry.NodeStatusR\x06status\x12G\n" +
-	"\x11resource_capacity\x18\x04 \x01(\v2\x1a.registry.ResourceCapacityR\x10resourceCapacity\x12;\n" +
-	"\rresource_tags\x18\x05 \x01(\v2\x16.registry.ResourceTagsR\fresourceTags\x12\x18\n" +
+	"\tdomain_id\x18\x02 \x01(\tR\bdomainId\x123\n" +
+	"\x06status\x18\x03 \x01(\x0e2\x1b.global.registry.NodeStatusR\x06status\x12N\n" +
+	"\x11resource_capacity\x18\x04 \x01(\v2!.global.registry.ResourceCapacityR\x10resourceCapacity\x12B\n" +
+	"\rresource_tags\x18\x05 \x01(\v2\x1d.global.registry.ResourceTagsR\fresourceTags\x12\x18\n" +
 	"\aaddress\x18\x06 \x01(\tR\aaddress\x12\x1c\n" +
 	"\ttimestamp\x18\a \x01(\x03R\ttimestamp\x12\x17\n" +
 	"\ais_head\x18\b \x01(\bR\x06isHead\"\xec\x01\n" +
@@ -611,46 +611,46 @@ const file_registry_registry_proto_rawDesc = "" +
 	"\x13NODE_STATUS_UNKNOWN\x10\x00\x12\x16\n" +
 	"\x12NODE_STATUS_ONLINE\x10\x01\x12\x17\n" +
 	"\x13NODE_STATUS_OFFLINE\x10\x02\x12\x15\n" +
-	"\x11NODE_STATUS_ERROR\x10\x032\xa4\x01\n" +
-	"\aService\x12M\n" +
-	"\fRegisterNode\x12\x1d.registry.RegisterNodeRequest\x1a\x1e.registry.RegisterNodeResponse\x12J\n" +
-	"\vHealthCheck\x12\x1c.registry.HealthCheckRequest\x1a\x1d.registry.HealthCheckResponseB:Z8github.com/9triver/iarnet/internal/proto/global/registryb\x06proto3"
+	"\x11NODE_STATUS_ERROR\x10\x032\xc0\x01\n" +
+	"\aService\x12[\n" +
+	"\fRegisterNode\x12$.global.registry.RegisterNodeRequest\x1a%.global.registry.RegisterNodeResponse\x12X\n" +
+	"\vHealthCheck\x12#.global.registry.HealthCheckRequest\x1a$.global.registry.HealthCheckResponseB:Z8github.com/9triver/iarnet/internal/proto/global/registryb\x06proto3"
 
 var (
-	file_registry_registry_proto_rawDescOnce sync.Once
-	file_registry_registry_proto_rawDescData []byte
+	file_global_registry_registry_proto_rawDescOnce sync.Once
+	file_global_registry_registry_proto_rawDescData []byte
 )
 
-func file_registry_registry_proto_rawDescGZIP() []byte {
-	file_registry_registry_proto_rawDescOnce.Do(func() {
-		file_registry_registry_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_registry_registry_proto_rawDesc), len(file_registry_registry_proto_rawDesc)))
+func file_global_registry_registry_proto_rawDescGZIP() []byte {
+	file_global_registry_registry_proto_rawDescOnce.Do(func() {
+		file_global_registry_registry_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_global_registry_registry_proto_rawDesc), len(file_global_registry_registry_proto_rawDesc)))
 	})
-	return file_registry_registry_proto_rawDescData
+	return file_global_registry_registry_proto_rawDescData
 }
 
-var file_registry_registry_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_registry_registry_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
-var file_registry_registry_proto_goTypes = []any{
-	(NodeStatus)(0),              // 0: registry.NodeStatus
-	(*RegisterNodeRequest)(nil),  // 1: registry.RegisterNodeRequest
-	(*RegisterNodeResponse)(nil), // 2: registry.RegisterNodeResponse
-	(*ResourceInfo)(nil),         // 3: registry.ResourceInfo
-	(*ResourceCapacity)(nil),     // 4: registry.ResourceCapacity
-	(*ResourceTags)(nil),         // 5: registry.ResourceTags
-	(*HealthCheckRequest)(nil),   // 6: registry.HealthCheckRequest
-	(*HealthCheckResponse)(nil),  // 7: registry.HealthCheckResponse
+var file_global_registry_registry_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_global_registry_registry_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_global_registry_registry_proto_goTypes = []any{
+	(NodeStatus)(0),              // 0: global.registry.NodeStatus
+	(*RegisterNodeRequest)(nil),  // 1: global.registry.RegisterNodeRequest
+	(*RegisterNodeResponse)(nil), // 2: global.registry.RegisterNodeResponse
+	(*ResourceInfo)(nil),         // 3: global.registry.ResourceInfo
+	(*ResourceCapacity)(nil),     // 4: global.registry.ResourceCapacity
+	(*ResourceTags)(nil),         // 5: global.registry.ResourceTags
+	(*HealthCheckRequest)(nil),   // 6: global.registry.HealthCheckRequest
+	(*HealthCheckResponse)(nil),  // 7: global.registry.HealthCheckResponse
 }
-var file_registry_registry_proto_depIdxs = []int32{
-	3, // 0: registry.ResourceCapacity.total:type_name -> registry.ResourceInfo
-	3, // 1: registry.ResourceCapacity.used:type_name -> registry.ResourceInfo
-	3, // 2: registry.ResourceCapacity.available:type_name -> registry.ResourceInfo
-	0, // 3: registry.HealthCheckRequest.status:type_name -> registry.NodeStatus
-	4, // 4: registry.HealthCheckRequest.resource_capacity:type_name -> registry.ResourceCapacity
-	5, // 5: registry.HealthCheckRequest.resource_tags:type_name -> registry.ResourceTags
-	1, // 6: registry.Service.RegisterNode:input_type -> registry.RegisterNodeRequest
-	6, // 7: registry.Service.HealthCheck:input_type -> registry.HealthCheckRequest
-	2, // 8: registry.Service.RegisterNode:output_type -> registry.RegisterNodeResponse
-	7, // 9: registry.Service.HealthCheck:output_type -> registry.HealthCheckResponse
+var file_global_registry_registry_proto_depIdxs = []int32{
+	3, // 0: global.registry.ResourceCapacity.total:type_name -> global.registry.ResourceInfo
+	3, // 1: global.registry.ResourceCapacity.used:type_name -> global.registry.ResourceInfo
+	3, // 2: global.registry.ResourceCapacity.available:type_name -> global.registry.ResourceInfo
+	0, // 3: global.registry.HealthCheckRequest.status:type_name -> global.registry.NodeStatus
+	4, // 4: global.registry.HealthCheckRequest.resource_capacity:type_name -> global.registry.ResourceCapacity
+	5, // 5: global.registry.HealthCheckRequest.resource_tags:type_name -> global.registry.ResourceTags
+	1, // 6: global.registry.Service.RegisterNode:input_type -> global.registry.RegisterNodeRequest
+	6, // 7: global.registry.Service.HealthCheck:input_type -> global.registry.HealthCheckRequest
+	2, // 8: global.registry.Service.RegisterNode:output_type -> global.registry.RegisterNodeResponse
+	7, // 9: global.registry.Service.HealthCheck:output_type -> global.registry.HealthCheckResponse
 	8, // [8:10] is the sub-list for method output_type
 	6, // [6:8] is the sub-list for method input_type
 	6, // [6:6] is the sub-list for extension type_name
@@ -658,27 +658,27 @@ var file_registry_registry_proto_depIdxs = []int32{
 	0, // [0:6] is the sub-list for field type_name
 }
 
-func init() { file_registry_registry_proto_init() }
-func file_registry_registry_proto_init() {
-	if File_registry_registry_proto != nil {
+func init() { file_global_registry_registry_proto_init() }
+func file_global_registry_registry_proto_init() {
+	if File_global_registry_registry_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_registry_registry_proto_rawDesc), len(file_registry_registry_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_global_registry_registry_proto_rawDesc), len(file_global_registry_registry_proto_rawDesc)),
 			NumEnums:      1,
 			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_registry_registry_proto_goTypes,
-		DependencyIndexes: file_registry_registry_proto_depIdxs,
-		EnumInfos:         file_registry_registry_proto_enumTypes,
-		MessageInfos:      file_registry_registry_proto_msgTypes,
+		GoTypes:           file_global_registry_registry_proto_goTypes,
+		DependencyIndexes: file_global_registry_registry_proto_depIdxs,
+		EnumInfos:         file_global_registry_registry_proto_enumTypes,
+		MessageInfos:      file_global_registry_registry_proto_msgTypes,
 	}.Build()
-	File_registry_registry_proto = out.File
-	file_registry_registry_proto_goTypes = nil
-	file_registry_registry_proto_depIdxs = nil
+	File_global_registry_registry_proto = out.File
+	file_global_registry_registry_proto_goTypes = nil
+	file_global_registry_registry_proto_depIdxs = nil
 }

@@ -1,11 +1,18 @@
 #!/bin/bash
 
-# iarnet 仓库的 Protobuf 生成脚本
+# iarnet 仓库的 Protobuf 生成脚本（按模块划分）
 # 此脚本调用 iarnet-proto 仓库的生成脚本，并输出到 iarnet 仓库的指定目录
 # 
 # 使用方法:
 #   1. 确保 iarnet-proto 已通过 git submodule 或直接克隆到 third_party/iarnet-proto
-#   2. 运行: ./proto/protobuf-gen.sh
+#   2. 运行: ./proto/protobuf-gen.sh [模块名]
+#   3. 如果不指定模块名，则生成所有模块
+#
+# 模块列表:
+#   - internal: 生成 Go 代码到 internal/proto/
+#   - runner: 生成 Go 代码到 containers/runner/core/proto/
+#   - component: 生成 Python 代码到 containers/component/python/proto/
+#   - lucas: 生成 Python 代码到 third_party/lucas/lucas/actorc/protos/
 
 set -e  # Exit on error
 
@@ -39,20 +46,22 @@ EOF
 fi
 
 IARNET_PROTO_PROTO_DIR="${IARNET_PROTO_DIR}/proto"
-IARNET_PROTO_SCRIPTS_DIR="${IARNET_PROTO_DIR}/scripts"
 
-if [ ! -d "$IARNET_PROTO_PROTO_DIR" ] || [ ! -f "$IARNET_PROTO_SCRIPTS_DIR/gen_go.sh" ]; then
+if [ ! -d "$IARNET_PROTO_PROTO_DIR" ]; then
     cat >&2 <<EOF
 错误: iarnet-proto 目录结构不正确
 期望的目录结构:
   $IARNET_PROTO_DIR/
-    ├── proto/
-    └── scripts/
-        ├── gen_go.sh
-        └── gen_python.sh
+    └── proto/
 EOF
     exit 1
 fi
+
+# 颜色输出
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
 
 echo "=========================================="
 echo "iarnet 仓库 Protobuf 生成"
@@ -61,124 +70,294 @@ echo "iarnet-proto 目录: $IARNET_PROTO_DIR"
 echo "=========================================="
 
 # ============================================================================
-# 1. 生成 Go 代码
+# 模块 1: internal - 生成 Go 代码到 internal/proto/
 # ============================================================================
-echo ""
-echo ">>> 生成 Go 代码..."
-
-GO_OUTPUT="${PROJECT_ROOT}/internal/proto"
-bash "$IARNET_PROTO_SCRIPTS_DIR/gen_go.sh" "$IARNET_PROTO_PROTO_DIR" "$GO_OUTPUT"
-
-# Runner common Go generation (特殊输出目录)
-RUNNER_COMMON_OUTPUT="${PROJECT_ROOT}/containers/images/runner/proto"
-if [ -d "$IARNET_PROTO_PROTO_DIR/common" ]; then
+generate_internal() {
     echo ""
-    echo ">>> 生成 Runner Common Go 代码: $RUNNER_COMMON_OUTPUT"
-    mkdir -p "$RUNNER_COMMON_OUTPUT"
-    find "$RUNNER_COMMON_OUTPUT" -type f -name "*.pb.go" -delete 2>/dev/null || true
+    echo -e "${YELLOW}>>> 模块: internal${NC}"
+    echo -e "${YELLOW}输出目录: ${PROJECT_ROOT}/internal/proto${NC}"
     
-    pushd "$IARNET_PROTO_PROTO_DIR/common" >/dev/null
-    $PROTOC -I "$IARNET_PROTO_PROTO_DIR" \
-        --go_out="$RUNNER_COMMON_OUTPUT" --go_opt=paths=source_relative \
-        --go-grpc_out="$RUNNER_COMMON_OUTPUT" --go-grpc_opt=paths=source_relative \
-        *.proto
-    popd >/dev/null
-fi
-
-# Runner application logger Go generation
-RUNNER_LOGGER_OUTPUT="${PROJECT_ROOT}/containers/images/runner/proto/logger"
-if [ -d "$IARNET_PROTO_PROTO_DIR/application/logger" ]; then
-    echo ""
-    echo ">>> 生成 Runner Logger Go 代码: $RUNNER_LOGGER_OUTPUT"
-    mkdir -p "$RUNNER_LOGGER_OUTPUT"
-    find "$RUNNER_LOGGER_OUTPUT" -type f -name "*.pb.go" -delete 2>/dev/null || true
+    # 检查 protoc-gen-go 工具
+    if ! command -v protoc-gen-go >/dev/null 2>&1 || ! command -v protoc-gen-go-grpc >/dev/null 2>&1; then
+        cat >&2 <<EOF
+错误: protoc-gen-go 和/或 protoc-gen-go-grpc 未在 PATH 中找到
+安装方法:
+  go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+  go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+EOF
+        exit 1
+    fi
     
-    pushd "$IARNET_PROTO_PROTO_DIR/application/logger" >/dev/null
-    $PROTOC -I "$IARNET_PROTO_PROTO_DIR" -I . \
-        --go_out="$RUNNER_LOGGER_OUTPUT" --go_opt=paths=source_relative \
-        --go-grpc_out="$RUNNER_LOGGER_OUTPUT" --go-grpc_opt=paths=source_relative \
-        *.proto
-    popd >/dev/null
+    INTERNAL_OUTPUT="${PROJECT_ROOT}/internal/proto"
     
-    # 修复 import 路径（如果需要）
-    find "$RUNNER_LOGGER_OUTPUT" -type f -name "*.pb.go" -exec sed -i 's|github.com/9triver/iarnet/internal/proto/common|github.com/9triver/iarnet/runner/proto/common|g' {} + 2>/dev/null || true
-fi
+    # 清理已有的 proto 代码
+    if [ -d "$INTERNAL_OUTPUT" ]; then
+        echo -e "${YELLOW}  清理已有的 proto 代码...${NC}"
+        find "$INTERNAL_OUTPUT" -type f -name "*.pb.go" -delete 2>/dev/null || true
+    fi
+    mkdir -p "$INTERNAL_OUTPUT"
+    
+    # 生成函数：为指定目录生成 Go 代码
+    generate_go_for_dir() {
+        local rel_dir="$1"
+        
+        local proto_dir="$IARNET_PROTO_PROTO_DIR/$rel_dir"
+        if [ ! -d "$proto_dir" ]; then
+            return
+        fi
+        
+        local out_dir="$INTERNAL_OUTPUT/$rel_dir"
+        mkdir -p "$out_dir"
+        
+        # 清理旧文件
+        find "$out_dir" -type f -name "*.pb.go" -delete 2>/dev/null || true
+        
+        # 检查是否有 proto 文件
+        local proto_files=("$proto_dir"/*.proto)
+        if [ ! -f "${proto_files[0]}" ]; then
+            return
+        fi
+        
+        echo -e "${YELLOW}  生成 $rel_dir -> $out_dir${NC}"
+        
+        # 从 proto 根目录调用，使用完整路径，这样生成的 source 注释和变量名会包含完整路径
+        pushd "$IARNET_PROTO_PROTO_DIR" >/dev/null
+        for proto_file in "$rel_dir"/*.proto; do
+            if [ -f "$proto_file" ]; then
+                $PROTOC -I "$IARNET_PROTO_PROTO_DIR" \
+                    --go_out="$INTERNAL_OUTPUT" --go_opt=paths=source_relative \
+                    --go-grpc_out="$INTERNAL_OUTPUT" --go-grpc_opt=paths=source_relative \
+                    "$proto_file"
+            fi
+        done
+        popd >/dev/null
+    }
+    
+    # 1. 生成 common
+    generate_go_for_dir "common"
+    
+    # 2. 生成 ignis/controller
+    generate_go_for_dir "ignis/controller"
+    
+    # 3. 生成 ignis/actor
+    generate_go_for_dir "ignis/actor"
+    
+    # 4. 生成 resource（包括所有子目录）
+    # resource 根目录
+    if [ -f "$IARNET_PROTO_PROTO_DIR/resource/resource.proto" ]; then
+        mkdir -p "$INTERNAL_OUTPUT/resource"
+        find "$INTERNAL_OUTPUT/resource" -maxdepth 1 -type f -name "*.pb.go" -delete 2>/dev/null || true
+        echo -e "${YELLOW}  生成 resource/resource.proto -> $INTERNAL_OUTPUT/resource${NC}"
+        pushd "$IARNET_PROTO_PROTO_DIR" >/dev/null
+        $PROTOC -I "$IARNET_PROTO_PROTO_DIR" \
+            --go_out="$INTERNAL_OUTPUT" --go_opt=paths=source_relative \
+            --go-grpc_out="$INTERNAL_OUTPUT" --go-grpc_opt=paths=source_relative \
+            resource/resource.proto
+        popd >/dev/null
+    fi
+    
+    # resource 子目录
+    for subdir in provider store component logger discovery scheduler; do
+        generate_go_for_dir "resource/$subdir"
+    done
+    
+    # 5. 生成 application/logger
+    generate_go_for_dir "application/logger"
+    
+    # 6. 生成 global/registry
+    generate_go_for_dir "global/registry"
+    
+    echo -e "${GREEN}✔ internal 模块生成完成${NC}"
+}
 
 # ============================================================================
-# 2. 生成 Python 代码
+# 模块 2: runner - 生成 Go 代码到 containers/runner/core/proto/
 # ============================================================================
-echo ""
-echo ">>> 生成 Python 代码..."
-
-# Component Python 输出
-PY_OUTPUT_COMPONENT="${PROJECT_ROOT}/containers/component/python/proto"
-bash "$IARNET_PROTO_SCRIPTS_DIR/gen_python.sh" "$IARNET_PROTO_PROTO_DIR" "$PY_OUTPUT_COMPONENT"
-
-# Lucas Python 输出（特殊处理，优先使用 third_party，其次兼容旧路径）
-LUCAS_BASE_DIR="${PROJECT_ROOT}/third_party/lucas"
-if [ ! -d "$LUCAS_BASE_DIR" ]; then
-    LUCAS_BASE_DIR="${PROJECT_ROOT}/containers/envs/python/libs/lucas"
-fi
-PY_OUTPUT_LUCAS="${LUCAS_BASE_DIR}/lucas/actorc/protos"
-
-# Common
-if [ -d "$IARNET_PROTO_PROTO_DIR/common" ]; then
+generate_runner() {
     echo ""
-    echo ">>> 生成 Lucas Common Python 代码: $PY_OUTPUT_LUCAS/common"
-    mkdir -p "$PY_OUTPUT_LUCAS/common"
-    find "$PY_OUTPUT_LUCAS/common" -type f -name "*_pb2.py" -delete 2>/dev/null || true
-    find "$PY_OUTPUT_LUCAS/common" -type f -name "*_pb2.pyi" -delete 2>/dev/null || true
-    find "$PY_OUTPUT_LUCAS/common" -type f -name "*_pb2_grpc.py" -delete 2>/dev/null || true
+    echo -e "${YELLOW}>>> 模块: runner${NC}"
     
-    pushd "$IARNET_PROTO_PROTO_DIR/common" >/dev/null
-    $PROTOC -I "$IARNET_PROTO_PROTO_DIR" \
-        --python_out="$PY_OUTPUT_LUCAS/common" \
-        --pyi_out="$PY_OUTPUT_LUCAS/common" \
-        --grpc_python_out="$PY_OUTPUT_LUCAS/common" \
-        *.proto
-    popd >/dev/null
-    touch "$PY_OUTPUT_LUCAS/common/__init__.py"
-fi
+    RUNNER_PROTO_DIR="${PROJECT_ROOT}/containers/runner/core/proto"
+    
+    # 清理已有的 proto 代码
+    if [ -d "$RUNNER_PROTO_DIR" ]; then
+        echo -e "${YELLOW}  清理已有的 proto 代码...${NC}"
+        find "$RUNNER_PROTO_DIR" -type f -name "*.pb.go" -delete 2>/dev/null || true
+    fi
+    
+    # Runner common Go generation
+    if [ -d "$IARNET_PROTO_PROTO_DIR/common" ]; then
+        RUNNER_COMMON_OUTPUT="${RUNNER_PROTO_DIR}/common"
+        echo -e "${YELLOW}  生成 Runner Common Go 代码: $RUNNER_COMMON_OUTPUT${NC}"
+        mkdir -p "$RUNNER_COMMON_OUTPUT"
+        find "$RUNNER_COMMON_OUTPUT" -type f -name "*.pb.go" -delete 2>/dev/null || true
+        
+        pushd "$IARNET_PROTO_PROTO_DIR/common" >/dev/null
+        $PROTOC -I "$IARNET_PROTO_PROTO_DIR" \
+            --go_out="$RUNNER_COMMON_OUTPUT" --go_opt=paths=source_relative \
+            --go-grpc_out="$RUNNER_COMMON_OUTPUT" --go-grpc_opt=paths=source_relative \
+            *.proto
+        popd >/dev/null
+    fi
+    
+    # Runner application logger Go generation
+    if [ -d "$IARNET_PROTO_PROTO_DIR/application/logger" ]; then
+        RUNNER_LOGGER_OUTPUT="${RUNNER_PROTO_DIR}/logger"
+        echo -e "${YELLOW}  生成 Runner Logger Go 代码: $RUNNER_LOGGER_OUTPUT${NC}"
+        mkdir -p "$RUNNER_LOGGER_OUTPUT"
+        find "$RUNNER_LOGGER_OUTPUT" -type f -name "*.pb.go" -delete 2>/dev/null || true
+        
+        pushd "$IARNET_PROTO_PROTO_DIR/application/logger" >/dev/null
+        $PROTOC -I "$IARNET_PROTO_PROTO_DIR" -I . \
+            --go_out="$RUNNER_LOGGER_OUTPUT" --go_opt=paths=source_relative \
+            --go-grpc_out="$RUNNER_LOGGER_OUTPUT" --go-grpc_opt=paths=source_relative \
+            *.proto
+        popd >/dev/null
+        
+        # 修复 import 路径（如果需要）
+        find "$RUNNER_LOGGER_OUTPUT" -type f -name "*.pb.go" -exec sed -i 's|github.com/9triver/iarnet/internal/proto/common|github.com/9triver/iarnet/runner/proto/common|g' {} + 2>/dev/null || true
+    fi
+    
+    echo -e "${GREEN}✔ runner 模块生成完成${NC}"
+}
 
-# Controller
-if [ -d "$IARNET_PROTO_PROTO_DIR/ignis/controller" ]; then
+# ============================================================================
+# 模块 3: component - 生成 Python 代码到 containers/component/python/proto/
+# ============================================================================
+generate_component() {
     echo ""
-    echo ">>> 生成 Lucas Controller Python 代码: $PY_OUTPUT_LUCAS/controller"
-    mkdir -p "$PY_OUTPUT_LUCAS/controller"
-    find "$PY_OUTPUT_LUCAS/controller" -type f -name "*_pb2.py" -delete 2>/dev/null || true
-    find "$PY_OUTPUT_LUCAS/controller" -type f -name "*_pb2.pyi" -delete 2>/dev/null || true
-    find "$PY_OUTPUT_LUCAS/controller" -type f -name "*_pb2_grpc.py" -delete 2>/dev/null || true
+    echo -e "${YELLOW}>>> 模块: component${NC}"
+    echo -e "${YELLOW}输出目录: ${PROJECT_ROOT}/containers/component/python/proto${NC}"
     
-    pushd "$IARNET_PROTO_PROTO_DIR/ignis/controller" >/dev/null
-    $PROTOC -I "$IARNET_PROTO_PROTO_DIR" -I . \
-        --python_out="$PY_OUTPUT_LUCAS/controller" \
-        --pyi_out="$PY_OUTPUT_LUCAS/controller" \
-        --grpc_python_out="$PY_OUTPUT_LUCAS/controller" \
-        *.proto
-    popd >/dev/null
-    touch "$PY_OUTPUT_LUCAS/controller/__init__.py"
-fi
+    PY_OUTPUT_COMPONENT="${PROJECT_ROOT}/containers/component/python/proto"
+    
+    # 清理已有的 proto 代码
+    if [ -d "$PY_OUTPUT_COMPONENT" ]; then
+        echo -e "${YELLOW}  清理已有的 proto 代码...${NC}"
+        find "$PY_OUTPUT_COMPONENT" -type f -name "*_pb2.py" -delete 2>/dev/null || true
+        find "$PY_OUTPUT_COMPONENT" -type f -name "*_pb2.pyi" -delete 2>/dev/null || true
+        find "$PY_OUTPUT_COMPONENT" -type f -name "*_pb2_grpc.py" -delete 2>/dev/null || true
+    fi
+    
+    bash "$IARNET_PROTO_SCRIPTS_DIR/gen_python.sh" "$IARNET_PROTO_PROTO_DIR" "$PY_OUTPUT_COMPONENT"
+    
+    echo -e "${GREEN}✔ component 模块生成完成${NC}"
+}
 
-# Logger
-if [ -d "$IARNET_PROTO_PROTO_DIR/application/logger" ]; then
+# ============================================================================
+# 模块 4: lucas - 生成 Python 代码到 third_party/lucas/lucas/actorc/protos/
+# ============================================================================
+generate_lucas() {
     echo ""
-    echo ">>> 生成 Lucas Logger Python 代码: $PY_OUTPUT_LUCAS/logger"
-    mkdir -p "$PY_OUTPUT_LUCAS/logger"
-    find "$PY_OUTPUT_LUCAS/logger" -type f -name "*_pb2.py" -delete 2>/dev/null || true
-    find "$PY_OUTPUT_LUCAS/logger" -type f -name "*_pb2.pyi" -delete 2>/dev/null || true
-    find "$PY_OUTPUT_LUCAS/logger" -type f -name "*_pb2_grpc.py" -delete 2>/dev/null || true
+    echo -e "${YELLOW}>>> 模块: lucas${NC}"
     
-    pushd "$IARNET_PROTO_PROTO_DIR/application/logger" >/dev/null
-    $PROTOC -I "$IARNET_PROTO_PROTO_DIR" -I . \
-        --python_out="$PY_OUTPUT_LUCAS/logger" \
-        --pyi_out="$PY_OUTPUT_LUCAS/logger" \
-        --grpc_python_out="$PY_OUTPUT_LUCAS/logger" \
-        *.proto
-    popd >/dev/null
-    touch "$PY_OUTPUT_LUCAS/logger/__init__.py"
-fi
+    # Lucas Python 输出（特殊处理，优先使用 third_party，其次兼容旧路径）
+    LUCAS_BASE_DIR="${PROJECT_ROOT}/third_party/lucas"
+    if [ ! -d "$LUCAS_BASE_DIR" ]; then
+        LUCAS_BASE_DIR="${PROJECT_ROOT}/containers/envs/python/libs/lucas"
+    fi
+    PY_OUTPUT_LUCAS="${LUCAS_BASE_DIR}/lucas/actorc/protos"
+    
+    # 清理已有的 proto 代码
+    if [ -d "$PY_OUTPUT_LUCAS" ]; then
+        echo -e "${YELLOW}  清理已有的 proto 代码...${NC}"
+        find "$PY_OUTPUT_LUCAS" -type f -name "*_pb2.py" -delete 2>/dev/null || true
+        find "$PY_OUTPUT_LUCAS" -type f -name "*_pb2.pyi" -delete 2>/dev/null || true
+        find "$PY_OUTPUT_LUCAS" -type f -name "*_pb2_grpc.py" -delete 2>/dev/null || true
+    fi
+    
+    # Common
+    if [ -d "$IARNET_PROTO_PROTO_DIR/common" ]; then
+        echo -e "${YELLOW}  生成 Lucas Common Python 代码: $PY_OUTPUT_LUCAS/common${NC}"
+        mkdir -p "$PY_OUTPUT_LUCAS/common"
+        
+        pushd "$IARNET_PROTO_PROTO_DIR/common" >/dev/null
+        $PROTOC -I "$IARNET_PROTO_PROTO_DIR" \
+            --python_out="$PY_OUTPUT_LUCAS/common" \
+            --pyi_out="$PY_OUTPUT_LUCAS/common" \
+            --grpc_python_out="$PY_OUTPUT_LUCAS/common" \
+            *.proto
+        popd >/dev/null
+        touch "$PY_OUTPUT_LUCAS/common/__init__.py"
+    fi
+    
+    # Controller
+    if [ -d "$IARNET_PROTO_PROTO_DIR/ignis/controller" ]; then
+        echo -e "${YELLOW}  生成 Lucas Controller Python 代码: $PY_OUTPUT_LUCAS/controller${NC}"
+        mkdir -p "$PY_OUTPUT_LUCAS/controller"
+        
+        pushd "$IARNET_PROTO_PROTO_DIR/ignis/controller" >/dev/null
+        $PROTOC -I "$IARNET_PROTO_PROTO_DIR" -I . \
+            --python_out="$PY_OUTPUT_LUCAS/controller" \
+            --pyi_out="$PY_OUTPUT_LUCAS/controller" \
+            --grpc_python_out="$PY_OUTPUT_LUCAS/controller" \
+            *.proto
+        popd >/dev/null
+        touch "$PY_OUTPUT_LUCAS/controller/__init__.py"
+    fi
+    
+    # Logger
+    if [ -d "$IARNET_PROTO_PROTO_DIR/application/logger" ]; then
+        echo -e "${YELLOW}  生成 Lucas Logger Python 代码: $PY_OUTPUT_LUCAS/logger${NC}"
+        mkdir -p "$PY_OUTPUT_LUCAS/logger"
+        
+        pushd "$IARNET_PROTO_PROTO_DIR/application/logger" >/dev/null
+        $PROTOC -I "$IARNET_PROTO_PROTO_DIR" -I . \
+            --python_out="$PY_OUTPUT_LUCAS/logger" \
+            --pyi_out="$PY_OUTPUT_LUCAS/logger" \
+            --grpc_python_out="$PY_OUTPUT_LUCAS/logger" \
+            *.proto
+        popd >/dev/null
+        touch "$PY_OUTPUT_LUCAS/logger/__init__.py"
+    fi
+    
+    echo -e "${GREEN}✔ lucas 模块生成完成${NC}"
+}
+
+# ============================================================================
+# 主逻辑：根据参数决定生成哪些模块
+# ============================================================================
+MODULE="${1:-all}"
+
+case "$MODULE" in
+    internal)
+        generate_internal
+        ;;
+    runner)
+        generate_runner
+        ;;
+    component)
+        generate_component
+        ;;
+    lucas)
+        generate_lucas
+        ;;
+    all)
+        generate_internal
+        generate_runner
+        generate_component
+        generate_lucas
+        ;;
+    *)
+        cat >&2 <<EOF
+错误: 未知的模块名: $MODULE
+
+可用模块:
+  - internal: 生成 Go 代码到 internal/proto/
+  - runner: 生成 Go 代码到 containers/runner/core/proto/
+  - component: 生成 Python 代码到 containers/component/python/proto/
+  - lucas: 生成 Python 代码到 third_party/lucas/lucas/actorc/protos/
+  - all: 生成所有模块（默认）
+
+示例:
+  ./proto/protobuf-gen.sh internal
+  ./proto/protobuf-gen.sh all
+EOF
+        exit 1
+        ;;
+esac
 
 echo ""
 echo "=========================================="
-echo "Protobuf 生成完成！"
+echo -e "${GREEN}Protobuf 生成完成！${NC}"
 echo "=========================================="

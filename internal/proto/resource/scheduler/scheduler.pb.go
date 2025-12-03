@@ -90,7 +90,7 @@ type DeployComponentRequest struct {
 	TargetNodeId string `protobuf:"bytes,3,opt,name=target_node_id,json=targetNodeId,proto3" json:"target_node_id,omitempty"`
 	// 目标节点地址（可选，如果指定了 target_node_id 但需要直接连接）
 	TargetNodeAddress string `protobuf:"bytes,4,opt,name=target_node_address,json=targetNodeAddress,proto3" json:"target_node_address,omitempty"`
-	// 当由其它节点委托时，指定需要连接的上游 ZMQ/Store/Logger 地址
+	// 由外部节点委托时需要回连的上游地址
 	UpstreamZmqAddress    string `protobuf:"bytes,5,opt,name=upstream_zmq_address,json=upstreamZmqAddress,proto3" json:"upstream_zmq_address,omitempty"`
 	UpstreamStoreAddress  string `protobuf:"bytes,6,opt,name=upstream_store_address,json=upstreamStoreAddress,proto3" json:"upstream_store_address,omitempty"`
 	UpstreamLoggerAddress string `protobuf:"bytes,7,opt,name=upstream_logger_address,json=upstreamLoggerAddress,proto3" json:"upstream_logger_address,omitempty"`
@@ -404,7 +404,7 @@ type GetDeploymentStatusResponse struct {
 	// 错误信息（如果失败）
 	Error string `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
 	// Component 状态
-	Status ComponentStatus `protobuf:"varint,3,opt,name=status,proto3,enum=scheduler.ComponentStatus" json:"status,omitempty"`
+	Status ComponentStatus `protobuf:"varint,3,opt,name=status,proto3,enum=resource.scheduler.ComponentStatus" json:"status,omitempty"`
 	// Component 信息
 	Component     *ComponentInfo `protobuf:"bytes,4,opt,name=component,proto3" json:"component,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -473,7 +473,7 @@ var File_resource_scheduler_scheduler_proto protoreflect.FileDescriptor
 
 const file_resource_scheduler_scheduler_proto_rawDesc = "" +
 	"\n" +
-	"\"resource/scheduler/scheduler.proto\x12\tscheduler\x1a\x17resource/resource.proto\"\xea\x02\n" +
+	"\"resource/scheduler/scheduler.proto\x12\x12resource.scheduler\x1a\x17resource/resource.proto\"\xea\x02\n" +
 	"\x16DeployComponentRequest\x12\x1f\n" +
 	"\vruntime_env\x18\x01 \x01(\tR\n" +
 	"runtimeEnv\x129\n" +
@@ -482,11 +482,11 @@ const file_resource_scheduler_scheduler_proto_rawDesc = "" +
 	"\x13target_node_address\x18\x04 \x01(\tR\x11targetNodeAddress\x120\n" +
 	"\x14upstream_zmq_address\x18\x05 \x01(\tR\x12upstreamZmqAddress\x124\n" +
 	"\x16upstream_store_address\x18\x06 \x01(\tR\x14upstreamStoreAddress\x126\n" +
-	"\x17upstream_logger_address\x18\a \x01(\tR\x15upstreamLoggerAddress\"\xd8\x01\n" +
+	"\x17upstream_logger_address\x18\a \x01(\tR\x15upstreamLoggerAddress\"\xe1\x01\n" +
 	"\x17DeployComponentResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
-	"\x05error\x18\x02 \x01(\tR\x05error\x126\n" +
-	"\tcomponent\x18\x03 \x01(\v2\x18.scheduler.ComponentInfoR\tcomponent\x12\x17\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\x12?\n" +
+	"\tcomponent\x18\x03 \x01(\v2!.resource.scheduler.ComponentInfoR\tcomponent\x12\x17\n" +
 	"\anode_id\x18\x04 \x01(\tR\x06nodeId\x12\x1b\n" +
 	"\tnode_name\x18\x05 \x01(\tR\bnodeName\x12\x1f\n" +
 	"\vprovider_id\x18\x06 \x01(\tR\n" +
@@ -499,21 +499,21 @@ const file_resource_scheduler_scheduler_proto_rawDesc = "" +
 	"providerId\"X\n" +
 	"\x1aGetDeploymentStatusRequest\x12!\n" +
 	"\fcomponent_id\x18\x01 \x01(\tR\vcomponentId\x12\x17\n" +
-	"\anode_id\x18\x02 \x01(\tR\x06nodeId\"\xb9\x01\n" +
+	"\anode_id\x18\x02 \x01(\tR\x06nodeId\"\xcb\x01\n" +
 	"\x1bGetDeploymentStatusResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
-	"\x05error\x18\x02 \x01(\tR\x05error\x122\n" +
-	"\x06status\x18\x03 \x01(\x0e2\x1a.scheduler.ComponentStatusR\x06status\x126\n" +
-	"\tcomponent\x18\x04 \x01(\v2\x18.scheduler.ComponentInfoR\tcomponent*\xa7\x01\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\x12;\n" +
+	"\x06status\x18\x03 \x01(\x0e2#.resource.scheduler.ComponentStatusR\x06status\x12?\n" +
+	"\tcomponent\x18\x04 \x01(\v2!.resource.scheduler.ComponentInfoR\tcomponent*\xa7\x01\n" +
 	"\x0fComponentStatus\x12\x1c\n" +
 	"\x18COMPONENT_STATUS_UNKNOWN\x10\x00\x12\x1e\n" +
 	"\x1aCOMPONENT_STATUS_DEPLOYING\x10\x01\x12\x1c\n" +
 	"\x18COMPONENT_STATUS_RUNNING\x10\x02\x12\x1c\n" +
 	"\x18COMPONENT_STATUS_STOPPED\x10\x03\x12\x1a\n" +
-	"\x16COMPONENT_STATUS_ERROR\x10\x042\xd2\x01\n" +
-	"\x10SchedulerService\x12X\n" +
-	"\x0fDeployComponent\x12!.scheduler.DeployComponentRequest\x1a\".scheduler.DeployComponentResponse\x12d\n" +
-	"\x13GetDeploymentStatus\x12%.scheduler.GetDeploymentStatusRequest\x1a&.scheduler.GetDeploymentStatusResponseB=Z;github.com/9triver/iarnet/internal/proto/resource/schedulerb\x06proto3"
+	"\x16COMPONENT_STATUS_ERROR\x10\x042\xf6\x01\n" +
+	"\x10SchedulerService\x12j\n" +
+	"\x0fDeployComponent\x12*.resource.scheduler.DeployComponentRequest\x1a+.resource.scheduler.DeployComponentResponse\x12v\n" +
+	"\x13GetDeploymentStatus\x12..resource.scheduler.GetDeploymentStatusRequest\x1a/.resource.scheduler.GetDeploymentStatusResponseB=Z;github.com/9triver/iarnet/internal/proto/resource/schedulerb\x06proto3"
 
 var (
 	file_resource_scheduler_scheduler_proto_rawDescOnce sync.Once
@@ -530,24 +530,24 @@ func file_resource_scheduler_scheduler_proto_rawDescGZIP() []byte {
 var file_resource_scheduler_scheduler_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_resource_scheduler_scheduler_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_resource_scheduler_scheduler_proto_goTypes = []any{
-	(ComponentStatus)(0),                // 0: scheduler.ComponentStatus
-	(*DeployComponentRequest)(nil),      // 1: scheduler.DeployComponentRequest
-	(*DeployComponentResponse)(nil),     // 2: scheduler.DeployComponentResponse
-	(*ComponentInfo)(nil),               // 3: scheduler.ComponentInfo
-	(*GetDeploymentStatusRequest)(nil),  // 4: scheduler.GetDeploymentStatusRequest
-	(*GetDeploymentStatusResponse)(nil), // 5: scheduler.GetDeploymentStatusResponse
+	(ComponentStatus)(0),                // 0: resource.scheduler.ComponentStatus
+	(*DeployComponentRequest)(nil),      // 1: resource.scheduler.DeployComponentRequest
+	(*DeployComponentResponse)(nil),     // 2: resource.scheduler.DeployComponentResponse
+	(*ComponentInfo)(nil),               // 3: resource.scheduler.ComponentInfo
+	(*GetDeploymentStatusRequest)(nil),  // 4: resource.scheduler.GetDeploymentStatusRequest
+	(*GetDeploymentStatusResponse)(nil), // 5: resource.scheduler.GetDeploymentStatusResponse
 	(*resource.Info)(nil),               // 6: resource.Info
 }
 var file_resource_scheduler_scheduler_proto_depIdxs = []int32{
-	6, // 0: scheduler.DeployComponentRequest.resource_request:type_name -> resource.Info
-	3, // 1: scheduler.DeployComponentResponse.component:type_name -> scheduler.ComponentInfo
-	6, // 2: scheduler.ComponentInfo.resource_usage:type_name -> resource.Info
-	0, // 3: scheduler.GetDeploymentStatusResponse.status:type_name -> scheduler.ComponentStatus
-	3, // 4: scheduler.GetDeploymentStatusResponse.component:type_name -> scheduler.ComponentInfo
-	1, // 5: scheduler.SchedulerService.DeployComponent:input_type -> scheduler.DeployComponentRequest
-	4, // 6: scheduler.SchedulerService.GetDeploymentStatus:input_type -> scheduler.GetDeploymentStatusRequest
-	2, // 7: scheduler.SchedulerService.DeployComponent:output_type -> scheduler.DeployComponentResponse
-	5, // 8: scheduler.SchedulerService.GetDeploymentStatus:output_type -> scheduler.GetDeploymentStatusResponse
+	6, // 0: resource.scheduler.DeployComponentRequest.resource_request:type_name -> resource.Info
+	3, // 1: resource.scheduler.DeployComponentResponse.component:type_name -> resource.scheduler.ComponentInfo
+	6, // 2: resource.scheduler.ComponentInfo.resource_usage:type_name -> resource.Info
+	0, // 3: resource.scheduler.GetDeploymentStatusResponse.status:type_name -> resource.scheduler.ComponentStatus
+	3, // 4: resource.scheduler.GetDeploymentStatusResponse.component:type_name -> resource.scheduler.ComponentInfo
+	1, // 5: resource.scheduler.SchedulerService.DeployComponent:input_type -> resource.scheduler.DeployComponentRequest
+	4, // 6: resource.scheduler.SchedulerService.GetDeploymentStatus:input_type -> resource.scheduler.GetDeploymentStatusRequest
+	2, // 7: resource.scheduler.SchedulerService.DeployComponent:output_type -> resource.scheduler.DeployComponentResponse
+	5, // 8: resource.scheduler.SchedulerService.GetDeploymentStatus:output_type -> resource.scheduler.GetDeploymentStatusResponse
 	7, // [7:9] is the sub-list for method output_type
 	5, // [5:7] is the sub-list for method input_type
 	5, // [5:5] is the sub-list for extension type_name

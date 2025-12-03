@@ -19,13 +19,13 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Service_Connect_FullMethodName          = "/provider.Service/Connect"
-	Service_Disconnect_FullMethodName       = "/provider.Service/Disconnect"
-	Service_GetCapacity_FullMethodName      = "/provider.Service/GetCapacity"
-	Service_GetAvailable_FullMethodName     = "/provider.Service/GetAvailable"
-	Service_Deploy_FullMethodName           = "/provider.Service/Deploy"
-	Service_HealthCheck_FullMethodName      = "/provider.Service/HealthCheck"
-	Service_GetRealTimeUsage_FullMethodName = "/provider.Service/GetRealTimeUsage"
+	Service_Connect_FullMethodName          = "/resource.provider.Service/Connect"
+	Service_Disconnect_FullMethodName       = "/resource.provider.Service/Disconnect"
+	Service_GetCapacity_FullMethodName      = "/resource.provider.Service/GetCapacity"
+	Service_GetAvailable_FullMethodName     = "/resource.provider.Service/GetAvailable"
+	Service_Deploy_FullMethodName           = "/resource.provider.Service/Deploy"
+	Service_HealthCheck_FullMethodName      = "/resource.provider.Service/HealthCheck"
+	Service_GetRealTimeUsage_FullMethodName = "/resource.provider.Service/GetRealTimeUsage"
 )
 
 // ServiceClient is the client API for Service service.
@@ -312,7 +312,7 @@ func _Service_GetRealTimeUsage_Handler(srv interface{}, ctx context.Context, dec
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var Service_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "provider.Service",
+	ServiceName: "resource.provider.Service",
 	HandlerType: (*ServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{

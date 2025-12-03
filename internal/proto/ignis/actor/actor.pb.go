@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.10
 // 	protoc        v6.31.1
-// source: actor/actor.proto
+// source: ignis/actor/actor.proto
 
 package actor
 
@@ -66,11 +66,11 @@ func (x MessageType) String() string {
 }
 
 func (MessageType) Descriptor() protoreflect.EnumDescriptor {
-	return file_actor_actor_proto_enumTypes[0].Descriptor()
+	return file_ignis_actor_actor_proto_enumTypes[0].Descriptor()
 }
 
 func (MessageType) Type() protoreflect.EnumType {
-	return &file_actor_actor_proto_enumTypes[0]
+	return &file_ignis_actor_actor_proto_enumTypes[0]
 }
 
 func (x MessageType) Number() protoreflect.EnumNumber {
@@ -79,7 +79,7 @@ func (x MessageType) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use MessageType.Descriptor instead.
 func (MessageType) EnumDescriptor() ([]byte, []int) {
-	return file_actor_actor_proto_rawDescGZIP(), []int{0}
+	return file_ignis_actor_actor_proto_rawDescGZIP(), []int{0}
 }
 
 // Function 消息：定义 Actor 要执行的函数
@@ -96,7 +96,7 @@ type Function struct {
 
 func (x *Function) Reset() {
 	*x = Function{}
-	mi := &file_actor_actor_proto_msgTypes[0]
+	mi := &file_ignis_actor_actor_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -108,7 +108,7 @@ func (x *Function) String() string {
 func (*Function) ProtoMessage() {}
 
 func (x *Function) ProtoReflect() protoreflect.Message {
-	mi := &file_actor_actor_proto_msgTypes[0]
+	mi := &file_ignis_actor_actor_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -121,7 +121,7 @@ func (x *Function) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Function.ProtoReflect.Descriptor instead.
 func (*Function) Descriptor() ([]byte, []int) {
-	return file_actor_actor_proto_rawDescGZIP(), []int{0}
+	return file_ignis_actor_actor_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *Function) GetName() string {
@@ -170,7 +170,7 @@ type InvokeArg struct {
 
 func (x *InvokeArg) Reset() {
 	*x = InvokeArg{}
-	mi := &file_actor_actor_proto_msgTypes[1]
+	mi := &file_ignis_actor_actor_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -182,7 +182,7 @@ func (x *InvokeArg) String() string {
 func (*InvokeArg) ProtoMessage() {}
 
 func (x *InvokeArg) ProtoReflect() protoreflect.Message {
-	mi := &file_actor_actor_proto_msgTypes[1]
+	mi := &file_ignis_actor_actor_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -195,7 +195,7 @@ func (x *InvokeArg) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InvokeArg.ProtoReflect.Descriptor instead.
 func (*InvokeArg) Descriptor() ([]byte, []int) {
-	return file_actor_actor_proto_rawDescGZIP(), []int{1}
+	return file_ignis_actor_actor_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *InvokeArg) GetParam() string {
@@ -224,7 +224,7 @@ type InvokeRequest struct {
 
 func (x *InvokeRequest) Reset() {
 	*x = InvokeRequest{}
-	mi := &file_actor_actor_proto_msgTypes[2]
+	mi := &file_ignis_actor_actor_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -236,7 +236,7 @@ func (x *InvokeRequest) String() string {
 func (*InvokeRequest) ProtoMessage() {}
 
 func (x *InvokeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_actor_actor_proto_msgTypes[2]
+	mi := &file_ignis_actor_actor_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -249,7 +249,7 @@ func (x *InvokeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InvokeRequest.ProtoReflect.Descriptor instead.
 func (*InvokeRequest) Descriptor() ([]byte, []int) {
-	return file_actor_actor_proto_rawDescGZIP(), []int{2}
+	return file_ignis_actor_actor_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *InvokeRequest) GetRuntimeID() string {
@@ -278,7 +278,7 @@ type ActorInfo struct {
 
 func (x *ActorInfo) Reset() {
 	*x = ActorInfo{}
-	mi := &file_actor_actor_proto_msgTypes[3]
+	mi := &file_ignis_actor_actor_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -290,7 +290,7 @@ func (x *ActorInfo) String() string {
 func (*ActorInfo) ProtoMessage() {}
 
 func (x *ActorInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_actor_actor_proto_msgTypes[3]
+	mi := &file_ignis_actor_actor_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -303,7 +303,7 @@ func (x *ActorInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActorInfo.ProtoReflect.Descriptor instead.
 func (*ActorInfo) Descriptor() ([]byte, []int) {
-	return file_actor_actor_proto_rawDescGZIP(), []int{3}
+	return file_ignis_actor_actor_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ActorInfo) GetCalcLatency() int64 {
@@ -334,7 +334,7 @@ type InvokeResponse struct {
 
 func (x *InvokeResponse) Reset() {
 	*x = InvokeResponse{}
-	mi := &file_actor_actor_proto_msgTypes[4]
+	mi := &file_ignis_actor_actor_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -346,7 +346,7 @@ func (x *InvokeResponse) String() string {
 func (*InvokeResponse) ProtoMessage() {}
 
 func (x *InvokeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_actor_actor_proto_msgTypes[4]
+	mi := &file_ignis_actor_actor_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -359,7 +359,7 @@ func (x *InvokeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InvokeResponse.ProtoReflect.Descriptor instead.
 func (*InvokeResponse) Descriptor() ([]byte, []int) {
-	return file_actor_actor_proto_rawDescGZIP(), []int{4}
+	return file_ignis_actor_actor_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *InvokeResponse) GetRuntimeID() string {
@@ -394,7 +394,7 @@ func (x *InvokeResponse) GetInfo() *ActorInfo {
 // Actor 通过 ZMQ 接收和发送这些消息
 type Message struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	Type  MessageType            `protobuf:"varint,1,opt,name=Type,proto3,enum=actor.MessageType" json:"Type,omitempty"` // 消息类型
+	Type  MessageType            `protobuf:"varint,1,opt,name=Type,proto3,enum=ignis.actor.MessageType" json:"Type,omitempty"` // 消息类型
 	// Types that are valid to be assigned to Message:
 	//
 	//	*Message_Ack
@@ -409,7 +409,7 @@ type Message struct {
 
 func (x *Message) Reset() {
 	*x = Message{}
-	mi := &file_actor_actor_proto_msgTypes[5]
+	mi := &file_ignis_actor_actor_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -421,7 +421,7 @@ func (x *Message) String() string {
 func (*Message) ProtoMessage() {}
 
 func (x *Message) ProtoReflect() protoreflect.Message {
-	mi := &file_actor_actor_proto_msgTypes[5]
+	mi := &file_ignis_actor_actor_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -434,7 +434,7 @@ func (x *Message) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Message.ProtoReflect.Descriptor instead.
 func (*Message) Descriptor() ([]byte, []int) {
-	return file_actor_actor_proto_rawDescGZIP(), []int{5}
+	return file_ignis_actor_actor_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *Message) GetType() MessageType {
@@ -530,11 +530,11 @@ func (*Message_InvokeRequest) isMessage_Message() {}
 
 func (*Message_InvokeResponse) isMessage_Message() {}
 
-var File_actor_actor_proto protoreflect.FileDescriptor
+var File_ignis_actor_actor_proto protoreflect.FileDescriptor
 
-const file_actor_actor_proto_rawDesc = "" +
+const file_ignis_actor_actor_proto_rawDesc = "" +
 	"\n" +
-	"\x11actor/actor.proto\x12\x05actor\x1a\x12common/types.proto\x1a\x15common/messages.proto\"\xae\x01\n" +
+	"\x17ignis/actor/actor.proto\x12\vignis.actor\x1a\x12common/types.proto\x1a\x15common/messages.proto\"\xae\x01\n" +
 	"\bFunction\x12\x12\n" +
 	"\x04Name\x18\x01 \x01(\tR\x04Name\x12\x16\n" +
 	"\x06Params\x18\x02 \x03(\tR\x06Params\x12\"\n" +
@@ -543,25 +543,25 @@ const file_actor_actor_proto_rawDesc = "" +
 	"\bLanguage\x18\x05 \x01(\x0e2\x10.common.LanguageR\bLanguage\"J\n" +
 	"\tInvokeArg\x12\x14\n" +
 	"\x05Param\x18\x01 \x01(\tR\x05Param\x12'\n" +
-	"\x05Value\x18\x02 \x01(\v2\x11.common.ObjectRefR\x05Value\"S\n" +
+	"\x05Value\x18\x02 \x01(\v2\x11.common.ObjectRefR\x05Value\"Y\n" +
 	"\rInvokeRequest\x12\x1c\n" +
-	"\tRuntimeID\x18\x01 \x01(\tR\tRuntimeID\x12$\n" +
-	"\x04Args\x18\x02 \x03(\v2\x10.actor.InvokeArgR\x04Args\"O\n" +
+	"\tRuntimeID\x18\x01 \x01(\tR\tRuntimeID\x12*\n" +
+	"\x04Args\x18\x02 \x03(\v2\x16.ignis.actor.InvokeArgR\x04Args\"O\n" +
 	"\tActorInfo\x12 \n" +
 	"\vCalcLatency\x18\x02 \x01(\x03R\vCalcLatency\x12 \n" +
-	"\vLinkLatency\x18\x03 \x01(\x03R\vLinkLatency\"\x95\x01\n" +
+	"\vLinkLatency\x18\x03 \x01(\x03R\vLinkLatency\"\x9b\x01\n" +
 	"\x0eInvokeResponse\x12\x1c\n" +
 	"\tRuntimeID\x18\x01 \x01(\tR\tRuntimeID\x12)\n" +
 	"\x06Result\x18\x02 \x01(\v2\x11.common.ObjectRefR\x06Result\x12\x14\n" +
-	"\x05Error\x18\x03 \x01(\tR\x05Error\x12$\n" +
-	"\x04Info\x18\x04 \x01(\v2\x10.actor.ActorInfoR\x04Info\"\xb2\x02\n" +
-	"\aMessage\x12&\n" +
-	"\x04Type\x18\x01 \x01(\x0e2\x12.actor.MessageTypeR\x04Type\x12\x1f\n" +
+	"\x05Error\x18\x03 \x01(\tR\x05Error\x12*\n" +
+	"\x04Info\x18\x04 \x01(\v2\x16.ignis.actor.ActorInfoR\x04Info\"\xca\x02\n" +
+	"\aMessage\x12,\n" +
+	"\x04Type\x18\x01 \x01(\x0e2\x18.ignis.actor.MessageTypeR\x04Type\x12\x1f\n" +
 	"\x03Ack\x18\x02 \x01(\v2\v.common.AckH\x00R\x03Ack\x12%\n" +
-	"\x05Ready\x18\x03 \x01(\v2\r.common.ReadyH\x00R\x05Ready\x12-\n" +
-	"\bFunction\x18\x04 \x01(\v2\x0f.actor.FunctionH\x00R\bFunction\x12<\n" +
-	"\rInvokeRequest\x18\x05 \x01(\v2\x14.actor.InvokeRequestH\x00R\rInvokeRequest\x12?\n" +
-	"\x0eInvokeResponse\x18\x06 \x01(\v2\x15.actor.InvokeResponseH\x00R\x0eInvokeResponseB\t\n" +
+	"\x05Ready\x18\x03 \x01(\v2\r.common.ReadyH\x00R\x05Ready\x123\n" +
+	"\bFunction\x18\x04 \x01(\v2\x15.ignis.actor.FunctionH\x00R\bFunction\x12B\n" +
+	"\rInvokeRequest\x18\x05 \x01(\v2\x1a.ignis.actor.InvokeRequestH\x00R\rInvokeRequest\x12E\n" +
+	"\x0eInvokeResponse\x18\x06 \x01(\v2\x1b.ignis.actor.InvokeResponseH\x00R\x0eInvokeResponseB\t\n" +
 	"\aMessage*i\n" +
 	"\vMessageType\x12\x0f\n" +
 	"\vUNSPECIFIED\x10\x00\x12\a\n" +
@@ -572,44 +572,44 @@ const file_actor_actor_proto_rawDesc = "" +
 	"\x0fINVOKE_RESPONSE\x10\x05B6Z4github.com/9triver/iarnet/internal/proto/ignis/actorb\x06proto3"
 
 var (
-	file_actor_actor_proto_rawDescOnce sync.Once
-	file_actor_actor_proto_rawDescData []byte
+	file_ignis_actor_actor_proto_rawDescOnce sync.Once
+	file_ignis_actor_actor_proto_rawDescData []byte
 )
 
-func file_actor_actor_proto_rawDescGZIP() []byte {
-	file_actor_actor_proto_rawDescOnce.Do(func() {
-		file_actor_actor_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_actor_actor_proto_rawDesc), len(file_actor_actor_proto_rawDesc)))
+func file_ignis_actor_actor_proto_rawDescGZIP() []byte {
+	file_ignis_actor_actor_proto_rawDescOnce.Do(func() {
+		file_ignis_actor_actor_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_ignis_actor_actor_proto_rawDesc), len(file_ignis_actor_actor_proto_rawDesc)))
 	})
-	return file_actor_actor_proto_rawDescData
+	return file_ignis_actor_actor_proto_rawDescData
 }
 
-var file_actor_actor_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_actor_actor_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
-var file_actor_actor_proto_goTypes = []any{
-	(MessageType)(0),         // 0: actor.MessageType
-	(*Function)(nil),         // 1: actor.Function
-	(*InvokeArg)(nil),        // 2: actor.InvokeArg
-	(*InvokeRequest)(nil),    // 3: actor.InvokeRequest
-	(*ActorInfo)(nil),        // 4: actor.ActorInfo
-	(*InvokeResponse)(nil),   // 5: actor.InvokeResponse
-	(*Message)(nil),          // 6: actor.Message
+var file_ignis_actor_actor_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_ignis_actor_actor_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_ignis_actor_actor_proto_goTypes = []any{
+	(MessageType)(0),         // 0: ignis.actor.MessageType
+	(*Function)(nil),         // 1: ignis.actor.Function
+	(*InvokeArg)(nil),        // 2: ignis.actor.InvokeArg
+	(*InvokeRequest)(nil),    // 3: ignis.actor.InvokeRequest
+	(*ActorInfo)(nil),        // 4: ignis.actor.ActorInfo
+	(*InvokeResponse)(nil),   // 5: ignis.actor.InvokeResponse
+	(*Message)(nil),          // 6: ignis.actor.Message
 	(common.Language)(0),     // 7: common.Language
 	(*common.ObjectRef)(nil), // 8: common.ObjectRef
 	(*common.Ack)(nil),       // 9: common.Ack
 	(*common.Ready)(nil),     // 10: common.Ready
 }
-var file_actor_actor_proto_depIdxs = []int32{
-	7,  // 0: actor.Function.Language:type_name -> common.Language
-	8,  // 1: actor.InvokeArg.Value:type_name -> common.ObjectRef
-	2,  // 2: actor.InvokeRequest.Args:type_name -> actor.InvokeArg
-	8,  // 3: actor.InvokeResponse.Result:type_name -> common.ObjectRef
-	4,  // 4: actor.InvokeResponse.Info:type_name -> actor.ActorInfo
-	0,  // 5: actor.Message.Type:type_name -> actor.MessageType
-	9,  // 6: actor.Message.Ack:type_name -> common.Ack
-	10, // 7: actor.Message.Ready:type_name -> common.Ready
-	1,  // 8: actor.Message.Function:type_name -> actor.Function
-	3,  // 9: actor.Message.InvokeRequest:type_name -> actor.InvokeRequest
-	5,  // 10: actor.Message.InvokeResponse:type_name -> actor.InvokeResponse
+var file_ignis_actor_actor_proto_depIdxs = []int32{
+	7,  // 0: ignis.actor.Function.Language:type_name -> common.Language
+	8,  // 1: ignis.actor.InvokeArg.Value:type_name -> common.ObjectRef
+	2,  // 2: ignis.actor.InvokeRequest.Args:type_name -> ignis.actor.InvokeArg
+	8,  // 3: ignis.actor.InvokeResponse.Result:type_name -> common.ObjectRef
+	4,  // 4: ignis.actor.InvokeResponse.Info:type_name -> ignis.actor.ActorInfo
+	0,  // 5: ignis.actor.Message.Type:type_name -> ignis.actor.MessageType
+	9,  // 6: ignis.actor.Message.Ack:type_name -> common.Ack
+	10, // 7: ignis.actor.Message.Ready:type_name -> common.Ready
+	1,  // 8: ignis.actor.Message.Function:type_name -> ignis.actor.Function
+	3,  // 9: ignis.actor.Message.InvokeRequest:type_name -> ignis.actor.InvokeRequest
+	5,  // 10: ignis.actor.Message.InvokeResponse:type_name -> ignis.actor.InvokeResponse
 	11, // [11:11] is the sub-list for method output_type
 	11, // [11:11] is the sub-list for method input_type
 	11, // [11:11] is the sub-list for extension type_name
@@ -617,12 +617,12 @@ var file_actor_actor_proto_depIdxs = []int32{
 	0,  // [0:11] is the sub-list for field type_name
 }
 
-func init() { file_actor_actor_proto_init() }
-func file_actor_actor_proto_init() {
-	if File_actor_actor_proto != nil {
+func init() { file_ignis_actor_actor_proto_init() }
+func file_ignis_actor_actor_proto_init() {
+	if File_ignis_actor_actor_proto != nil {
 		return
 	}
-	file_actor_actor_proto_msgTypes[5].OneofWrappers = []any{
+	file_ignis_actor_actor_proto_msgTypes[5].OneofWrappers = []any{
 		(*Message_Ack)(nil),
 		(*Message_Ready)(nil),
 		(*Message_Function)(nil),
@@ -633,18 +633,18 @@ func file_actor_actor_proto_init() {
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_actor_actor_proto_rawDesc), len(file_actor_actor_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ignis_actor_actor_proto_rawDesc), len(file_ignis_actor_actor_proto_rawDesc)),
 			NumEnums:      1,
 			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_actor_actor_proto_goTypes,
-		DependencyIndexes: file_actor_actor_proto_depIdxs,
-		EnumInfos:         file_actor_actor_proto_enumTypes,
-		MessageInfos:      file_actor_actor_proto_msgTypes,
+		GoTypes:           file_ignis_actor_actor_proto_goTypes,
+		DependencyIndexes: file_ignis_actor_actor_proto_depIdxs,
+		EnumInfos:         file_ignis_actor_actor_proto_enumTypes,
+		MessageInfos:      file_ignis_actor_actor_proto_msgTypes,
 	}.Build()
-	File_actor_actor_proto = out.File
-	file_actor_actor_proto_goTypes = nil
-	file_actor_actor_proto_depIdxs = nil
+	File_ignis_actor_actor_proto = out.File
+	file_ignis_actor_actor_proto_goTypes = nil
+	file_ignis_actor_actor_proto_depIdxs = nil
 }

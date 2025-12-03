@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v6.31.1
-// source: registry/registry.proto
+// source: global/registry/registry.proto
 
 package registry
 
@@ -19,8 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Service_RegisterNode_FullMethodName = "/registry.Service/RegisterNode"
-	Service_HealthCheck_FullMethodName  = "/registry.Service/HealthCheck"
+	Service_RegisterNode_FullMethodName = "/global.registry.Service/RegisterNode"
+	Service_HealthCheck_FullMethodName  = "/global.registry.Service/HealthCheck"
 )
 
 // ServiceClient is the client API for Service service.
@@ -146,7 +146,7 @@ func _Service_HealthCheck_Handler(srv interface{}, ctx context.Context, dec func
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var Service_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "registry.Service",
+	ServiceName: "global.registry.Service",
 	HandlerType: (*ServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -159,5 +159,5 @@ var Service_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "registry/registry.proto",
+	Metadata: "global/registry/registry.proto",
 }

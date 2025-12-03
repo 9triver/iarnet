@@ -19,8 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	SchedulerService_DeployComponent_FullMethodName     = "/scheduler.SchedulerService/DeployComponent"
-	SchedulerService_GetDeploymentStatus_FullMethodName = "/scheduler.SchedulerService/GetDeploymentStatus"
+	SchedulerService_DeployComponent_FullMethodName     = "/resource.scheduler.SchedulerService/DeployComponent"
+	SchedulerService_GetDeploymentStatus_FullMethodName = "/resource.scheduler.SchedulerService/GetDeploymentStatus"
 )
 
 // SchedulerServiceClient is the client API for SchedulerService service.
@@ -152,7 +152,7 @@ func _SchedulerService_GetDeploymentStatus_Handler(srv interface{}, ctx context.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var SchedulerService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "scheduler.SchedulerService",
+	ServiceName: "resource.scheduler.SchedulerService",
 	HandlerType: (*SchedulerServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{

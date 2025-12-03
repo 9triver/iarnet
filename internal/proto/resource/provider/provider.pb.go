@@ -803,16 +803,16 @@ var File_resource_provider_provider_proto protoreflect.FileDescriptor
 
 const file_resource_provider_provider_proto_rawDesc = "" +
 	"\n" +
-	" resource/provider/provider.proto\x12\bprovider\x1a\x17resource/resource.proto\"\"\n" +
+	" resource/provider/provider.proto\x12\x11resource.provider\x1a\x17resource/resource.proto\"\"\n" +
 	"\fProviderType\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"1\n" +
 	"\x0eConnectRequest\x12\x1f\n" +
 	"\vprovider_id\x18\x01 \x01(\tR\n" +
-	"providerId\"~\n" +
+	"providerId\"\x87\x01\n" +
 	"\x0fConnectResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
-	"\x05error\x18\x02 \x01(\tR\x05error\x12;\n" +
-	"\rprovider_type\x18\x03 \x01(\v2\x16.provider.ProviderTypeR\fproviderType\"5\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\x12D\n" +
+	"\rprovider_type\x18\x03 \x01(\v2\x1f.resource.provider.ProviderTypeR\fproviderType\"5\n" +
 	"\x12GetCapacityRequest\x12\x1f\n" +
 	"\vprovider_id\x18\x01 \x01(\tR\n" +
 	"providerId\"E\n" +
@@ -822,13 +822,13 @@ const file_resource_provider_provider_proto_rawDesc = "" +
 	"\vprovider_id\x18\x01 \x01(\tR\n" +
 	"providerId\"D\n" +
 	"\x14GetAvailableResponse\x12,\n" +
-	"\tavailable\x18\x01 \x01(\v2\x0e.resource.InfoR\tavailable\"\x9f\x02\n" +
+	"\tavailable\x18\x01 \x01(\v2\x0e.resource.InfoR\tavailable\"\xa8\x02\n" +
 	"\rDeployRequest\x12\x1f\n" +
 	"\vinstance_id\x18\x01 \x01(\tR\n" +
 	"instanceId\x12\x14\n" +
 	"\x05image\x18\x02 \x01(\tR\x05image\x129\n" +
-	"\x10resource_request\x18\x03 \x01(\v2\x0e.resource.InfoR\x0fresourceRequest\x12?\n" +
-	"\benv_vars\x18\x04 \x03(\v2$.provider.DeployRequest.EnvVarsEntryR\aenvVars\x12\x1f\n" +
+	"\x10resource_request\x18\x03 \x01(\v2\x0e.resource.InfoR\x0fresourceRequest\x12H\n" +
+	"\benv_vars\x18\x04 \x03(\v2-.resource.provider.DeployRequest.EnvVarsEntryR\aenvVars\x12\x1f\n" +
 	"\vprovider_id\x18\x05 \x01(\tR\n" +
 	"providerId\x1a:\n" +
 	"\fEnvVarsEntry\x12\x10\n" +
@@ -843,10 +843,10 @@ const file_resource_provider_provider_proto_rawDesc = "" +
 	"\x03cpu\x18\x01 \x01(\bR\x03cpu\x12\x10\n" +
 	"\x03gpu\x18\x02 \x01(\bR\x03gpu\x12\x16\n" +
 	"\x06memory\x18\x03 \x01(\bR\x06memory\x12\x16\n" +
-	"\x06camera\x18\x04 \x01(\bR\x06camera\"\x82\x01\n" +
+	"\x06camera\x18\x04 \x01(\bR\x06camera\"\x8b\x01\n" +
 	"\x13HealthCheckResponse\x12.\n" +
-	"\bcapacity\x18\x01 \x01(\v2\x12.resource.CapacityR\bcapacity\x12;\n" +
-	"\rresource_tags\x18\x02 \x01(\v2\x16.provider.ResourceTagsR\fresourceTags\"4\n" +
+	"\bcapacity\x18\x01 \x01(\v2\x12.resource.CapacityR\bcapacity\x12D\n" +
+	"\rresource_tags\x18\x02 \x01(\v2\x1f.resource.provider.ResourceTagsR\fresourceTags\"4\n" +
 	"\x11DisconnectRequest\x12\x1f\n" +
 	"\vprovider_id\x18\x01 \x01(\tR\n" +
 	"providerId\"\x14\n" +
@@ -855,16 +855,16 @@ const file_resource_provider_provider_proto_rawDesc = "" +
 	"\vprovider_id\x18\x01 \x01(\tR\n" +
 	"providerId\"@\n" +
 	"\x18GetRealTimeUsageResponse\x12$\n" +
-	"\x05usage\x18\x01 \x01(\v2\x0e.resource.InfoR\x05usage2\x91\x04\n" +
-	"\aService\x12>\n" +
-	"\aConnect\x12\x18.provider.ConnectRequest\x1a\x19.provider.ConnectResponse\x12G\n" +
+	"\x05usage\x18\x01 \x01(\v2\x0e.resource.InfoR\x05usage2\x8f\x05\n" +
+	"\aService\x12P\n" +
+	"\aConnect\x12!.resource.provider.ConnectRequest\x1a\".resource.provider.ConnectResponse\x12Y\n" +
 	"\n" +
-	"Disconnect\x12\x1b.provider.DisconnectRequest\x1a\x1c.provider.DisconnectResponse\x12J\n" +
-	"\vGetCapacity\x12\x1c.provider.GetCapacityRequest\x1a\x1d.provider.GetCapacityResponse\x12M\n" +
-	"\fGetAvailable\x12\x1d.provider.GetAvailableRequest\x1a\x1e.provider.GetAvailableResponse\x12;\n" +
-	"\x06Deploy\x12\x17.provider.DeployRequest\x1a\x18.provider.DeployResponse\x12J\n" +
-	"\vHealthCheck\x12\x1c.provider.HealthCheckRequest\x1a\x1d.provider.HealthCheckResponse\x12Y\n" +
-	"\x10GetRealTimeUsage\x12!.provider.GetRealTimeUsageRequest\x1a\".provider.GetRealTimeUsageResponseB<Z:github.com/9triver/iarnet/internal/proto/resource/providerb\x06proto3"
+	"Disconnect\x12$.resource.provider.DisconnectRequest\x1a%.resource.provider.DisconnectResponse\x12\\\n" +
+	"\vGetCapacity\x12%.resource.provider.GetCapacityRequest\x1a&.resource.provider.GetCapacityResponse\x12_\n" +
+	"\fGetAvailable\x12&.resource.provider.GetAvailableRequest\x1a'.resource.provider.GetAvailableResponse\x12M\n" +
+	"\x06Deploy\x12 .resource.provider.DeployRequest\x1a!.resource.provider.DeployResponse\x12\\\n" +
+	"\vHealthCheck\x12%.resource.provider.HealthCheckRequest\x1a&.resource.provider.HealthCheckResponse\x12k\n" +
+	"\x10GetRealTimeUsage\x12*.resource.provider.GetRealTimeUsageRequest\x1a+.resource.provider.GetRealTimeUsageResponseB<Z:github.com/9triver/iarnet/internal/proto/resource/providerb\x06proto3"
 
 var (
 	file_resource_provider_provider_proto_rawDescOnce sync.Once
@@ -880,49 +880,49 @@ func file_resource_provider_provider_proto_rawDescGZIP() []byte {
 
 var file_resource_provider_provider_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_resource_provider_provider_proto_goTypes = []any{
-	(*ProviderType)(nil),             // 0: provider.ProviderType
-	(*ConnectRequest)(nil),           // 1: provider.ConnectRequest
-	(*ConnectResponse)(nil),          // 2: provider.ConnectResponse
-	(*GetCapacityRequest)(nil),       // 3: provider.GetCapacityRequest
-	(*GetCapacityResponse)(nil),      // 4: provider.GetCapacityResponse
-	(*GetAvailableRequest)(nil),      // 5: provider.GetAvailableRequest
-	(*GetAvailableResponse)(nil),     // 6: provider.GetAvailableResponse
-	(*DeployRequest)(nil),            // 7: provider.DeployRequest
-	(*DeployResponse)(nil),           // 8: provider.DeployResponse
-	(*HealthCheckRequest)(nil),       // 9: provider.HealthCheckRequest
-	(*ResourceTags)(nil),             // 10: provider.ResourceTags
-	(*HealthCheckResponse)(nil),      // 11: provider.HealthCheckResponse
-	(*DisconnectRequest)(nil),        // 12: provider.DisconnectRequest
-	(*DisconnectResponse)(nil),       // 13: provider.DisconnectResponse
-	(*GetRealTimeUsageRequest)(nil),  // 14: provider.GetRealTimeUsageRequest
-	(*GetRealTimeUsageResponse)(nil), // 15: provider.GetRealTimeUsageResponse
-	nil,                              // 16: provider.DeployRequest.EnvVarsEntry
+	(*ProviderType)(nil),             // 0: resource.provider.ProviderType
+	(*ConnectRequest)(nil),           // 1: resource.provider.ConnectRequest
+	(*ConnectResponse)(nil),          // 2: resource.provider.ConnectResponse
+	(*GetCapacityRequest)(nil),       // 3: resource.provider.GetCapacityRequest
+	(*GetCapacityResponse)(nil),      // 4: resource.provider.GetCapacityResponse
+	(*GetAvailableRequest)(nil),      // 5: resource.provider.GetAvailableRequest
+	(*GetAvailableResponse)(nil),     // 6: resource.provider.GetAvailableResponse
+	(*DeployRequest)(nil),            // 7: resource.provider.DeployRequest
+	(*DeployResponse)(nil),           // 8: resource.provider.DeployResponse
+	(*HealthCheckRequest)(nil),       // 9: resource.provider.HealthCheckRequest
+	(*ResourceTags)(nil),             // 10: resource.provider.ResourceTags
+	(*HealthCheckResponse)(nil),      // 11: resource.provider.HealthCheckResponse
+	(*DisconnectRequest)(nil),        // 12: resource.provider.DisconnectRequest
+	(*DisconnectResponse)(nil),       // 13: resource.provider.DisconnectResponse
+	(*GetRealTimeUsageRequest)(nil),  // 14: resource.provider.GetRealTimeUsageRequest
+	(*GetRealTimeUsageResponse)(nil), // 15: resource.provider.GetRealTimeUsageResponse
+	nil,                              // 16: resource.provider.DeployRequest.EnvVarsEntry
 	(*resource.Capacity)(nil),        // 17: resource.Capacity
 	(*resource.Info)(nil),            // 18: resource.Info
 }
 var file_resource_provider_provider_proto_depIdxs = []int32{
-	0,  // 0: provider.ConnectResponse.provider_type:type_name -> provider.ProviderType
-	17, // 1: provider.GetCapacityResponse.capacity:type_name -> resource.Capacity
-	18, // 2: provider.GetAvailableResponse.available:type_name -> resource.Info
-	18, // 3: provider.DeployRequest.resource_request:type_name -> resource.Info
-	16, // 4: provider.DeployRequest.env_vars:type_name -> provider.DeployRequest.EnvVarsEntry
-	17, // 5: provider.HealthCheckResponse.capacity:type_name -> resource.Capacity
-	10, // 6: provider.HealthCheckResponse.resource_tags:type_name -> provider.ResourceTags
-	18, // 7: provider.GetRealTimeUsageResponse.usage:type_name -> resource.Info
-	1,  // 8: provider.Service.Connect:input_type -> provider.ConnectRequest
-	12, // 9: provider.Service.Disconnect:input_type -> provider.DisconnectRequest
-	3,  // 10: provider.Service.GetCapacity:input_type -> provider.GetCapacityRequest
-	5,  // 11: provider.Service.GetAvailable:input_type -> provider.GetAvailableRequest
-	7,  // 12: provider.Service.Deploy:input_type -> provider.DeployRequest
-	9,  // 13: provider.Service.HealthCheck:input_type -> provider.HealthCheckRequest
-	14, // 14: provider.Service.GetRealTimeUsage:input_type -> provider.GetRealTimeUsageRequest
-	2,  // 15: provider.Service.Connect:output_type -> provider.ConnectResponse
-	13, // 16: provider.Service.Disconnect:output_type -> provider.DisconnectResponse
-	4,  // 17: provider.Service.GetCapacity:output_type -> provider.GetCapacityResponse
-	6,  // 18: provider.Service.GetAvailable:output_type -> provider.GetAvailableResponse
-	8,  // 19: provider.Service.Deploy:output_type -> provider.DeployResponse
-	11, // 20: provider.Service.HealthCheck:output_type -> provider.HealthCheckResponse
-	15, // 21: provider.Service.GetRealTimeUsage:output_type -> provider.GetRealTimeUsageResponse
+	0,  // 0: resource.provider.ConnectResponse.provider_type:type_name -> resource.provider.ProviderType
+	17, // 1: resource.provider.GetCapacityResponse.capacity:type_name -> resource.Capacity
+	18, // 2: resource.provider.GetAvailableResponse.available:type_name -> resource.Info
+	18, // 3: resource.provider.DeployRequest.resource_request:type_name -> resource.Info
+	16, // 4: resource.provider.DeployRequest.env_vars:type_name -> resource.provider.DeployRequest.EnvVarsEntry
+	17, // 5: resource.provider.HealthCheckResponse.capacity:type_name -> resource.Capacity
+	10, // 6: resource.provider.HealthCheckResponse.resource_tags:type_name -> resource.provider.ResourceTags
+	18, // 7: resource.provider.GetRealTimeUsageResponse.usage:type_name -> resource.Info
+	1,  // 8: resource.provider.Service.Connect:input_type -> resource.provider.ConnectRequest
+	12, // 9: resource.provider.Service.Disconnect:input_type -> resource.provider.DisconnectRequest
+	3,  // 10: resource.provider.Service.GetCapacity:input_type -> resource.provider.GetCapacityRequest
+	5,  // 11: resource.provider.Service.GetAvailable:input_type -> resource.provider.GetAvailableRequest
+	7,  // 12: resource.provider.Service.Deploy:input_type -> resource.provider.DeployRequest
+	9,  // 13: resource.provider.Service.HealthCheck:input_type -> resource.provider.HealthCheckRequest
+	14, // 14: resource.provider.Service.GetRealTimeUsage:input_type -> resource.provider.GetRealTimeUsageRequest
+	2,  // 15: resource.provider.Service.Connect:output_type -> resource.provider.ConnectResponse
+	13, // 16: resource.provider.Service.Disconnect:output_type -> resource.provider.DisconnectResponse
+	4,  // 17: resource.provider.Service.GetCapacity:output_type -> resource.provider.GetCapacityResponse
+	6,  // 18: resource.provider.Service.GetAvailable:output_type -> resource.provider.GetAvailableResponse
+	8,  // 19: resource.provider.Service.Deploy:output_type -> resource.provider.DeployResponse
+	11, // 20: resource.provider.Service.HealthCheck:output_type -> resource.provider.HealthCheckResponse
+	15, // 21: resource.provider.Service.GetRealTimeUsage:output_type -> resource.provider.GetRealTimeUsageResponse
 	15, // [15:22] is the sub-list for method output_type
 	8,  // [8:15] is the sub-list for method input_type
 	8,  // [8:8] is the sub-list for extension type_name

@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v6.31.1
-// source: controller/controller.proto
+// source: ignis/controller/controller.proto
 
 package controller
 
@@ -19,7 +19,7 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Service_Session_FullMethodName = "/controller.Service/Session"
+	Service_Session_FullMethodName = "/ignis.controller.Service/Session"
 )
 
 // ServiceClient is the client API for Service service.
@@ -100,7 +100,7 @@ type Service_SessionServer = grpc.BidiStreamingServer[Message, Message]
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var Service_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "controller.Service",
+	ServiceName: "ignis.controller.Service",
 	HandlerType: (*ServiceServer)(nil),
 	Methods:     []grpc.MethodDesc{},
 	Streams: []grpc.StreamDesc{
@@ -111,5 +111,5 @@ var Service_ServiceDesc = grpc.ServiceDesc{
 			ClientStreams: true,
 		},
 	},
-	Metadata: "controller/controller.proto",
+	Metadata: "ignis/controller/controller.proto",
 }

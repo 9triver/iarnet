@@ -19,10 +19,10 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	DiscoveryService_GossipNodeInfo_FullMethodName   = "/discovery.DiscoveryService/GossipNodeInfo"
-	DiscoveryService_QueryResources_FullMethodName   = "/discovery.DiscoveryService/QueryResources"
-	DiscoveryService_ExchangePeerList_FullMethodName = "/discovery.DiscoveryService/ExchangePeerList"
-	DiscoveryService_GetLocalNodeInfo_FullMethodName = "/discovery.DiscoveryService/GetLocalNodeInfo"
+	DiscoveryService_GossipNodeInfo_FullMethodName   = "/resource.discovery.DiscoveryService/GossipNodeInfo"
+	DiscoveryService_QueryResources_FullMethodName   = "/resource.discovery.DiscoveryService/QueryResources"
+	DiscoveryService_ExchangePeerList_FullMethodName = "/resource.discovery.DiscoveryService/ExchangePeerList"
+	DiscoveryService_GetLocalNodeInfo_FullMethodName = "/resource.discovery.DiscoveryService/GetLocalNodeInfo"
 )
 
 // DiscoveryServiceClient is the client API for DiscoveryService service.
@@ -218,7 +218,7 @@ func _DiscoveryService_GetLocalNodeInfo_Handler(srv interface{}, ctx context.Con
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var DiscoveryService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "discovery.DiscoveryService",
+	ServiceName: "resource.discovery.DiscoveryService",
 	HandlerType: (*DiscoveryServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{

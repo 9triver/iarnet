@@ -12,8 +12,7 @@ ENV GOARCH=amd64
 RUN go mod download
 RUN go build -o runner .
 
-# ======= 运行环境 1：Python =======
-FROM python:3.11-alpine AS python_3.11
+FROM python:3.11-alpine
 RUN apk update && apk add --no-cache \
     git \
     ca-certificates \

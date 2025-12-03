@@ -19,10 +19,10 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Service_SaveObject_FullMethodName      = "/store.Service/SaveObject"
-	Service_SaveStreamChunk_FullMethodName = "/store.Service/SaveStreamChunk"
-	Service_GetObject_FullMethodName       = "/store.Service/GetObject"
-	Service_GetStreamChunk_FullMethodName  = "/store.Service/GetStreamChunk"
+	Service_SaveObject_FullMethodName      = "/resource.store.Service/SaveObject"
+	Service_SaveStreamChunk_FullMethodName = "/resource.store.Service/SaveStreamChunk"
+	Service_GetObject_FullMethodName       = "/resource.store.Service/GetObject"
+	Service_GetStreamChunk_FullMethodName  = "/resource.store.Service/GetStreamChunk"
 )
 
 // ServiceClient is the client API for Service service.
@@ -210,7 +210,7 @@ func _Service_GetStreamChunk_Handler(srv interface{}, ctx context.Context, dec f
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var Service_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "store.Service",
+	ServiceName: "resource.store.Service",
 	HandlerType: (*ServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
