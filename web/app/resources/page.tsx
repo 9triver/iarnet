@@ -32,10 +32,11 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { useForm } from "react-hook-form"
-import { Plus, Server, Cpu, HardDrive, Activity, Trash2, Edit, RefreshCw, MemoryStick, Network } from "lucide-react"
+import { Plus, Server, Cpu, HardDrive, Activity, Trash2, Edit, RefreshCw, MemoryStick, Network, Upload, Download, FileSpreadsheet } from "lucide-react"
 import { formatMemory, formatNumber, formatDateTime } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AuthGuard } from "@/components/auth-guard"
+import { toast } from "sonner"
 
 // 本地使用的资源类型（包含 CPU 和内存使用情况）
 // 注意：后端 ProviderItem 不包含 cpu_usage 和 memory_usage
@@ -95,11 +96,16 @@ export default function ResourcesPage() {
   const [nodeInfo, setNodeInfo] = useState<GetNodeInfoResponse | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isNodeDialogOpen, setIsNodeDialogOpen] = useState(false)
+  const [isBatchDialogOpen, setIsBatchDialogOpen] = useState(false)
   const [editingResource, setEditingResource] = useState<Resource | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshingIds, setRefreshingIds] = useState<Set<string>>(new Set())
   const [testingConnection, setTestingConnection] = useState(false)
   const [testResult, setTestResult] = useState<TestResourceProviderResponse | null>(null)
+  const [csvFile, setCsvFile] = useState<File | null>(null)
+  const [csvData, setCsvData] = useState<Array<{ name: string; host: string; port: number }>>([])
+  const [batchProcessing, setBatchProcessing] = useState(false)
+  const [batchResults, setBatchResults] = useState<Array<{ name: string; success: boolean; message: string }>>([])
 
   // 状态转换函数
   const convertStatus = (status: string | number | any): "connected" | "disconnected" | "error" => {
@@ -351,6 +357,211 @@ export default function ResourcesPage() {
     form.setValue("type", resource.type)
     form.setValue("url", `${resource.host}:${resource.port}`)
     setIsDialogOpen(true)
+  }
+
+  // CSV 样例下载
+  const downloadCsvTemplate = () => {
+    const csvContent = `节点名称,地址:端口
+节点1,192.168.1.100:50051
+节点2,192.168.1.101:50051
+节点3,192.168.1.102:50051`
+    
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', '节点批量接入模板.csv')
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  // 解析 CSV 文件
+  const parseCsvFile = async (file: File): Promise<Array<{ name: string; host: string; port: number }>> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        try {
+          let text = e.target?.result as string
+          
+          // 移除 BOM (Byte Order Mark)
+          if (text.charCodeAt(0) === 0xFEFF) {
+            text = text.slice(1)
+          }
+          
+          // 处理不同的换行符（\r\n, \n, \r）
+          const lines = text.split(/\r?\n|\r/).filter(line => line.trim())
+          
+          if (lines.length < 2) {
+            reject(new Error('CSV 文件至少需要包含表头和数据行'))
+            return
+          }
+          
+          // 跳过表头
+          const dataLines = lines.slice(1)
+          const parsed: Array<{ name: string; host: string; port: number }> = []
+          
+          // 简单的 CSV 解析函数，处理引号内的逗号
+          const parseCsvLine = (line: string): string[] => {
+            const result: string[] = []
+            let current = ''
+            let inQuotes = false
+            
+            for (let i = 0; i < line.length; i++) {
+              const char = line[i]
+              
+              if (char === '"') {
+                if (inQuotes && line[i + 1] === '"') {
+                  // 转义的引号
+                  current += '"'
+                  i++
+                } else {
+                  // 切换引号状态
+                  inQuotes = !inQuotes
+                }
+              } else if (char === ',' && !inQuotes) {
+                // 字段分隔符
+                result.push(current.trim())
+                current = ''
+              } else {
+                current += char
+              }
+            }
+            
+            // 添加最后一个字段
+            result.push(current.trim())
+            return result
+          }
+          
+          for (let i = 0; i < dataLines.length; i++) {
+            const line = dataLines[i].trim()
+            if (!line) continue // 跳过空行
+            
+            const columns = parseCsvLine(line)
+            if (columns.length >= 2) {
+              const name = columns[0].replace(/^"|"$/g, '')
+              const addressStr = columns[1].replace(/^"|"$/g, '')
+              
+              if (!name || !addressStr) {
+                continue // 跳过无效行
+              }
+              
+              // 解析地址:端口格式
+              const addressParts = addressStr.split(':')
+              if (addressParts.length !== 2) {
+                reject(new Error(`第 ${i + 2} 行地址格式错误: ${addressStr}（格式应为 主机地址:端口，例如：192.168.1.100:50051）`))
+                return
+              }
+              
+              const host = addressParts[0].trim()
+              const portStr = addressParts[1].trim()
+              const port = parseInt(portStr, 10)
+              
+              if (!host) {
+                reject(new Error(`第 ${i + 2} 行主机地址为空`))
+                return
+              }
+              
+              if (isNaN(port) || port <= 0 || port > 65535) {
+                reject(new Error(`第 ${i + 2} 行端口无效: ${portStr}（端口必须在 1-65535 之间）`))
+                return
+              }
+              
+              parsed.push({ name, host, port })
+            } else {
+              reject(new Error(`第 ${i + 2} 行列数不足，需要至少 2 列（节点名称、地址:端口）`))
+              return
+            }
+          }
+          
+          if (parsed.length === 0) {
+            reject(new Error('CSV 文件中没有有效的节点数据'))
+            return
+          }
+          
+          resolve(parsed)
+        } catch (error) {
+          reject(error instanceof Error ? error : new Error('CSV 文件格式错误，请检查文件内容'))
+        }
+      }
+      reader.onerror = () => reject(new Error('文件读取失败'))
+      reader.readAsText(file, 'UTF-8')
+    })
+  }
+
+  // 处理 CSV 文件上传
+  const handleCsvFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    if (!file.name.endsWith('.csv')) {
+      toast.error('文件格式错误', { description: '请上传 CSV 格式的文件' })
+      return
+    }
+
+    try {
+      setCsvFile(file)
+      const parsed = await parseCsvFile(file)
+      if (parsed.length === 0) {
+        toast.warning('文件内容为空', { description: 'CSV 文件中没有有效的节点数据' })
+        setCsvFile(null)
+        setCsvData([])
+        return
+      }
+      setCsvData(parsed)
+      setBatchResults([])
+      toast.success('文件解析成功', { description: `成功解析 ${parsed.length} 条节点记录` })
+    } catch (error) {
+      toast.error('文件解析失败', { description: error instanceof Error ? error.message : '解析 CSV 文件失败' })
+      setCsvFile(null)
+      setCsvData([])
+    }
+  }
+
+  // 批量注册节点
+  const handleBatchRegister = async () => {
+    if (csvData.length === 0) {
+      toast.error('请先上传 CSV 文件')
+      return
+    }
+
+    setBatchProcessing(true)
+    setBatchResults([])
+    const results: Array<{ name: string; success: boolean; message: string }> = []
+
+    for (const item of csvData) {
+      try {
+        const request: RegisterResourceProviderRequest = {
+          name: item.name,
+          host: item.host,
+          port: item.port,
+        }
+        
+        await resourcesAPI.registerProvider(request)
+        results.push({ name: item.name, success: true, message: '接入成功' })
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : '接入失败'
+        results.push({ name: item.name, success: false, message: errorMessage })
+      }
+    }
+
+    setBatchResults(results)
+    setBatchProcessing(false)
+
+    // 统计结果
+    const successCount = results.filter(r => r.success).length
+    const failCount = results.filter(r => !r.success).length
+
+    if (successCount > 0 && failCount === 0) {
+      toast.success('批量接入成功', { description: `成功接入 ${successCount} 个节点` })
+      await fetchProviders()
+    } else if (successCount > 0 && failCount > 0) {
+      toast.warning('部分接入成功', { description: `成功 ${successCount} 个，失败 ${failCount} 个` })
+      await fetchProviders()
+    } else {
+      toast.error('批量接入失败', { description: `所有 ${failCount} 个节点接入失败` })
+    }
   }
 
   const handleDelete = async (id: string) => {
@@ -623,6 +834,158 @@ export default function ResourcesPage() {
                     </Button>
                     <Button type="button" onClick={() => setIsNodeDialogOpen(false)}>
                       接入节点
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              <Dialog open={isBatchDialogOpen} onOpenChange={(open) => {
+                setIsBatchDialogOpen(open)
+                if (!open) {
+                  // 关闭时清除状态
+                  setTimeout(() => {
+                    setCsvFile(null)
+                    setCsvData([])
+                    setBatchResults([])
+                  }, 150)
+                }
+              }}>
+                <DialogTrigger asChild>
+                  <Button variant="outline">
+                    <Upload className="mr-2 h-4 w-4" />
+                    批量接入
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[600px]">
+                  <DialogHeader>
+                    <DialogTitle>批量接入节点</DialogTitle>
+                    <DialogDescription>
+                      上传 CSV 文件批量接入多个节点。CSV 文件应包含节点名称和地址:端口两列。
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    {/* CSV 样例下载 */}
+                    <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                      <div className="flex items-center space-x-2">
+                        <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm text-muted-foreground">下载 CSV 文件样例</span>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={downloadCsvTemplate}
+                      >
+                        <Download className="mr-2 h-4 w-4" />
+                        下载模板
+                      </Button>
+                    </div>
+
+                    {/* 文件上传 */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">上传 CSV 文件</label>
+                      <div className="flex items-center space-x-2">
+                        <Input
+                          type="file"
+                          accept=".csv"
+                          onChange={handleCsvFileChange}
+                          className="cursor-pointer"
+                        />
+                      </div>
+                      {csvFile && (
+                        <p className="text-sm text-muted-foreground">
+                          已选择文件: {csvFile.name} ({csvData.length} 条记录)
+                        </p>
+                      )}
+                    </div>
+
+                    {/* 预览数据 */}
+                    {csvData.length > 0 && (
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">预览数据</label>
+                        <div className="border rounded-lg max-h-48 overflow-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>节点名称</TableHead>
+                                <TableHead>地址:端口</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {csvData.map((item, index) => (
+                                <TableRow key={index}>
+                                  <TableCell>{item.name}</TableCell>
+                                  <TableCell>{item.host}:{item.port}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 处理结果 */}
+                    {batchResults.length > 0 && (
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">处理结果</label>
+                        <div className="border rounded-lg max-h-48 overflow-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>节点名称</TableHead>
+                                <TableHead>状态</TableHead>
+                                <TableHead>消息</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {batchResults.map((result, index) => (
+                                <TableRow key={index}>
+                                  <TableCell>{result.name}</TableCell>
+                                  <TableCell>
+                                    {result.success ? (
+                                      <Badge variant="default" className="bg-green-500">
+                                        成功
+                                      </Badge>
+                                    ) : (
+                                      <Badge variant="destructive">失败</Badge>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="text-sm text-muted-foreground">
+                                    {result.message}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <DialogFooter>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsBatchDialogOpen(false)}
+                      disabled={batchProcessing}
+                    >
+                      取消
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={handleBatchRegister}
+                      disabled={csvData.length === 0 || batchProcessing}
+                    >
+                      {batchProcessing ? (
+                        <>
+                          <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                          处理中...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="mr-2 h-4 w-4" />
+                          开始批量接入
+                        </>
+                      )}
                     </Button>
                   </DialogFooter>
                 </DialogContent>
