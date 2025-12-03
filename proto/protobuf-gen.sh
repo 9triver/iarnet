@@ -266,48 +266,110 @@ generate_lucas() {
         find "$PY_OUTPUT_LUCAS" -type f -name "*_pb2_grpc.py" -delete 2>/dev/null || true
     fi
     
-    # Common
+    # 修复导入路径的函数：将当前模块的绝对导入改为相对导入
+    # 注意：跨模块导入（如 logger 导入 common）需要保留
+    fix_imports() {
+        local target_dir="$1"
+        local module_path="$2"
+        
+        # 将模块路径转换为点分隔格式（如 ignis/controller -> ignis.controller）
+        local module_dot="${module_path//\//\.}"
+        
+        # 修复 *_pb2.py、*_pb2.pyi 和 *_pb2_grpc.py 中的导入
+        find "$target_dir" -type f \( -name "*_pb2.py" -o -name "*_pb2.pyi" -o -name "*_pb2_grpc.py" \) | while read -r file; do
+            # 修复当前模块的导入（如 ignis.controller -> controller_pb2）
+            # 匹配: from ignis.controller import controller_pb2 as xxx
+            sed -i "s/from ${module_dot} import \([^ ]*\)_pb2 as \([^ ]*\)/import \1_pb2 as \2/g" "$file"
+            # 匹配: from ignis.controller import controller_pb2
+            sed -i "s/from ${module_dot} import \([^ ]*\)_pb2$/import \1_pb2/g" "$file"
+            
+            # 修复嵌套导入（如 from ignis.controller.xxx import）
+            sed -i "s/from ${module_dot}\.\([^ ]*\) import \([^ ]*\) as \([^ ]*\)/import \2 as \3/g" "$file"
+            sed -i "s/from ${module_dot}\.\([^ ]*\) import \([^ ]*\)$/import \2/g" "$file"
+        done
+    }
+    
+    # 1. Common
     if [ -d "$IARNET_PROTO_PROTO_DIR/common" ]; then
         echo -e "${YELLOW}  生成 Lucas Common Python 代码: $PY_OUTPUT_LUCAS/common${NC}"
         mkdir -p "$PY_OUTPUT_LUCAS/common"
         
-        pushd "$IARNET_PROTO_PROTO_DIR/common" >/dev/null
-        $PROTOC -I "$IARNET_PROTO_PROTO_DIR" \
-            --python_out="$PY_OUTPUT_LUCAS/common" \
-            --pyi_out="$PY_OUTPUT_LUCAS/common" \
-            --grpc_python_out="$PY_OUTPUT_LUCAS/common" \
-            *.proto
+        # 从 proto 根目录调用，使用完整路径，这样 source 注释会包含完整路径
+        pushd "$IARNET_PROTO_PROTO_DIR" >/dev/null
+        for proto_file in common/*.proto; do
+            if [ -f "$proto_file" ]; then
+                $PROTOC -I "$IARNET_PROTO_PROTO_DIR" \
+                    --python_out="$PY_OUTPUT_LUCAS" \
+                    --pyi_out="$PY_OUTPUT_LUCAS" \
+                    --grpc_python_out="$PY_OUTPUT_LUCAS" \
+                    "$proto_file"
+            fi
+        done
         popd >/dev/null
+        
+        # protoc 会生成到 common/ 目录，文件已经在正确位置
+        # 修复导入路径（common 目录下的文件应该使用相对导入）
+        fix_imports "$PY_OUTPUT_LUCAS/common" "common"
         touch "$PY_OUTPUT_LUCAS/common/__init__.py"
     fi
     
-    # Controller
+    # 2. Controller (从 ignis/controller 生成到 controller/)
     if [ -d "$IARNET_PROTO_PROTO_DIR/ignis/controller" ]; then
-        echo -e "${YELLOW}  生成 Lucas Controller Python 代码: $PY_OUTPUT_LUCAS/controller${NC}"
+        echo -e "${YELLOW}  生成 Lucas Ignis Controller Python 代码: $PY_OUTPUT_LUCAS/controller${NC}"
         mkdir -p "$PY_OUTPUT_LUCAS/controller"
         
-        pushd "$IARNET_PROTO_PROTO_DIR/ignis/controller" >/dev/null
-        $PROTOC -I "$IARNET_PROTO_PROTO_DIR" -I . \
-            --python_out="$PY_OUTPUT_LUCAS/controller" \
-            --pyi_out="$PY_OUTPUT_LUCAS/controller" \
-            --grpc_python_out="$PY_OUTPUT_LUCAS/controller" \
-            *.proto
+        # 从 proto 根目录调用，使用完整路径
+        pushd "$IARNET_PROTO_PROTO_DIR" >/dev/null
+        for proto_file in ignis/controller/*.proto; do
+            if [ -f "$proto_file" ]; then
+                $PROTOC -I "$IARNET_PROTO_PROTO_DIR" \
+                    --python_out="$PY_OUTPUT_LUCAS" \
+                    --pyi_out="$PY_OUTPUT_LUCAS" \
+                    --grpc_python_out="$PY_OUTPUT_LUCAS" \
+                    "$proto_file"
+            fi
+        done
         popd >/dev/null
+        
+        # protoc 会生成到 ignis/controller/，需要移动到 controller/
+        if [ -d "$PY_OUTPUT_LUCAS/ignis/controller" ]; then
+            mv "$PY_OUTPUT_LUCAS/ignis/controller"/* "$PY_OUTPUT_LUCAS/controller/" 2>/dev/null || true
+            rmdir "$PY_OUTPUT_LUCAS/ignis/controller" 2>/dev/null || true
+            rmdir "$PY_OUTPUT_LUCAS/ignis" 2>/dev/null || true
+        fi
+        
+        # 修复导入路径：将 from ignis.controller import 改为 import controller_pb2
+        fix_imports "$PY_OUTPUT_LUCAS/controller" "ignis/controller"
         touch "$PY_OUTPUT_LUCAS/controller/__init__.py"
     fi
     
-    # Logger
-    if [ -d "$IARNET_PROTO_PROTO_DIR/application/logger" ]; then
-        echo -e "${YELLOW}  生成 Lucas Logger Python 代码: $PY_OUTPUT_LUCAS/logger${NC}"
+    # 3. Resource Logger (从 resource/logger 生成到 logger/)
+    if [ -d "$IARNET_PROTO_PROTO_DIR/resource/logger" ]; then
+        echo -e "${YELLOW}  生成 Lucas Resource Logger Python 代码: $PY_OUTPUT_LUCAS/logger${NC}"
         mkdir -p "$PY_OUTPUT_LUCAS/logger"
         
-        pushd "$IARNET_PROTO_PROTO_DIR/application/logger" >/dev/null
-        $PROTOC -I "$IARNET_PROTO_PROTO_DIR" -I . \
-            --python_out="$PY_OUTPUT_LUCAS/logger" \
-            --pyi_out="$PY_OUTPUT_LUCAS/logger" \
-            --grpc_python_out="$PY_OUTPUT_LUCAS/logger" \
-            *.proto
+        # 从 proto 根目录调用，使用完整路径
+        pushd "$IARNET_PROTO_PROTO_DIR" >/dev/null
+        for proto_file in resource/logger/*.proto; do
+            if [ -f "$proto_file" ]; then
+                $PROTOC -I "$IARNET_PROTO_PROTO_DIR" \
+                    --python_out="$PY_OUTPUT_LUCAS" \
+                    --pyi_out="$PY_OUTPUT_LUCAS" \
+                    --grpc_python_out="$PY_OUTPUT_LUCAS" \
+                    "$proto_file"
+            fi
+        done
         popd >/dev/null
+        
+        # protoc 会生成到 resource/logger/，需要移动到 logger/
+        if [ -d "$PY_OUTPUT_LUCAS/resource/logger" ]; then
+            mv "$PY_OUTPUT_LUCAS/resource/logger"/* "$PY_OUTPUT_LUCAS/logger/" 2>/dev/null || true
+            rmdir "$PY_OUTPUT_LUCAS/resource/logger" 2>/dev/null || true
+            rmdir "$PY_OUTPUT_LUCAS/resource" 2>/dev/null || true
+        fi
+        
+        # 修复导入路径：将 from resource.logger import 改为 import logger_pb2
+        fix_imports "$PY_OUTPUT_LUCAS/logger" "resource/logger"
         touch "$PY_OUTPUT_LUCAS/logger/__init__.py"
     fi
     

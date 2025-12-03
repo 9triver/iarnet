@@ -4,3 +4,6 @@
 [submodule "third_party/lucas"]
 	path = third_party/lucas
 	url = git@github.com:Xdydy/Lucas.git
+[submodule "third_party/ignis"]
+	path = third_party/ignis
+	url = https://github.com/9triver/ignis.git

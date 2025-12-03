@@ -1,4 +1,4 @@
-TODO：委托调度，进程 provider，k8s provider，搭建测试集群，从前端获取执行结果，proto 文件目录重构
+TODO：委托调度，进程 provider，k8s provider，搭建测试集群，从前端获取执行结果，proto 文件目录重构，资源回收
 
 
 TODO: 前端获取函数计算结果
