@@ -361,7 +361,7 @@ export default function ResourcesPage() {
 
   // CSV 样例下载
   const downloadCsvTemplate = () => {
-    const csvContent = `节点名称,地址:端口
+    const csvContent = `节点名称,连接地址（提交时删除该行）
 节点1,192.168.1.100:50051
 节点2,192.168.1.101:50051
 节点3,192.168.1.102:50051`
@@ -470,7 +470,7 @@ export default function ResourcesPage() {
               
               parsed.push({ name, host, port })
             } else {
-              reject(new Error(`第 ${i + 2} 行列数不足，需要至少 2 列（节点名称、地址:端口）`))
+              reject(new Error(`第 ${i + 1} 行列数不足，需要至少 2 列（节点名称、地址:端口）`))
               return
             }
           }
@@ -521,46 +521,52 @@ export default function ResourcesPage() {
 
   // 批量注册节点
   const handleBatchRegister = async () => {
-    if (csvData.length === 0) {
+    if (!csvFile) {
       toast.error('请先上传 CSV 文件')
       return
     }
 
     setBatchProcessing(true)
     setBatchResults([])
-    const results: Array<{ name: string; success: boolean; message: string }> = []
 
-    for (const item of csvData) {
-      try {
-        const request: RegisterResourceProviderRequest = {
-          name: item.name,
-          host: item.host,
-          port: item.port,
-        }
-        
-        await resourcesAPI.registerProvider(request)
-        results.push({ name: item.name, success: true, message: '接入成功' })
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : '接入失败'
-        results.push({ name: item.name, success: false, message: errorMessage })
+    try {
+      const response = await resourcesAPI.batchRegisterProvider(csvFile)
+      
+      // 转换响应结果为前端格式
+      const results: Array<{ name: string; success: boolean; message: string }> = 
+        response.results.map((r: { name: string; success: boolean; message: string }) => ({
+          name: r.name,
+          success: r.success,
+          message: r.message,
+        }))
+      
+      setBatchResults(results)
+
+      // 统计结果
+      const successCount = response.success
+      const failCount = response.failed
+
+      if (successCount > 0 && failCount === 0) {
+        toast.success('批量接入成功', { description: `成功接入 ${successCount} 个节点` })
+        await fetchProviders()
+      } else if (successCount > 0 && failCount > 0) {
+        toast.warning('部分接入成功', { description: `成功 ${successCount} 个，失败 ${failCount} 个` })
+        await fetchProviders()
+      } else {
+        toast.error('批量接入失败', { description: `所有 ${failCount} 个节点接入失败` })
       }
-    }
 
-    setBatchResults(results)
-    setBatchProcessing(false)
-
-    // 统计结果
-    const successCount = results.filter(r => r.success).length
-    const failCount = results.filter(r => !r.success).length
-
-    if (successCount > 0 && failCount === 0) {
-      toast.success('批量接入成功', { description: `成功接入 ${successCount} 个节点` })
-      await fetchProviders()
-    } else if (successCount > 0 && failCount > 0) {
-      toast.warning('部分接入成功', { description: `成功 ${successCount} 个，失败 ${failCount} 个` })
-      await fetchProviders()
-    } else {
-      toast.error('批量接入失败', { description: `所有 ${failCount} 个节点接入失败` })
+      // 如果有 CSV 解析错误，显示警告
+      if (response.errors && response.errors.length > 0) {
+        toast.error('CSV 解析错误', { 
+          description: response.errors.slice(0, 3).join('; ') + (response.errors.length > 3 ? '...' : '')
+        })
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : '批量接入失败'
+      toast.error('批量接入失败', { description: errorMessage })
+    } finally {
+      setBatchProcessing(false)
     }
   }
 
