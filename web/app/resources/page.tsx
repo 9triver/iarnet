@@ -361,16 +361,16 @@ export default function ResourcesPage() {
 
   // CSV 样例下载
   const downloadCsvTemplate = () => {
-    const csvContent = `节点名称,连接地址（提交时删除该行）
-节点1,192.168.1.100:50051
-节点2,192.168.1.101:50051
-节点3,192.168.1.102:50051`
+    const csvContent = `资源名称,连接地址（提交时删除该行）
+资源1,192.168.1.100:50051
+资源2,192.168.1.101:50051
+资源3,192.168.1.102:50051`
     
     const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' })
     const link = document.createElement('a')
     const url = URL.createObjectURL(blob)
     link.setAttribute('href', url)
-    link.setAttribute('download', '节点批量接入模板.csv')
+    link.setAttribute('download', '资源批量接入模板.csv')
     link.style.visibility = 'hidden'
     document.body.appendChild(link)
     link.click()
@@ -470,13 +470,13 @@ export default function ResourcesPage() {
               
               parsed.push({ name, host, port })
             } else {
-              reject(new Error(`第 ${i + 1} 行列数不足，需要至少 2 列（节点名称、地址:端口）`))
+              reject(new Error(`第 ${i + 1} 行列数不足，需要至少 2 列（资源名称、地址:端口）`))
               return
             }
           }
           
           if (parsed.length === 0) {
-            reject(new Error('CSV 文件中没有有效的节点数据'))
+            reject(new Error('CSV 文件中没有有效的资源数据'))
             return
           }
           
@@ -511,7 +511,7 @@ export default function ResourcesPage() {
       }
       setCsvData(parsed)
       setBatchResults([])
-      toast.success('文件解析成功', { description: `成功解析 ${parsed.length} 条节点记录` })
+      toast.success('文件解析成功', { description: `成功解析 ${parsed.length} 条资源记录` })
     } catch (error) {
       toast.error('文件解析失败', { description: error instanceof Error ? error.message : '解析 CSV 文件失败' })
       setCsvFile(null)
@@ -547,13 +547,13 @@ export default function ResourcesPage() {
       const failCount = response.failed
 
       if (successCount > 0 && failCount === 0) {
-        toast.success('批量接入成功', { description: `成功接入 ${successCount} 个节点` })
+        toast.success('批量接入成功', { description: `成功接入 ${successCount} 个资源` })
         await fetchProviders()
       } else if (successCount > 0 && failCount > 0) {
         toast.warning('部分接入成功', { description: `成功 ${successCount} 个，失败 ${failCount} 个` })
         await fetchProviders()
       } else {
-        toast.error('批量接入失败', { description: `所有 ${failCount} 个节点接入失败` })
+        toast.error('批量接入失败', { description: `所有 ${failCount} 个资源接入失败` })
       }
 
       // 如果有 CSV 解析错误，显示警告
@@ -859,14 +859,14 @@ export default function ResourcesPage() {
                 <DialogTrigger asChild>
                   <Button variant="outline">
                     <Upload className="mr-2 h-4 w-4" />
-                    批量接入
+                    批量接入资源
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-[600px]">
                   <DialogHeader>
-                    <DialogTitle>批量接入节点</DialogTitle>
+                    <DialogTitle>批量接入资源</DialogTitle>
                     <DialogDescription>
-                      上传 CSV 文件批量接入多个节点。CSV 文件应包含节点名称和地址:端口两列。
+                      上传 CSV 文件批量接入多个资源。CSV 文件应包含资源名称和地址:端口两列。
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4">
@@ -913,7 +913,7 @@ export default function ResourcesPage() {
                           <Table>
                             <TableHeader>
                               <TableRow>
-                                <TableHead>节点名称</TableHead>
+                                <TableHead>资源名称</TableHead>
                                 <TableHead>地址:端口</TableHead>
                               </TableRow>
                             </TableHeader>
@@ -938,7 +938,7 @@ export default function ResourcesPage() {
                           <Table>
                             <TableHeader>
                               <TableRow>
-                                <TableHead>节点名称</TableHead>
+                                <TableHead>资源名称</TableHead>
                                 <TableHead>状态</TableHead>
                                 <TableHead>消息</TableHead>
                               </TableRow>
