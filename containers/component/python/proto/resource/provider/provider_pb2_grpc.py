@@ -35,37 +35,37 @@ class ServiceStub(object):
             channel: A grpc.Channel.
         """
         self.Connect = channel.unary_unary(
-                '/provider.Service/Connect',
+                '/resource.provider.Service/Connect',
                 request_serializer=resource_dot_provider_dot_provider__pb2.ConnectRequest.SerializeToString,
                 response_deserializer=resource_dot_provider_dot_provider__pb2.ConnectResponse.FromString,
                 _registered_method=True)
         self.Disconnect = channel.unary_unary(
-                '/provider.Service/Disconnect',
+                '/resource.provider.Service/Disconnect',
                 request_serializer=resource_dot_provider_dot_provider__pb2.DisconnectRequest.SerializeToString,
                 response_deserializer=resource_dot_provider_dot_provider__pb2.DisconnectResponse.FromString,
                 _registered_method=True)
         self.GetCapacity = channel.unary_unary(
-                '/provider.Service/GetCapacity',
+                '/resource.provider.Service/GetCapacity',
                 request_serializer=resource_dot_provider_dot_provider__pb2.GetCapacityRequest.SerializeToString,
                 response_deserializer=resource_dot_provider_dot_provider__pb2.GetCapacityResponse.FromString,
                 _registered_method=True)
         self.GetAvailable = channel.unary_unary(
-                '/provider.Service/GetAvailable',
+                '/resource.provider.Service/GetAvailable',
                 request_serializer=resource_dot_provider_dot_provider__pb2.GetAvailableRequest.SerializeToString,
                 response_deserializer=resource_dot_provider_dot_provider__pb2.GetAvailableResponse.FromString,
                 _registered_method=True)
         self.Deploy = channel.unary_unary(
-                '/provider.Service/Deploy',
+                '/resource.provider.Service/Deploy',
                 request_serializer=resource_dot_provider_dot_provider__pb2.DeployRequest.SerializeToString,
                 response_deserializer=resource_dot_provider_dot_provider__pb2.DeployResponse.FromString,
                 _registered_method=True)
         self.HealthCheck = channel.unary_unary(
-                '/provider.Service/HealthCheck',
+                '/resource.provider.Service/HealthCheck',
                 request_serializer=resource_dot_provider_dot_provider__pb2.HealthCheckRequest.SerializeToString,
                 response_deserializer=resource_dot_provider_dot_provider__pb2.HealthCheckResponse.FromString,
                 _registered_method=True)
         self.GetRealTimeUsage = channel.unary_unary(
-                '/provider.Service/GetRealTimeUsage',
+                '/resource.provider.Service/GetRealTimeUsage',
                 request_serializer=resource_dot_provider_dot_provider__pb2.GetRealTimeUsageRequest.SerializeToString,
                 response_deserializer=resource_dot_provider_dot_provider__pb2.GetRealTimeUsageResponse.FromString,
                 _registered_method=True)
@@ -156,9 +156,9 @@ def add_ServiceServicer_to_server(servicer, server):
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'provider.Service', rpc_method_handlers)
+            'resource.provider.Service', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
-    server.add_registered_method_handlers('provider.Service', rpc_method_handlers)
+    server.add_registered_method_handlers('resource.provider.Service', rpc_method_handlers)
 
 
  # This class is part of an EXPERIMENTAL API.
@@ -179,7 +179,7 @@ class Service(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/provider.Service/Connect',
+            '/resource.provider.Service/Connect',
             resource_dot_provider_dot_provider__pb2.ConnectRequest.SerializeToString,
             resource_dot_provider_dot_provider__pb2.ConnectResponse.FromString,
             options,
@@ -206,7 +206,7 @@ class Service(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/provider.Service/Disconnect',
+            '/resource.provider.Service/Disconnect',
             resource_dot_provider_dot_provider__pb2.DisconnectRequest.SerializeToString,
             resource_dot_provider_dot_provider__pb2.DisconnectResponse.FromString,
             options,
@@ -233,7 +233,7 @@ class Service(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/provider.Service/GetCapacity',
+            '/resource.provider.Service/GetCapacity',
             resource_dot_provider_dot_provider__pb2.GetCapacityRequest.SerializeToString,
             resource_dot_provider_dot_provider__pb2.GetCapacityResponse.FromString,
             options,
@@ -260,7 +260,7 @@ class Service(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/provider.Service/GetAvailable',
+            '/resource.provider.Service/GetAvailable',
             resource_dot_provider_dot_provider__pb2.GetAvailableRequest.SerializeToString,
             resource_dot_provider_dot_provider__pb2.GetAvailableResponse.FromString,
             options,
@@ -287,7 +287,7 @@ class Service(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/provider.Service/Deploy',
+            '/resource.provider.Service/Deploy',
             resource_dot_provider_dot_provider__pb2.DeployRequest.SerializeToString,
             resource_dot_provider_dot_provider__pb2.DeployResponse.FromString,
             options,
@@ -314,7 +314,7 @@ class Service(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/provider.Service/HealthCheck',
+            '/resource.provider.Service/HealthCheck',
             resource_dot_provider_dot_provider__pb2.HealthCheckRequest.SerializeToString,
             resource_dot_provider_dot_provider__pb2.HealthCheckResponse.FromString,
             options,
@@ -341,7 +341,7 @@ class Service(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/provider.Service/GetRealTimeUsage',
+            '/resource.provider.Service/GetRealTimeUsage',
             resource_dot_provider_dot_provider__pb2.GetRealTimeUsageRequest.SerializeToString,
             resource_dot_provider_dot_provider__pb2.GetRealTimeUsageResponse.FromString,
             options,

@@ -193,11 +193,17 @@ generate_runner() {
         mkdir -p "$RUNNER_COMMON_OUTPUT"
         find "$RUNNER_COMMON_OUTPUT" -type f -name "*.pb.go" -delete 2>/dev/null || true
         
-        pushd "$IARNET_PROTO_PROTO_DIR/common" >/dev/null
-        $PROTOC -I "$IARNET_PROTO_PROTO_DIR" \
-            --go_out="$RUNNER_COMMON_OUTPUT" --go_opt=paths=source_relative \
-            --go-grpc_out="$RUNNER_COMMON_OUTPUT" --go-grpc_opt=paths=source_relative \
-            *.proto
+        # 从 proto 根目录调用，使用完整路径
+        # 输出到 RUNNER_PROTO_DIR，protoc 会自动创建 common/ 子目录
+        pushd "$IARNET_PROTO_PROTO_DIR" >/dev/null
+        for proto_file in common/*.proto; do
+            if [ -f "$proto_file" ]; then
+                $PROTOC -I "$IARNET_PROTO_PROTO_DIR" \
+                    --go_out="$RUNNER_PROTO_DIR" --go_opt=paths=source_relative \
+                    --go-grpc_out="$RUNNER_PROTO_DIR" --go-grpc_opt=paths=source_relative \
+                    "$proto_file"
+            fi
+        done
         popd >/dev/null
     fi
     
@@ -208,12 +214,25 @@ generate_runner() {
         mkdir -p "$RUNNER_LOGGER_OUTPUT"
         find "$RUNNER_LOGGER_OUTPUT" -type f -name "*.pb.go" -delete 2>/dev/null || true
         
-        pushd "$IARNET_PROTO_PROTO_DIR/application/logger" >/dev/null
-        $PROTOC -I "$IARNET_PROTO_PROTO_DIR" -I . \
-            --go_out="$RUNNER_LOGGER_OUTPUT" --go_opt=paths=source_relative \
-            --go-grpc_out="$RUNNER_LOGGER_OUTPUT" --go-grpc_opt=paths=source_relative \
-            *.proto
+        # 从 proto 根目录调用，使用完整路径
+        # 先输出到临时目录，然后移动到目标目录
+        pushd "$IARNET_PROTO_PROTO_DIR" >/dev/null
+        for proto_file in application/logger/*.proto; do
+            if [ -f "$proto_file" ]; then
+                $PROTOC -I "$IARNET_PROTO_PROTO_DIR" \
+                    --go_out="$RUNNER_PROTO_DIR" --go_opt=paths=source_relative \
+                    --go-grpc_out="$RUNNER_PROTO_DIR" --go-grpc_opt=paths=source_relative \
+                    "$proto_file"
+            fi
+        done
         popd >/dev/null
+        
+        # 移动生成的文件从 application/logger/ 到 logger/
+        if [ -d "$RUNNER_PROTO_DIR/application/logger" ]; then
+            mv "$RUNNER_PROTO_DIR/application/logger"/* "$RUNNER_LOGGER_OUTPUT/" 2>/dev/null || true
+            rmdir "$RUNNER_PROTO_DIR/application/logger" 2>/dev/null || true
+            rmdir "$RUNNER_PROTO_DIR/application" 2>/dev/null || true
+        fi
         
         # 修复 import 路径（如果需要）
         find "$RUNNER_LOGGER_OUTPUT" -type f -name "*.pb.go" -exec sed -i 's|github.com/9triver/iarnet/internal/proto/common|github.com/9triver/iarnet/runner/proto/common|g' {} + 2>/dev/null || true
@@ -240,7 +259,69 @@ generate_component() {
         find "$PY_OUTPUT_COMPONENT" -type f -name "*_pb2_grpc.py" -delete 2>/dev/null || true
     fi
     
-    bash "$IARNET_PROTO_SCRIPTS_DIR/gen_python.sh" "$IARNET_PROTO_PROTO_DIR" "$PY_OUTPUT_COMPONENT"
+    # 生成函数：为指定目录生成 Python 代码
+    generate_python_for_dir() {
+        local rel_dir="$1"
+        
+        local proto_dir="$IARNET_PROTO_PROTO_DIR/$rel_dir"
+        if [ ! -d "$proto_dir" ]; then
+            return
+        fi
+        
+        # 检查是否有 proto 文件
+        local proto_files=("$proto_dir"/*.proto)
+        if [ ! -f "${proto_files[0]}" ]; then
+            return
+        fi
+        
+        echo -e "${YELLOW}  生成 $rel_dir Python 代码${NC}"
+        
+        # 从 proto 根目录调用，使用完整路径
+        pushd "$IARNET_PROTO_PROTO_DIR" >/dev/null
+        for proto_file in "$rel_dir"/*.proto; do
+            if [ -f "$proto_file" ]; then
+                $PROTOC -I "$IARNET_PROTO_PROTO_DIR" \
+                    --python_out="$PY_OUTPUT_COMPONENT" \
+                    --pyi_out="$PY_OUTPUT_COMPONENT" \
+                    --grpc_python_out="$PY_OUTPUT_COMPONENT" \
+                    "$proto_file"
+            fi
+        done
+        popd >/dev/null
+    }
+    
+    # 1. 生成 common
+    generate_python_for_dir "common"
+    
+    # 2. 生成 ignis/controller
+    generate_python_for_dir "ignis/controller"
+    
+    # 3. 生成 ignis/actor
+    generate_python_for_dir "ignis/actor"
+    
+    # 4. 生成 resource（包括所有子目录）
+    # resource 根目录
+    if [ -f "$IARNET_PROTO_PROTO_DIR/resource/resource.proto" ]; then
+        echo -e "${YELLOW}  生成 resource/resource.proto Python 代码${NC}"
+        pushd "$IARNET_PROTO_PROTO_DIR" >/dev/null
+        $PROTOC -I "$IARNET_PROTO_PROTO_DIR" \
+            --python_out="$PY_OUTPUT_COMPONENT" \
+            --pyi_out="$PY_OUTPUT_COMPONENT" \
+            --grpc_python_out="$PY_OUTPUT_COMPONENT" \
+            resource/resource.proto
+        popd >/dev/null
+    fi
+    
+    # resource 子目录
+    for subdir in provider store component logger discovery scheduler; do
+        generate_python_for_dir "resource/$subdir"
+    done
+    
+    # 5. 生成 application/logger
+    generate_python_for_dir "application/logger"
+    
+    # 6. 生成 global/registry
+    generate_python_for_dir "global/registry"
     
     echo -e "${GREEN}✔ component 模块生成完成${NC}"
 }

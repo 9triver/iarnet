@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.10
 // 	protoc        v6.31.1
-// source: logger.proto
+// source: application/logger/logger.proto
 
 package logger
 
@@ -33,7 +33,7 @@ type LogStreamMessage struct {
 
 func (x *LogStreamMessage) Reset() {
 	*x = LogStreamMessage{}
-	mi := &file_logger_proto_msgTypes[0]
+	mi := &file_application_logger_logger_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -45,7 +45,7 @@ func (x *LogStreamMessage) String() string {
 func (*LogStreamMessage) ProtoMessage() {}
 
 func (x *LogStreamMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_logger_proto_msgTypes[0]
+	mi := &file_application_logger_logger_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -58,7 +58,7 @@ func (x *LogStreamMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogStreamMessage.ProtoReflect.Descriptor instead.
 func (*LogStreamMessage) Descriptor() ([]byte, []int) {
-	return file_logger_proto_rawDescGZIP(), []int{0}
+	return file_application_logger_logger_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *LogStreamMessage) GetApplicationId() string {
@@ -89,7 +89,7 @@ type LogStreamResponse struct {
 
 func (x *LogStreamResponse) Reset() {
 	*x = LogStreamResponse{}
-	mi := &file_logger_proto_msgTypes[1]
+	mi := &file_application_logger_logger_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -101,7 +101,7 @@ func (x *LogStreamResponse) String() string {
 func (*LogStreamResponse) ProtoMessage() {}
 
 func (x *LogStreamResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_logger_proto_msgTypes[1]
+	mi := &file_application_logger_logger_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -114,7 +114,7 @@ func (x *LogStreamResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogStreamResponse.ProtoReflect.Descriptor instead.
 func (*LogStreamResponse) Descriptor() ([]byte, []int) {
-	return file_logger_proto_rawDescGZIP(), []int{1}
+	return file_application_logger_logger_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *LogStreamResponse) GetApplicationId() string {
@@ -152,11 +152,11 @@ func (x *LogStreamResponse) GetMessage() string {
 	return ""
 }
 
-var File_logger_proto protoreflect.FileDescriptor
+var File_application_logger_logger_proto protoreflect.FileDescriptor
 
-const file_logger_proto_rawDesc = "" +
+const file_application_logger_logger_proto_rawDesc = "" +
 	"\n" +
-	"\flogger.proto\x12\x06logger\x1a\x13common/logger.proto\"a\n" +
+	"\x1fapplication/logger/logger.proto\x12\x12application.logger\x1a\x13common/logger.proto\"a\n" +
 	"\x10LogStreamMessage\x12%\n" +
 	"\x0eapplication_id\x18\x01 \x01(\tR\rapplicationId\x12&\n" +
 	"\x05entry\x18\x02 \x01(\v2\x10.common.LogEntryR\x05entry\"\xad\x01\n" +
@@ -165,33 +165,33 @@ const file_logger_proto_rawDesc = "" +
 	"\asuccess\x18\x02 \x01(\bR\asuccess\x12\x14\n" +
 	"\x05error\x18\x03 \x01(\tR\x05error\x12'\n" +
 	"\x0fprocessed_count\x18\x04 \x01(\x05R\x0eprocessedCount\x12\x18\n" +
-	"\amessage\x18\x05 \x01(\tR\amessage2V\n" +
-	"\rLoggerService\x12E\n" +
+	"\amessage\x18\x05 \x01(\tR\amessage2n\n" +
+	"\rLoggerService\x12]\n" +
 	"\n" +
-	"StreamLogs\x12\x18.logger.LogStreamMessage\x1a\x19.logger.LogStreamResponse(\x010\x01B=Z;github.com/9triver/iarnet/internal/proto/application/loggerb\x06proto3"
+	"StreamLogs\x12$.application.logger.LogStreamMessage\x1a%.application.logger.LogStreamResponse(\x010\x01B=Z;github.com/9triver/iarnet/internal/proto/application/loggerb\x06proto3"
 
 var (
-	file_logger_proto_rawDescOnce sync.Once
-	file_logger_proto_rawDescData []byte
+	file_application_logger_logger_proto_rawDescOnce sync.Once
+	file_application_logger_logger_proto_rawDescData []byte
 )
 
-func file_logger_proto_rawDescGZIP() []byte {
-	file_logger_proto_rawDescOnce.Do(func() {
-		file_logger_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_logger_proto_rawDesc), len(file_logger_proto_rawDesc)))
+func file_application_logger_logger_proto_rawDescGZIP() []byte {
+	file_application_logger_logger_proto_rawDescOnce.Do(func() {
+		file_application_logger_logger_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_application_logger_logger_proto_rawDesc), len(file_application_logger_logger_proto_rawDesc)))
 	})
-	return file_logger_proto_rawDescData
+	return file_application_logger_logger_proto_rawDescData
 }
 
-var file_logger_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
-var file_logger_proto_goTypes = []any{
-	(*LogStreamMessage)(nil),  // 0: logger.LogStreamMessage
-	(*LogStreamResponse)(nil), // 1: logger.LogStreamResponse
+var file_application_logger_logger_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_application_logger_logger_proto_goTypes = []any{
+	(*LogStreamMessage)(nil),  // 0: application.logger.LogStreamMessage
+	(*LogStreamResponse)(nil), // 1: application.logger.LogStreamResponse
 	(*common.LogEntry)(nil),   // 2: common.LogEntry
 }
-var file_logger_proto_depIdxs = []int32{
-	2, // 0: logger.LogStreamMessage.entry:type_name -> common.LogEntry
-	0, // 1: logger.LoggerService.StreamLogs:input_type -> logger.LogStreamMessage
-	1, // 2: logger.LoggerService.StreamLogs:output_type -> logger.LogStreamResponse
+var file_application_logger_logger_proto_depIdxs = []int32{
+	2, // 0: application.logger.LogStreamMessage.entry:type_name -> common.LogEntry
+	0, // 1: application.logger.LoggerService.StreamLogs:input_type -> application.logger.LogStreamMessage
+	1, // 2: application.logger.LoggerService.StreamLogs:output_type -> application.logger.LogStreamResponse
 	2, // [2:3] is the sub-list for method output_type
 	1, // [1:2] is the sub-list for method input_type
 	1, // [1:1] is the sub-list for extension type_name
@@ -199,26 +199,26 @@ var file_logger_proto_depIdxs = []int32{
 	0, // [0:1] is the sub-list for field type_name
 }
 
-func init() { file_logger_proto_init() }
-func file_logger_proto_init() {
-	if File_logger_proto != nil {
+func init() { file_application_logger_logger_proto_init() }
+func file_application_logger_logger_proto_init() {
+	if File_application_logger_logger_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_logger_proto_rawDesc), len(file_logger_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_application_logger_logger_proto_rawDesc), len(file_application_logger_logger_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_logger_proto_goTypes,
-		DependencyIndexes: file_logger_proto_depIdxs,
-		MessageInfos:      file_logger_proto_msgTypes,
+		GoTypes:           file_application_logger_logger_proto_goTypes,
+		DependencyIndexes: file_application_logger_logger_proto_depIdxs,
+		MessageInfos:      file_application_logger_logger_proto_msgTypes,
 	}.Build()
-	File_logger_proto = out.File
-	file_logger_proto_goTypes = nil
-	file_logger_proto_depIdxs = nil
+	File_application_logger_logger_proto = out.File
+	file_application_logger_logger_proto_goTypes = nil
+	file_application_logger_logger_proto_depIdxs = nil
 }

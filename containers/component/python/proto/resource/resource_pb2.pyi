@@ -27,9 +27,3 @@ class Capacity(_message.Message):
     used: Info
     available: Info
     def __init__(self, total: _Optional[_Union[Info, _Mapping]] = ..., used: _Optional[_Union[Info, _Mapping]] = ..., available: _Optional[_Union[Info, _Mapping]] = ...) -> None: ...
-
-class ResourceRequest(_message.Message):
-    __slots__ = ("info",)
-    INFO_FIELD_NUMBER: _ClassVar[int]
-    info: Info
-    def __init__(self, info: _Optional[_Union[Info, _Mapping]] = ...) -> None: ...

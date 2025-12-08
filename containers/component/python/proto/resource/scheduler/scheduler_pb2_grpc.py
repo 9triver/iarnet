@@ -36,12 +36,12 @@ class SchedulerServiceStub(object):
             channel: A grpc.Channel.
         """
         self.DeployComponent = channel.unary_unary(
-                '/scheduler.SchedulerService/DeployComponent',
+                '/resource.scheduler.SchedulerService/DeployComponent',
                 request_serializer=resource_dot_scheduler_dot_scheduler__pb2.DeployComponentRequest.SerializeToString,
                 response_deserializer=resource_dot_scheduler_dot_scheduler__pb2.DeployComponentResponse.FromString,
                 _registered_method=True)
         self.GetDeploymentStatus = channel.unary_unary(
-                '/scheduler.SchedulerService/GetDeploymentStatus',
+                '/resource.scheduler.SchedulerService/GetDeploymentStatus',
                 request_serializer=resource_dot_scheduler_dot_scheduler__pb2.GetDeploymentStatusRequest.SerializeToString,
                 response_deserializer=resource_dot_scheduler_dot_scheduler__pb2.GetDeploymentStatusResponse.FromString,
                 _registered_method=True)
@@ -81,9 +81,9 @@ def add_SchedulerServiceServicer_to_server(servicer, server):
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'scheduler.SchedulerService', rpc_method_handlers)
+            'resource.scheduler.SchedulerService', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
-    server.add_registered_method_handlers('scheduler.SchedulerService', rpc_method_handlers)
+    server.add_registered_method_handlers('resource.scheduler.SchedulerService', rpc_method_handlers)
 
 
  # This class is part of an EXPERIMENTAL API.
@@ -105,7 +105,7 @@ class SchedulerService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/scheduler.SchedulerService/DeployComponent',
+            '/resource.scheduler.SchedulerService/DeployComponent',
             resource_dot_scheduler_dot_scheduler__pb2.DeployComponentRequest.SerializeToString,
             resource_dot_scheduler_dot_scheduler__pb2.DeployComponentResponse.FromString,
             options,
@@ -132,7 +132,7 @@ class SchedulerService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/scheduler.SchedulerService/GetDeploymentStatus',
+            '/resource.scheduler.SchedulerService/GetDeploymentStatus',
             resource_dot_scheduler_dot_scheduler__pb2.GetDeploymentStatusRequest.SerializeToString,
             resource_dot_scheduler_dot_scheduler__pb2.GetDeploymentStatusResponse.FromString,
             options,

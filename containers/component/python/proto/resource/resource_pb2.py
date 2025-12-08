@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x17resource/resource.proto\x12\x08resource\">\n\x04Info\x12\x0b\n\x03\x63pu\x18\x01 \x01(\x03\x12\x0e\n\x06memory\x18\x02 \x01(\x03\x12\x0b\n\x03gpu\x18\x03 \x01(\x03\x12\x0c\n\x04tags\x18\x04 \x03(\t\"j\n\x08\x43\x61pacity\x12\x1d\n\x05total\x18\x01 \x01(\x0b\x32\x0e.resource.Info\x12\x1c\n\x04used\x18\x02 \x01(\x0b\x32\x0e.resource.Info\x12!\n\tavailable\x18\x03 \x01(\x0b\x32\x0e.resource.Info\"/\n\x0fResourceRequest\x12\x1c\n\x04info\x18\x01 \x01(\x0b\x32\x0e.resource.InfoB3Z1github.com/9triver/iarnet/internal/proto/resourceb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x17resource/resource.proto\x12\x08resource\">\n\x04Info\x12\x0b\n\x03\x63pu\x18\x01 \x01(\x03\x12\x0e\n\x06memory\x18\x02 \x01(\x03\x12\x0b\n\x03gpu\x18\x03 \x01(\x03\x12\x0c\n\x04tags\x18\x04 \x03(\t\"j\n\x08\x43\x61pacity\x12\x1d\n\x05total\x18\x01 \x01(\x0b\x32\x0e.resource.Info\x12\x1c\n\x04used\x18\x02 \x01(\x0b\x32\x0e.resource.Info\x12!\n\tavailable\x18\x03 \x01(\x0b\x32\x0e.resource.InfoB3Z1github.com/9triver/iarnet/internal/proto/resourceb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -36,6 +36,4 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_INFO']._serialized_end=99
   _globals['_CAPACITY']._serialized_start=101
   _globals['_CAPACITY']._serialized_end=207
-  _globals['_RESOURCEREQUEST']._serialized_start=209
-  _globals['_RESOURCEREQUEST']._serialized_end=256
 # @@protoc_insertion_point(module_scope)

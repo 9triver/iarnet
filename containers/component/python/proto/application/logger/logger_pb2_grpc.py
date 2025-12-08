@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-from ignis.controller import controller_pb2 as ignis_dot_controller_dot_controller__pb2
+from application.logger import logger_pb2 as application_dot_logger_dot_logger__pb2
 
 GRPC_GENERATED_VERSION = '1.76.0'
 GRPC_VERSION = grpc.__version__
@@ -18,14 +18,14 @@ except ImportError:
 if _version_not_supported:
     raise RuntimeError(
         f'The grpc package installed is at version {GRPC_VERSION},'
-        + ' but the generated code in ignis/controller/controller_pb2_grpc.py depends on'
+        + ' but the generated code in application/logger/logger_pb2_grpc.py depends on'
         + f' grpcio>={GRPC_GENERATED_VERSION}.'
         + f' Please upgrade your grpc module to grpcio>={GRPC_GENERATED_VERSION}'
         + f' or downgrade your generated code using grpcio-tools<={GRPC_VERSION}.'
     )
 
 
-class ServiceStub(object):
+class LoggerServiceStub(object):
     """Missing associated documentation comment in .proto file."""
 
     def __init__(self, channel):
@@ -34,43 +34,43 @@ class ServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.Session = channel.stream_stream(
-                '/ignis.controller.Service/Session',
-                request_serializer=ignis_dot_controller_dot_controller__pb2.Message.SerializeToString,
-                response_deserializer=ignis_dot_controller_dot_controller__pb2.Message.FromString,
+        self.StreamLogs = channel.stream_stream(
+                '/application.logger.LoggerService/StreamLogs',
+                request_serializer=application_dot_logger_dot_logger__pb2.LogStreamMessage.SerializeToString,
+                response_deserializer=application_dot_logger_dot_logger__pb2.LogStreamResponse.FromString,
                 _registered_method=True)
 
 
-class ServiceServicer(object):
+class LoggerServiceServicer(object):
     """Missing associated documentation comment in .proto file."""
 
-    def Session(self, request_iterator, context):
+    def StreamLogs(self, request_iterator, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
 
-def add_ServiceServicer_to_server(servicer, server):
+def add_LoggerServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'Session': grpc.stream_stream_rpc_method_handler(
-                    servicer.Session,
-                    request_deserializer=ignis_dot_controller_dot_controller__pb2.Message.FromString,
-                    response_serializer=ignis_dot_controller_dot_controller__pb2.Message.SerializeToString,
+            'StreamLogs': grpc.stream_stream_rpc_method_handler(
+                    servicer.StreamLogs,
+                    request_deserializer=application_dot_logger_dot_logger__pb2.LogStreamMessage.FromString,
+                    response_serializer=application_dot_logger_dot_logger__pb2.LogStreamResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'ignis.controller.Service', rpc_method_handlers)
+            'application.logger.LoggerService', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
-    server.add_registered_method_handlers('ignis.controller.Service', rpc_method_handlers)
+    server.add_registered_method_handlers('application.logger.LoggerService', rpc_method_handlers)
 
 
  # This class is part of an EXPERIMENTAL API.
-class Service(object):
+class LoggerService(object):
     """Missing associated documentation comment in .proto file."""
 
     @staticmethod
-    def Session(request_iterator,
+    def StreamLogs(request_iterator,
             target,
             options=(),
             channel_credentials=None,
@@ -83,9 +83,9 @@ class Service(object):
         return grpc.experimental.stream_stream(
             request_iterator,
             target,
-            '/ignis.controller.Service/Session',
-            ignis_dot_controller_dot_controller__pb2.Message.SerializeToString,
-            ignis_dot_controller_dot_controller__pb2.Message.FromString,
+            '/application.logger.LoggerService/StreamLogs',
+            application_dot_logger_dot_logger__pb2.LogStreamMessage.SerializeToString,
+            application_dot_logger_dot_logger__pb2.LogStreamResponse.FromString,
             options,
             channel_credentials,
             insecure,

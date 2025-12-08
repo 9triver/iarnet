@@ -26,7 +26,7 @@ from common import messages_pb2 as common_dot_messages__pb2
 from google.protobuf import any_pb2 as google_dot_protobuf_dot_any__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\"resource/component/component.proto\x12\tcomponent\x1a\x15\x63ommon/messages.proto\x1a\x19google/protobuf/any.proto\"\x83\x01\n\x07Message\x12$\n\x04Type\x18\x01 \x01(\x0e\x32\x16.component.MessageType\x12\x1e\n\x05Ready\x18\x02 \x01(\x0b\x32\r.common.ReadyH\x00\x12\'\n\x07Payload\x18\x03 \x01(\x0b\x32\x14.google.protobuf.AnyH\x00\x42\t\n\x07Message*6\n\x0bMessageType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\t\n\x05READY\x10\x01\x12\x0b\n\x07PAYLOAD\x10\x02\x42=Z;github.com/9triver/iarnet/internal/proto/resource/componentb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\"resource/component/component.proto\x12\x12resource.component\x1a\x15\x63ommon/messages.proto\x1a\x19google/protobuf/any.proto\"\x8c\x01\n\x07Message\x12-\n\x04Type\x18\x01 \x01(\x0e\x32\x1f.resource.component.MessageType\x12\x1e\n\x05Ready\x18\x02 \x01(\x0b\x32\r.common.ReadyH\x00\x12\'\n\x07Payload\x18\x03 \x01(\x0b\x32\x14.google.protobuf.AnyH\x00\x42\t\n\x07Message*6\n\x0bMessageType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\t\n\x05READY\x10\x01\x12\x0b\n\x07PAYLOAD\x10\x02\x42=Z;github.com/9triver/iarnet/internal/proto/resource/componentb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -34,8 +34,8 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'resource.component.componen
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'Z;github.com/9triver/iarnet/internal/proto/resource/component'
-  _globals['_MESSAGETYPE']._serialized_start=233
-  _globals['_MESSAGETYPE']._serialized_end=287
-  _globals['_MESSAGE']._serialized_start=100
-  _globals['_MESSAGE']._serialized_end=231
+  _globals['_MESSAGETYPE']._serialized_start=251
+  _globals['_MESSAGETYPE']._serialized_end=305
+  _globals['_MESSAGE']._serialized_start=109
+  _globals['_MESSAGE']._serialized_end=249
 # @@protoc_insertion_point(module_scope)

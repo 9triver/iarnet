@@ -35,22 +35,22 @@ class ServiceStub(object):
             channel: A grpc.Channel.
         """
         self.SaveObject = channel.unary_unary(
-                '/store.Service/SaveObject',
+                '/resource.store.Service/SaveObject',
                 request_serializer=resource_dot_store_dot_store__pb2.SaveObjectRequest.SerializeToString,
                 response_deserializer=resource_dot_store_dot_store__pb2.SaveObjectResponse.FromString,
                 _registered_method=True)
         self.SaveStreamChunk = channel.unary_unary(
-                '/store.Service/SaveStreamChunk',
+                '/resource.store.Service/SaveStreamChunk',
                 request_serializer=resource_dot_store_dot_store__pb2.SaveStreamChunkRequest.SerializeToString,
                 response_deserializer=resource_dot_store_dot_store__pb2.SaveStreamChunkResponse.FromString,
                 _registered_method=True)
         self.GetObject = channel.unary_unary(
-                '/store.Service/GetObject',
+                '/resource.store.Service/GetObject',
                 request_serializer=resource_dot_store_dot_store__pb2.GetObjectRequest.SerializeToString,
                 response_deserializer=resource_dot_store_dot_store__pb2.GetObjectResponse.FromString,
                 _registered_method=True)
         self.GetStreamChunk = channel.unary_unary(
-                '/store.Service/GetStreamChunk',
+                '/resource.store.Service/GetStreamChunk',
                 request_serializer=resource_dot_store_dot_store__pb2.GetStreamChunkRequest.SerializeToString,
                 response_deserializer=resource_dot_store_dot_store__pb2.GetStreamChunkResponse.FromString,
                 _registered_method=True)
@@ -108,9 +108,9 @@ def add_ServiceServicer_to_server(servicer, server):
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'store.Service', rpc_method_handlers)
+            'resource.store.Service', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
-    server.add_registered_method_handlers('store.Service', rpc_method_handlers)
+    server.add_registered_method_handlers('resource.store.Service', rpc_method_handlers)
 
 
  # This class is part of an EXPERIMENTAL API.
@@ -131,7 +131,7 @@ class Service(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/store.Service/SaveObject',
+            '/resource.store.Service/SaveObject',
             resource_dot_store_dot_store__pb2.SaveObjectRequest.SerializeToString,
             resource_dot_store_dot_store__pb2.SaveObjectResponse.FromString,
             options,
@@ -158,7 +158,7 @@ class Service(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/store.Service/SaveStreamChunk',
+            '/resource.store.Service/SaveStreamChunk',
             resource_dot_store_dot_store__pb2.SaveStreamChunkRequest.SerializeToString,
             resource_dot_store_dot_store__pb2.SaveStreamChunkResponse.FromString,
             options,
@@ -185,7 +185,7 @@ class Service(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/store.Service/GetObject',
+            '/resource.store.Service/GetObject',
             resource_dot_store_dot_store__pb2.GetObjectRequest.SerializeToString,
             resource_dot_store_dot_store__pb2.GetObjectResponse.FromString,
             options,
@@ -212,7 +212,7 @@ class Service(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/store.Service/GetStreamChunk',
+            '/resource.store.Service/GetStreamChunk',
             resource_dot_store_dot_store__pb2.GetStreamChunkRequest.SerializeToString,
             resource_dot_store_dot_store__pb2.GetStreamChunkResponse.FromString,
             options,

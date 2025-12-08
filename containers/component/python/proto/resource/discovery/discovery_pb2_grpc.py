@@ -37,22 +37,22 @@ class DiscoveryServiceStub(object):
             channel: A grpc.Channel.
         """
         self.GossipNodeInfo = channel.unary_unary(
-                '/discovery.DiscoveryService/GossipNodeInfo',
+                '/resource.discovery.DiscoveryService/GossipNodeInfo',
                 request_serializer=resource_dot_discovery_dot_discovery__pb2.NodeInfoGossipMessage.SerializeToString,
                 response_deserializer=resource_dot_discovery_dot_discovery__pb2.NodeInfoGossipResponse.FromString,
                 _registered_method=True)
         self.QueryResources = channel.unary_unary(
-                '/discovery.DiscoveryService/QueryResources',
+                '/resource.discovery.DiscoveryService/QueryResources',
                 request_serializer=resource_dot_discovery_dot_discovery__pb2.ResourceQueryRequest.SerializeToString,
                 response_deserializer=resource_dot_discovery_dot_discovery__pb2.ResourceQueryResponse.FromString,
                 _registered_method=True)
         self.ExchangePeerList = channel.unary_unary(
-                '/discovery.DiscoveryService/ExchangePeerList',
+                '/resource.discovery.DiscoveryService/ExchangePeerList',
                 request_serializer=resource_dot_discovery_dot_discovery__pb2.PeerListExchangeRequest.SerializeToString,
                 response_deserializer=resource_dot_discovery_dot_discovery__pb2.PeerListExchangeResponse.FromString,
                 _registered_method=True)
         self.GetLocalNodeInfo = channel.unary_unary(
-                '/discovery.DiscoveryService/GetLocalNodeInfo',
+                '/resource.discovery.DiscoveryService/GetLocalNodeInfo',
                 request_serializer=resource_dot_discovery_dot_discovery__pb2.GetLocalNodeInfoRequest.SerializeToString,
                 response_deserializer=resource_dot_discovery_dot_discovery__pb2.GetLocalNodeInfoResponse.FromString,
                 _registered_method=True)
@@ -116,9 +116,9 @@ def add_DiscoveryServiceServicer_to_server(servicer, server):
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'discovery.DiscoveryService', rpc_method_handlers)
+            'resource.discovery.DiscoveryService', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
-    server.add_registered_method_handlers('discovery.DiscoveryService', rpc_method_handlers)
+    server.add_registered_method_handlers('resource.discovery.DiscoveryService', rpc_method_handlers)
 
 
  # This class is part of an EXPERIMENTAL API.
@@ -141,7 +141,7 @@ class DiscoveryService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/discovery.DiscoveryService/GossipNodeInfo',
+            '/resource.discovery.DiscoveryService/GossipNodeInfo',
             resource_dot_discovery_dot_discovery__pb2.NodeInfoGossipMessage.SerializeToString,
             resource_dot_discovery_dot_discovery__pb2.NodeInfoGossipResponse.FromString,
             options,
@@ -168,7 +168,7 @@ class DiscoveryService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/discovery.DiscoveryService/QueryResources',
+            '/resource.discovery.DiscoveryService/QueryResources',
             resource_dot_discovery_dot_discovery__pb2.ResourceQueryRequest.SerializeToString,
             resource_dot_discovery_dot_discovery__pb2.ResourceQueryResponse.FromString,
             options,
@@ -195,7 +195,7 @@ class DiscoveryService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/discovery.DiscoveryService/ExchangePeerList',
+            '/resource.discovery.DiscoveryService/ExchangePeerList',
             resource_dot_discovery_dot_discovery__pb2.PeerListExchangeRequest.SerializeToString,
             resource_dot_discovery_dot_discovery__pb2.PeerListExchangeResponse.FromString,
             options,
@@ -222,7 +222,7 @@ class DiscoveryService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/discovery.DiscoveryService/GetLocalNodeInfo',
+            '/resource.discovery.DiscoveryService/GetLocalNodeInfo',
             resource_dot_discovery_dot_discovery__pb2.GetLocalNodeInfoRequest.SerializeToString,
             resource_dot_discovery_dot_discovery__pb2.GetLocalNodeInfoResponse.FromString,
             options,
