@@ -13,6 +13,7 @@
 #   - runner: 生成 Go 代码到 containers/runner/core/proto/
 #   - component: 生成 Python 代码到 containers/component/python/proto/
 #   - lucas: 生成 Python 代码到 third_party/lucas/lucas/actorc/protos/
+#   - ignis: 生成 Go 代码到 third_party/ignis/ignis-go/proto/
 
 set -e  # Exit on error
 
@@ -377,6 +378,86 @@ generate_lucas() {
 }
 
 # ============================================================================
+# 模块 5: ignis - 生成 Go 代码到 third_party/ignis/ignis-go/proto/
+# ============================================================================
+generate_ignis() {
+    echo ""
+    echo -e "${YELLOW}>>> 模块: ignis${NC}"
+    echo -e "${YELLOW}输出目录: ${PROJECT_ROOT}/third_party/ignis/ignis-go/proto${NC}"
+    
+    # 检查 protoc-gen-go 工具
+    if ! command -v protoc-gen-go >/dev/null 2>&1 || ! command -v protoc-gen-go-grpc >/dev/null 2>&1; then
+        cat >&2 <<EOF
+错误: protoc-gen-go 和/或 protoc-gen-go-grpc 未在 PATH 中找到
+安装方法:
+  go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+  go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+EOF
+        exit 1
+    fi
+    
+    IGNIS_OUTPUT="${PROJECT_ROOT}/third_party/ignis/ignis-go/proto"
+    
+    # 清理已有的 proto 代码
+    if [ -d "$IGNIS_OUTPUT" ]; then
+        echo -e "${YELLOW}  清理已有的 proto 代码...${NC}"
+        find "$IGNIS_OUTPUT/common" -type f -name "*.pb.go" -delete 2>/dev/null || true
+        find "$IGNIS_OUTPUT/resource" -type f -name "*.pb.go" -delete 2>/dev/null || true
+    fi
+    
+    # 生成函数：为指定目录生成 Go 代码到 ignis
+    generate_go_for_ignis() {
+        local rel_dir="$1"
+        
+        local proto_dir="$IARNET_PROTO_PROTO_DIR/$rel_dir"
+        if [ ! -d "$proto_dir" ]; then
+            return
+        fi
+        
+        local out_dir="$IGNIS_OUTPUT/$rel_dir"
+        mkdir -p "$out_dir"
+        
+        # 清理旧文件
+        find "$out_dir" -type f -name "*.pb.go" -delete 2>/dev/null || true
+        
+        # 检查是否有 proto 文件
+        local proto_files=("$proto_dir"/*.proto)
+        if [ ! -f "${proto_files[0]}" ]; then
+            return
+        fi
+        
+        echo -e "${YELLOW}  生成 $rel_dir -> $out_dir${NC}"
+        
+        # 从 proto 根目录调用，使用完整路径
+        pushd "$IARNET_PROTO_PROTO_DIR" >/dev/null
+        for proto_file in "$rel_dir"/*.proto; do
+            if [ -f "$proto_file" ]; then
+                $PROTOC -I "$IARNET_PROTO_PROTO_DIR" \
+                    --go_out="$IGNIS_OUTPUT" --go_opt=paths=source_relative \
+                    --go-grpc_out="$IGNIS_OUTPUT" --go-grpc_opt=paths=source_relative \
+                    "$proto_file"
+            fi
+        done
+        popd >/dev/null
+        
+        # 修复 import 路径：将 iarnet 的路径改为 ignis 的路径
+        echo -e "${YELLOW}  修复 import 路径...${NC}"
+        find "$out_dir" -type f -name "*.pb.go" -exec sed -i \
+            -e 's|github.com/9triver/iarnet/internal/proto/|github.com/9triver/ignis/proto/|g' \
+            -e 's|"github.com/9triver/iarnet/internal/proto/|"github.com/9triver/ignis/proto/|g' \
+            {} + 2>/dev/null || true
+    }
+    
+    # 1. 生成 common
+    generate_go_for_ignis "common"
+    
+    # 2. 生成 resource/store
+    generate_go_for_ignis "resource/store"
+    
+    echo -e "${GREEN}✔ ignis 模块生成完成${NC}"
+}
+
+# ============================================================================
 # 主逻辑：根据参数决定生成哪些模块
 # ============================================================================
 MODULE="${1:-all}"
@@ -394,11 +475,15 @@ case "$MODULE" in
     lucas)
         generate_lucas
         ;;
+    ignis)
+        generate_ignis
+        ;;
     all)
         generate_internal
         generate_runner
         generate_component
         generate_lucas
+        generate_ignis
         ;;
     *)
         cat >&2 <<EOF
@@ -409,10 +494,12 @@ case "$MODULE" in
   - runner: 生成 Go 代码到 containers/runner/core/proto/
   - component: 生成 Python 代码到 containers/component/python/proto/
   - lucas: 生成 Python 代码到 third_party/lucas/lucas/actorc/protos/
+  - ignis: 生成 Go 代码到 third_party/ignis/ignis-go/proto/
   - all: 生成所有模块（默认）
 
 示例:
   ./proto/protobuf-gen.sh internal
+  ./proto/protobuf-gen.sh ignis
   ./proto/protobuf-gen.sh all
 EOF
         exit 1
