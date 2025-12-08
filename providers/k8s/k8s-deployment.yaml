@@ -1,0 +1,164 @@
+# Kubernetes Provider 部署清单
+# 用于在 Kubernetes 集群内部署 k8s-provider
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: iarnet-system
+  labels:
+    app.kubernetes.io/name: iarnet
+    app.kubernetes.io/component: provider
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: k8s-provider
+  namespace: iarnet-system
+
+---
+# RBAC: 允许 k8s-provider 管理 Pod
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: k8s-provider
+rules:
+  # Pod 管理权限
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Pod 日志权限
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get", "list"]
+  # Pod 执行权限
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create"]
+  # Namespace 读取权限
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list"]
+  # Metrics 读取权限（用于获取实时资源使用情况）
+  - apiGroups: ["metrics.k8s.io"]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: k8s-provider
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: k8s-provider
+subjects:
+  - kind: ServiceAccount
+    name: k8s-provider
+    namespace: iarnet-system
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: k8s-provider-config
+  namespace: iarnet-system
+data:
+  config.yaml: |
+    server:
+      port: 50052
+
+    kubernetes:
+      kubeconfig: ""
+      namespace: "default"
+      in_cluster: true
+      label_selector: "iarnet.managed=true"
+
+    resource:
+      cpu: 8000
+      memory: "8Gi"
+      gpu: 4
+
+    resource_tags:
+      - cpu
+      - memory
+      - gpu
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8s-provider
+  namespace: iarnet-system
+  labels:
+    app.kubernetes.io/name: k8s-provider
+    app.kubernetes.io/component: provider
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: k8s-provider
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: k8s-provider
+        app.kubernetes.io/component: provider
+    spec:
+      serviceAccountName: k8s-provider
+      containers:
+        - name: k8s-provider
+          image: iarnet/provider:k8s
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: grpc
+              containerPort: 50052
+              protocol: TCP
+          volumeMounts:
+            - name: config
+              mountPath: /app/config.yaml
+              subPath: config.yaml
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            exec:
+              command:
+                - pgrep
+                - -f
+                - k8s-provider
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            tcpSocket:
+              port: grpc
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: config
+          configMap:
+            name: k8s-provider-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: k8s-provider
+  namespace: iarnet-system
+  labels:
+    app.kubernetes.io/name: k8s-provider
+    app.kubernetes.io/component: provider
+spec:
+  type: ClusterIP
+  ports:
+    - name: grpc
+      port: 50052
+      targetPort: grpc
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: k8s-provider
+

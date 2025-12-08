@@ -1,0 +1,20 @@
+# Kubernetes Provider 配置
+server:
+  port: 50052  # gRPC 服务端口
+
+kubernetes:
+  kubeconfig: ""  # kubeconfig 文件路径，留空使用 in-cluster 配置或 ~/.kube/config
+  namespace: "default"  # 部署 Pod 的命名空间
+  in_cluster: false  # 是否使用 in-cluster 配置（在 Pod 内运行时设为 true）
+  label_selector: "iarnet.managed=true"  # 用于筛选管理的 Pod 的标签选择器
+
+resource:
+  cpu: 8000  # 1000 millicores = 1 core
+  memory: "8Gi"
+  gpu: 4  # 4 GPUs
+
+resource_tags:
+  - cpu
+  - memory
+  - gpu
+
