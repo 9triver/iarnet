@@ -1,0 +1,15 @@
+server:
+  port: 50051
+
+ignis:
+  address: "localhost:50052"  # Ignis 平台地址
+
+resource:
+  cpu: 8000      # CPU 容量，单位：millicores (8000 = 8 cores)
+  memory: "16Gi" # 内存容量
+  gpu: 0         # GPU 数量
+
+resource_tags:
+  - cpu
+  - memory
+
