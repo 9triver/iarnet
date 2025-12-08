@@ -20,8 +20,8 @@ COPY . /build/iarnet
 # 切换到 k8s provider 目录
 WORKDIR /build/iarnet/providers/k8s
 
-# 下载依赖
-RUN go mod download
+# 下载依赖并同步 go.sum
+RUN go mod tidy && go mod download
 
 # 构建应用
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
