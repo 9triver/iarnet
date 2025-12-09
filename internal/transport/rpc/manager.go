@@ -22,7 +22,7 @@ import (
 	schedulerpb "github.com/9triver/iarnet/internal/proto/resource/scheduler"
 	storepb "github.com/9triver/iarnet/internal/proto/resource/store"
 	appLoggerRPC "github.com/9triver/iarnet/internal/transport/rpc/application/logger"
-	controllerrpc "github.com/9triver/iarnet/internal/transport/rpc/ignis/controller"
+	controllerrpc "github.com/9triver/iarnet/internal/transport/rpc/execution/controller"
 	discoveryrpc "github.com/9triver/iarnet/internal/transport/rpc/resource/discovery"
 	resLoggerRPC "github.com/9triver/iarnet/internal/transport/rpc/resource/logger"
 	schedulerrpc "github.com/9triver/iarnet/internal/transport/rpc/resource/scheduler"
@@ -60,7 +60,7 @@ func (rs *server) Stop() {
 
 // Options enumerates all required fields to start RPC servers.
 type Options struct {
-	IgnisAddr                string
+	ExecutionAddr            string
 	StoreAddr                string
 	LoggerAddr               string
 	ResourceLoggerAddr       string
@@ -73,7 +73,7 @@ type Options struct {
 	DiscoveryService         resdiscovery.Service
 	DiscoveryManager         *resdiscovery.NodeDiscoveryManager
 	SchedulerService         resscheduler.Service
-	IgnisServerOpts          []grpc.ServerOption
+	ExecutionServerOpts      []grpc.ServerOption
 	StoreServerOpts          []grpc.ServerOption
 	LoggerServerOpts         []grpc.ServerOption
 	ResourceLoggerServerOpts []grpc.ServerOption
@@ -83,7 +83,7 @@ type Options struct {
 
 // Manager manages the lifecycle of RPC servers.
 type Manager struct {
-	Ignis          *server
+	Execution      *server
 	Store          *server
 	Logger         *server
 	ResourceLogger *server
@@ -97,7 +97,7 @@ type Manager struct {
 // NewManager creates a new RPC server manager.
 func NewManager(opts Options) *Manager {
 	return &Manager{
-		Ignis:          nil,
+		Execution:      nil,
 		Store:          nil,
 		Logger:         nil,
 		ResourceLogger: nil,
@@ -109,7 +109,7 @@ func NewManager(opts Options) *Manager {
 	}
 }
 
-// Start launches the Ignis, Store, and Logger RPC servers.
+// Start launches the Execution, Store, and Logger RPC servers.
 func (m *Manager) Start() error {
 	if m.Options.ControllerService == nil {
 		return errors.New("controller service is required")
@@ -117,8 +117,8 @@ func (m *Manager) Start() error {
 	if m.Options.StoreService == nil {
 		return errors.New("store service is required")
 	}
-	if m.Options.IgnisAddr == "" {
-		return errors.New("ignis listen address is required")
+	if m.Options.ExecutionAddr == "" {
+		return errors.New("execution listen address is required")
 	}
 	if m.Options.StoreAddr == "" {
 		return errors.New("store listen address is required")
@@ -133,20 +133,20 @@ func (m *Manager) Start() error {
 	m.startOnce.Do(func() {
 		var startedServers []*server
 
-		// 配置 Ignis 服务器选项，添加最大接收消息大小限制，TODO: 加入配置文件
-		ignisOpts := append([]grpc.ServerOption{}, m.Options.IgnisServerOpts...)
-		ignisOpts = append(ignisOpts, grpc.MaxRecvMsgSize(512*1024*1024))
+		// 配置 Execution 服务器选项，添加最大接收消息大小限制，TODO: 加入配置文件
+		executionOpts := append([]grpc.ServerOption{}, m.Options.ExecutionServerOpts...)
+		executionOpts = append(executionOpts, grpc.MaxRecvMsgSize(512*1024*1024))
 
-		// 启动 Ignis 服务器
-		ignis, err := startServer(m.Options.IgnisAddr, ignisOpts, func(s *grpc.Server) {
+		// 启动 Execution 服务器
+		execution, err := startServer(m.Options.ExecutionAddr, executionOpts, func(s *grpc.Server) {
 			ctrlpb.RegisterServiceServer(s, controllerrpc.NewServer(m.Options.ControllerService))
 		})
 		if err != nil {
-			logrus.WithError(err).Error("failed to start ignis server")
+			logrus.WithError(err).Error("failed to start execution server")
 		} else {
-			logrus.Infof("Ignis server listening on %s", m.Options.IgnisAddr)
-			m.Ignis = ignis
-			startedServers = append(startedServers, ignis)
+			logrus.Infof("Execution server listening on %s", m.Options.ExecutionAddr)
+			m.Execution = execution
+			startedServers = append(startedServers, execution)
 		}
 
 		// 配置 Store 服务器选项，添加最大接收消息大小限制，TODO: 加入配置文件
@@ -254,7 +254,7 @@ func (m *Manager) Start() error {
 // Stop stops all RPC servers gracefully.
 func (m *Manager) Stop() {
 	m.stopOnce.Do(func() {
-		shutdownWithTimeout(m.Ignis, 30*time.Second)
+		shutdownWithTimeout(m.Execution, 30*time.Second)
 		shutdownWithTimeout(m.Store, 30*time.Second)
 		shutdownWithTimeout(m.Logger, 30*time.Second)
 		shutdownWithTimeout(m.ResourceLogger, 30*time.Second)

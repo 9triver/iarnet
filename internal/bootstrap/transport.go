@@ -24,7 +24,7 @@ func bootstrapTransport(iarnet *Iarnet) error {
 	iarnet.Channeler = channeler
 
 	// 构建 RPC 服务器地址
-	ignisAddr := fmt.Sprintf("0.0.0.0:%d", iarnet.Config.Transport.RPC.Ignis.Port)
+	executionAddr := fmt.Sprintf("0.0.0.0:%d", iarnet.Config.Transport.RPC.Ignis.Port)
 	storeAddr := fmt.Sprintf("0.0.0.0:%d", iarnet.Config.Transport.RPC.Store.Port)
 	loggerAddr := fmt.Sprintf("0.0.0.0:%d", iarnet.Config.Transport.RPC.Logger.Port)
 	resourceLoggerAddr := fmt.Sprintf("0.0.0.0:%d", iarnet.Config.Transport.RPC.ResourceLogger.Port)
@@ -33,7 +33,7 @@ func bootstrapTransport(iarnet *Iarnet) error {
 
 	// 创建 RPC 服务器管理器（不启动，启动操作在 Start 方法中统一执行）
 	opts := rpc.Options{
-		IgnisAddr:             ignisAddr,
+		ExecutionAddr:          executionAddr,
 		StoreAddr:             storeAddr,
 		LoggerAddr:            loggerAddr,
 		ControllerService:     iarnet.IgnisPlatform,
