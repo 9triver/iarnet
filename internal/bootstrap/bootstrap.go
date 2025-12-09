@@ -8,7 +8,7 @@ import (
 )
 
 // Initialize 初始化所有模块
-// 按照依赖顺序初始化：基础设施 -> Resource -> Application -> Ignis -> Transport
+// 按照依赖顺序初始化：基础设施 -> Resource -> Application -> Execution -> Transport
 func Initialize(cfg *config.Config) (*Iarnet, error) {
 	iarnet := &Iarnet{
 		Config:             cfg,
@@ -25,9 +25,9 @@ func Initialize(cfg *config.Config) (*Iarnet, error) {
 		return nil, fmt.Errorf("failed to initialize resource module: %w", err)
 	}
 
-	// 2. 初始化 Ignis 模块
+	// 2. 初始化 Execution 模块
 	if err := bootstrapIgnis(iarnet); err != nil {
-		return nil, fmt.Errorf("failed to initialize ignis module: %w", err)
+		return nil, fmt.Errorf("failed to initialize execution module: %w", err)
 	}
 
 	// 3. 初始化 Application 模块

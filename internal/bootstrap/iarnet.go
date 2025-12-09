@@ -6,7 +6,7 @@ import (
 
 	"github.com/9triver/iarnet/internal/config"
 	"github.com/9triver/iarnet/internal/domain/application"
-	"github.com/9triver/iarnet/internal/domain/ignis"
+	"github.com/9triver/iarnet/internal/domain/execution"
 	"github.com/9triver/iarnet/internal/domain/resource"
 	"github.com/9triver/iarnet/internal/domain/resource/component"
 	"github.com/9triver/iarnet/internal/domain/resource/discovery"
@@ -40,8 +40,8 @@ type Iarnet struct {
 	// Application 模块
 	ApplicationManager *application.Manager
 
-	// Ignis 模块
-	IgnisPlatform *ignis.Platform
+	// Execution 模块
+	IgnisPlatform *execution.Platform
 }
 
 // Start 启动所有服务

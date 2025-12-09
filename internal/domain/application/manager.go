@@ -10,8 +10,8 @@ import (
 	"github.com/9triver/iarnet/internal/domain/application/runner"
 	"github.com/9triver/iarnet/internal/domain/application/types"
 	"github.com/9triver/iarnet/internal/domain/application/workspace"
-	"github.com/9triver/iarnet/internal/domain/ignis"
-	"github.com/9triver/iarnet/internal/domain/ignis/task"
+	"github.com/9triver/iarnet/internal/domain/execution"
+	"github.com/9triver/iarnet/internal/domain/execution/task"
 	logrus "github.com/sirupsen/logrus"
 )
 
@@ -26,7 +26,7 @@ type Manager struct {
 	runnerSvc    runner.Service
 	workspaceSvc workspace.Service
 	metadataSvc  metadata.Service
-	platform     *ignis.Platform
+	platform     *execution.Platform
 	loggerSvc    logger.Service
 }
 
@@ -51,7 +51,7 @@ func (m *Manager) SetApplicationMetadataService(metadataSvc metadata.Service) *M
 	return m
 }
 
-func (m *Manager) SetIgnisPlatform(platform *ignis.Platform) *Manager {
+func (m *Manager) SetIgnisPlatform(platform *execution.Platform) *Manager {
 	m.platform = platform
 	return m
 }

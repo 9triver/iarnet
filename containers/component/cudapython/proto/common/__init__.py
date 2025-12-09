@@ -1,3 +1,0 @@
-"""
-Common protobuf types
-"""

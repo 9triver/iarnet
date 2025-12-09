@@ -1,7 +1,7 @@
 package controller
 
 import (
-	"github.com/9triver/iarnet/internal/domain/ignis/controller"
+	"github.com/9triver/iarnet/internal/domain/execution/controller"
 	ctrlpb "github.com/9triver/iarnet/internal/proto/ignis/controller"
 )
 

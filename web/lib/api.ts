@@ -37,11 +37,17 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}, timeout:
 async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${API_BASE}${endpoint}`
 
+  // 如果是 FormData，不设置 Content-Type，让浏览器自动设置（包括 boundary）
+  const isFormData = options.body instanceof FormData
+  const headers: HeadersInit = isFormData
+    ? { ...options.headers }
+    : {
+        "Content-Type": "application/json",
+        ...options.headers,
+      }
+
   const response = await fetchWithTimeout(url, {
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
+    headers,
     ...options,
   }, 10000) // 10 秒超时
 
@@ -107,6 +113,7 @@ import type {
   UpdateResourceProviderResponse,
   GetDiscoveredNodesResponse,
   GetNodeInfoResponse,
+  BatchRegisterResourceProviderResponse,
 } from "./model"
 
 export const resourcesAPI = {
@@ -137,6 +144,16 @@ export const resourcesAPI = {
       method: "POST",
       body: JSON.stringify(request),
     }),
+
+  // 批量注册资源提供者
+  batchRegisterProvider: (file: File) => {
+    const formData = new FormData()
+    formData.append("file", file)
+    return apiRequest<BatchRegisterResourceProviderResponse>("/resource/provider/batch", {
+      method: "POST",
+      body: formData,
+    })
+  },
 
   // 注销资源提供者
   unregisterProvider: (id: string) =>

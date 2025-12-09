@@ -53,6 +53,24 @@ export interface RegisterResourceProviderResponse {
   name: string // 提供者名称
 }
 
+// BatchRegisterResourceProviderResponse 批量注册资源提供者响应
+export interface BatchRegisterResourceProviderResponse {
+  total: number
+  success: number
+  failed: number
+  results: BatchRegisterResult[]
+  errors?: string[]
+}
+
+// BatchRegisterResult 批量注册结果
+export interface BatchRegisterResult {
+  name: string
+  address: string
+  success: boolean
+  message: string
+  provider_id?: string
+}
+
 // UnregisterResourceProviderResponse 注销资源提供者响应
 export interface UnregisterResourceProviderResponse {
   id: string      // 提供者 ID

@@ -3,12 +3,12 @@ package types
 import (
 	"time"
 
-	ignistypes "github.com/9triver/iarnet/internal/domain/ignis/types"
+	executiontypes "github.com/9triver/iarnet/internal/domain/execution/types"
 	resourcetypes "github.com/9triver/iarnet/internal/domain/resource/types"
 )
 
 // 应用领域类型
-// application 依赖 ignis 和 resource，可以使用两者的类型
+// application 依赖 execution 和 resource，可以使用两者的类型
 
 // AppID 应用标识符
 type AppID = string
@@ -71,10 +71,10 @@ const (
 	RunnerStatusStopped  RunnerStatus = "stopped"
 )
 
-// 重新导出 ignis 领域类型以便使用
-type ActorID = ignistypes.ActorID
-type SessionID = ignistypes.SessionID
-type RuntimeID = ignistypes.RuntimeID
+// 重新导出 execution 领域类型以便使用
+type ActorID = executiontypes.ActorID
+type SessionID = executiontypes.SessionID
+type RuntimeID = executiontypes.RuntimeID
 
 // 重新导出 resource 领域类型以便使用
 type Info = resourcetypes.Info
@@ -88,7 +88,7 @@ type StoreID = resourcetypes.StoreID
 
 // 重新导出 resource 常量
 const (
-	RuntimeEnvPython = resourcetypes.RuntimeEnvPython
+	RuntimeEnvPython           = resourcetypes.RuntimeEnvPython
 	ProviderStatusUnknown      = resourcetypes.ProviderStatusUnknown
 	ProviderStatusConnected    = resourcetypes.ProviderStatusConnected
 	ProviderStatusDisconnected = resourcetypes.ProviderStatusDisconnected

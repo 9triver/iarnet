@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/9triver/iarnet/internal/domain/application/types"
-	taskpkg "github.com/9triver/iarnet/internal/domain/ignis/task"
+	taskpkg "github.com/9triver/iarnet/internal/domain/execution/task"
 )
 
 // CreateApplicationRequest 创建应用请求

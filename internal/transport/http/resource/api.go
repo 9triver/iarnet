@@ -2,8 +2,10 @@ package resource
 
 import (
 	"context"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -30,6 +32,7 @@ func RegisterRoutes(router *mux.Router, resMgr *resource.Manager, cfg *config.Co
 	router.HandleFunc("/resource/provider/{id}/usage", api.handleGetResourceProviderUsage).Methods("GET")
 	router.HandleFunc("/resource/provider/test", api.handleTestResourceProvider).Methods("POST")
 	router.HandleFunc("/resource/provider", api.handleRegisterResourceProvider).Methods("POST")
+	router.HandleFunc("/resource/provider/batch", api.handleBatchRegisterResourceProvider).Methods("POST")
 	router.HandleFunc("/resource/provider/{id}", api.handleUpdateResourceProvider).Methods("PUT")
 	router.HandleFunc("/resource/provider/{id}", api.handleUnregisterResourceProvider).Methods("DELETE")
 
@@ -257,6 +260,172 @@ func (api *API) handleRegisterResourceProvider(w http.ResponseWriter, r *http.Re
 		Name: p.GetName(),
 	}
 	response.Created(resp).WriteJSON(w)
+}
+
+// handleBatchRegisterResourceProvider 批量注册资源提供者
+func (api *API) handleBatchRegisterResourceProvider(w http.ResponseWriter, r *http.Request) {
+	// 解析 multipart/form-data
+	if err := r.ParseMultipartForm(10 << 20); err != nil { // 10MB max
+		response.BadRequest("failed to parse multipart form: " + err.Error()).WriteJSON(w)
+		return
+	}
+
+	// 获取上传的文件
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		response.BadRequest("file not found in request: " + err.Error()).WriteJSON(w)
+		return
+	}
+	defer file.Close()
+
+	// 验证文件类型
+	if !strings.HasSuffix(strings.ToLower(header.Filename), ".csv") {
+		response.BadRequest("file must be a CSV file").WriteJSON(w)
+		return
+	}
+
+	// 解析 CSV 文件
+	providers, parseErrors := parseCSVFile(file)
+	if len(parseErrors) > 0 {
+		// 如果有解析错误，返回错误信息
+		resp := BatchRegisterResourceProviderResponse{
+			Total:   0,
+			Success: 0,
+			Failed:  0,
+			Results: nil,
+			Errors:  parseErrors,
+		}
+		badResp := response.BadRequest("CSV parsing errors")
+		badResp.Data = resp
+		badResp.WriteJSON(w)
+		return
+	}
+
+	if len(providers) == 0 {
+		response.BadRequest("CSV file is empty or contains no valid data").WriteJSON(w)
+		return
+	}
+
+	// 批量注册
+	results := make([]BatchRegisterResult, 0, len(providers))
+	successCount := 0
+	failedCount := 0
+
+	for _, req := range providers {
+		result := BatchRegisterResult{
+			Name:    req.Name,
+			Address: fmt.Sprintf("%s:%d", req.Host, req.Port),
+		}
+
+		// 注册 provider（注意：Manager.RegisterProvider 没有 context 参数）
+		p, err := api.resMgr.RegisterProvider(req.Name, req.Host, req.Port)
+		if err != nil {
+			logrus.Errorf("Failed to register provider %s (%s:%d): %v", req.Name, req.Host, req.Port, err)
+			result.Success = false
+			result.Message = err.Error()
+			failedCount++
+		} else {
+			result.Success = true
+			result.Message = "注册成功"
+			result.ProviderID = p.GetID()
+			successCount++
+		}
+
+		results = append(results, result)
+	}
+
+	resp := BatchRegisterResourceProviderResponse{
+		Total:   len(providers),
+		Success: successCount,
+		Failed:  failedCount,
+		Results: results,
+		Errors:  nil,
+	}
+
+	response.Success(resp).WriteJSON(w)
+}
+
+// parseCSVFile 解析 CSV 文件，首行是数据而不是表头
+func parseCSVFile(file io.Reader) ([]RegisterResourceProviderRequest, []string) {
+	reader := csv.NewReader(file)
+	reader.TrimLeadingSpace = true
+	reader.LazyQuotes = true
+
+	var providers []RegisterResourceProviderRequest
+	var errors []string
+
+	lineNum := 0
+	for {
+		record, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			errors = append(errors, fmt.Sprintf("第 %d 行 CSV 解析错误: %v", lineNum+1, err))
+			continue
+		}
+
+		lineNum++
+
+		// 跳过空行
+		if len(record) == 0 || (len(record) == 1 && strings.TrimSpace(record[0]) == "") {
+			continue
+		}
+
+		// CSV 格式：节点名称,地址:端口
+		// 注意：首行就是数据，不是表头
+		if len(record) < 2 {
+			errors = append(errors, fmt.Sprintf("第 %d 行列数不足，需要至少 2 列（节点名称、地址:端口）", lineNum))
+			continue
+		}
+
+		name := strings.TrimSpace(record[0])
+		addressStr := strings.TrimSpace(record[1])
+
+		if name == "" {
+			errors = append(errors, fmt.Sprintf("第 %d 行节点名称为空", lineNum))
+			continue
+		}
+
+		if addressStr == "" {
+			errors = append(errors, fmt.Sprintf("第 %d 行地址为空", lineNum))
+			continue
+		}
+
+		// 解析地址:端口格式
+		addressParts := strings.Split(addressStr, ":")
+		if len(addressParts) != 2 {
+			errors = append(errors, fmt.Sprintf("第 %d 行地址格式错误: %s（格式应为 主机地址:端口，例如：192.168.1.100:50051）", lineNum, addressStr))
+			continue
+		}
+
+		host := strings.TrimSpace(addressParts[0])
+		portStr := strings.TrimSpace(addressParts[1])
+
+		if host == "" {
+			errors = append(errors, fmt.Sprintf("第 %d 行主机地址为空", lineNum))
+			continue
+		}
+
+		port, err := strconv.Atoi(portStr)
+		if err != nil {
+			errors = append(errors, fmt.Sprintf("第 %d 行端口无效: %s（端口必须是数字）", lineNum, portStr))
+			continue
+		}
+
+		if port <= 0 || port > 65535 {
+			errors = append(errors, fmt.Sprintf("第 %d 行端口无效: %d（端口必须在 1-65535 之间）", lineNum, port))
+			continue
+		}
+
+		providers = append(providers, RegisterResourceProviderRequest{
+			Name: name,
+			Host: host,
+			Port: port,
+		})
+	}
+
+	return providers, errors
 }
 
 func (api *API) handleUpdateResourceProvider(w http.ResponseWriter, r *http.Request) {

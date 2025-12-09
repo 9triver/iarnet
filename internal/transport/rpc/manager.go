@@ -10,7 +10,7 @@ import (
 	"google.golang.org/grpc"
 
 	applogger "github.com/9triver/iarnet/internal/domain/application/logger"
-	"github.com/9triver/iarnet/internal/domain/ignis/controller"
+	"github.com/9triver/iarnet/internal/domain/execution/controller"
 	resdiscovery "github.com/9triver/iarnet/internal/domain/resource/discovery"
 	reslogger "github.com/9triver/iarnet/internal/domain/resource/logger"
 	resscheduler "github.com/9triver/iarnet/internal/domain/resource/scheduler"

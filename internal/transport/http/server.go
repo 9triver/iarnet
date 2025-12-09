@@ -8,7 +8,7 @@ import (
 
 	"github.com/9triver/iarnet/internal/config"
 	"github.com/9triver/iarnet/internal/domain/application"
-	"github.com/9triver/iarnet/internal/domain/ignis"
+	"github.com/9triver/iarnet/internal/domain/execution"
 	"github.com/9triver/iarnet/internal/domain/resource"
 	"github.com/9triver/iarnet/internal/domain/resource/discovery"
 	applicationAPI "github.com/9triver/iarnet/internal/transport/http/application"
@@ -22,7 +22,7 @@ type Options struct {
 	Config           *config.Config
 	AppMgr           *application.Manager
 	ResMgr           *resource.Manager
-	Platform         *ignis.Platform
+	Platform         *execution.Platform
 	DiscoveryService discovery.Service
 }
 

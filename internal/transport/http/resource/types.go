@@ -130,6 +130,24 @@ type RegisterResourceProviderResponse struct {
 	Name string `json:"name"` // 提供者名称
 }
 
+// BatchRegisterResourceProviderResponse 批量注册资源提供者响应
+type BatchRegisterResourceProviderResponse struct {
+	Total   int                   `json:"total"`            // 总数
+	Success int                   `json:"success"`          // 成功数
+	Failed  int                   `json:"failed"`           // 失败数
+	Results []BatchRegisterResult `json:"results"`          // 每个节点的注册结果
+	Errors  []string              `json:"errors,omitempty"` // CSV 解析错误（如果有）
+}
+
+// BatchRegisterResult 批量注册结果
+type BatchRegisterResult struct {
+	Name       string `json:"name"`                  // 节点名称
+	Address    string `json:"address"`               // 地址:端口
+	Success    bool   `json:"success"`               // 是否成功
+	Message    string `json:"message"`               // 消息或错误信息
+	ProviderID string `json:"provider_id,omitempty"` // 提供者 ID（成功时返回）
+}
+
 // UnregisterResourceProviderResponse 注销资源提供者响应
 type UnregisterResourceProviderResponse struct {
 	ID      string `json:"id"`      // 提供者 ID
