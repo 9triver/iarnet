@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  # Kubernetes Provider 服务（在集群外运行）
+  k8s-provider:
+    image: iarnet/provider:k8s
+    container_name: k8s-provider
+    volumes:
+      # 挂载 kubeconfig 文件（用于访问 Kubernetes 集群）
+      - ~/.kube/config:/root/.kube/config:ro
+      # 挂载配置文件（可选，如果使用默认配置可以不挂载）
+      - ./config.yaml:/app/config.yaml:ro
+    ports:
+      - "50052:50052"  # gRPC 服务端口
+    networks:
+      - provider-network
+    restart: unless-stopped
+    environment:
+      # 可选：设置日志级别
+      - LOG_LEVEL=info
+
+networks:
+  provider-network:
+    driver: bridge
+
