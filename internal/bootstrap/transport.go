@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"fmt"
 
+	"github.com/9triver/iarnet/internal/domain/resource/component"
 	"github.com/9triver/iarnet/internal/transport/http"
 	"github.com/9triver/iarnet/internal/transport/rpc"
 	"github.com/9triver/iarnet/internal/transport/zmq"
@@ -12,16 +13,39 @@ import (
 // BootstrapTransport 初始化 Transport 层（RPC、HTTP 等）
 func bootstrapTransport(iarnet *Iarnet) error {
 	// 创建 ZMQ Channeler（现在可以在 Resource 之后初始化）
-	channeler := zmq.NewChanneler(iarnet.Config.Transport.ZMQ.Port)
+	// 使用 panic 恢复机制，如果 ZMQ 初始化失败，使用 null channeler
+	var channeler component.Channeler
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logrus.Errorf("ZMQ Channeler creation panic in bootstrap: %v", r)
+				logrus.Warn("Continuing without ZMQ support, using null channeler")
+				channeler = component.NewNullChanneler()
+			}
+		}()
+		ch := zmq.NewChanneler(iarnet.Config.Transport.ZMQ.Port)
+		if ch == nil {
+			logrus.Warn("ZMQ Channeler initialization returned nil, using null channeler")
+			channeler = component.NewNullChanneler()
+		} else {
+			channeler = ch
+		}
+	}()
 
-	// 将真正的 channeler 注入到 ResourceManager
+	// 将 channeler 注入到 ResourceManager（可能是 ZMQ channeler 或 null channeler）
 	if iarnet.ResourceManager != nil {
 		iarnet.ResourceManager.SetChanneler(channeler)
-		logrus.Info("ZMQ Channeler injected into ResourceManager")
+		if _, ok := channeler.(*zmq.ComponentChanneler); ok {
+			logrus.Info("ZMQ Channeler injected into ResourceManager")
+		} else {
+			logrus.Warn("Null Channeler injected into ResourceManager (ZMQ unavailable)")
+		}
 	}
 
-	// 保存 channeler 引用（用于后续关闭）
-	iarnet.Channeler = channeler
+	// 保存 ZMQ channeler 引用（用于后续关闭，如果是 null channeler 则为 nil）
+	if cc, ok := channeler.(*zmq.ComponentChanneler); ok {
+		iarnet.Channeler = cc
+	}
 
 	// 构建 RPC 服务器地址
 	executionAddr := fmt.Sprintf("0.0.0.0:%d", iarnet.Config.Transport.RPC.Ignis.Port)

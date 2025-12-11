@@ -54,6 +54,7 @@ func main() {
 		cfg.Docker.Network,
 		cfg.ResourceTags,
 		totalCapacity,
+		cfg.Docker.AllowConnectionFailure,
 	)
 	if err != nil {
 		logrus.Fatalf("Failed to create service: %v", err)

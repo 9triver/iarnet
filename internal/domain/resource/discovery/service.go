@@ -66,9 +66,11 @@ func (s *service) Stop() {
 func (s *service) PerformGossip(ctx context.Context) error {
 	peerAddresses := s.manager.GetPeerAddresses()
 	if len(peerAddresses) == 0 {
-		logrus.Debug("No peers to gossip with")
+		logrus.Debug("No peers to gossip with (initial_peers is empty or not configured)")
 		return nil
 	}
+	
+	logrus.Infof("Starting gossip with %d peer(s): %v", len(peerAddresses), peerAddresses)
 
 	// 限制每次 gossip 的 peer 数量
 	maxPeers := s.manager.GetMaxGossipPeers()
@@ -80,11 +82,20 @@ func (s *service) PerformGossip(ctx context.Context) error {
 	nodesToSend := s.manager.GetNodesForGossip()
 
 	// 与每个 peer 进行 gossip
+	successCount := 0
 	for _, peerAddr := range peerAddresses {
 		if err := s.gossipWithPeer(ctx, peerAddr, nodesToSend); err != nil {
-			logrus.Debugf("Failed to gossip with peer %s: %v", peerAddr, err)
+			logrus.Warnf("Failed to gossip with peer %s: %v", peerAddr, err)
 			// 继续处理其他 peer，不中断
+		} else {
+			successCount++
 		}
+	}
+	
+	if successCount > 0 {
+		logrus.Infof("Gossip completed: %d/%d peers succeeded", successCount, len(peerAddresses))
+	} else {
+		logrus.Warnf("Gossip failed for all %d peers", len(peerAddresses))
 	}
 
 	return nil
@@ -138,10 +149,13 @@ func (s *service) gossipWithPeer(ctx context.Context, peerAddr string, nodesToSe
 	}
 
 	// 调用 RPC
+	logrus.Debugf("Sending gossip message to peer %s (nodes: %d)", peerAddr, len(protoNodes))
 	resp, err := client.GossipNodeInfo(ctx, gossipMessage)
 	if err != nil {
 		return fmt.Errorf("failed to gossip with peer %s: %w", peerAddr, err)
 	}
+	
+	logrus.Debugf("Received gossip response from peer %s (nodes: %d)", peerAddr, len(resp.Nodes))
 
 	// 处理响应中的节点信息
 	for _, protoNode := range resp.Nodes {

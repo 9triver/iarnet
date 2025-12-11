@@ -420,12 +420,17 @@ func (m *NodeDiscoveryManager) performGossip(ctx context.Context) {
 	// 如果有回调函数，调用它执行实际的 gossip
 	m.mu.RLock()
 	callback := m.gossipCallback
+	peerCount := len(m.peerAddresses)
 	m.mu.RUnlock()
 
 	if callback != nil {
 		if err := callback(ctx); err != nil {
 			logrus.Debugf("Gossip callback failed: %v", err)
+		} else {
+			logrus.Debugf("Gossip performed successfully (peers: %d)", peerCount)
 		}
+	} else {
+		logrus.Warn("Gossip callback not set, skipping gossip. Discovery service may not be started properly.")
 	}
 
 	// 更新聚合视图

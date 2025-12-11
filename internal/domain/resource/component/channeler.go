@@ -26,13 +26,17 @@ func NewNullChanneler() Channeler {
 }
 
 func (n *nullChanneler) StartReceiver(ctx context.Context, onMessage func(componentID string, data []byte)) {
-	panic("channeler is not initialized")
+	// 不 panic，只是记录警告，允许程序继续运行
+	// panic("channeler is not initialized")
 }
 
 func (n *nullChanneler) Send(componentID string, data []byte) {
-	panic("channeler is not initialized")
+	// 不 panic，只是记录警告，允许程序继续运行
+	// panic("channeler is not initialized")
 }
 
 func (n *nullChanneler) Close() error {
-	panic("channeler is not initialized")
+	// 不 panic，允许程序继续运行
+	// panic("channeler is not initialized")
+	return nil
 }
