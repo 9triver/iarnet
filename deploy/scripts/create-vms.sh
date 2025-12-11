@@ -2,7 +2,8 @@
 # 批量创建虚拟机脚本
 # 支持创建不同类型的虚拟机：iarnet, k8s-master, k8s-worker, docker
 
-set -e
+# 不使用 set -e，允许脚本在网络启动失败时继续执行
+# set -e
 
 # 加载配置
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -14,30 +15,155 @@ command -v virsh >/dev/null 2>&1 || { echo "错误: 需要安装 libvirt"; exit 
 command -v virt-install >/dev/null 2>&1 || { echo "错误: 需要安装 virt-install"; exit 1; }
 command -v yq >/dev/null 2>&1 || { echo "错误: 需要安装 yq (https://github.com/mikefarah/yq)"; exit 1; }
 
+# 检测 yq 版本并设置正确的命令格式
+# Python 版本的 yq 不支持 eval 子命令，Go 版本支持
+# 先尝试直接使用 yq（Python 版本）
+if yq '.global.network_name' "$CONFIG_FILE" >/dev/null 2>&1; then
+    # Python 版本的 yq，直接使用 yq 命令
+    YQ_CMD="yq"
+elif yq eval '.global.network_name' "$CONFIG_FILE" >/dev/null 2>&1; then
+    # Go 版本的 yq，使用 eval 子命令
+    YQ_CMD="yq eval"
+else
+    echo "错误: 无法解析 YAML 配置文件，请检查 yq 安装"
+    exit 1
+fi
+
+# 辅助函数：从 yq 输出中去掉引号
+yq_read() {
+    local query=$1
+    local result=$($YQ_CMD "$query" "$CONFIG_FILE" 2>/dev/null)
+    echo "$result" | sed 's/^"//;s/"$//'
+}
+
 # 解析配置
-NETWORK_NAME=$(yq eval '.global.network_name' "$CONFIG_FILE")
-BASE_IMAGE=$(yq eval '.global.base_image' "$CONFIG_FILE")
-SSH_KEY=$(yq eval '.global.ssh_key_path' "$CONFIG_FILE" | sed "s|~|$HOME|")
-VM_USER=$(yq eval '.global.user' "$CONFIG_FILE")
+NETWORK_NAME=$(yq_read '.global.network_name')
+BASE_IMAGE=$(yq_read '.global.base_image')
+SSH_KEY=$(yq_read '.global.ssh_key_path' | sed "s|~|$HOME|")
+VM_USER=$(yq_read '.global.user')
 
 # 检查基础镜像是否存在
 if [ ! -f "$BASE_IMAGE" ]; then
     echo "错误: 基础镜像不存在: $BASE_IMAGE"
-    echo "请先下载 Ubuntu Cloud Image 并放置到该路径"
+    echo ""
+    echo "请先下载基础镜像，可以使用以下方法："
+    echo "1. 运行下载脚本（推荐）:"
+    echo "   ${SCRIPT_DIR}/download-base-image.sh"
+    echo ""
+    echo "2. 手动下载并放置镜像:"
+    echo "   wget https://cloud-images.ubuntu.com/releases/22.04/release/ubuntu-22.04-server-cloudimg-amd64.img"
+    echo "   sudo mkdir -p $(dirname "$BASE_IMAGE")"
+    echo "   sudo mv ubuntu-22.04-server-cloudimg-amd64.img $BASE_IMAGE"
+    echo ""
+    echo "3. 或修改配置文件使用其他路径:"
+    echo "   编辑 ${CONFIG_FILE} 中的 base_image 路径"
     exit 1
 fi
 
-# 检查网络是否存在
-if ! virsh net-info "$NETWORK_NAME" >/dev/null 2>&1; then
+# 检查网络是否存在（使用系统连接）
+if ! sudo virsh --connect qemu:///system net-info "$NETWORK_NAME" >/dev/null 2>&1; then
     echo "错误: 网络 $NETWORK_NAME 不存在"
     echo "请先创建网络: virsh net-define ${BASE_DIR}/networks/${NETWORK_NAME}.xml && virsh net-start $NETWORK_NAME && virsh net-autostart $NETWORK_NAME"
     exit 1
 fi
 
+# 检查网络是否激活，如果没有则启动（使用系统连接）
+NETWORK_INFO=$(sudo virsh --connect qemu:///system net-info "$NETWORK_NAME" 2>&1)
+if [ $? -ne 0 ]; then
+    echo "错误: 网络 $NETWORK_NAME 不存在"
+    echo "请先运行网络设置脚本创建网络:"
+    echo "  ${BASE_DIR}/scripts/setup-network.sh"
+    exit 1
+fi
+
+NETWORK_ACTIVE=$(echo "$NETWORK_INFO" | grep "Active:" | awk '{print $2}')
+BRIDGE_NAME=$(echo "$NETWORK_INFO" | grep "Bridge:" | awk '{print $2}')
+
+if [ "$NETWORK_ACTIVE" != "yes" ]; then
+    echo "启动网络 $NETWORK_NAME..."
+    # 尝试启动网络，显示错误信息
+    NET_START_OUTPUT=$(sudo virsh --connect qemu:///system net-start "$NETWORK_NAME" 2>&1)
+    NET_START_STATUS=$?
+    
+    if [ $NET_START_STATUS -eq 0 ]; then
+        sudo virsh --connect qemu:///system net-autostart "$NETWORK_NAME" 2>/dev/null || true
+        echo "✓ 网络已启动并设置为自动启动"
+    else
+        echo "网络启动失败，错误信息:"
+        echo "$NET_START_OUTPUT"
+        echo ""
+        
+        # 检查接口是否存在（可能接口已创建但网络未激活）
+        if [ -n "$BRIDGE_NAME" ] && ip link show "$BRIDGE_NAME" >/dev/null 2>&1; then
+            echo "⚠ 网络接口 $BRIDGE_NAME 已存在"
+            # 检查接口是否已配置IP
+            if ip addr show "$BRIDGE_NAME" | grep -q "192.168.100.1"; then
+                echo "✓ 网络接口已配置IP地址，继续创建虚拟机"
+                echo "  注意: 网络未在 libvirt 中激活，但接口可用"
+                sudo virsh --connect qemu:///system net-autostart "$NETWORK_NAME" 2>/dev/null || true
+            else
+                echo "⚠ 网络接口存在但未配置IP，尝试删除并重新启动..."
+                if sudo ip link set "$BRIDGE_NAME" down 2>/dev/null && \
+                   sudo ip link delete "$BRIDGE_NAME" 2>/dev/null; then
+                    echo "   ✓ 接口已删除，重新启动网络..."
+                    sleep 2
+                    NET_START_OUTPUT2=$(sudo virsh --connect qemu:///system net-start "$NETWORK_NAME" 2>&1)
+                    if [ $? -eq 0 ]; then
+                        sudo virsh --connect qemu:///system net-autostart "$NETWORK_NAME" 2>/dev/null || true
+                        echo "   ✓ 网络已启动"
+                    else
+                        echo "   ✗ 仍然无法启动网络"
+                        echo "   错误信息: $NET_START_OUTPUT2"
+                        echo ""
+                        echo "   警告: 网络未激活，但将继续尝试创建虚拟机"
+                        echo "   如果虚拟机创建失败，请运行: ${BASE_DIR}/scripts/setup-network.sh"
+                    fi
+                else
+                    echo "   ✗ 无法删除接口（需要 sudo 权限）"
+                    echo ""
+                    echo "   警告: 网络未激活，但将继续尝试创建虚拟机"
+                    echo "   如果虚拟机创建失败，请运行: ${BASE_DIR}/scripts/setup-network.sh"
+                fi
+            fi
+        else
+            echo "⚠ 网络未激活且接口不存在"
+            echo "   警告: 将继续尝试创建虚拟机，但可能会失败"
+            echo "   建议先运行: ${BASE_DIR}/scripts/setup-network.sh"
+        fi
+    fi
+else
+    echo "✓ 网络已激活"
+fi
+
+echo ""
+
 # 创建目录
 mkdir -p "${BASE_DIR}/cloud-init"
 mkdir -p "${BASE_DIR}/images"
 mkdir -p "${BASE_DIR}/logs"
+
+# 设置目录权限，让 libvirt-qemu 可以访问
+echo "设置目录权限..."
+# 确保父目录有执行权限（libvirt-qemu 需要能够进入目录）
+# 设置 /home/zhangyx 的权限（如果可能）
+if [ -w "/home/zhangyx" ]; then
+    chmod 755 /home/zhangyx 2>/dev/null || sudo chmod 755 /home/zhangyx 2>/dev/null || true
+fi
+
+# 设置 iarnet 目录权限
+chmod 755 "${BASE_DIR}" 2>/dev/null || sudo chmod 755 "${BASE_DIR}" 2>/dev/null || true
+
+# 设置子目录权限，允许 libvirt-qemu 组访问
+chmod 775 "${BASE_DIR}/images" "${BASE_DIR}/cloud-init" "${BASE_DIR}/logs" 2>/dev/null || \
+sudo chmod 775 "${BASE_DIR}/images" "${BASE_DIR}/cloud-init" "${BASE_DIR}/logs" 2>/dev/null || true
+
+# 尝试将目录组改为 libvirt-qemu 或 kvm
+if groups | grep -q libvirt; then
+    chgrp libvirt-qemu "${BASE_DIR}/images" "${BASE_DIR}/cloud-init" "${BASE_DIR}/logs" 2>/dev/null || \
+    sudo chgrp libvirt-qemu "${BASE_DIR}/images" "${BASE_DIR}/cloud-init" "${BASE_DIR}/logs" 2>/dev/null || true
+fi
+
+echo "✓ 目录权限已设置"
 
 # 函数：创建单个虚拟机
 create_vm() {
@@ -59,6 +185,12 @@ create_vm() {
     fi
     
     qemu-img create -f qcow2 -b "$BASE_IMAGE" -F qcow2 "$disk_path" "${disk}G"
+    
+    # 设置磁盘镜像权限，让 libvirt-qemu 可以访问
+    chmod 664 "$disk_path" 2>/dev/null || sudo chmod 664 "$disk_path" 2>/dev/null || true
+    if groups | grep -q libvirt; then
+        chgrp libvirt-qemu "$disk_path" 2>/dev/null || sudo chgrp libvirt-qemu "$disk_path" 2>/dev/null || true
+    fi
     
     # 生成 cloud-init 配置
     local cloud_init_dir="${BASE_DIR}/cloud-init/${vm_name}"
@@ -95,8 +227,16 @@ create_vm() {
         "${cloud_init_dir}/meta-data" \
         "${cloud_init_dir}/network-config" 2>/dev/null
     
-    # 使用 virt-install 创建虚拟机
-    virt-install \
+    # 设置 cloud-init ISO 权限，让 libvirt-qemu 可以访问
+    if [ -f "${cloud_init_dir}/cloud-init.iso" ]; then
+        chmod 664 "${cloud_init_dir}/cloud-init.iso" 2>/dev/null || sudo chmod 664 "${cloud_init_dir}/cloud-init.iso" 2>/dev/null || true
+        if groups | grep -q libvirt; then
+            chgrp libvirt-qemu "${cloud_init_dir}/cloud-init.iso" 2>/dev/null || sudo chgrp libvirt-qemu "${cloud_init_dir}/cloud-init.iso" 2>/dev/null || true
+        fi
+    fi
+    
+    # 使用 virt-install 创建虚拟机（使用系统连接）
+    sudo virt-install --connect qemu:///system \
         --name "$vm_name" \
         --ram "$memory" \
         --vcpus "$cpu" \
@@ -136,7 +276,10 @@ packages:
   - curl
   - wget
   - git
+  - openssh-server
 runcmd:
+  - systemctl enable ssh
+  - systemctl start ssh
   - systemctl enable docker
   - systemctl start docker
   - usermod -aG docker ${VM_USER}
@@ -165,7 +308,7 @@ ethernets:
     dhcp4: false
     addresses:
       - ${ip}/24
-    gateway4: 172.30.0.1
+    gateway4: 192.168.100.1
     nameservers:
       addresses:
         - 8.8.8.8
@@ -201,6 +344,7 @@ packages:
   - curl
   - wget
   - git
+  - openssh-server
 write_files:
   - path: /etc/modules-load.d/k8s.conf
     content: |
@@ -274,7 +418,7 @@ ethernets:
     dhcp4: false
     addresses:
       - ${ip}/24
-    gateway4: 172.30.0.1
+    gateway4: 192.168.100.1
     nameservers:
       addresses:
         - 8.8.8.8
@@ -374,7 +518,7 @@ ethernets:
     dhcp4: false
     addresses:
       - ${ip}/24
-    gateway4: 172.30.0.1
+    gateway4: 192.168.100.1
     nameservers:
       addresses:
         - 8.8.8.8
@@ -405,6 +549,8 @@ packages:
   - curl
   - wget
 runcmd:
+  - systemctl enable ssh
+  - systemctl start ssh
   - systemctl enable docker
   - systemctl start docker
   - usermod -aG docker ${VM_USER}
@@ -433,7 +579,7 @@ ethernets:
     dhcp4: false
     addresses:
       - ${ip}/24
-    gateway4: 172.30.0.1
+    gateway4: 192.168.100.1
     nameservers:
       addresses:
         - 8.8.8.8
@@ -447,13 +593,13 @@ main() {
     
     # 创建 iarnet 节点
     echo "创建 iarnet 节点..."
-    IARNET_COUNT=$(yq eval '.vm_types.iarnet.count' "$CONFIG_FILE")
-    IARNET_IP_BASE=$(yq eval '.vm_types.iarnet.ip_base' "$CONFIG_FILE")
-    IARNET_IP_START=$(yq eval '.vm_types.iarnet.ip_start' "$CONFIG_FILE")
-    IARNET_CPU=$(yq eval '.vm_types.iarnet.cpu' "$CONFIG_FILE")
-    IARNET_MEM=$(yq eval '.vm_types.iarnet.memory' "$CONFIG_FILE")
-    IARNET_DISK=$(yq eval '.vm_types.iarnet.disk' "$CONFIG_FILE")
-    IARNET_PREFIX=$(yq eval '.vm_types.iarnet.hostname_prefix' "$CONFIG_FILE")
+    IARNET_COUNT=$(yq_read '.vm_types.iarnet.count')
+    IARNET_IP_BASE=$(yq_read '.vm_types.iarnet.ip_base')
+    IARNET_IP_START=$(yq_read '.vm_types.iarnet.ip_start')
+    IARNET_CPU=$(yq_read '.vm_types.iarnet.cpu')
+    IARNET_MEM=$(yq_read '.vm_types.iarnet.memory')
+    IARNET_DISK=$(yq_read '.vm_types.iarnet.disk')
+    IARNET_PREFIX=$(yq_read '.vm_types.iarnet.hostname_prefix')
     
     for i in $(seq 1 $IARNET_COUNT); do
         vm_name="${IARNET_PREFIX}-${i}"
@@ -463,25 +609,28 @@ main() {
     
     # 创建 K8s 集群
     echo "创建 K8s 集群..."
-    CLUSTER_COUNT=$(yq eval '.vm_types.k8s_clusters.count' "$CONFIG_FILE")
-    K8S_IP_BASE=$(yq eval '.vm_types.k8s_clusters.master.ip_base' "$CONFIG_FILE")
-    K8S_IP_START=$(yq eval '.vm_types.k8s_clusters.master.ip_start' "$CONFIG_FILE")
-    K8S_IP_STEP=$(yq eval '.vm_types.k8s_clusters.master.ip_step' "$CONFIG_FILE")
-    MASTER_CPU=$(yq eval '.vm_types.k8s_clusters.master.cpu' "$CONFIG_FILE")
-    MASTER_MEM=$(yq eval '.vm_types.k8s_clusters.master.memory' "$CONFIG_FILE")
-    MASTER_DISK=$(yq eval '.vm_types.k8s_clusters.master.disk' "$CONFIG_FILE")
-    MASTER_PREFIX=$(yq eval '.vm_types.k8s_clusters.master.hostname_prefix' "$CONFIG_FILE")
-    MASTER_SUFFIX=$(yq eval '.vm_types.k8s_clusters.master.hostname_suffix' "$CONFIG_FILE")
-    WORKER_COUNT=$(yq eval '.vm_types.k8s_clusters.worker.count_per_cluster' "$CONFIG_FILE")
-    WORKER_CPU=$(yq eval '.vm_types.k8s_clusters.worker.cpu' "$CONFIG_FILE")
-    WORKER_MEM=$(yq eval '.vm_types.k8s_clusters.worker.memory' "$CONFIG_FILE")
-    WORKER_DISK=$(yq eval '.vm_types.k8s_clusters.worker.disk' "$CONFIG_FILE")
-    WORKER_PREFIX=$(yq eval '.vm_types.k8s_clusters.worker.hostname_prefix' "$CONFIG_FILE")
-    WORKER_SUFFIX=$(yq eval '.vm_types.k8s_clusters.worker.hostname_suffix' "$CONFIG_FILE")
-    PORT_BASE=$(yq eval '.vm_types.k8s_clusters.master.provider_port_base' "$CONFIG_FILE")
+    CLUSTER_COUNT=$(yq_read '.vm_types.k8s_clusters.count')
+    K8S_IP_BASE=$(yq_read '.vm_types.k8s_clusters.master.ip_base')
+    K8S_IP_START=$(yq_read '.vm_types.k8s_clusters.master.ip_start')
+    K8S_IP_STEP=$(yq_read '.vm_types.k8s_clusters.master.ip_step')
+    MASTER_CPU=$(yq_read '.vm_types.k8s_clusters.master.cpu')
+    MASTER_MEM=$(yq_read '.vm_types.k8s_clusters.master.memory')
+    MASTER_DISK=$(yq_read '.vm_types.k8s_clusters.master.disk')
+    MASTER_PREFIX=$(yq_read '.vm_types.k8s_clusters.master.hostname_prefix')
+    MASTER_SUFFIX=$(yq_read '.vm_types.k8s_clusters.master.hostname_suffix')
+    WORKER_COUNT=$(yq_read '.vm_types.k8s_clusters.worker.count_per_cluster')
+    WORKER_CPU=$(yq_read '.vm_types.k8s_clusters.worker.cpu')
+    WORKER_MEM=$(yq_read '.vm_types.k8s_clusters.worker.memory')
+    WORKER_DISK=$(yq_read '.vm_types.k8s_clusters.worker.disk')
+    WORKER_PREFIX=$(yq_read '.vm_types.k8s_clusters.worker.hostname_prefix')
+    WORKER_SUFFIX=$(yq_read '.vm_types.k8s_clusters.worker.hostname_suffix')
+    PORT_BASE=$(yq_read '.vm_types.k8s_clusters.master.provider_port_base')
     
     # 读取 Pod CIDR 列表
-    POD_CIDRS=($(yq eval '.k8s_pod_cidrs.[]' "$CONFIG_FILE"))
+    POD_CIDRS=()
+    while IFS= read -r line; do
+        POD_CIDRS+=("$(echo "$line" | sed 's/^"//;s/"$//')")
+    done < <($YQ_CMD '.k8s_pod_cidrs.[]' "$CONFIG_FILE")
     
     for cluster_id in $(seq 1 $CLUSTER_COUNT); do
         echo "  创建集群 $cluster_id..."
@@ -509,13 +658,13 @@ main() {
     
     # 创建 Docker Provider 节点
     echo "创建 Docker Provider 节点..."
-    DOCKER_COUNT=$(yq eval '.vm_types.docker.count' "$CONFIG_FILE")
-    DOCKER_IP_BASE=$(yq eval '.vm_types.docker.ip_base' "$CONFIG_FILE")
-    DOCKER_IP_START=$(yq eval '.vm_types.docker.ip_start' "$CONFIG_FILE")
-    DOCKER_CPU=$(yq eval '.vm_types.docker.cpu' "$CONFIG_FILE")
-    DOCKER_MEM=$(yq eval '.vm_types.docker.memory' "$CONFIG_FILE")
-    DOCKER_DISK=$(yq eval '.vm_types.docker.disk' "$CONFIG_FILE")
-    DOCKER_PREFIX=$(yq eval '.vm_types.docker.hostname_prefix' "$CONFIG_FILE")
+    DOCKER_COUNT=$(yq_read '.vm_types.docker.count')
+    DOCKER_IP_BASE=$(yq_read '.vm_types.docker.ip_base')
+    DOCKER_IP_START=$(yq_read '.vm_types.docker.ip_start')
+    DOCKER_CPU=$(yq_read '.vm_types.docker.cpu')
+    DOCKER_MEM=$(yq_read '.vm_types.docker.memory')
+    DOCKER_DISK=$(yq_read '.vm_types.docker.disk')
+    DOCKER_PREFIX=$(yq_read '.vm_types.docker.hostname_prefix')
     
     for i in $(seq 1 $DOCKER_COUNT); do
         vm_name="${DOCKER_PREFIX}-${i}"
