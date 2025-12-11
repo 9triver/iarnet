@@ -30,6 +30,7 @@ go.work
 /build/
 iarnet
 iarnet-*
+!iarnet-configs
 
 # Logs
 logs
