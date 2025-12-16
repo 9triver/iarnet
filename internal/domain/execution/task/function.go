@@ -99,6 +99,11 @@ func (f *Function) Done(ctx context.Context, runtimeID types.RuntimeID, actorInf
 		logrus.WithFields(logrus.Fields{"runtime": runtimeID}).Errorf("task: actor not found")
 		return fmt.Errorf("actor not found: %s", runtimeID)
 	}
+
+	// 通知 actor 任务完成，触发队列处理
+	actor.OnTaskDone(ctx)
+
+	// 将 actor 放回组中（用于轮询选择）
 	f.group.Push(actor)
 	return nil
 }
