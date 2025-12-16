@@ -34,7 +34,7 @@ type Service struct {
 	allocated     *resourcepb.Info // 当前已分配的容量（内存中动态维护）
 }
 
-func NewService(host, tlsCertPath string, tlsVerify bool, apiVersion string, network string, resourceTags []string, totalCapacity *resourcepb.Info) (*Service, error) {
+func NewService(host, tlsCertPath string, tlsVerify bool, apiVersion string, network string, resourceTags []string, totalCapacity *resourcepb.Info, allowConnectionFailure bool) (*Service, error) {
 	var opts []client.Opt
 
 	if host != "" {
@@ -57,18 +57,33 @@ func NewService(host, tlsCertPath string, tlsVerify bool, apiVersion string, net
 
 	cli, err := client.NewClientWithOpts(opts...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create Docker client: %w", err)
+		if allowConnectionFailure {
+			logrus.Warnf("Failed to create Docker client: %v (continuing in test mode)", err)
+			cli = nil // 设置为 nil，表示未连接
+		} else {
+			return nil, fmt.Errorf("failed to create Docker client: %w", err)
+		}
 	}
 
 	// 测试连接
-	ctx := context.Background()
-	_, err = cli.Ping(ctx)
-	if err != nil {
-		cli.Close()
-		return nil, fmt.Errorf("failed to ping Docker daemon: %w", err)
+	if cli != nil {
+		ctx := context.Background()
+		_, err = cli.Ping(ctx)
+		if err != nil {
+			if allowConnectionFailure {
+				logrus.Warnf("Failed to ping Docker daemon: %v (continuing in test mode)", err)
+				cli.Close()
+				cli = nil // 设置为 nil，表示未连接
+			} else {
+				cli.Close()
+				return nil, fmt.Errorf("failed to ping Docker daemon: %w", err)
+			}
+		} else {
+			logrus.Infof("Successfully connected to Docker daemon at %s", host)
+		}
+	} else if allowConnectionFailure {
+		logrus.Warnf("Docker client is nil, provider will start in test mode without Docker connection")
 	}
-
-	logrus.Infof("Successfully connected to Docker daemon at %s", host)
 
 	// 创建健康检查管理器
 	// 健康检测超时时间：90 秒（假设 iarnet 每 30 秒检测一次，允许 3 次失败）
@@ -283,6 +298,13 @@ func (s *Service) Deploy(ctx context.Context, req *providerpb.DeployRequest) (*p
 		}, nil
 	}
 
+	// 检查 Docker 客户端是否可用
+	if s.client == nil {
+		return &providerpb.DeployResponse{
+			Error: "Docker client is not available (test mode or connection failed)",
+		}, nil
+	}
+
 	logrus.WithFields(logrus.Fields{
 		"image":            req.Image,
 		"env_vars":         req.EnvVars,
@@ -472,6 +494,17 @@ func (s *Service) GetRealTimeUsage(ctx context.Context, req *providerpb.GetRealT
 	providerID := s.manager.GetProviderID()
 	if providerID == "" {
 		return nil, fmt.Errorf("provider not connected")
+	}
+
+	// 检查 Docker 客户端是否可用
+	if s.client == nil {
+		return &providerpb.GetRealTimeUsageResponse{
+			Usage: &resourcepb.Info{
+				Cpu:    0,
+				Memory: 0,
+				Gpu:    0,
+			},
+		}, nil
 	}
 
 	// 列出所有容器

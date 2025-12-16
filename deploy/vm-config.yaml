@@ -1,5 +1,8 @@
 # 虚拟机配置清单
-# 用于批量创建和管理100台虚拟机
+# 用于批量创建和管理200台虚拟机
+# - 40个K8s集群（每个集群3个虚拟机：1 master + 2 worker）= 120台
+# - 60个Docker节点 = 60台
+# - 20个iarnet节点 = 20台
 
 # 全局配置
 global:
@@ -7,28 +10,30 @@ global:
   network_name: "iarnet-network"  # libvirt 网络名称
   ssh_key_path: "~/.ssh/id_rsa.pub"  # SSH 公钥路径
   user: "ubuntu"  # 默认用户
+  password: "123456"  # 可选：设置用户密码（如果设置，可以通过密码登录）
+  # password_hash: "$6$..."  # 可选：使用加密后的密码（更安全）
 
 # 虚拟机类型配置
 vm_types:
   # iarnet 节点
   iarnet:
-    count: 3
+    count: 20  # 20个iarnet节点
     cpu: 2
     memory: 2048  # MB
     disk: 20  # GB
-    ip_base: "172.30.1"
-    ip_start: 10
+    ip_base: "192.168.100"
+    ip_start: 10  # 从 .10 开始，到 .29 结束（20个IP）
     hostname_prefix: "vm-iarnet"
     
   # Kubernetes 集群配置
   k8s_clusters:
-    count: 20  # 20个集群
+    count: 40  # 40个集群
     master:
       cpu: 2
       memory: 2048
       disk: 30
-      ip_base: "172.30.2"
-      ip_start: 1  # 集群1 master从 .1 开始
+      ip_base: "192.168.100"
+      ip_start: 110  # 集群1 master从 .110 开始（docker: 50-109, iarnet: 10-29）
       ip_step: 3  # 每个集群占用3个IP（master + 2 worker）
       hostname_prefix: "vm-k8s-cluster"
       hostname_suffix: "-master"
@@ -44,15 +49,15 @@ vm_types:
       
   # Docker Provider 节点
   docker:
-    count: 37
-    cpu: 1
-    memory: 1024
+    count: 60  # 60个Docker节点
+    cpu: 2
+    memory: 2048
     disk: 20
-    ip_base: "172.30.3"
-    ip_start: 1
+    ip_base: "192.168.100"
+    ip_start: 50  # 从 .50 开始，到 .109 结束（60个IP）
     hostname_prefix: "vm-docker"
 
-# Pod 网络 CIDR 分配（每个集群一个）
+# Pod 网络 CIDR 分配（每个集群一个，共40个）
 k8s_pod_cidrs:
   - "10.244.0.0/16"  # 集群1
   - "10.245.0.0/16"  # 集群2
@@ -74,4 +79,24 @@ k8s_pod_cidrs:
   - "10.231.0.0/16"  # 集群18
   - "10.232.0.0/16"  # 集群19
   - "10.233.0.0/16"  # 集群20
+  - "10.234.0.0/16"  # 集群21
+  - "10.235.0.0/16"  # 集群22
+  - "10.236.0.0/16"  # 集群23
+  - "10.237.0.0/16"  # 集群24
+  - "10.238.0.0/16"  # 集群25
+  - "10.239.0.0/16"  # 集群26
+  - "10.220.0.0/16"  # 集群27
+  - "10.221.0.0/16"  # 集群28
+  - "10.222.0.0/16"  # 集群29
+  - "10.223.0.0/16"  # 集群30
+  - "10.224.0.0/16"  # 集群31
+  - "10.225.0.0/16"  # 集群32
+  - "10.226.0.0/16"  # 集群33
+  - "10.227.0.0/16"  # 集群34
+  - "10.228.0.0/16"  # 集群35
+  - "10.229.0.0/16"  # 集群36
+  - "10.210.0.0/16"  # 集群37
+  - "10.211.0.0/16"  # 集群38
+  - "10.212.0.0/16"  # 集群39
+  - "10.213.0.0/16"  # 集群40
 

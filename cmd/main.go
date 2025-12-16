@@ -15,6 +15,15 @@ import (
 )
 
 func main() {
+	// 添加全局 panic 恢复机制，防止未捕获的 panic 导致程序崩溃
+	defer func() {
+		if r := recover(); r != nil {
+			logrus.Errorf("Unhandled panic in main: %v", r)
+			logrus.Error("Program will exit due to unhandled panic")
+			os.Exit(1)
+		}
+	}()
+
 	configFile := flag.String("config", "config.yaml", "Path to config file")
 	flag.Parse()
 
@@ -24,7 +33,7 @@ func main() {
 	}
 	util.InitLogger()
 
-	// 使用 Bootstrap 初始化所有模块
+	// 使用 Bootstrap 初始化所有模块（包含 ZMQ panic 恢复）
 	iarnet, err := bootstrap.Initialize(cfg)
 	if err != nil {
 		logrus.Fatalf("Failed to initialize: %v", err)

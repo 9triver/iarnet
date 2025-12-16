@@ -1,0 +1,17 @@
+server:
+  port: 50090
+kubernetes:
+  kubeconfig: ''
+  namespace: default
+  in_cluster: true
+  label_selector: iarnet.managed=true
+  allow_connection_failure: true
+resource:
+  cpu: 4000
+  memory: 4096Mi
+  gpu: 2
+resource_tags:
+- camera
+- cpu
+- gpu
+- memory

@@ -1314,7 +1314,7 @@ export default function ResourcesPage() {
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">域内总CPU核心</CardTitle>
+                <CardTitle className="text-sm font-medium">总CPU核心</CardTitle>
                 <Cpu className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
@@ -1347,7 +1347,7 @@ export default function ResourcesPage() {
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">域内总内存</CardTitle>
+                <CardTitle className="text-sm font-medium">总内存</CardTitle>
                 <MemoryStick className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
@@ -1423,7 +1423,10 @@ export default function ResourcesPage() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    resources.filter(r => r.category === 'local_providers').map((resource) => (
+                    resources
+                      .filter(r => r.category === 'local_providers')
+                      .sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'))
+                      .map((resource) => (
                       <TableRow key={resource.id}>
                         <TableCell className="w-64">
                           <div className="flex items-center space-x-2">
@@ -1539,7 +1542,9 @@ export default function ResourcesPage() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    discoveredNodes.map((node) => {
+                    [...discoveredNodes]
+                      .sort((a, b) => (a.node_name || '').localeCompare(b.node_name || '', 'zh-CN'))
+                      .map((node) => {
                       // 计算 CPU 使用率（CPU 单位是 millicores，需要转换为 cores）
                       const cpuTotal = node.cpu ? node.cpu.total / 1000 : 0
                       const cpuUsed = node.cpu ? node.cpu.used / 1000 : 0

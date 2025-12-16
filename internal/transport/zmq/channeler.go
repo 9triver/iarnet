@@ -22,8 +22,26 @@ type ComponentChanneler struct {
 
 func NewChanneler(port int) *ComponentChanneler {
 	addr := fmt.Sprintf("tcp://*:%d", port)
-	base := goczmq.NewRouterChanneler(addr)
-	logrus.Infof("ZMQ Channeler initializing on address %s", addr)
+	
+	// 添加 panic 恢复机制，防止 ZMQ 初始化失败导致整个程序崩溃
+	var base *goczmq.Channeler
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logrus.Errorf("ZMQ Channeler initialization panic: %v", r)
+				logrus.Warn("ZMQ Channeler initialization failed, continuing without ZMQ support")
+				base = nil
+			}
+		}()
+		base = goczmq.NewRouterChanneler(addr)
+		logrus.Infof("ZMQ Channeler initializing on address %s", addr)
+	}()
+	
+	// 如果初始化失败，返回 nil（调用者需要处理）
+	if base == nil {
+		return nil
+	}
+	
 	return &ComponentChanneler{
 		Channeler:       base,
 		pendingMessages: make(map[string][][]byte),

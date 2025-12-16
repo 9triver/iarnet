@@ -42,7 +42,7 @@ type Service struct {
 }
 
 // NewService 创建新的 Kubernetes provider 服务
-func NewService(kubeconfig string, inCluster bool, namespace string, labelSelector string, resourceTags []string, totalCapacity *resourcepb.Info) (*Service, error) {
+func NewService(kubeconfig string, inCluster bool, namespace string, labelSelector string, resourceTags []string, totalCapacity *resourcepb.Info, allowConnectionFailure bool) (*Service, error) {
 	var config *rest.Config
 	var err error
 
@@ -51,9 +51,15 @@ func NewService(kubeconfig string, inCluster bool, namespace string, labelSelect
 		// 在 Pod 内运行，使用 in-cluster 配置
 		config, err = rest.InClusterConfig()
 		if err != nil {
-			return nil, fmt.Errorf("failed to get in-cluster config: %w", err)
+			if allowConnectionFailure {
+				logrus.Warnf("Failed to get in-cluster config: %v (continuing in test mode)", err)
+				config = nil
+			} else {
+				return nil, fmt.Errorf("failed to get in-cluster config: %w", err)
+			}
+		} else {
+			logrus.Info("Using in-cluster Kubernetes configuration")
 		}
-		logrus.Info("Using in-cluster Kubernetes configuration")
 	} else {
 		// 在 Pod 外运行，使用 kubeconfig 文件
 		if kubeconfig == "" {
@@ -66,34 +72,66 @@ func NewService(kubeconfig string, inCluster bool, namespace string, labelSelect
 
 		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
 		if err != nil {
-			return nil, fmt.Errorf("failed to build config from kubeconfig: %w", err)
+			if allowConnectionFailure {
+				logrus.Warnf("Failed to build config from kubeconfig: %v (continuing in test mode)", err)
+				config = nil
+			} else {
+				return nil, fmt.Errorf("failed to build config from kubeconfig: %w", err)
+			}
+		} else {
+			logrus.Infof("Using kubeconfig: %s", kubeconfig)
 		}
-		logrus.Infof("Using kubeconfig: %s", kubeconfig)
 	}
+
+	var clientset *kubernetes.Clientset
+	var metricsClient *metricsv1beta1.Clientset
 
 	// 创建 Kubernetes 客户端
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Kubernetes client: %w", err)
-	}
+	if config != nil {
+		clientset, err = kubernetes.NewForConfig(config)
+		if err != nil {
+			if allowConnectionFailure {
+				logrus.Warnf("Failed to create Kubernetes client: %v (continuing in test mode)", err)
+				clientset = nil
+			} else {
+				return nil, fmt.Errorf("failed to create Kubernetes client: %w", err)
+			}
+		}
 
-	// 创建 metrics 客户端（用于获取实时资源使用情况）
-	metricsClient, err := metricsv1beta1.NewForConfig(config)
-	if err != nil {
-		logrus.Warnf("Failed to create metrics client (metrics-server may not be installed): %v", err)
-		// metrics 客户端创建失败不是致命错误，继续运行
+		// 创建 metrics 客户端（用于获取实时资源使用情况）
+		if clientset != nil {
+			metricsClient, err = metricsv1beta1.NewForConfig(config)
+			if err != nil {
+				logrus.Warnf("Failed to create metrics client (metrics-server may not be installed): %v", err)
+				// metrics 客户端创建失败不是致命错误，继续运行
+			}
+		}
+	} else if allowConnectionFailure {
+		logrus.Warnf("Kubernetes config is nil, provider will start in test mode without Kubernetes connection")
+		clientset = nil
+		metricsClient = nil
 	}
 
 	// 测试连接
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	if clientset != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
 
-	_, err = clientset.CoreV1().Namespaces().Get(ctx, namespace, metav1.GetOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to access namespace %s: %w", namespace, err)
+		_, err = clientset.CoreV1().Namespaces().Get(ctx, namespace, metav1.GetOptions{})
+		if err != nil {
+			if allowConnectionFailure {
+				logrus.Warnf("Failed to access namespace %s: %v (continuing in test mode)", namespace, err)
+				clientset = nil
+				metricsClient = nil
+			} else {
+				return nil, fmt.Errorf("failed to access namespace %s: %w", namespace, err)
+			}
+		} else {
+			logrus.Infof("Successfully connected to Kubernetes cluster, namespace: %s", namespace)
+		}
+	} else if allowConnectionFailure {
+		logrus.Warnf("Kubernetes client is nil, provider will start in test mode without Kubernetes connection")
 	}
-
-	logrus.Infof("Successfully connected to Kubernetes cluster, namespace: %s", namespace)
 
 	// 创建健康检查管理器
 	// 健康检测超时时间：90 秒（假设 iarnet 每 30 秒检测一次，允许 3 次失败）
@@ -318,6 +356,14 @@ func (s *Service) Deploy(ctx context.Context, req *providerpb.DeployRequest) (*p
 	providerID := s.manager.GetProviderID()
 
 	// 构建 Pod 规格
+	// 检查 Kubernetes 客户端是否可用
+	if s.clientset == nil {
+		logrus.Warnf("Kubernetes client is not available (test mode), cannot deploy Pod")
+		return &providerpb.DeployResponse{
+			Error: "Kubernetes client is not available (test mode)",
+		}, nil
+	}
+
 	pod := s.buildPodSpec(req, providerID)
 
 	// 创建 Pod
@@ -602,6 +648,18 @@ func (s *Service) GetRealTimeUsage(ctx context.Context, req *providerpb.GetRealT
 
 // getUsageFromPodSpec 从 Pod 规格获取分配的资源（作为 metrics 不可用时的备选方案）
 func (s *Service) getUsageFromPodSpec(ctx context.Context, providerID string) (*providerpb.GetRealTimeUsageResponse, error) {
+	// 检查 Kubernetes 客户端是否可用
+	if s.clientset == nil {
+		logrus.Warnf("Kubernetes client is not available (test mode), returning zero usage")
+		return &providerpb.GetRealTimeUsageResponse{
+			Usage: &resourcepb.Info{
+				Cpu:    0,
+				Memory: 0,
+				Gpu:    0,
+			},
+		}, nil
+	}
+
 	labelSelector := fmt.Sprintf("iarnet.provider_id=%s,iarnet.managed=true", providerID)
 
 	pods, err := s.clientset.CoreV1().Pods(s.namespace).List(ctx, metav1.ListOptions{
@@ -644,6 +702,11 @@ func (s *Service) getUsageFromPodSpec(ctx context.Context, providerID string) (*
 
 // getGPUUsageFromPods 从 Pod 获取 GPU 使用量
 func (s *Service) getGPUUsageFromPods(ctx context.Context, providerID string) int64 {
+	// 检查 Kubernetes 客户端是否可用
+	if s.clientset == nil {
+		return 0
+	}
+
 	labelSelector := fmt.Sprintf("iarnet.provider_id=%s,iarnet.managed=true", providerID)
 
 	pods, err := s.clientset.CoreV1().Pods(s.namespace).List(ctx, metav1.ListOptions{

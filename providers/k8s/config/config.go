@@ -25,10 +25,11 @@ type ServerConfig struct {
 
 // KubernetesConfig Kubernetes 集群配置
 type KubernetesConfig struct {
-	Kubeconfig    string `yaml:"kubeconfig"`     // kubeconfig 文件路径，留空使用 in-cluster 配置
-	Namespace     string `yaml:"namespace"`      // 部署 Pod 的命名空间
-	InCluster     bool   `yaml:"in_cluster"`     // 是否使用 in-cluster 配置
-	LabelSelector string `yaml:"label_selector"` // 用于筛选管理的 Pod 的标签选择器
+	Kubeconfig            string `yaml:"kubeconfig"`              // kubeconfig 文件路径，留空使用 in-cluster 配置
+	Namespace             string `yaml:"namespace"`                 // 部署 Pod 的命名空间
+	InCluster             bool   `yaml:"in_cluster"`              // 是否使用 in-cluster 配置
+	LabelSelector         string `yaml:"label_selector"`            // 用于筛选管理的 Pod 的标签选择器
+	AllowConnectionFailure bool   `yaml:"allow_connection_failure"` // 测试选项：当 Kubernetes 连接失败时，是否仍允许启动 provider（默认 false）
 }
 
 // ResourceConfig 资源容量配置
@@ -114,10 +115,11 @@ func getDefaultConfig() Config {
 			Port: 50052,
 		},
 		Kubernetes: KubernetesConfig{
-			Kubeconfig:    "",
-			Namespace:     "default",
-			InCluster:     true,
-			LabelSelector: "iarnet.managed=true",
+			Kubeconfig:            "",
+			Namespace:             "default",
+			InCluster:             true,
+			LabelSelector:         "iarnet.managed=true",
+			AllowConnectionFailure: false,
 		},
 		Resource: ResourceConfig{
 			CPU:    0,

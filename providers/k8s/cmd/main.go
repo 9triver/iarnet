@@ -53,6 +53,7 @@ func main() {
 		cfg.Kubernetes.LabelSelector,
 		cfg.ResourceTags,
 		totalCapacity,
+		cfg.Kubernetes.AllowConnectionFailure,
 	)
 	if err != nil {
 		logrus.Fatalf("Failed to create service: %v", err)

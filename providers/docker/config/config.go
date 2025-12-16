@@ -25,11 +25,12 @@ type ServerConfig struct {
 
 // DockerConfig Docker 引擎配置
 type DockerConfig struct {
-	Host        string `yaml:"host"`
-	TLSCertPath string `yaml:"tls_cert_path"`
-	TLSVerify   bool   `yaml:"tls_verify"`
-	APIVersion  string `yaml:"api_version"`
-	Network     string `yaml:"network"` // 用于部署 component 容器的网络名称
+	Host                  string `yaml:"host"`
+	TLSCertPath           string `yaml:"tls_cert_path"`
+	TLSVerify             bool   `yaml:"tls_verify"`
+	APIVersion            string `yaml:"api_version"`
+	Network               string `yaml:"network"`                 // 用于部署 component 容器的网络名称
+	AllowConnectionFailure bool   `yaml:"allow_connection_failure"` // 测试选项：当 Docker 连接失败时，是否仍允许启动 provider
 }
 
 // ResourceConfig 资源容量配置
@@ -115,11 +116,12 @@ func getDefaultConfig() Config {
 			Port: 50051,
 		},
 		Docker: DockerConfig{
-			Host:        "unix:///var/run/docker.sock",
-			TLSCertPath: "",
-			TLSVerify:   false,
-			APIVersion:  "",
-			Network:     "default",
+			Host:                  "unix:///var/run/docker.sock",
+			TLSCertPath:           "",
+			TLSVerify:             false,
+			APIVersion:            "",
+			Network:               "default",
+			AllowConnectionFailure: false,
 		},
 		Resource: ResourceConfig{
 			CPU:    0,

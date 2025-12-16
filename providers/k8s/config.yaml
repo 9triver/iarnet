@@ -7,6 +7,7 @@ kubernetes:
   namespace: "default"  # 部署 Pod 的命名空间
   in_cluster: false  # 是否使用 in-cluster 配置（在 Pod 内运行时设为 true）
   label_selector: "iarnet.managed=true"  # 用于筛选管理的 Pod 的标签选择器
+  allow_connection_failure: false  # 测试选项：当 Kubernetes 连接失败时，是否仍允许启动 provider（默认 false）
 
 resource:
   cpu: 8000  # 1000 millicores = 1 core

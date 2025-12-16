@@ -1,0 +1,76 @@
+host: 192.168.100.11
+peer_listen_addr: :50051
+initial_peers:
+- 192.168.100.10:50005
+- 192.168.100.12:50005
+- 192.168.100.13:50005
+- 192.168.100.14:50005
+- 192.168.100.15:50005
+- 192.168.100.16:50005
+- 192.168.100.17:50005
+- 192.168.100.18:50005
+- 192.168.100.19:50005
+data_dir: ./data/node_1
+application:
+  workspace_dir: ../workspaces
+  runner_images:
+    python:3.11-latest: iarnet/runner:python_3.11-latest
+resource:
+  peer_port: 50051
+  schedule_port: 50051
+  global_registry_addr: localhost:50010
+  name: node.1
+  description: vm-iarnet-02 - iarnet node 1
+  domain_id: domain.nwwNPjSgUFM9DCv74J8LbM
+  component_images:
+    python: iarnet/component:python_3.11-latest
+  discovery:
+    enabled: true
+    gossip_interval_seconds: 30
+    node_ttl_seconds: 180
+    max_gossip_peers: 10
+    max_hops: 5
+    query_timeout_seconds: 5
+    fanout: 3
+    use_anti_entropy: true
+    anti_entropy_interval_seconds: 300
+enable_local_docker: true
+database:
+  application_db_path: ./data/node_1/application.db
+  resource_provider_db_path: ./data/node_1/resource_provider.db
+  resource_logger_db_path: ./data/node_1/resource_logger.db
+  max_open_conns: 10
+  max_idle_conns: 5
+  conn_max_lifetime_seconds: 300
+transport:
+  http:
+    port: 8083
+  zmq:
+    port: 5555
+  rpc:
+    resource:
+      port: 50051
+    ignis:
+      port: 50001
+    store:
+      port: 50002
+    logger:
+      port: 50003
+    resource_logger:
+      port: 50004
+    discovery:
+      port: 50005
+logging:
+  enabled: true
+  data_dir: ./data/node_1/logs
+  db_path: ./data/node_1/logs.db
+  chunk_duration_minutes: 5
+  chunk_max_lines: 10000
+  chunk_max_size_mb: 10
+  compression_level: 6
+  retention_days: 7
+  cleanup_interval_hours: 1
+  max_disk_usage_gb: 10
+  buffer_size: 10000
+  flush_interval_seconds: 5
+  batch_size: 1000

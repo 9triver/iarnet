@@ -1,0 +1,18 @@
+server:
+  port: 50051
+docker:
+  host: unix:///var/run/docker.sock
+  tls_cert_path: ''
+  tls_verify: false
+  api_version: ''
+  network: default
+  allow_connection_failure: true
+resource:
+  cpu: 2000
+  memory: 2048Mi
+  gpu: 1
+resource_tags:
+- camera
+- cpu
+- gpu
+- memory
