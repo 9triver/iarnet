@@ -5,7 +5,7 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { Server, Package, Activity, Menu, X, Cpu, Users, LogOut } from "lucide-react"
+import { Server, Package, Activity, Menu, X, Cpu, LogOut } from "lucide-react"
 import { useIARNetStore } from "@/lib/store"
 
 const baseNavigation = [
@@ -37,19 +37,8 @@ export function Sidebar() {
   const logout = useIARNetStore((state) => state.logout)
 
   const navigation = useMemo(() => {
-    if (currentUser?.role === "admin") {
-      return [
-        ...baseNavigation,
-        {
-          name: "用户管理",
-          href: "/users",
-          icon: Users,
-          description: "维护平台用户",
-        },
-      ]
-    }
     return baseNavigation
-  }, [currentUser])
+  }, [])
 
   const handleLogout = () => {
     logout()
@@ -113,9 +102,6 @@ export function Sidebar() {
         {!isCollapsed && currentUser && (
           <div className="mb-3 space-y-1">
             <div className="text-sm font-semibold text-sidebar-foreground">{currentUser.username}</div>
-            <div className="text-xs text-sidebar-foreground/70">
-              {currentUser.role === "admin" ? "管理员" : "普通用户"}
-            </div>
           </div>
         )}
         <Button

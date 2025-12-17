@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { useIARNetStore } from "@/lib/store"
-import Link from "next/link"
 import { FullscreenLoader } from "@/components/ui/fullscreen-loader"
 
 interface LoginFormValues {
@@ -18,7 +17,6 @@ interface LoginFormValues {
 
 export default function LoginPage() {
   const router = useRouter()
-  const setupCompleted = useIARNetStore((state) => state.setupCompleted)
   const currentUser = useIARNetStore((state) => state.currentUser)
   const login = useIARNetStore((state) => state.login)
   const [error, setError] = useState<string | null>(null)
@@ -31,14 +29,10 @@ export default function LoginPage() {
   })
 
   useEffect(() => {
-    if (!setupCompleted) {
-      router.replace("/setup")
-      return
-    }
     if (currentUser) {
       router.replace("/")
     }
-  }, [setupCompleted, currentUser, router])
+  }, [currentUser, router])
 
   const onSubmit = async (values: LoginFormValues) => {
     setError(null)
@@ -49,10 +43,6 @@ export default function LoginPage() {
       const message = err instanceof Error ? err.message : "登录失败"
       setError(message)
     }
-  }
-
-  if (!setupCompleted) {
-    return <FullscreenLoader message="正在跳转到初始化页面..." />
   }
 
   if (currentUser) {
@@ -101,12 +91,6 @@ export default function LoginPage() {
               <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
                 {form.formState.isSubmitting ? "登录中..." : "登录"}
               </Button>
-              <p className="text-center text-xs text-muted-foreground">
-                首次使用？请先完成{" "}
-                <Link href="/setup" className="text-primary underline">
-                  管理员配置
-                </Link>
-              </p>
             </form>
           </Form>
         </CardContent>

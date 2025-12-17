@@ -360,3 +360,27 @@ export const statusAPI = {
       method: "POST",
     }),
 }
+
+// 认证 API
+export interface LoginRequest {
+  username: string
+  password: string
+}
+
+export interface LoginResponse {
+  username: string
+}
+
+export interface GetCurrentUserResponse {
+  username: string
+}
+
+export const authAPI = {
+  login: (request: LoginRequest) =>
+    apiRequest<LoginResponse>("/auth/login", {
+      method: "POST",
+      body: JSON.stringify(request),
+    }),
+  getCurrentUser: () =>
+    apiRequest<GetCurrentUserResponse>("/auth/me"),
+}

@@ -12,6 +12,7 @@ import (
 	"github.com/9triver/iarnet/internal/domain/resource"
 	"github.com/9triver/iarnet/internal/domain/resource/discovery"
 	applicationAPI "github.com/9triver/iarnet/internal/transport/http/application"
+	authAPI "github.com/9triver/iarnet/internal/transport/http/auth"
 	resourceAPI "github.com/9triver/iarnet/internal/transport/http/resource"
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
@@ -33,6 +34,7 @@ type Server struct {
 
 func NewServer(opts Options) *Server {
 	router := mux.NewRouter()
+	authAPI.RegisterRoutes(router, opts.Config)
 	applicationAPI.RegisterRoutes(router, opts.AppMgr)
 	resourceAPI.RegisterRoutes(router, opts.ResMgr, opts.Config, opts.DiscoveryService)
 

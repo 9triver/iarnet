@@ -57,6 +57,15 @@ func BadRequest(error string) *BaseResponse {
 	}
 }
 
+// Unauthorized 创建未授权响应
+func Unauthorized(error string) *BaseResponse {
+	return &BaseResponse{
+		Code:    http.StatusUnauthorized,
+		Message: "unauthorized",
+		Error:   error,
+	}
+}
+
 // InternalError 创建内部服务器错误响应
 func InternalError(error string) *BaseResponse {
 	return &BaseResponse{

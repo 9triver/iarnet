@@ -1,4 +1,8 @@
 host: 192.168.100.11
+
+users:
+  - name: "admin"
+    password: "123456"
 peer_listen_addr: :50051
 initial_peers:
 - 192.168.100.10:50005
@@ -19,8 +23,8 @@ resource:
   peer_port: 50051
   schedule_port: 50051
   global_registry_addr: localhost:50010
-  name: node.1
-  description: vm-iarnet-02 - iarnet node 1
+  name: BJ-cloud-002
+  description: 北京云端节点002
   domain_id: domain.nwwNPjSgUFM9DCv74J8LbM
   component_images:
     python: iarnet/component:python_3.11-latest

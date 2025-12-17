@@ -11,6 +11,7 @@ type Config struct {
 	ResourceLimits    map[string]string `yaml:"resource_limits"`     // e.g., {"cpu": "4", "memory": "8Gi", "gpu": "2"}
 	DataDir           string            `yaml:"data_dir"`            // e.g., "./data" - directory for SQLite databases
 	EnableLocalDocker bool              `yaml:"enable_local_docker"` // e.g., true - enable local docker provider
+	Users             []UserConfig      `yaml:"users"`               // 用户配置列表
 
 	// 领域模块配置（内联定义，避免循环依赖）
 	Application ApplicationConfig `yaml:"application"` // Application module configuration
@@ -18,6 +19,12 @@ type Config struct {
 	Ignis       IgnisConfig       `yaml:"ignis"`       // Ignis module configuration
 	Transport   TransportConfig   `yaml:"transport"`   // Transport configuration
 	Database    DatabaseConfig    `yaml:"database"`    // Database configuration
+}
+
+// UserConfig 用户配置
+type UserConfig struct {
+	Name     string `yaml:"name"`     // 用户名
+	Password string `yaml:"password"` // 密码（明文，仅用于配置）
 }
 
 // ApplicationConfig Application 模块配置

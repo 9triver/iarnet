@@ -17,7 +17,7 @@
 
 set -e  # Exit on error
 
-PROTOC="python -m grpc_tools.protoc"
+PROTOC="python3 -m grpc_tools.protoc"
 export PATH="$PATH:$HOME/go/bin"
 
 # 项目根目录

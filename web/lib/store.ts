@@ -2,7 +2,7 @@
 
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
-import { hashPassword, verifyPassword } from "@/lib/auth"
+import { authAPI } from "@/lib/api"
 
 // 资源相关类型定义
 export interface Resource {
@@ -79,16 +79,9 @@ interface AsyncState {
   error: string | null
 }
 
-export type UserRole = "admin" | "user"
-
-export interface UserAccount {
-  id: string
+export interface CurrentUser {
   username: string
-  role: UserRole
-  passwordHash: string
 }
-
-export type CurrentUser = Omit<UserAccount, "passwordHash">
 
 interface IARNetStore {
   // 资源管理状态
@@ -130,29 +123,12 @@ interface IARNetStore {
   fetchApplicationStatuses: () => Promise<void>
   refreshData: () => Promise<void>
 
-  // 认证与用户管理
-  setupCompleted: boolean
-  users: UserAccount[]
+  // 认证
   currentUser: CurrentUser | null
-  createInitialAdmin: (payload: { username: string; password: string }) => Promise<void>
-  addUserAccount: (payload: { username: string; password: string; role?: UserRole }) => Promise<void>
-  deleteUserAccount: (id: string) => Promise<void>
   login: (username: string, password: string) => Promise<void>
   logout: () => void
 }
 
-const generateId = () => {
-  if (typeof crypto !== "undefined" && crypto.randomUUID) {
-    return crypto.randomUUID()
-  }
-  return Date.now().toString()
-}
-
-const toPublicUser = (user: UserAccount): CurrentUser => ({
-  id: user.id,
-  username: user.username,
-  role: user.role,
-})
 
 export const useIARNetStore = create<IARNetStore>()(
   persist(
@@ -163,8 +139,6 @@ export const useIARNetStore = create<IARNetStore>()(
       applicationStatuses: [],
       loadingStates: {},
       errors: {},
-      setupCompleted: false,
-      users: [],
       currentUser: null,
 
       // 资源管理方法
@@ -550,102 +524,30 @@ export const useIARNetStore = create<IARNetStore>()(
         await Promise.all([fetchResources(), fetchApplications(), fetchApplicationStatuses()])
       },
 
-      createInitialAdmin: async ({ username, password }) => {
-        const trimmedName = username.trim()
-        if (!trimmedName) {
-          throw new Error("管理员用户名不能为空")
-        }
-        if (password.length < 6) {
-          throw new Error("密码至少需要 6 位")
-        }
-        if (get().setupCompleted) {
-          throw new Error("管理员已配置完成")
-        }
-        const passwordHash = await hashPassword(password)
-        const adminUser: UserAccount = {
-          id: generateId(),
-          username: trimmedName,
-          role: "admin",
-          passwordHash,
-        }
-        set({
-          users: [adminUser],
-          setupCompleted: true,
-          currentUser: toPublicUser(adminUser),
-        })
-      },
-
-      addUserAccount: async ({ username, password, role = "user" }) => {
-        const trimmedName = username.trim()
-        const state = get()
-        if (!state.setupCompleted) {
-          throw new Error("请先完成管理员配置")
-        }
-        if (state.currentUser?.role !== "admin") {
-          throw new Error("只有管理员可以添加用户")
-        }
-        if (!trimmedName) {
-          throw new Error("用户名不能为空")
-        }
-        if (password.length < 6) {
-          throw new Error("密码至少需要 6 位")
-        }
-        if (state.users.some((user) => user.username === trimmedName)) {
-          throw new Error("用户名已存在")
-        }
-        const passwordHash = await hashPassword(password)
-        const newUser: UserAccount = {
-          id: generateId(),
-          username: trimmedName,
-          role,
-          passwordHash,
-        }
-        set({
-          users: [...state.users, newUser],
-        })
-      },
-
-      deleteUserAccount: async (id: string) => {
-        const state = get()
-        if (state.currentUser?.role !== "admin") {
-          throw new Error("只有管理员可以删除用户")
-        }
-        const target = state.users.find((user) => user.id === id)
-        if (!target) {
-          return
-        }
-        if (target.role === "admin") {
-          const adminCount = state.users.filter((user) => user.role === "admin").length
-          if (adminCount <= 1) {
-            throw new Error("至少需要保留一个管理员账号")
-          }
-        }
-        set({
-          users: state.users.filter((user) => user.id !== id),
-          currentUser: state.currentUser?.id === id ? null : state.currentUser,
-        })
-      },
-
       login: async (username, password) => {
-        const state = get()
-        if (!state.setupCompleted) {
-          throw new Error("请先完成管理员配置")
-        }
         const trimmedName = username.trim()
         if (!trimmedName) {
           throw new Error("用户名不能为空")
         }
-        const target = state.users.find((user) => user.username === trimmedName)
-        if (!target) {
-          throw new Error("账号不存在")
+        if (!password) {
+          throw new Error("密码不能为空")
         }
-        const matched = await verifyPassword(password, target.passwordHash)
-        if (!matched) {
-          throw new Error("密码错误")
+        try {
+          const response = await authAPI.login({
+            username: trimmedName,
+            password,
+          })
+          set({
+            currentUser: {
+              username: response.username,
+            },
+          })
+        } catch (error) {
+          if (error instanceof Error) {
+            throw error
+          }
+          throw new Error("登录失败")
         }
-        set({
-          currentUser: toPublicUser(target),
-        })
       },
 
       logout: () => {
@@ -658,8 +560,6 @@ export const useIARNetStore = create<IARNetStore>()(
         resources: state.resources,
         applications: state.applications,
         applicationStatuses: state.applicationStatuses,
-        setupCompleted: state.setupCompleted,
-        users: state.users,
         currentUser: state.currentUser,
       }),
     },
