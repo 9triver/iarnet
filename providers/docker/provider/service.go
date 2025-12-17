@@ -32,9 +32,13 @@ type Service struct {
 	// 资源容量管理（从配置文件读取）
 	totalCapacity *resourcepb.Info // 配置的总容量
 	allocated     *resourcepb.Info // 当前已分配的容量（内存中动态维护）
+
+	// GPU 管理
+	gpuIDs        []int         // 配置的可用 GPU ID 列表
+	gpuAllocated  map[int]int   // GPU ID -> 分配次数（支持多个容器共享同一 GPU）
 }
 
-func NewService(host, tlsCertPath string, tlsVerify bool, apiVersion string, network string, resourceTags []string, totalCapacity *resourcepb.Info, allowConnectionFailure bool) (*Service, error) {
+func NewService(host, tlsCertPath string, tlsVerify bool, apiVersion string, network string, resourceTags []string, totalCapacity *resourcepb.Info, gpuIDs []int, allowConnectionFailure bool) (*Service, error) {
 	var opts []client.Opt
 
 	if host != "" {
@@ -104,6 +108,12 @@ func NewService(host, tlsCertPath string, tlsVerify bool, apiVersion string, net
 		Gpu:    0,
 	}
 
+	// 初始化 GPU 分配映射
+	gpuAllocated := make(map[int]int)
+	for _, gpuID := range gpuIDs {
+		gpuAllocated[gpuID] = 0
+	}
+
 	service := &Service{
 		client:  cli,
 		manager: manager,
@@ -116,6 +126,8 @@ func NewService(host, tlsCertPath string, tlsVerify bool, apiVersion string, net
 		},
 		totalCapacity: totalCapacity,
 		allocated:     allocated,
+		gpuIDs:        gpuIDs,
+		gpuAllocated:  gpuAllocated,
 	}
 
 	// 启动健康检测超时监控
@@ -338,13 +350,46 @@ func (s *Service) Deploy(ctx context.Context, req *providerpb.DeployRequest) (*p
 			// 1 millicore = 1e6 NanoCPUs
 			NanoCPUs: int64(req.ResourceRequest.Cpu * 1e6),
 			Memory:   int64(req.ResourceRequest.Memory),
-			// GPU: Docker GPU support requires nvidia-docker, assume configured.
 		},
 		ExtraHosts: []string{
 			"host.internal:host-gateway",
 		},
 		Runtime: "nvidia",
 		// PortBindings: portBindings,
+	}
+
+	// 配置 GPU 设备请求
+	if req.ResourceRequest.Gpu > 0 {
+		allocatedGPUs := s.allocateGPUs(int(req.ResourceRequest.Gpu))
+		if len(allocatedGPUs) > 0 {
+			// 将 GPU ID 转换为字符串列表
+			gpuIDStrs := make([]string, len(allocatedGPUs))
+			for i, id := range allocatedGPUs {
+				gpuIDStrs[i] = strconv.Itoa(id)
+			}
+			hostConfig.Resources.DeviceRequests = []container.DeviceRequest{
+				{
+					Driver:    "nvidia",
+					DeviceIDs: gpuIDStrs,
+					Capabilities: [][]string{
+						{"gpu"},
+					},
+				},
+			}
+			logrus.Infof("Allocated GPUs for container: %v", allocatedGPUs)
+		} else {
+			logrus.Warnf("No GPU IDs configured, using default GPU allocation")
+			// 如果没有配置 GPU ID，使用 count 方式分配
+			hostConfig.Resources.DeviceRequests = []container.DeviceRequest{
+				{
+					Driver: "nvidia",
+					Count:  int(req.ResourceRequest.Gpu),
+					Capabilities: [][]string{
+						{"gpu"},
+					},
+				},
+			}
+		}
 	}
 
 	// 配置网络（如果指定了网络名称）
@@ -459,6 +504,82 @@ func (s *Service) Disconnect(ctx context.Context, req *providerpb.DisconnectRequ
 	return &providerpb.DisconnectResponse{}, nil
 }
 
+// allocateGPUs 分配指定数量的 GPU，返回分配的 GPU ID 列表
+// 优先分配使用次数最少的 GPU（负载均衡）
+func (s *Service) allocateGPUs(count int) []int {
+	if len(s.gpuIDs) == 0 || count <= 0 {
+		return nil
+	}
+
+	// 复制 gpuIDs 并按分配次数排序
+	type gpuUsage struct {
+		id    int
+		count int
+	}
+	gpuList := make([]gpuUsage, len(s.gpuIDs))
+	for i, id := range s.gpuIDs {
+		gpuList[i] = gpuUsage{id: id, count: s.gpuAllocated[id]}
+	}
+
+	// 按分配次数升序排序（优先分配使用次数少的 GPU）
+	for i := 0; i < len(gpuList)-1; i++ {
+		for j := i + 1; j < len(gpuList); j++ {
+			if gpuList[i].count > gpuList[j].count {
+				gpuList[i], gpuList[j] = gpuList[j], gpuList[i]
+			}
+		}
+	}
+
+	// 分配 GPU
+	allocatedCount := count
+	if allocatedCount > len(gpuList) {
+		allocatedCount = len(gpuList)
+	}
+
+	allocated := make([]int, allocatedCount)
+	for i := 0; i < allocatedCount; i++ {
+		allocated[i] = gpuList[i].id
+		s.gpuAllocated[gpuList[i].id]++
+	}
+
+	return allocated
+}
+
+// releaseGPUs 释放指定数量的 GPU
+func (s *Service) releaseGPUs(count int) {
+	if len(s.gpuIDs) == 0 || count <= 0 {
+		return
+	}
+
+	// 按分配次数降序排序（优先释放使用次数多的 GPU）
+	type gpuUsage struct {
+		id    int
+		count int
+	}
+	gpuList := make([]gpuUsage, 0, len(s.gpuIDs))
+	for _, id := range s.gpuIDs {
+		if s.gpuAllocated[id] > 0 {
+			gpuList = append(gpuList, gpuUsage{id: id, count: s.gpuAllocated[id]})
+		}
+	}
+
+	// 按分配次数降序排序
+	for i := 0; i < len(gpuList)-1; i++ {
+		for j := i + 1; j < len(gpuList); j++ {
+			if gpuList[i].count < gpuList[j].count {
+				gpuList[i], gpuList[j] = gpuList[j], gpuList[i]
+			}
+		}
+	}
+
+	// 释放 GPU
+	released := 0
+	for i := 0; i < len(gpuList) && released < count; i++ {
+		s.gpuAllocated[gpuList[i].id]--
+		released++
+	}
+}
+
 // ReleaseResources 释放已分配的资源（当容器停止或删除时调用）
 // 这是一个内部方法，用于在容器停止/删除时释放资源
 func (s *Service) ReleaseResources(cpu, memory, gpu int64) {
@@ -477,6 +598,9 @@ func (s *Service) ReleaseResources(cpu, memory, gpu int64) {
 	if s.allocated.Gpu < 0 {
 		s.allocated.Gpu = 0
 	}
+
+	// 释放 GPU ID 分配
+	s.releaseGPUs(int(gpu))
 
 	logrus.Infof("Released resources: CPU=%d, Memory=%d, GPU=%d, remaining allocated: CPU=%d, Memory=%d, GPU=%d",
 		cpu, memory, gpu, s.allocated.Cpu, s.allocated.Memory, s.allocated.Gpu)

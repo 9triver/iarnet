@@ -15,14 +15,24 @@ global:
 
 # 虚拟机类型配置
 vm_types:
-  # iarnet 节点
-  iarnet:
-    count: 20  # 20个iarnet节点
+  # iarnet-global 服务节点
+  iarnet_global:
+    count: 1  # 1个 global 服务节点
     cpu: 2
     memory: 2048  # MB
     disk: 20  # GB
     ip_base: "192.168.100"
-    ip_start: 10  # 从 .10 开始，到 .29 结束（20个IP）
+    ip_start: 5  # 使用 192.168.100.5
+    hostname_prefix: "vm-iarnet-global"
+
+  # iarnet 节点
+  iarnet:
+    count: 10  # 10个iarnet节点
+    cpu: 2
+    memory: 2048  # MB
+    disk: 20  # GB
+    ip_base: "192.168.100"
+    ip_start: 10  # 从 .10 开始，到 .19 结束（10个IP）
     hostname_prefix: "vm-iarnet"
     
   # Kubernetes 集群配置

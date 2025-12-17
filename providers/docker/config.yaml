@@ -15,6 +15,12 @@ resource:
   memory: "8Gi"
   gpu: 4 # 4 GPUs
 
+gpu_id:
+  - 0
+  - 1
+  - 2
+  - 3
+
 resource_tags:
  - cpu
  - memory

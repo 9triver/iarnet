@@ -15,6 +15,7 @@ type Config struct {
 	Server       ServerConfig   `yaml:"server"`
 	Docker       DockerConfig   `yaml:"docker"`
 	Resource     ResourceConfig `yaml:"resource"`
+	GpuID        []int          `yaml:"gpu_id"`        // 可用的 GPU ID 列表
 	ResourceTags []string       `yaml:"resource_tags"`
 }
 

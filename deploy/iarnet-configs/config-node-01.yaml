@@ -22,7 +22,7 @@ application:
 resource:
   peer_port: 50051
   schedule_port: 50051
-  global_registry_addr: localhost:50010
+  global_registry_addr: 192.168.100.5:50010
   name: BJ-cloud-002
   description: 北京云端节点002
   domain_id: domain.nwwNPjSgUFM9DCv74J8LbM

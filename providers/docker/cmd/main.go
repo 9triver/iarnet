@@ -46,6 +46,11 @@ func main() {
 	logrus.Infof("Using configured resource capacity: CPU=%d millicores, Memory=%d bytes (%s), GPU=%d",
 		totalCapacity.Cpu, totalCapacity.Memory, cfg.Resource.Memory, totalCapacity.Gpu)
 
+	// 日志输出配置的 GPU ID
+	if len(cfg.GpuID) > 0 {
+		logrus.Infof("Using configured GPU IDs: %v", cfg.GpuID)
+	}
+
 	service, err := provider.NewService(
 		cfg.Docker.Host,
 		cfg.Docker.TLSCertPath,
@@ -54,6 +59,7 @@ func main() {
 		cfg.Docker.Network,
 		cfg.ResourceTags,
 		totalCapacity,
+		cfg.GpuID,
 		cfg.Docker.AllowConnectionFailure,
 	)
 	if err != nil {

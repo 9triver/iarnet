@@ -385,6 +385,33 @@ ethernets:
                 traceback.print_exc()
             return False
     
+    def create_iarnet_global_vms(self) -> List[bool]:
+        """创建iarnet-global服务节点虚拟机"""
+        if 'iarnet_global' not in self.vm_types:
+            print("\n跳过 iarnet-global 节点创建（配置不存在）")
+            return []
+        
+        global_config = self.vm_types['iarnet_global']
+        results = []
+        
+        print(f"\n创建 {global_config['count']} 个 iarnet-global 服务节点...")
+        
+        for i in range(global_config['count']):
+            ip_suffix = global_config['ip_start'] + i
+            ip_address = f"{global_config['ip_base']}.{ip_suffix}"
+            hostname = f"{global_config['hostname_prefix']}-{i+1:02d}"
+            
+            result = self.create_vm(
+                hostname=hostname,
+                cpu=global_config['cpu'],
+                memory_mb=global_config['memory'],
+                disk_size_gb=global_config['disk'],
+                ip_address=ip_address
+            )
+            results.append(result)
+        
+        return results
+
     def create_iarnet_vms(self) -> List[bool]:
         """创建iarnet节点虚拟机"""
         iarnet_config = self.vm_types['iarnet']
@@ -519,6 +546,10 @@ ethernets:
         
         all_results = []
         
+        # 创建iarnet-global节点
+        global_results = self.create_iarnet_global_vms()
+        all_results.extend(global_results)
+        
         # 创建iarnet节点
         iarnet_results = self.create_iarnet_vms()
         all_results.extend(iarnet_results)
@@ -555,7 +586,7 @@ def main():
     )
     parser.add_argument(
         '--type', '-t',
-        choices=['all', 'iarnet', 'docker', 'k8s'],
+        choices=['all', 'iarnet_global', 'iarnet', 'docker', 'k8s'],
         default='all',
         help='创建类型 (默认: all)'
     )
@@ -572,6 +603,8 @@ def main():
         
         if args.type == 'all':
             builder.create_all_vms(parallel=args.parallel)
+        elif args.type == 'iarnet_global':
+            builder.create_iarnet_global_vms()
         elif args.type == 'iarnet':
             builder.create_iarnet_vms()
         elif args.type == 'docker':

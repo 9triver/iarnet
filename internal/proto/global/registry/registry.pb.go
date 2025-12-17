@@ -533,8 +533,10 @@ type HealthCheckRequest struct {
 	ResourceTags     *ResourceTags          `protobuf:"bytes,5,opt,name=resource_tags,json=resourceTags,proto3" json:"resource_tags,omitempty"`             // 资源标签
 	Address          string                 `protobuf:"bytes,6,opt,name=address,proto3" json:"address,omitempty"`                                           // 节点地址 (host:port)
 	Timestamp        int64                  `protobuf:"varint,7,opt,name=timestamp,proto3" json:"timestamp,omitempty"`                                      // 时间戳 (Unix nanoseconds)
-	IsHead           bool                   `protobuf:"varint,8,opt,name=is_head,json=isHead,proto3" json:"is_head,omitempty"`                              // 是否为 head 节点
+	IsHead           bool                   `protobuf:"varint,8,opt,name=is_head,json=isHead,proto3" json:"is_head,omitempty"`                              // 是否为 head 节点（已废弃，保留兼容）
 	Providers        []*ProviderInfo        `protobuf:"bytes,9,rep,name=providers,proto3" json:"providers,omitempty"`                                       // 本地 Provider 信息列表
+	NodeName         string                 `protobuf:"bytes,10,opt,name=node_name,json=nodeName,proto3" json:"node_name,omitempty"`                        // 节点名称
+	NodeDescription  string                 `protobuf:"bytes,11,opt,name=node_description,json=nodeDescription,proto3" json:"node_description,omitempty"`   // 节点描述
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -630,6 +632,20 @@ func (x *HealthCheckRequest) GetProviders() []*ProviderInfo {
 		return x.Providers
 	}
 	return nil
+}
+
+func (x *HealthCheckRequest) GetNodeName() string {
+	if x != nil {
+		return x.NodeName
+	}
+	return ""
+}
+
+func (x *HealthCheckRequest) GetNodeDescription() string {
+	if x != nil {
+		return x.NodeDescription
+	}
+	return ""
 }
 
 // HealthCheckResponse 健康检查响应
@@ -745,7 +761,7 @@ const file_global_registry_registry_proto_rawDesc = "" +
 	"\bmetadata\x18\x06 \x03(\v2+.global.registry.ProviderInfo.MetadataEntryR\bmetadata\x1a;\n" +
 	"\rMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa1\x03\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xe9\x03\n" +
 	"\x12HealthCheckRequest\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x1b\n" +
 	"\tdomain_id\x18\x02 \x01(\tR\bdomainId\x123\n" +
@@ -755,7 +771,10 @@ const file_global_registry_registry_proto_rawDesc = "" +
 	"\aaddress\x18\x06 \x01(\tR\aaddress\x12\x1c\n" +
 	"\ttimestamp\x18\a \x01(\x03R\ttimestamp\x12\x17\n" +
 	"\ais_head\x18\b \x01(\bR\x06isHead\x12;\n" +
-	"\tproviders\x18\t \x03(\v2\x1d.global.registry.ProviderInfoR\tproviders\"\xec\x01\n" +
+	"\tproviders\x18\t \x03(\v2\x1d.global.registry.ProviderInfoR\tproviders\x12\x1b\n" +
+	"\tnode_name\x18\n" +
+	" \x01(\tR\bnodeName\x12)\n" +
+	"\x10node_description\x18\v \x01(\tR\x0fnodeDescription\"\xec\x01\n" +
 	"\x13HealthCheckResponse\x12)\n" +
 	"\x10server_timestamp\x18\x01 \x01(\x03R\x0fserverTimestamp\x12@\n" +
 	"\x1crecommended_interval_seconds\x18\x02 \x01(\x05R\x1arecommendedIntervalSeconds\x12-\n" +

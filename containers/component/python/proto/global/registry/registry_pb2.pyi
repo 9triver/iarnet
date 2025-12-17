@@ -1,7 +1,8 @@
+from google.protobuf.internal import containers as _containers
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
-from collections.abc import Mapping as _Mapping
+from collections.abc import Iterable as _Iterable, Mapping as _Mapping
 from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
@@ -12,10 +13,21 @@ class NodeStatus(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     NODE_STATUS_ONLINE: _ClassVar[NodeStatus]
     NODE_STATUS_OFFLINE: _ClassVar[NodeStatus]
     NODE_STATUS_ERROR: _ClassVar[NodeStatus]
+
+class ProviderStatus(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    PROVIDER_STATUS_UNKNOWN: _ClassVar[ProviderStatus]
+    PROVIDER_STATUS_RUNNING: _ClassVar[ProviderStatus]
+    PROVIDER_STATUS_STOPPED: _ClassVar[ProviderStatus]
+    PROVIDER_STATUS_ERROR: _ClassVar[ProviderStatus]
 NODE_STATUS_UNKNOWN: NodeStatus
 NODE_STATUS_ONLINE: NodeStatus
 NODE_STATUS_OFFLINE: NodeStatus
 NODE_STATUS_ERROR: NodeStatus
+PROVIDER_STATUS_UNKNOWN: ProviderStatus
+PROVIDER_STATUS_RUNNING: ProviderStatus
+PROVIDER_STATUS_STOPPED: ProviderStatus
+PROVIDER_STATUS_ERROR: ProviderStatus
 
 class RegisterNodeRequest(_message.Message):
     __slots__ = ("domain_id", "node_id", "node_name", "node_description")
@@ -69,8 +81,31 @@ class ResourceTags(_message.Message):
     camera: bool
     def __init__(self, cpu: bool = ..., gpu: bool = ..., memory: bool = ..., camera: bool = ...) -> None: ...
 
+class ProviderInfo(_message.Message):
+    __slots__ = ("id", "name", "type", "status", "version", "metadata")
+    class MetadataEntry(_message.Message):
+        __slots__ = ("key", "value")
+        KEY_FIELD_NUMBER: _ClassVar[int]
+        VALUE_FIELD_NUMBER: _ClassVar[int]
+        key: str
+        value: str
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[str] = ...) -> None: ...
+    ID_FIELD_NUMBER: _ClassVar[int]
+    NAME_FIELD_NUMBER: _ClassVar[int]
+    TYPE_FIELD_NUMBER: _ClassVar[int]
+    STATUS_FIELD_NUMBER: _ClassVar[int]
+    VERSION_FIELD_NUMBER: _ClassVar[int]
+    METADATA_FIELD_NUMBER: _ClassVar[int]
+    id: str
+    name: str
+    type: str
+    status: ProviderStatus
+    version: str
+    metadata: _containers.ScalarMap[str, str]
+    def __init__(self, id: _Optional[str] = ..., name: _Optional[str] = ..., type: _Optional[str] = ..., status: _Optional[_Union[ProviderStatus, str]] = ..., version: _Optional[str] = ..., metadata: _Optional[_Mapping[str, str]] = ...) -> None: ...
+
 class HealthCheckRequest(_message.Message):
-    __slots__ = ("node_id", "domain_id", "status", "resource_capacity", "resource_tags", "address", "timestamp", "is_head")
+    __slots__ = ("node_id", "domain_id", "status", "resource_capacity", "resource_tags", "address", "timestamp", "is_head", "providers", "node_name", "node_description")
     NODE_ID_FIELD_NUMBER: _ClassVar[int]
     DOMAIN_ID_FIELD_NUMBER: _ClassVar[int]
     STATUS_FIELD_NUMBER: _ClassVar[int]
@@ -79,6 +114,9 @@ class HealthCheckRequest(_message.Message):
     ADDRESS_FIELD_NUMBER: _ClassVar[int]
     TIMESTAMP_FIELD_NUMBER: _ClassVar[int]
     IS_HEAD_FIELD_NUMBER: _ClassVar[int]
+    PROVIDERS_FIELD_NUMBER: _ClassVar[int]
+    NODE_NAME_FIELD_NUMBER: _ClassVar[int]
+    NODE_DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
     node_id: str
     domain_id: str
     status: NodeStatus
@@ -87,7 +125,10 @@ class HealthCheckRequest(_message.Message):
     address: str
     timestamp: int
     is_head: bool
-    def __init__(self, node_id: _Optional[str] = ..., domain_id: _Optional[str] = ..., status: _Optional[_Union[NodeStatus, str]] = ..., resource_capacity: _Optional[_Union[ResourceCapacity, _Mapping]] = ..., resource_tags: _Optional[_Union[ResourceTags, _Mapping]] = ..., address: _Optional[str] = ..., timestamp: _Optional[int] = ..., is_head: bool = ...) -> None: ...
+    providers: _containers.RepeatedCompositeFieldContainer[ProviderInfo]
+    node_name: str
+    node_description: str
+    def __init__(self, node_id: _Optional[str] = ..., domain_id: _Optional[str] = ..., status: _Optional[_Union[NodeStatus, str]] = ..., resource_capacity: _Optional[_Union[ResourceCapacity, _Mapping]] = ..., resource_tags: _Optional[_Union[ResourceTags, _Mapping]] = ..., address: _Optional[str] = ..., timestamp: _Optional[int] = ..., is_head: bool = ..., providers: _Optional[_Iterable[_Union[ProviderInfo, _Mapping]]] = ..., node_name: _Optional[str] = ..., node_description: _Optional[str] = ...) -> None: ...
 
 class HealthCheckResponse(_message.Message):
     __slots__ = ("server_timestamp", "recommended_interval_seconds", "require_reregister", "status_code", "message")
