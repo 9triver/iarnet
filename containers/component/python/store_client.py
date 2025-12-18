@@ -133,7 +133,7 @@ class StoreClient:
                     ObjectID=object_id,
                     Offset=offset
                 )
-                response = self.stub.GetStreamChunk(request, timeout=30)
+                response = self.stub.GetStreamChunk(request, timeout=60)
             except Exception as e:
                 logger.error(f"Failed to get stream chunk for {object_id}: {e}")
                 raise

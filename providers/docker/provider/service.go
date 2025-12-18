@@ -14,6 +14,7 @@ import (
 	resourcepb "github.com/9triver/iarnet/internal/proto/resource"
 	providerpb "github.com/9triver/iarnet/internal/proto/resource/provider"
 	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/mount"
 	"github.com/moby/moby/api/types/network"
 	"github.com/moby/moby/client"
 	"github.com/sirupsen/logrus"
@@ -34,8 +35,8 @@ type Service struct {
 	allocated     *resourcepb.Info // 当前已分配的容量（内存中动态维护）
 
 	// GPU 管理
-	gpuIDs        []int         // 配置的可用 GPU ID 列表
-	gpuAllocated  map[int]int   // GPU ID -> 分配次数（支持多个容器共享同一 GPU）
+	gpuIDs       []int       // 配置的可用 GPU ID 列表
+	gpuAllocated map[int]int // GPU ID -> 分配次数（支持多个容器共享同一 GPU）
 }
 
 func NewService(host, tlsCertPath string, tlsVerify bool, apiVersion string, network string, resourceTags []string, totalCapacity *resourcepb.Info, gpuIDs []int, allowConnectionFailure bool) (*Service, error) {
@@ -354,7 +355,21 @@ func (s *Service) Deploy(ctx context.Context, req *providerpb.DeployRequest) (*p
 		ExtraHosts: []string{
 			"host.internal:host-gateway",
 		},
-		Runtime: "nvidia",
+		Mounts: []mount.Mount{
+			{
+				Type:     mount.TypeBind, // 或 TypeVolume
+				Source:   "/home/xhy/iarnet-demo/eps_helmet/images",
+				Target:   "/app/images",
+				ReadOnly: false,
+			},
+			{
+				Type:     mount.TypeBind, // 或 TypeVolume
+				Source:   "/home/xhy/iarnet-demo/eps_helmet",
+				Target:   "/app/eps_helmet",
+				ReadOnly: false,
+			},
+		},
+		// Runtime: "nvidia",
 		// PortBindings: portBindings,
 	}
 
@@ -379,16 +394,16 @@ func (s *Service) Deploy(ctx context.Context, req *providerpb.DeployRequest) (*p
 			logrus.Infof("Allocated GPUs for container: %v", allocatedGPUs)
 		} else {
 			logrus.Warnf("No GPU IDs configured, using default GPU allocation")
-			// 如果没有配置 GPU ID，使用 count 方式分配
-			hostConfig.Resources.DeviceRequests = []container.DeviceRequest{
-				{
-					Driver: "nvidia",
-					Count:  int(req.ResourceRequest.Gpu),
-					Capabilities: [][]string{
-						{"gpu"},
-					},
-				},
-			}
+			// // 如果没有配置 GPU ID，使用 count 方式分配
+			// hostConfig.Resources.DeviceRequests = []container.DeviceRequest{
+			// 	{
+			// 		Driver: "nvidia",
+			// 		Count:  int(req.ResourceRequest.Gpu),
+			// 		Capabilities: [][]string{
+			// 			{"gpu"},
+			// 		},
+			// 	},
+			// }
 		}
 	}
 
