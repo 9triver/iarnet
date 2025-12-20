@@ -297,8 +297,10 @@ class Actor:
                 logger.error(error_msg)
             else:
                 if is_stream:
-                    self._stream_result_chunks(
-                        object_ref.ID, value, store_lang)
+                    send_thread = threading.Thread(
+                        target=self._stream_result_chunks, args=(object_ref.ID, value, store_lang))
+                    send_thread.daemon = True
+                    send_thread.start()
                 result_ref = common.ObjectRef(
                     ID=object_ref.ID,
                     Source=object_ref.Source if object_ref.Source else ""
