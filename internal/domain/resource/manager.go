@@ -12,6 +12,7 @@ import (
 	"github.com/9triver/iarnet/internal/domain/resource/component"
 	"github.com/9triver/iarnet/internal/domain/resource/discovery"
 	"github.com/9triver/iarnet/internal/domain/resource/logger"
+	"github.com/9triver/iarnet/internal/domain/resource/policy"
 	"github.com/9triver/iarnet/internal/domain/resource/provider"
 	"github.com/9triver/iarnet/internal/domain/resource/scheduler"
 	"github.com/9triver/iarnet/internal/domain/resource/store"
@@ -36,30 +37,47 @@ var (
 
 type Manager struct {
 	storepb.UnimplementedServiceServer
-	componentService   component.Service
-	storeService       store.Service
-	providerService    provider.Service
-	componentManager   component.Manager
-	providerManager    *provider.Manager
-	loggerService      logger.Service
-	envVariables       *provider.EnvVariables
-	nodeID             string
-	name               string
-	description        string
-	domainID           string
-	domainName         string
-	isHead             bool
-	globalRegistryAddr string        // 全局注册中心地址
-	nodeAddress        string        // 节点地址 (host:port)，用于健康检查上报
-	healthCheckStop    chan struct{} // 用于停止健康检查 goroutine
-	discoveryService   discovery.Service
-	schedulerService   scheduler.Service
+	componentService    component.Service
+	storeService        store.Service
+	providerService     provider.Service
+	componentManager    component.Manager
+	providerManager     *provider.Manager
+	loggerService       logger.Service
+	envVariables        *provider.EnvVariables
+	componentImages     map[string]string // 存储 component 镜像映射，用于 DeployComponentOnProvider
+	nodeID              string
+	name                string
+	description         string
+	domainID            string
+	domainName          string
+	isHead              bool
+	globalRegistryAddr  string        // 全局注册中心地址
+	nodeAddress         string        // 节点地址 (host:port)，用于健康检查上报
+	healthCheckStop     chan struct{} // 用于停止健康检查 goroutine
+	discoveryService    discovery.Service
+	schedulerService    scheduler.Service
+	schedulePolicyChain *policy.Chain // 调度策略链
 
 	// 实时负载轮询服务
 	usagePollingCtx    context.Context
 	usagePollingCancel context.CancelFunc
 	usagePollingWg     sync.WaitGroup
 	usagePollInterval  time.Duration // 轮询间隔，默认 5 秒
+}
+
+// DelegatedScheduleProposal 表示一次跨节点委托部署的调度提案
+// 当前基于 discovery 服务返回的节点视图构建，用于在本地执行“先看方案再决定是否真正部署”的两阶段流程。
+type DelegatedScheduleProposal struct {
+	// 目标节点基础信息
+	NodeID   string
+	NodeName string
+
+	// 目标节点可用于调度 RPC / 业务访问的地址
+	Address          string
+	SchedulerAddress string
+
+	// 节点当前的资源容量视图（可能是近实时、也可能略有滞后）
+	Capacity *types.Capacity
 }
 
 // loadOrGenerateNodeID 从文件加载节点 ID，如果不存在则生成新的并保存
@@ -122,6 +140,7 @@ func NewManager(channeler component.Channeler, s *store.Store, componentImages m
 		description:        description,
 		domainID:           domainID,
 		envVariables:       envVariables,
+		componentImages:    componentImages,
 		healthCheckStop:    make(chan struct{}),
 		usagePollingCtx:    usagePollingCtx,
 		usagePollingCancel: usagePollingCancel,
@@ -507,6 +526,9 @@ func (m *Manager) performHealthCheck(ctx context.Context, client registrypb.Serv
 	// 聚合所有 provider 的资源状态
 	resourceCapacity, resourceTags := m.aggregateResourceStatus(ctx)
 
+	// 获取所有 provider 的详细信息并转换为 proto 格式
+	providerInfos := m.collectProviderInfos(ctx)
+
 	// 确定节点状态
 	// 只要服务正常运行（能够发送健康检查），就认为节点是在线状态
 	// 没有资源不代表节点异常，可能是暂时没有可用的 provider 或资源
@@ -524,6 +546,9 @@ func (m *Manager) performHealthCheck(ctx context.Context, client registrypb.Serv
 		Address:          m.nodeAddress,
 		Timestamp:        time.Now().UnixNano(),
 		IsHead:           m.isHead,
+		Providers:        providerInfos,
+		NodeName:         m.name,
+		NodeDescription:  m.description,
 	}
 
 	// 同步更新 discovery 服务的本地节点信息
@@ -705,6 +730,94 @@ func (m *Manager) aggregateResourceStatus(ctx context.Context) (*registrypb.Reso
 	return resourceCapacity, resourceTags
 }
 
+// collectProviderInfos 收集所有 provider 的详细信息并转换为 proto 格式
+// 用于在健康检查时上报给 iarnet-global
+func (m *Manager) collectProviderInfos(ctx context.Context) []*registrypb.ProviderInfo {
+	if m.schedulerService == nil {
+		return nil
+	}
+
+	// 获取所有 provider 信息（包含资源信息）
+	providerListResp, err := m.schedulerService.ListProviders(ctx, true)
+	if err != nil {
+		logrus.Warnf("Failed to list providers for health check: %v", err)
+		return nil
+	}
+
+	if providerListResp == nil || !providerListResp.Success {
+		if providerListResp != nil && providerListResp.Error != "" {
+			logrus.Warnf("Failed to list providers: %s", providerListResp.Error)
+		}
+		return nil
+	}
+
+	providers := providerListResp.Providers
+	if len(providers) == 0 {
+		return nil
+	}
+
+	// 转换为 proto 格式
+	result := make([]*registrypb.ProviderInfo, 0, len(providers))
+	for _, p := range providers {
+		// 转换状态：types.ProviderStatus -> registrypb.ProviderStatus
+		var protoStatus registrypb.ProviderStatus
+		switch p.Status {
+		case string(types.ProviderStatusConnected):
+			protoStatus = registrypb.ProviderStatus_PROVIDER_STATUS_RUNNING
+		case string(types.ProviderStatusDisconnected):
+			protoStatus = registrypb.ProviderStatus_PROVIDER_STATUS_STOPPED
+		default:
+			protoStatus = registrypb.ProviderStatus_PROVIDER_STATUS_UNKNOWN
+		}
+
+		// 构建 metadata，包含资源信息
+		metadata := make(map[string]string)
+		if p.ResourceTags != nil {
+			if p.ResourceTags.CPU {
+				metadata["has_cpu"] = "true"
+			}
+			if p.ResourceTags.GPU {
+				metadata["has_gpu"] = "true"
+			}
+			if p.ResourceTags.Memory {
+				metadata["has_memory"] = "true"
+			}
+			if p.ResourceTags.Camera {
+				metadata["has_camera"] = "true"
+			}
+		}
+		if p.Available != nil {
+			metadata["available_cpu"] = fmt.Sprintf("%d", p.Available.CPU)
+			metadata["available_memory"] = fmt.Sprintf("%d", p.Available.Memory)
+			metadata["available_gpu"] = fmt.Sprintf("%d", p.Available.GPU)
+		}
+		if p.TotalCapacity != nil {
+			metadata["total_cpu"] = fmt.Sprintf("%d", p.TotalCapacity.CPU)
+			metadata["total_memory"] = fmt.Sprintf("%d", p.TotalCapacity.Memory)
+			metadata["total_gpu"] = fmt.Sprintf("%d", p.TotalCapacity.GPU)
+		}
+		if p.Used != nil {
+			metadata["used_cpu"] = fmt.Sprintf("%d", p.Used.CPU)
+			metadata["used_memory"] = fmt.Sprintf("%d", p.Used.Memory)
+			metadata["used_gpu"] = fmt.Sprintf("%d", p.Used.GPU)
+		}
+
+		providerInfo := &registrypb.ProviderInfo{
+			Id:       p.ProviderID,
+			Name:     p.ProviderName,
+			Type:     p.ProviderType,
+			Status:   protoStatus,
+			Version:  "", // Provider 版本信息暂不提供
+			Metadata: metadata,
+		}
+
+		result = append(result, providerInfo)
+	}
+
+	logrus.Debugf("Collected %d provider infos for health check", len(result))
+	return result
+}
+
 func (m *Manager) SubmitLog(ctx context.Context, componentID string, entry *logger.Entry) (logger.LogID, error) {
 	return m.loggerService.SubmitLog(ctx, componentID, entry)
 }
@@ -735,12 +848,14 @@ func (m *Manager) DeployComponent(ctx context.Context, runtimeEnv types.RuntimeE
 	}
 	logrus.Warnf("Delegation to peer nodes failed: %v", peerErr)
 
-	globalComponent, globalErr := m.delegateToGlobalScheduler(ctx, runtimeEnv, resourceRequest)
-	if globalErr == nil {
-		return globalComponent, nil
-	}
+	// 不再使用 iarnet-global 进行调度，而是将自身直接管理的 provider 信息提交给 iarnet-global
+	// 调度决策由本地节点或对等节点完成，iarnet-global 仅作为资源信息收集和展示平台
+	// globalComponent, globalErr := m.delegateToGlobalScheduler(ctx, runtimeEnv, resourceRequest)
+	// if globalErr == nil {
+	// 	return globalComponent, nil
+	// }
 
-	return nil, fmt.Errorf("local deployment failed: %w; peer delegation failed: %v; global delegation failed: %v", err, peerErr, globalErr)
+	return nil, fmt.Errorf("local deployment failed: %w; peer delegation failed: %v", err, peerErr)
 }
 
 func (m *Manager) shouldDelegateDeployment(err error) bool {
@@ -753,6 +868,35 @@ func (m *Manager) shouldDelegateDeployment(err error) bool {
 }
 
 func (m *Manager) delegateToPeerNodes(ctx context.Context, runtimeEnv types.RuntimeEnv, resourceRequest *types.Info) (*component.Component, error) {
+	// 先通过 discovery 获取调度提案列表（不触发远端真实部署）
+	proposals, err := m.ProposeDelegatedDeployment(ctx, runtimeEnv, resourceRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	// 当前默认策略：按提案顺序依次尝试提交部署，一旦成功即返回。
+	// 后续如果需要更复杂的拒绝/重试策略，可以在调用方基于 Propose/Commit 做更精细的控制。
+	for _, p := range proposals {
+		if p == nil {
+			continue
+		}
+
+		component, commitErr := m.CommitDelegatedDeployment(ctx, runtimeEnv, resourceRequest, p)
+		if commitErr != nil {
+			logrus.Warnf("Failed to commit delegated deployment to node %s (%s): %v", p.NodeName, p.NodeID, commitErr)
+			continue
+		}
+
+		logrus.Infof("Delegated component deployment to node %s (%s)", p.NodeName, p.NodeID)
+		return component, nil
+	}
+
+	return nil, fmt.Errorf("all candidate nodes rejected or failed delegated deployment")
+}
+
+// ProposeDelegatedDeployment 基于 discovery 服务生成一组跨节点委托部署的调度提案。
+// 注意：该方法不会触发任何远端部署，仅依赖当前掌握的资源视图做候选节点筛选。
+func (m *Manager) ProposeDelegatedDeployment(ctx context.Context, runtimeEnv types.RuntimeEnv, resourceRequest *types.Info) ([]*DelegatedScheduleProposal, error) {
 	if m.discoveryService == nil || m.schedulerService == nil {
 		return nil, fmt.Errorf("discovery service or scheduler service not configured")
 	}
@@ -769,43 +913,270 @@ func (m *Manager) delegateToPeerNodes(ctx context.Context, runtimeEnv types.Runt
 		return nil, fmt.Errorf("no in-domain nodes have sufficient resources")
 	}
 
+	proposals := make([]*DelegatedScheduleProposal, 0, len(nodes))
 	for _, node := range nodes {
-		targetAddr := node.SchedulerAddress
-		if targetAddr == "" {
-			targetAddr = node.Address
+		if node == nil {
+			continue
 		}
 
-		resp, deployErr := m.schedulerService.DeployComponent(ctx, &scheduler.DeployRequest{
-			RuntimeEnv:            runtimeEnv,
-			ResourceRequest:       resourceRequest,
-			TargetNodeID:          node.NodeID,
-			TargetAddress:         targetAddr,
-			UpstreamZMQAddress:    m.getZMQAddress(),
-			UpstreamStoreAddress:  m.getStoreAddress(),
-			UpstreamLoggerAddress: m.getLoggerAddress(),
+		proposals = append(proposals, &DelegatedScheduleProposal{
+			NodeID:           node.NodeID,
+			NodeName:         node.NodeName,
+			Address:          node.Address,
+			SchedulerAddress: node.SchedulerAddress,
+			Capacity:         node.ResourceCapacity,
 		})
-		if deployErr != nil {
-			logrus.Warnf("Failed to delegate deployment to node %s (%s): %v", node.NodeName, node.NodeID, deployErr)
-			continue
-		}
-		if resp == nil || !resp.Success {
-			if resp != nil && resp.Error != "" {
-				logrus.Warnf("Node %s rejected deployment: %s", node.NodeID, resp.Error)
-			}
-			continue
-		}
-		if resp.Component != nil {
-			if err := m.componentManager.AddComponent(ctx, resp.Component); err != nil {
-				logrus.Errorf("Failed to register remote component %s locally: %v", resp.Component.GetID(), err)
-				continue
-			}
-			resp.Component.SetProviderID(fmt.Sprintf("remote.%s@%s", resp.ProviderID, resp.NodeID))
-		}
-		logrus.Infof("Delegated component deployment to node %s (%s)", node.NodeName, node.NodeID)
-		return resp.Component, nil
 	}
 
-	return nil, fmt.Errorf("all candidate nodes rejected the deployment request")
+	if len(proposals) == 0 {
+		return nil, fmt.Errorf("no valid delegation proposals generated from discovery result")
+	}
+
+	logrus.Debugf("Generated %d delegated scheduling proposals for runtime=%s", len(proposals), runtimeEnv)
+	return proposals, nil
+}
+
+// ScheduleLocalProvider 在当前 iarnet 节点内执行一次“只调度不部署”的本地调度。
+// 它会复用 providerService.FindAvailableProvider 的逻辑返回一个合适的 Provider，
+// 同时查询该 Provider 当前的可用资源，打包成 scheduler.LocalScheduleResult 返回给调用方。
+func (m *Manager) ScheduleLocalProvider(ctx context.Context, resourceRequest *types.Info) (*scheduler.LocalScheduleResult, error) {
+	if resourceRequest == nil {
+		return nil, fmt.Errorf("resource request is nil")
+	}
+	if m.providerService == nil {
+		return nil, fmt.Errorf("provider service is not configured")
+	}
+
+	// 仅做调度决策，不做任何部署操作
+	p, err := m.providerService.FindAvailableProvider(ctx, resourceRequest)
+	if err != nil {
+		return nil, fmt.Errorf("failed to schedule local provider: %w", err)
+	}
+	if p == nil {
+		return nil, fmt.Errorf("no available provider found locally")
+	}
+
+	// 尝试获取当前可用资源视图，调度失败不影响 Provider 选择结果
+	available, availErr := p.GetAvailable(ctx)
+	if availErr != nil {
+		logrus.Debugf("Failed to get available resources for provider %s: %v", p.GetID(), availErr)
+	}
+
+	return &scheduler.LocalScheduleResult{
+		ProviderID: p.GetID(),
+		Available:  available,
+	}, nil
+}
+
+// SetSchedulePolicyChain 设置调度策略链
+func (m *Manager) SetSchedulePolicyChain(chain *policy.Chain) {
+	m.schedulePolicyChain = chain
+}
+
+// DeployComponentOnProvider 在指定的 provider 上部署 component
+// 用于两阶段提交的第二阶段：根据之前调度结果中选定的 provider_id 进行部署
+func (m *Manager) DeployComponentOnProvider(ctx context.Context, runtimeEnv types.RuntimeEnv, resourceRequest *types.Info, providerID string) (*component.Component, error) {
+	if resourceRequest == nil {
+		return nil, fmt.Errorf("resource request is required")
+	}
+	if providerID == "" {
+		return nil, fmt.Errorf("provider ID is required")
+	}
+	if m.providerService == nil {
+		return nil, fmt.Errorf("provider service is not configured")
+	}
+	if m.componentImages == nil {
+		return nil, fmt.Errorf("component images not configured")
+	}
+
+	// 获取指定的 provider
+	p := m.providerService.GetProvider(providerID)
+	if p == nil {
+		return nil, fmt.Errorf("provider %s not found", providerID)
+	}
+
+	// 检查 provider 状态
+	if p.GetStatus() != types.ProviderStatusConnected {
+		return nil, fmt.Errorf("provider %s is not connected", providerID)
+	}
+
+	// 获取镜像
+	image, ok := m.componentImages[string(runtimeEnv)]
+	if !ok {
+		return nil, fmt.Errorf("image for runtime environment %s not found", runtimeEnv)
+	}
+
+	// 创建 component
+	id := util.GenIDWith("comp.")
+	comp := component.NewComponent(id, image, resourceRequest)
+
+	// 添加到 manager
+	if err := m.componentManager.AddComponent(ctx, comp); err != nil {
+		return nil, fmt.Errorf("failed to add component to manager: %w", err)
+	}
+
+	// 在指定 provider 上部署
+	if err := p.Deploy(ctx, id, image, resourceRequest); err != nil {
+		return nil, fmt.Errorf("failed to deploy component on provider %s: %w", providerID, err)
+	}
+
+	comp.SetProviderID("local." + providerID)
+	logrus.Infof("Deployed component %s on provider %s", id, providerID)
+
+	return comp, nil
+}
+
+// ListAllProviders 获取所有 Provider 列表及其资源信息
+// 用于无自主调度能力的场景：调用方可以根据 Provider 列表在本地进行调度决策
+func (m *Manager) ListAllProviders(ctx context.Context, includeResources bool) ([]*scheduler.ProviderInfo, error) {
+	if m.providerService == nil {
+		return nil, fmt.Errorf("provider service is not configured")
+	}
+
+	providers := m.providerService.GetAllProviders()
+	if len(providers) == 0 {
+		return []*scheduler.ProviderInfo{}, nil
+	}
+
+	result := make([]*scheduler.ProviderInfo, 0, len(providers))
+	for _, p := range providers {
+		info := &scheduler.ProviderInfo{
+			ProviderID:   p.GetID(),
+			ProviderName: p.GetName(),
+			ProviderType: string(p.GetType()),
+			Status:       string(p.GetStatus()),
+			ResourceTags: p.GetResourceTags(),
+		}
+
+		if includeResources {
+			// 获取资源信息
+			capacity, err := p.GetCapacity(ctx)
+			if err != nil {
+				logrus.Debugf("Failed to get capacity for provider %s: %v", p.GetID(), err)
+			} else if capacity != nil {
+				if capacity.Total != nil {
+					info.TotalCapacity = capacity.Total
+				}
+				if capacity.Used != nil {
+					info.Used = capacity.Used
+				}
+				if capacity.Available != nil {
+					info.Available = capacity.Available
+				}
+			}
+		}
+
+		result = append(result, info)
+	}
+
+	return result, nil
+}
+
+// EvaluateLocalScheduleSafety 使用策略链评估调度结果是否可接受
+// 返回值：
+//   - ok: 是否通过策略校验
+//   - reason: 如果不通过，说明被拒绝的原因
+func (m *Manager) EvaluateLocalScheduleSafety(resourceRequest *types.Info, result *scheduler.LocalScheduleResult) (ok bool, reason string) {
+	if resourceRequest == nil || result == nil || result.Available == nil {
+		return false, "resource request or schedule result is nil"
+	}
+
+	// 如果没有配置策略链，默认接受（向后兼容）
+	if m.schedulePolicyChain == nil {
+		logrus.Debug("No schedule policy chain configured, accepting schedule result")
+		return true, ""
+	}
+
+	// 构建策略评估上下文
+	ctx := &policy.Context{
+		NodeID:        result.NodeID,
+		NodeName:      result.NodeName,
+		ProviderID:    result.ProviderID,
+		Available:     result.Available,
+		Request:       resourceRequest,
+		LocalNodeID:   m.nodeID,
+		LocalDomainID: m.domainID,
+	}
+
+	// 执行策略链评估
+	policyResult := m.schedulePolicyChain.Evaluate(ctx)
+	if policyResult.Decision == policy.DecisionReject {
+		return false, fmt.Sprintf("[%s] %s", policyResult.Policy, policyResult.Reason)
+	}
+
+	return true, ""
+}
+
+// CommitDelegatedDeployment 根据给定的调度提案，使用两阶段提交向目标节点发起部署请求。
+// 第一阶段：调用远端 ProposeLocalSchedule 获取调度结果
+// 第二阶段：使用策略评估调度结果，如果通过则调用远端 CommitLocalSchedule 确认部署
+func (m *Manager) CommitDelegatedDeployment(ctx context.Context, runtimeEnv types.RuntimeEnv, resourceRequest *types.Info, proposal *DelegatedScheduleProposal) (*component.Component, error) {
+	if proposal == nil {
+		return nil, fmt.Errorf("delegation proposal is required")
+	}
+	if m.schedulerService == nil {
+		return nil, fmt.Errorf("scheduler service is not configured")
+	}
+	if resourceRequest == nil {
+		return nil, fmt.Errorf("resource request is nil")
+	}
+
+	targetAddr := proposal.SchedulerAddress
+	if targetAddr == "" {
+		targetAddr = proposal.Address
+	}
+	if targetAddr == "" {
+		return nil, fmt.Errorf("target address is empty for node %s", proposal.NodeID)
+	}
+
+	// 第一阶段：调用远端 ProposeLocalSchedule 获取调度结果
+	scheduleResult, err := m.schedulerService.ProposeRemoteSchedule(ctx, proposal.NodeID, targetAddr, resourceRequest)
+	if err != nil {
+		return nil, fmt.Errorf("failed to propose schedule on remote node %s: %w", proposal.NodeID, err)
+	}
+
+	// 第二阶段：使用策略评估调度结果
+	ok, reason := m.EvaluateLocalScheduleSafety(resourceRequest, scheduleResult)
+	if !ok {
+		return nil, fmt.Errorf("schedule proposal rejected by policy: %s", reason)
+	}
+
+	// 第三阶段：确认部署
+	commitReq := &scheduler.CommitLocalScheduleRequest{
+		RuntimeEnv:            runtimeEnv,
+		ResourceRequest:       resourceRequest,
+		ProviderID:            scheduleResult.ProviderID,
+		UpstreamZMQAddress:    m.getZMQAddress(),
+		UpstreamStoreAddress:  m.getStoreAddress(),
+		UpstreamLoggerAddress: m.getLoggerAddress(),
+	}
+
+	resp, err := m.schedulerService.CommitRemoteSchedule(ctx, proposal.NodeID, targetAddr, commitReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to commit schedule on remote node %s: %w", proposal.NodeID, err)
+	}
+	if resp == nil {
+		return nil, fmt.Errorf("commit schedule returned empty response from node %s", proposal.NodeID)
+	}
+	if !resp.Success {
+		if resp.Error != "" {
+			return nil, fmt.Errorf("commit schedule rejected by node %s: %s", proposal.NodeID, resp.Error)
+		}
+		return nil, fmt.Errorf("commit schedule rejected by node %s", proposal.NodeID)
+	}
+
+	if resp.Component != nil {
+		if err := m.componentManager.AddComponent(ctx, resp.Component); err != nil {
+			return nil, fmt.Errorf("failed to register remote component %s locally: %w", resp.Component.GetID(), err)
+		}
+		// 标记为远端 provider，使用原始的 providerID（从 scheduleResult 获取，不包含 "local." 前缀）
+		// 和节点信息，便于后续追踪
+		// 注意：resp.ProviderID 可能已经包含 "local." 前缀（远程节点设置的），所以使用 scheduleResult.ProviderID
+		resp.Component.SetProviderID(fmt.Sprintf("%s@%s", scheduleResult.ProviderID, resp.NodeID))
+	}
+
+	logrus.Infof("Successfully committed delegated deployment to node %s (%s) via two-phase commit", proposal.NodeName, proposal.NodeID)
+	return resp.Component, nil
 }
 
 func (m *Manager) delegateToGlobalScheduler(ctx context.Context, runtimeEnv types.RuntimeEnv, resourceRequest *types.Info) (*component.Component, error) {

@@ -52,7 +52,7 @@ func TestRemoteK8sResourcePerception(t *testing.T) {
 			Used:      &types.Info{CPU: 1000, Memory: 1 * 1024 * 1024 * 1024, GPU: 0},
 			Available: &types.Info{CPU: 3000, Memory: 3 * 1024 * 1024 * 1024, GPU: 0},
 		},
-		discovery.NewResourceTags(true, false, true, false),
+		types.NewResourceTags(true, false, true, false),
 	)
 
 	err := currentManager.Start(ctx)
@@ -140,7 +140,7 @@ func TestRemoteK8sResourcePerception(t *testing.T) {
 	require.NotNil(t, healthResp, "Health check response should not be nil")
 	require.NotNil(t, healthResp.ResourceTags, "Resource tags should not be nil")
 
-	remoteResourceTags := discovery.NewResourceTags(
+	remoteResourceTags := types.NewResourceTags(
 		healthResp.ResourceTags.Cpu,
 		healthResp.ResourceTags.Gpu,
 		healthResp.ResourceTags.Memory,

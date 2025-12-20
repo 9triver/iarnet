@@ -469,6 +469,536 @@ func (x *GetDeploymentStatusResponse) GetComponent() *ComponentInfo {
 	return nil
 }
 
+// ProposeLocalScheduleRequest 本地调度请求（只调度，不部署）
+type ProposeLocalScheduleRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// 资源请求
+	ResourceRequest *resource.Info `protobuf:"bytes,1,opt,name=resource_request,json=resourceRequest,proto3" json:"resource_request,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *ProposeLocalScheduleRequest) Reset() {
+	*x = ProposeLocalScheduleRequest{}
+	mi := &file_resource_scheduler_scheduler_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProposeLocalScheduleRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProposeLocalScheduleRequest) ProtoMessage() {}
+
+func (x *ProposeLocalScheduleRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_resource_scheduler_scheduler_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProposeLocalScheduleRequest.ProtoReflect.Descriptor instead.
+func (*ProposeLocalScheduleRequest) Descriptor() ([]byte, []int) {
+	return file_resource_scheduler_scheduler_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *ProposeLocalScheduleRequest) GetResourceRequest() *resource.Info {
+	if x != nil {
+		return x.ResourceRequest
+	}
+	return nil
+}
+
+// ProposeLocalScheduleResponse 本地调度响应（返回选中的 Provider 及其可用资源）
+type ProposeLocalScheduleResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// 是否成功
+	Success bool `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	// 错误信息（如果失败）
+	Error string `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	// 当前节点信息
+	NodeId   string `protobuf:"bytes,3,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	NodeName string `protobuf:"bytes,4,opt,name=node_name,json=nodeName,proto3" json:"node_name,omitempty"`
+	// 被选中的本地 Provider ID
+	ProviderId string `protobuf:"bytes,5,opt,name=provider_id,json=providerId,proto3" json:"provider_id,omitempty"`
+	// 该 Provider 当前可用资源视图
+	Available     *resource.Info `protobuf:"bytes,6,opt,name=available,proto3" json:"available,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProposeLocalScheduleResponse) Reset() {
+	*x = ProposeLocalScheduleResponse{}
+	mi := &file_resource_scheduler_scheduler_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProposeLocalScheduleResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProposeLocalScheduleResponse) ProtoMessage() {}
+
+func (x *ProposeLocalScheduleResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_resource_scheduler_scheduler_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProposeLocalScheduleResponse.ProtoReflect.Descriptor instead.
+func (*ProposeLocalScheduleResponse) Descriptor() ([]byte, []int) {
+	return file_resource_scheduler_scheduler_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *ProposeLocalScheduleResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *ProposeLocalScheduleResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *ProposeLocalScheduleResponse) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
+	}
+	return ""
+}
+
+func (x *ProposeLocalScheduleResponse) GetNodeName() string {
+	if x != nil {
+		return x.NodeName
+	}
+	return ""
+}
+
+func (x *ProposeLocalScheduleResponse) GetProviderId() string {
+	if x != nil {
+		return x.ProviderId
+	}
+	return ""
+}
+
+func (x *ProposeLocalScheduleResponse) GetAvailable() *resource.Info {
+	if x != nil {
+		return x.Available
+	}
+	return nil
+}
+
+// CommitLocalScheduleRequest 确认部署请求（两阶段提交的第二阶段）
+type CommitLocalScheduleRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// 运行时环境（如 "python"）
+	RuntimeEnv string `protobuf:"bytes,1,opt,name=runtime_env,json=runtimeEnv,proto3" json:"runtime_env,omitempty"`
+	// 资源请求（应与 ProposeLocalSchedule 时一致）
+	ResourceRequest *resource.Info `protobuf:"bytes,2,opt,name=resource_request,json=resourceRequest,proto3" json:"resource_request,omitempty"`
+	// Provider ID（从 ProposeLocalSchedule 返回的调度结果中获取）
+	ProviderId string `protobuf:"bytes,3,opt,name=provider_id,json=providerId,proto3" json:"provider_id,omitempty"`
+	// 由外部节点委托时需要回连的上游地址
+	UpstreamZmqAddress    string `protobuf:"bytes,4,opt,name=upstream_zmq_address,json=upstreamZmqAddress,proto3" json:"upstream_zmq_address,omitempty"`
+	UpstreamStoreAddress  string `protobuf:"bytes,5,opt,name=upstream_store_address,json=upstreamStoreAddress,proto3" json:"upstream_store_address,omitempty"`
+	UpstreamLoggerAddress string `protobuf:"bytes,6,opt,name=upstream_logger_address,json=upstreamLoggerAddress,proto3" json:"upstream_logger_address,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *CommitLocalScheduleRequest) Reset() {
+	*x = CommitLocalScheduleRequest{}
+	mi := &file_resource_scheduler_scheduler_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CommitLocalScheduleRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CommitLocalScheduleRequest) ProtoMessage() {}
+
+func (x *CommitLocalScheduleRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_resource_scheduler_scheduler_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CommitLocalScheduleRequest.ProtoReflect.Descriptor instead.
+func (*CommitLocalScheduleRequest) Descriptor() ([]byte, []int) {
+	return file_resource_scheduler_scheduler_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *CommitLocalScheduleRequest) GetRuntimeEnv() string {
+	if x != nil {
+		return x.RuntimeEnv
+	}
+	return ""
+}
+
+func (x *CommitLocalScheduleRequest) GetResourceRequest() *resource.Info {
+	if x != nil {
+		return x.ResourceRequest
+	}
+	return nil
+}
+
+func (x *CommitLocalScheduleRequest) GetProviderId() string {
+	if x != nil {
+		return x.ProviderId
+	}
+	return ""
+}
+
+func (x *CommitLocalScheduleRequest) GetUpstreamZmqAddress() string {
+	if x != nil {
+		return x.UpstreamZmqAddress
+	}
+	return ""
+}
+
+func (x *CommitLocalScheduleRequest) GetUpstreamStoreAddress() string {
+	if x != nil {
+		return x.UpstreamStoreAddress
+	}
+	return ""
+}
+
+func (x *CommitLocalScheduleRequest) GetUpstreamLoggerAddress() string {
+	if x != nil {
+		return x.UpstreamLoggerAddress
+	}
+	return ""
+}
+
+// ListProvidersRequest 获取 Provider 列表请求
+type ListProvidersRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// 是否包含资源信息（可用资源、容量等），默认 true
+	IncludeResources bool `protobuf:"varint,1,opt,name=include_resources,json=includeResources,proto3" json:"include_resources,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *ListProvidersRequest) Reset() {
+	*x = ListProvidersRequest{}
+	mi := &file_resource_scheduler_scheduler_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListProvidersRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListProvidersRequest) ProtoMessage() {}
+
+func (x *ListProvidersRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_resource_scheduler_scheduler_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListProvidersRequest.ProtoReflect.Descriptor instead.
+func (*ListProvidersRequest) Descriptor() ([]byte, []int) {
+	return file_resource_scheduler_scheduler_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *ListProvidersRequest) GetIncludeResources() bool {
+	if x != nil {
+		return x.IncludeResources
+	}
+	return false
+}
+
+// ListProvidersResponse 获取 Provider 列表响应
+type ListProvidersResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// 是否成功
+	Success bool `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	// 错误信息（如果失败）
+	Error string `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	// 当前节点信息
+	NodeId   string `protobuf:"bytes,3,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
+	NodeName string `protobuf:"bytes,4,opt,name=node_name,json=nodeName,proto3" json:"node_name,omitempty"`
+	// Provider 列表
+	Providers     []*ProviderInfo `protobuf:"bytes,5,rep,name=providers,proto3" json:"providers,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListProvidersResponse) Reset() {
+	*x = ListProvidersResponse{}
+	mi := &file_resource_scheduler_scheduler_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListProvidersResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListProvidersResponse) ProtoMessage() {}
+
+func (x *ListProvidersResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_resource_scheduler_scheduler_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListProvidersResponse.ProtoReflect.Descriptor instead.
+func (*ListProvidersResponse) Descriptor() ([]byte, []int) {
+	return file_resource_scheduler_scheduler_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *ListProvidersResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *ListProvidersResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *ListProvidersResponse) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
+	}
+	return ""
+}
+
+func (x *ListProvidersResponse) GetNodeName() string {
+	if x != nil {
+		return x.NodeName
+	}
+	return ""
+}
+
+func (x *ListProvidersResponse) GetProviders() []*ProviderInfo {
+	if x != nil {
+		return x.Providers
+	}
+	return nil
+}
+
+// ProviderInfo Provider 信息
+type ProviderInfo struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Provider ID
+	ProviderId string `protobuf:"bytes,1,opt,name=provider_id,json=providerId,proto3" json:"provider_id,omitempty"`
+	// Provider 名称
+	ProviderName string `protobuf:"bytes,2,opt,name=provider_name,json=providerName,proto3" json:"provider_name,omitempty"`
+	// Provider 类型（如 "docker", "k8s"）
+	ProviderType string `protobuf:"bytes,3,opt,name=provider_type,json=providerType,proto3" json:"provider_type,omitempty"`
+	// Provider 状态（connected, disconnected）
+	Status string `protobuf:"bytes,4,opt,name=status,proto3" json:"status,omitempty"`
+	// 可用资源（如果 include_resources=true）
+	Available *resource.Info `protobuf:"bytes,5,opt,name=available,proto3" json:"available,omitempty"`
+	// 总容量（如果 include_resources=true）
+	TotalCapacity *resource.Info `protobuf:"bytes,6,opt,name=total_capacity,json=totalCapacity,proto3" json:"total_capacity,omitempty"`
+	// 已使用资源（如果 include_resources=true）
+	Used *resource.Info `protobuf:"bytes,7,opt,name=used,proto3" json:"used,omitempty"`
+	// 资源标签（支持的计算资源类型）
+	ResourceTags  *ResourceTags `protobuf:"bytes,8,opt,name=resource_tags,json=resourceTags,proto3" json:"resource_tags,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProviderInfo) Reset() {
+	*x = ProviderInfo{}
+	mi := &file_resource_scheduler_scheduler_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProviderInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProviderInfo) ProtoMessage() {}
+
+func (x *ProviderInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_resource_scheduler_scheduler_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProviderInfo.ProtoReflect.Descriptor instead.
+func (*ProviderInfo) Descriptor() ([]byte, []int) {
+	return file_resource_scheduler_scheduler_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *ProviderInfo) GetProviderId() string {
+	if x != nil {
+		return x.ProviderId
+	}
+	return ""
+}
+
+func (x *ProviderInfo) GetProviderName() string {
+	if x != nil {
+		return x.ProviderName
+	}
+	return ""
+}
+
+func (x *ProviderInfo) GetProviderType() string {
+	if x != nil {
+		return x.ProviderType
+	}
+	return ""
+}
+
+func (x *ProviderInfo) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *ProviderInfo) GetAvailable() *resource.Info {
+	if x != nil {
+		return x.Available
+	}
+	return nil
+}
+
+func (x *ProviderInfo) GetTotalCapacity() *resource.Info {
+	if x != nil {
+		return x.TotalCapacity
+	}
+	return nil
+}
+
+func (x *ProviderInfo) GetUsed() *resource.Info {
+	if x != nil {
+		return x.Used
+	}
+	return nil
+}
+
+func (x *ProviderInfo) GetResourceTags() *ResourceTags {
+	if x != nil {
+		return x.ResourceTags
+	}
+	return nil
+}
+
+// ResourceTags 资源标签
+type ResourceTags struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Cpu           bool                   `protobuf:"varint,1,opt,name=cpu,proto3" json:"cpu,omitempty"`
+	Gpu           bool                   `protobuf:"varint,2,opt,name=gpu,proto3" json:"gpu,omitempty"`
+	Memory        bool                   `protobuf:"varint,3,opt,name=memory,proto3" json:"memory,omitempty"`
+	Camera        bool                   `protobuf:"varint,4,opt,name=camera,proto3" json:"camera,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ResourceTags) Reset() {
+	*x = ResourceTags{}
+	mi := &file_resource_scheduler_scheduler_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResourceTags) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResourceTags) ProtoMessage() {}
+
+func (x *ResourceTags) ProtoReflect() protoreflect.Message {
+	mi := &file_resource_scheduler_scheduler_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResourceTags.ProtoReflect.Descriptor instead.
+func (*ResourceTags) Descriptor() ([]byte, []int) {
+	return file_resource_scheduler_scheduler_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *ResourceTags) GetCpu() bool {
+	if x != nil {
+		return x.Cpu
+	}
+	return false
+}
+
+func (x *ResourceTags) GetGpu() bool {
+	if x != nil {
+		return x.Gpu
+	}
+	return false
+}
+
+func (x *ResourceTags) GetMemory() bool {
+	if x != nil {
+		return x.Memory
+	}
+	return false
+}
+
+func (x *ResourceTags) GetCamera() bool {
+	if x != nil {
+		return x.Camera
+	}
+	return false
+}
+
 var File_resource_scheduler_scheduler_proto protoreflect.FileDescriptor
 
 const file_resource_scheduler_scheduler_proto_rawDesc = "" +
@@ -504,16 +1034,61 @@ const file_resource_scheduler_scheduler_proto_rawDesc = "" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
 	"\x05error\x18\x02 \x01(\tR\x05error\x12;\n" +
 	"\x06status\x18\x03 \x01(\x0e2#.resource.scheduler.ComponentStatusR\x06status\x12?\n" +
-	"\tcomponent\x18\x04 \x01(\v2!.resource.scheduler.ComponentInfoR\tcomponent*\xa7\x01\n" +
+	"\tcomponent\x18\x04 \x01(\v2!.resource.scheduler.ComponentInfoR\tcomponent\"X\n" +
+	"\x1bProposeLocalScheduleRequest\x129\n" +
+	"\x10resource_request\x18\x01 \x01(\v2\x0e.resource.InfoR\x0fresourceRequest\"\xd3\x01\n" +
+	"\x1cProposeLocalScheduleResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\x12\x17\n" +
+	"\anode_id\x18\x03 \x01(\tR\x06nodeId\x12\x1b\n" +
+	"\tnode_name\x18\x04 \x01(\tR\bnodeName\x12\x1f\n" +
+	"\vprovider_id\x18\x05 \x01(\tR\n" +
+	"providerId\x12,\n" +
+	"\tavailable\x18\x06 \x01(\v2\x0e.resource.InfoR\tavailable\"\xb9\x02\n" +
+	"\x1aCommitLocalScheduleRequest\x12\x1f\n" +
+	"\vruntime_env\x18\x01 \x01(\tR\n" +
+	"runtimeEnv\x129\n" +
+	"\x10resource_request\x18\x02 \x01(\v2\x0e.resource.InfoR\x0fresourceRequest\x12\x1f\n" +
+	"\vprovider_id\x18\x03 \x01(\tR\n" +
+	"providerId\x120\n" +
+	"\x14upstream_zmq_address\x18\x04 \x01(\tR\x12upstreamZmqAddress\x124\n" +
+	"\x16upstream_store_address\x18\x05 \x01(\tR\x14upstreamStoreAddress\x126\n" +
+	"\x17upstream_logger_address\x18\x06 \x01(\tR\x15upstreamLoggerAddress\"C\n" +
+	"\x14ListProvidersRequest\x12+\n" +
+	"\x11include_resources\x18\x01 \x01(\bR\x10includeResources\"\xbd\x01\n" +
+	"\x15ListProvidersResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\x12\x17\n" +
+	"\anode_id\x18\x03 \x01(\tR\x06nodeId\x12\x1b\n" +
+	"\tnode_name\x18\x04 \x01(\tR\bnodeName\x12>\n" +
+	"\tproviders\x18\x05 \x03(\v2 .resource.scheduler.ProviderInfoR\tproviders\"\xe1\x02\n" +
+	"\fProviderInfo\x12\x1f\n" +
+	"\vprovider_id\x18\x01 \x01(\tR\n" +
+	"providerId\x12#\n" +
+	"\rprovider_name\x18\x02 \x01(\tR\fproviderName\x12#\n" +
+	"\rprovider_type\x18\x03 \x01(\tR\fproviderType\x12\x16\n" +
+	"\x06status\x18\x04 \x01(\tR\x06status\x12,\n" +
+	"\tavailable\x18\x05 \x01(\v2\x0e.resource.InfoR\tavailable\x125\n" +
+	"\x0etotal_capacity\x18\x06 \x01(\v2\x0e.resource.InfoR\rtotalCapacity\x12\"\n" +
+	"\x04used\x18\a \x01(\v2\x0e.resource.InfoR\x04used\x12E\n" +
+	"\rresource_tags\x18\b \x01(\v2 .resource.scheduler.ResourceTagsR\fresourceTags\"b\n" +
+	"\fResourceTags\x12\x10\n" +
+	"\x03cpu\x18\x01 \x01(\bR\x03cpu\x12\x10\n" +
+	"\x03gpu\x18\x02 \x01(\bR\x03gpu\x12\x16\n" +
+	"\x06memory\x18\x03 \x01(\bR\x06memory\x12\x16\n" +
+	"\x06camera\x18\x04 \x01(\bR\x06camera*\xa7\x01\n" +
 	"\x0fComponentStatus\x12\x1c\n" +
 	"\x18COMPONENT_STATUS_UNKNOWN\x10\x00\x12\x1e\n" +
 	"\x1aCOMPONENT_STATUS_DEPLOYING\x10\x01\x12\x1c\n" +
 	"\x18COMPONENT_STATUS_RUNNING\x10\x02\x12\x1c\n" +
 	"\x18COMPONENT_STATUS_STOPPED\x10\x03\x12\x1a\n" +
-	"\x16COMPONENT_STATUS_ERROR\x10\x042\xf6\x01\n" +
+	"\x16COMPONENT_STATUS_ERROR\x10\x042\xcb\x04\n" +
 	"\x10SchedulerService\x12j\n" +
 	"\x0fDeployComponent\x12*.resource.scheduler.DeployComponentRequest\x1a+.resource.scheduler.DeployComponentResponse\x12v\n" +
-	"\x13GetDeploymentStatus\x12..resource.scheduler.GetDeploymentStatusRequest\x1a/.resource.scheduler.GetDeploymentStatusResponseB=Z;github.com/9triver/iarnet/internal/proto/resource/schedulerb\x06proto3"
+	"\x13GetDeploymentStatus\x12..resource.scheduler.GetDeploymentStatusRequest\x1a/.resource.scheduler.GetDeploymentStatusResponse\x12y\n" +
+	"\x14ProposeLocalSchedule\x12/.resource.scheduler.ProposeLocalScheduleRequest\x1a0.resource.scheduler.ProposeLocalScheduleResponse\x12r\n" +
+	"\x13CommitLocalSchedule\x12..resource.scheduler.CommitLocalScheduleRequest\x1a+.resource.scheduler.DeployComponentResponse\x12d\n" +
+	"\rListProviders\x12(.resource.scheduler.ListProvidersRequest\x1a).resource.scheduler.ListProvidersResponseB=Z;github.com/9triver/iarnet/internal/proto/resource/schedulerb\x06proto3"
 
 var (
 	file_resource_scheduler_scheduler_proto_rawDescOnce sync.Once
@@ -528,31 +1103,52 @@ func file_resource_scheduler_scheduler_proto_rawDescGZIP() []byte {
 }
 
 var file_resource_scheduler_scheduler_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_resource_scheduler_scheduler_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_resource_scheduler_scheduler_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_resource_scheduler_scheduler_proto_goTypes = []any{
-	(ComponentStatus)(0),                // 0: resource.scheduler.ComponentStatus
-	(*DeployComponentRequest)(nil),      // 1: resource.scheduler.DeployComponentRequest
-	(*DeployComponentResponse)(nil),     // 2: resource.scheduler.DeployComponentResponse
-	(*ComponentInfo)(nil),               // 3: resource.scheduler.ComponentInfo
-	(*GetDeploymentStatusRequest)(nil),  // 4: resource.scheduler.GetDeploymentStatusRequest
-	(*GetDeploymentStatusResponse)(nil), // 5: resource.scheduler.GetDeploymentStatusResponse
-	(*resource.Info)(nil),               // 6: resource.Info
+	(ComponentStatus)(0),                 // 0: resource.scheduler.ComponentStatus
+	(*DeployComponentRequest)(nil),       // 1: resource.scheduler.DeployComponentRequest
+	(*DeployComponentResponse)(nil),      // 2: resource.scheduler.DeployComponentResponse
+	(*ComponentInfo)(nil),                // 3: resource.scheduler.ComponentInfo
+	(*GetDeploymentStatusRequest)(nil),   // 4: resource.scheduler.GetDeploymentStatusRequest
+	(*GetDeploymentStatusResponse)(nil),  // 5: resource.scheduler.GetDeploymentStatusResponse
+	(*ProposeLocalScheduleRequest)(nil),  // 6: resource.scheduler.ProposeLocalScheduleRequest
+	(*ProposeLocalScheduleResponse)(nil), // 7: resource.scheduler.ProposeLocalScheduleResponse
+	(*CommitLocalScheduleRequest)(nil),   // 8: resource.scheduler.CommitLocalScheduleRequest
+	(*ListProvidersRequest)(nil),         // 9: resource.scheduler.ListProvidersRequest
+	(*ListProvidersResponse)(nil),        // 10: resource.scheduler.ListProvidersResponse
+	(*ProviderInfo)(nil),                 // 11: resource.scheduler.ProviderInfo
+	(*ResourceTags)(nil),                 // 12: resource.scheduler.ResourceTags
+	(*resource.Info)(nil),                // 13: resource.Info
 }
 var file_resource_scheduler_scheduler_proto_depIdxs = []int32{
-	6, // 0: resource.scheduler.DeployComponentRequest.resource_request:type_name -> resource.Info
-	3, // 1: resource.scheduler.DeployComponentResponse.component:type_name -> resource.scheduler.ComponentInfo
-	6, // 2: resource.scheduler.ComponentInfo.resource_usage:type_name -> resource.Info
-	0, // 3: resource.scheduler.GetDeploymentStatusResponse.status:type_name -> resource.scheduler.ComponentStatus
-	3, // 4: resource.scheduler.GetDeploymentStatusResponse.component:type_name -> resource.scheduler.ComponentInfo
-	1, // 5: resource.scheduler.SchedulerService.DeployComponent:input_type -> resource.scheduler.DeployComponentRequest
-	4, // 6: resource.scheduler.SchedulerService.GetDeploymentStatus:input_type -> resource.scheduler.GetDeploymentStatusRequest
-	2, // 7: resource.scheduler.SchedulerService.DeployComponent:output_type -> resource.scheduler.DeployComponentResponse
-	5, // 8: resource.scheduler.SchedulerService.GetDeploymentStatus:output_type -> resource.scheduler.GetDeploymentStatusResponse
-	7, // [7:9] is the sub-list for method output_type
-	5, // [5:7] is the sub-list for method input_type
-	5, // [5:5] is the sub-list for extension type_name
-	5, // [5:5] is the sub-list for extension extendee
-	0, // [0:5] is the sub-list for field type_name
+	13, // 0: resource.scheduler.DeployComponentRequest.resource_request:type_name -> resource.Info
+	3,  // 1: resource.scheduler.DeployComponentResponse.component:type_name -> resource.scheduler.ComponentInfo
+	13, // 2: resource.scheduler.ComponentInfo.resource_usage:type_name -> resource.Info
+	0,  // 3: resource.scheduler.GetDeploymentStatusResponse.status:type_name -> resource.scheduler.ComponentStatus
+	3,  // 4: resource.scheduler.GetDeploymentStatusResponse.component:type_name -> resource.scheduler.ComponentInfo
+	13, // 5: resource.scheduler.ProposeLocalScheduleRequest.resource_request:type_name -> resource.Info
+	13, // 6: resource.scheduler.ProposeLocalScheduleResponse.available:type_name -> resource.Info
+	13, // 7: resource.scheduler.CommitLocalScheduleRequest.resource_request:type_name -> resource.Info
+	11, // 8: resource.scheduler.ListProvidersResponse.providers:type_name -> resource.scheduler.ProviderInfo
+	13, // 9: resource.scheduler.ProviderInfo.available:type_name -> resource.Info
+	13, // 10: resource.scheduler.ProviderInfo.total_capacity:type_name -> resource.Info
+	13, // 11: resource.scheduler.ProviderInfo.used:type_name -> resource.Info
+	12, // 12: resource.scheduler.ProviderInfo.resource_tags:type_name -> resource.scheduler.ResourceTags
+	1,  // 13: resource.scheduler.SchedulerService.DeployComponent:input_type -> resource.scheduler.DeployComponentRequest
+	4,  // 14: resource.scheduler.SchedulerService.GetDeploymentStatus:input_type -> resource.scheduler.GetDeploymentStatusRequest
+	6,  // 15: resource.scheduler.SchedulerService.ProposeLocalSchedule:input_type -> resource.scheduler.ProposeLocalScheduleRequest
+	8,  // 16: resource.scheduler.SchedulerService.CommitLocalSchedule:input_type -> resource.scheduler.CommitLocalScheduleRequest
+	9,  // 17: resource.scheduler.SchedulerService.ListProviders:input_type -> resource.scheduler.ListProvidersRequest
+	2,  // 18: resource.scheduler.SchedulerService.DeployComponent:output_type -> resource.scheduler.DeployComponentResponse
+	5,  // 19: resource.scheduler.SchedulerService.GetDeploymentStatus:output_type -> resource.scheduler.GetDeploymentStatusResponse
+	7,  // 20: resource.scheduler.SchedulerService.ProposeLocalSchedule:output_type -> resource.scheduler.ProposeLocalScheduleResponse
+	2,  // 21: resource.scheduler.SchedulerService.CommitLocalSchedule:output_type -> resource.scheduler.DeployComponentResponse
+	10, // 22: resource.scheduler.SchedulerService.ListProviders:output_type -> resource.scheduler.ListProvidersResponse
+	18, // [18:23] is the sub-list for method output_type
+	13, // [13:18] is the sub-list for method input_type
+	13, // [13:13] is the sub-list for extension type_name
+	13, // [13:13] is the sub-list for extension extendee
+	0,  // [0:13] is the sub-list for field type_name
 }
 
 func init() { file_resource_scheduler_scheduler_proto_init() }
@@ -566,7 +1162,7 @@ func file_resource_scheduler_scheduler_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_resource_scheduler_scheduler_proto_rawDesc), len(file_resource_scheduler_scheduler_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   5,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

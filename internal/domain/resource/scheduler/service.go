@@ -36,6 +36,13 @@ type Service interface {
 
 	// CommitRemoteSchedule 在远程节点上确认部署（两阶段提交的第二阶段）
 	CommitRemoteSchedule(ctx context.Context, targetNodeID string, targetAddress string, req *CommitLocalScheduleRequest) (*DeployResponse, error)
+
+	// ListProviders 获取当前节点的所有 Provider 列表及其资源信息
+	// 用于无自主调度能力的场景：调用方可以根据 Provider 列表在本地进行调度决策
+	ListProviders(ctx context.Context, includeResources bool) (*ProviderListResponse, error)
+
+	// ListRemoteProviders 获取远程节点的所有 Provider 列表
+	ListRemoteProviders(ctx context.Context, targetNodeID string, targetAddress string, includeResources bool) (*ProviderListResponse, error)
 }
 
 // DeployRequest 部署请求
@@ -90,6 +97,27 @@ type CommitLocalScheduleRequest struct {
 	UpstreamLoggerAddress string
 }
 
+// ProviderInfo Provider 信息
+type ProviderInfo struct {
+	ProviderID    string
+	ProviderName  string
+	ProviderType  string
+	Status        string
+	Available     *types.Info
+	TotalCapacity *types.Info
+	Used          *types.Info
+	ResourceTags  *types.ResourceTags
+}
+
+// ProviderListResponse Provider 列表响应
+type ProviderListResponse struct {
+	Success   bool
+	Error     string
+	NodeID    string
+	NodeName  string
+	Providers []*ProviderInfo
+}
+
 // ComponentStatus Component 状态
 type ComponentStatus int32
 
@@ -114,6 +142,9 @@ type service struct {
 
 		// 在指定 provider 上部署（用于两阶段提交的第二阶段）
 		DeployComponentOnProvider(ctx context.Context, runtimeEnv types.RuntimeEnv, resourceRequest *types.Info, providerID string) (*component.Component, error)
+
+		// 获取所有 Provider 列表（用于无自主调度能力场景）
+		ListAllProviders(ctx context.Context, includeResources bool) ([]*ProviderInfo, error)
 	}
 
 	// Discovery 服务（用于查找远程节点）
@@ -132,6 +163,9 @@ func NewService(
 
 		// 在指定 provider 上部署（用于两阶段提交的第二阶段）
 		DeployComponentOnProvider(ctx context.Context, runtimeEnv types.RuntimeEnv, resourceRequest *types.Info, providerID string) (*component.Component, error)
+
+		// 获取所有 Provider 列表（用于无自主调度能力场景）
+		ListAllProviders(ctx context.Context, includeResources bool) ([]*ProviderInfo, error)
 	},
 	discoveryService discovery.Service,
 ) Service {
@@ -546,6 +580,154 @@ func (s *service) CommitRemoteSchedule(ctx context.Context, targetNodeID string,
 		NodeID:     protoResp.NodeId,
 		NodeName:   protoResp.NodeName,
 		ProviderID: protoResp.ProviderId,
+	}, nil
+}
+
+// ListProviders 获取当前节点的所有 Provider 列表及其资源信息
+func (s *service) ListProviders(ctx context.Context, includeResources bool) (*ProviderListResponse, error) {
+	providers, err := s.localResourceManager.ListAllProviders(ctx, includeResources)
+	if err != nil {
+		return &ProviderListResponse{
+			Success: false,
+			Error:   err.Error(),
+		}, nil
+	}
+
+	return &ProviderListResponse{
+		Success:   true,
+		NodeID:    s.localResourceManager.GetNodeID(),
+		NodeName:  s.localResourceManager.GetNodeName(),
+		Providers: providers,
+	}, nil
+}
+
+// ListRemoteProviders 获取远程节点的所有 Provider 列表
+func (s *service) ListRemoteProviders(ctx context.Context, targetNodeID string, targetAddress string, includeResources bool) (*ProviderListResponse, error) {
+	// 获取目标节点地址
+	if targetAddress == "" {
+		if s.discoveryService == nil {
+			return &ProviderListResponse{
+				Success: false,
+				Error:   "discovery service is not available",
+			}, nil
+		}
+
+		knownNodes := s.discoveryService.GetKnownNodes()
+		var targetNode *discovery.PeerNode
+		for _, node := range knownNodes {
+			if node.NodeID == targetNodeID {
+				targetNode = node
+				break
+			}
+		}
+
+		if targetNode == nil {
+			return &ProviderListResponse{
+				Success: false,
+				Error:   fmt.Sprintf("target node %s not found", targetNodeID),
+			}, nil
+		}
+
+		if targetNode.SchedulerAddress != "" {
+			targetAddress = targetNode.SchedulerAddress
+		} else {
+			targetAddress = targetNode.Address
+		}
+	}
+
+	if targetAddress == "" {
+		return &ProviderListResponse{
+			Success: false,
+			Error:   "target address is empty",
+		}, nil
+	}
+
+	// 连接到远程节点的 scheduler RPC 服务
+	conn, err := grpc.NewClient(targetAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return &ProviderListResponse{
+			Success: false,
+			Error:   fmt.Sprintf("failed to connect to target node: %v", err),
+		}, nil
+	}
+	defer conn.Close()
+
+	// 创建客户端并调用远程 ListProviders
+	client := schedulerpb.NewSchedulerServiceClient(conn)
+
+	protoReq := &schedulerpb.ListProvidersRequest{
+		IncludeResources: includeResources,
+	}
+
+	protoResp, err := client.ListProviders(ctx, protoReq)
+	if err != nil {
+		return &ProviderListResponse{
+			Success: false,
+			Error:   fmt.Sprintf("failed to list providers on remote node: %v", err),
+		}, nil
+	}
+
+	if !protoResp.Success {
+		return &ProviderListResponse{
+			Success: false,
+			Error:   protoResp.Error,
+		}, nil
+	}
+
+	// 转换响应
+	providers := make([]*ProviderInfo, 0, len(protoResp.Providers))
+	for _, p := range protoResp.Providers {
+		providerInfo := &ProviderInfo{
+			ProviderID:   p.ProviderId,
+			ProviderName: p.ProviderName,
+			ProviderType: p.ProviderType,
+			Status:       p.Status,
+		}
+
+		if p.Available != nil {
+			providerInfo.Available = &types.Info{
+				CPU:    p.Available.Cpu,
+				Memory: p.Available.Memory,
+				GPU:    p.Available.Gpu,
+				Tags:   append([]string(nil), p.Available.Tags...),
+			}
+		}
+
+		if p.TotalCapacity != nil {
+			providerInfo.TotalCapacity = &types.Info{
+				CPU:    p.TotalCapacity.Cpu,
+				Memory: p.TotalCapacity.Memory,
+				GPU:    p.TotalCapacity.Gpu,
+				Tags:   append([]string(nil), p.TotalCapacity.Tags...),
+			}
+		}
+
+		if p.Used != nil {
+			providerInfo.Used = &types.Info{
+				CPU:    p.Used.Cpu,
+				Memory: p.Used.Memory,
+				GPU:    p.Used.Gpu,
+				Tags:   append([]string(nil), p.Used.Tags...),
+			}
+		}
+
+		if p.ResourceTags != nil {
+			providerInfo.ResourceTags = &types.ResourceTags{
+				CPU:    p.ResourceTags.Cpu,
+				GPU:    p.ResourceTags.Gpu,
+				Memory: p.ResourceTags.Memory,
+				Camera: p.ResourceTags.Camera,
+			}
+		}
+
+		providers = append(providers, providerInfo)
+	}
+
+	return &ProviderListResponse{
+		Success:   true,
+		NodeID:    protoResp.NodeId,
+		NodeName:  protoResp.NodeName,
+		Providers: providers,
 	}, nil
 }
 

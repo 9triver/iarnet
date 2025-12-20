@@ -19,8 +19,11 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	SchedulerService_DeployComponent_FullMethodName     = "/resource.scheduler.SchedulerService/DeployComponent"
-	SchedulerService_GetDeploymentStatus_FullMethodName = "/resource.scheduler.SchedulerService/GetDeploymentStatus"
+	SchedulerService_DeployComponent_FullMethodName      = "/resource.scheduler.SchedulerService/DeployComponent"
+	SchedulerService_GetDeploymentStatus_FullMethodName  = "/resource.scheduler.SchedulerService/GetDeploymentStatus"
+	SchedulerService_ProposeLocalSchedule_FullMethodName = "/resource.scheduler.SchedulerService/ProposeLocalSchedule"
+	SchedulerService_CommitLocalSchedule_FullMethodName  = "/resource.scheduler.SchedulerService/CommitLocalSchedule"
+	SchedulerService_ListProviders_FullMethodName        = "/resource.scheduler.SchedulerService/ListProviders"
 )
 
 // SchedulerServiceClient is the client API for SchedulerService service.
@@ -34,6 +37,15 @@ type SchedulerServiceClient interface {
 	DeployComponent(ctx context.Context, in *DeployComponentRequest, opts ...grpc.CallOption) (*DeployComponentResponse, error)
 	// GetDeploymentStatus 获取部署状态
 	GetDeploymentStatus(ctx context.Context, in *GetDeploymentStatusRequest, opts ...grpc.CallOption) (*GetDeploymentStatusResponse, error)
+	// ProposeLocalSchedule 在当前节点上执行一次“只调度不部署”的本地调度
+	// 调用方传入资源需求，当前节点返回其选中的本地 provider 及其可用资源信息
+	ProposeLocalSchedule(ctx context.Context, in *ProposeLocalScheduleRequest, opts ...grpc.CallOption) (*ProposeLocalScheduleResponse, error)
+	// CommitLocalSchedule 根据之前 ProposeLocalSchedule 返回的调度结果，在当前节点上确认部署
+	// 这是一个两阶段提交的第二阶段：第一阶段只做调度，第二阶段真正执行部署
+	CommitLocalSchedule(ctx context.Context, in *CommitLocalScheduleRequest, opts ...grpc.CallOption) (*DeployComponentResponse, error)
+	// ListProviders 获取当前节点的所有 Provider 列表及其资源信息
+	// 用于无自主调度能力的场景：调用方可以根据 Provider 列表在本地进行调度决策
+	ListProviders(ctx context.Context, in *ListProvidersRequest, opts ...grpc.CallOption) (*ListProvidersResponse, error)
 }
 
 type schedulerServiceClient struct {
@@ -64,6 +76,36 @@ func (c *schedulerServiceClient) GetDeploymentStatus(ctx context.Context, in *Ge
 	return out, nil
 }
 
+func (c *schedulerServiceClient) ProposeLocalSchedule(ctx context.Context, in *ProposeLocalScheduleRequest, opts ...grpc.CallOption) (*ProposeLocalScheduleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ProposeLocalScheduleResponse)
+	err := c.cc.Invoke(ctx, SchedulerService_ProposeLocalSchedule_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *schedulerServiceClient) CommitLocalSchedule(ctx context.Context, in *CommitLocalScheduleRequest, opts ...grpc.CallOption) (*DeployComponentResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeployComponentResponse)
+	err := c.cc.Invoke(ctx, SchedulerService_CommitLocalSchedule_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *schedulerServiceClient) ListProviders(ctx context.Context, in *ListProvidersRequest, opts ...grpc.CallOption) (*ListProvidersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListProvidersResponse)
+	err := c.cc.Invoke(ctx, SchedulerService_ListProviders_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SchedulerServiceServer is the server API for SchedulerService service.
 // All implementations must embed UnimplementedSchedulerServiceServer
 // for forward compatibility.
@@ -75,6 +117,15 @@ type SchedulerServiceServer interface {
 	DeployComponent(context.Context, *DeployComponentRequest) (*DeployComponentResponse, error)
 	// GetDeploymentStatus 获取部署状态
 	GetDeploymentStatus(context.Context, *GetDeploymentStatusRequest) (*GetDeploymentStatusResponse, error)
+	// ProposeLocalSchedule 在当前节点上执行一次“只调度不部署”的本地调度
+	// 调用方传入资源需求，当前节点返回其选中的本地 provider 及其可用资源信息
+	ProposeLocalSchedule(context.Context, *ProposeLocalScheduleRequest) (*ProposeLocalScheduleResponse, error)
+	// CommitLocalSchedule 根据之前 ProposeLocalSchedule 返回的调度结果，在当前节点上确认部署
+	// 这是一个两阶段提交的第二阶段：第一阶段只做调度，第二阶段真正执行部署
+	CommitLocalSchedule(context.Context, *CommitLocalScheduleRequest) (*DeployComponentResponse, error)
+	// ListProviders 获取当前节点的所有 Provider 列表及其资源信息
+	// 用于无自主调度能力的场景：调用方可以根据 Provider 列表在本地进行调度决策
+	ListProviders(context.Context, *ListProvidersRequest) (*ListProvidersResponse, error)
 	mustEmbedUnimplementedSchedulerServiceServer()
 }
 
@@ -90,6 +141,15 @@ func (UnimplementedSchedulerServiceServer) DeployComponent(context.Context, *Dep
 }
 func (UnimplementedSchedulerServiceServer) GetDeploymentStatus(context.Context, *GetDeploymentStatusRequest) (*GetDeploymentStatusResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetDeploymentStatus not implemented")
+}
+func (UnimplementedSchedulerServiceServer) ProposeLocalSchedule(context.Context, *ProposeLocalScheduleRequest) (*ProposeLocalScheduleResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ProposeLocalSchedule not implemented")
+}
+func (UnimplementedSchedulerServiceServer) CommitLocalSchedule(context.Context, *CommitLocalScheduleRequest) (*DeployComponentResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CommitLocalSchedule not implemented")
+}
+func (UnimplementedSchedulerServiceServer) ListProviders(context.Context, *ListProvidersRequest) (*ListProvidersResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListProviders not implemented")
 }
 func (UnimplementedSchedulerServiceServer) mustEmbedUnimplementedSchedulerServiceServer() {}
 func (UnimplementedSchedulerServiceServer) testEmbeddedByValue()                          {}
@@ -148,6 +208,60 @@ func _SchedulerService_GetDeploymentStatus_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SchedulerService_ProposeLocalSchedule_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ProposeLocalScheduleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SchedulerServiceServer).ProposeLocalSchedule(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SchedulerService_ProposeLocalSchedule_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SchedulerServiceServer).ProposeLocalSchedule(ctx, req.(*ProposeLocalScheduleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SchedulerService_CommitLocalSchedule_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CommitLocalScheduleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SchedulerServiceServer).CommitLocalSchedule(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SchedulerService_CommitLocalSchedule_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SchedulerServiceServer).CommitLocalSchedule(ctx, req.(*CommitLocalScheduleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SchedulerService_ListProviders_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListProvidersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SchedulerServiceServer).ListProviders(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SchedulerService_ListProviders_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SchedulerServiceServer).ListProviders(ctx, req.(*ListProvidersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SchedulerService_ServiceDesc is the grpc.ServiceDesc for SchedulerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -162,6 +276,18 @@ var SchedulerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetDeploymentStatus",
 			Handler:    _SchedulerService_GetDeploymentStatus_Handler,
+		},
+		{
+			MethodName: "ProposeLocalSchedule",
+			Handler:    _SchedulerService_ProposeLocalSchedule_Handler,
+		},
+		{
+			MethodName: "CommitLocalSchedule",
+			Handler:    _SchedulerService_CommitLocalSchedule_Handler,
+		},
+		{
+			MethodName: "ListProviders",
+			Handler:    _SchedulerService_ListProviders_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

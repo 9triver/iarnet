@@ -567,7 +567,7 @@ func createTestService() (*provider.Service, error) {
 		Cpu:    1000,
 		Memory: 1024 * 1024 * 1024,
 		Gpu:    4,
-	})
+	}, []int{}, false) // gpuIDs: empty, allowConnectionFailure: false
 }
 
 // isDockerAvailable 检查 Docker 是否可用

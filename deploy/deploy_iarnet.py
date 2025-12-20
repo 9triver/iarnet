@@ -86,19 +86,258 @@ class IarnetDeployer:
         except:
             return False
     
+    def check_vm_runtime_dependencies(self, ssh_cmd: list, node_id: int = None):
+        """检查虚拟机上的运行时依赖（参考 Dockerfile 运行阶段）
+        
+        返回: (是否满足要求, 缺失的包列表)
+        """
+        node_prefix = f"[节点 {node_id}] " if node_id is not None else ""
+        missing_packages = []
+        
+        # 首先检查库文件是否可用（这是最可靠的方法）
+        check_libs_cmd = ' '.join(ssh_cmd) + ' "ldconfig -p 2>/dev/null | grep -E \"(libzmq|libczmq)\" | grep -E \"(libzmq|libczmq)\" | head -5"'
+        lib_check = subprocess.run(check_libs_cmd, shell=True, check=False, timeout=5, capture_output=True, text=True)
+        lib_output = lib_check.stdout.strip()
+        
+        # 检查是否有 libzmq 和 libczmq 库
+        has_libzmq = 'libzmq' in lib_output.lower()
+        has_libczmq = 'libczmq' in lib_output.lower()
+        
+        # 如果库文件都存在，说明依赖已满足
+        if has_libzmq and has_libczmq:
+            return True, []
+        
+        # 如果库文件不存在，检查已安装的包
+        # 尝试多种可能的包名（不同 Ubuntu 版本可能不同）
+        possible_zmq_packages = ['libzmq5', 'libzmq3', 'libzmq-dev']
+        possible_czmq_packages = ['libczmq4', 'libczmq3', 'libczmq-dev']
+        
+        check_packages_cmd = ' '.join(ssh_cmd) + ' "dpkg -l | grep -E \"^(ii|hi)\" | grep -iE \"(libzmq|libczmq)\" | awk \'{print $2}\' | sort"'
+        try:
+            result = subprocess.run(check_packages_cmd, shell=True, check=False, timeout=10, capture_output=True, text=True)
+            installed_packages = set(line.strip().lower() for line in result.stdout.strip().split('\n') if line.strip())
+            
+            # 检查是否有任何 zmq 相关的包
+            has_zmq_pkg = any('libzmq' in pkg for pkg in installed_packages)
+            has_czmq_pkg = any('libczmq' in pkg for pkg in installed_packages)
+            
+            # 如果包已安装但库不可用，需要更新库缓存
+            if has_zmq_pkg and has_czmq_pkg and (not has_libzmq or not has_libczmq):
+                self._print(f"{node_prefix}    ⚠ 运行时库包已安装但库文件不可用，需要更新库缓存")
+                return False, []  # 返回空列表表示只需要更新缓存
+            
+            # 确定缺失的包（优先尝试标准包名）
+            if not has_libzmq and not has_zmq_pkg:
+                # 按优先级尝试标准包名
+                zmq_candidates = ['libzmq5', 'libzmq3', 'libzmq-dev']
+                found_zmq = False
+                for candidate in zmq_candidates:
+                    # 检查包是否存在
+                    check_pkg_cmd = ' '.join(ssh_cmd) + f' "apt-cache show {candidate} >/dev/null 2>&1 && echo EXISTS || echo NOT_EXISTS"'
+                    check_result = subprocess.run(check_pkg_cmd, shell=True, check=False, timeout=10, capture_output=True, text=True)
+                    if 'EXISTS' in check_result.stdout:
+                        # 如果是 dev 包，尝试找对应的运行时包
+                        if 'dev' in candidate:
+                            # libzmq-dev 通常依赖 libzmq5 或 libzmq3
+                            if 'libzmq5' not in zmq_candidates:
+                                missing_packages.append('libzmq5')
+                            else:
+                                missing_packages.append('libzmq3')
+                        else:
+                            missing_packages.append(candidate)
+                        found_zmq = True
+                        break
+                
+                if not found_zmq:
+                    # 如果标准包名都不存在，使用默认值
+                    missing_packages.append('libzmq5')
+            
+            if not has_libczmq and not has_czmq_pkg:
+                # 按优先级尝试标准包名
+                czmq_candidates = ['libczmq4', 'libczmq3', 'libczmq-dev']
+                found_czmq = False
+                for candidate in czmq_candidates:
+                    # 检查包是否存在
+                    check_pkg_cmd = ' '.join(ssh_cmd) + f' "apt-cache show {candidate} >/dev/null 2>&1 && echo EXISTS || echo NOT_EXISTS"'
+                    check_result = subprocess.run(check_pkg_cmd, shell=True, check=False, timeout=10, capture_output=True, text=True)
+                    if 'EXISTS' in check_result.stdout:
+                        # 如果是 dev 包，尝试找对应的运行时包
+                        if 'dev' in candidate:
+                            # libczmq-dev 通常依赖 libczmq4 或 libczmq3
+                            if 'libczmq4' not in czmq_candidates:
+                                missing_packages.append('libczmq4')
+                            else:
+                                missing_packages.append('libczmq3')
+                        else:
+                            missing_packages.append(candidate)
+                        found_czmq = True
+                        break
+                
+                if not found_czmq:
+                    # 如果标准包名都不存在，使用默认值
+                    missing_packages.append('libczmq4')
+            
+            return len(missing_packages) == 0, missing_packages
+            
+        except Exception as e:
+            self._print(f"{node_prefix}    ⚠ 检查运行时依赖时出错: {e}")
+            # 如果检查失败，尝试使用默认包名
+            if not has_libzmq:
+                missing_packages.append('libzmq5')
+            if not has_libczmq:
+                missing_packages.append('libczmq4')
+            return False, missing_packages
+    
+    def install_vm_runtime_dependencies(self, ssh_cmd: list, node_id: int = None) -> bool:
+        """在虚拟机上安装运行时依赖（参考 Dockerfile 运行阶段）
+        
+        安装的包：
+        - libzmq5: ZeroMQ 运行时库
+        - libczmq4: CZMQ 运行时库
+        """
+        node_prefix = f"[节点 {node_id}] " if node_id is not None else ""
+        
+        # 检查是否已满足要求
+        satisfied, missing = self.check_vm_runtime_dependencies(ssh_cmd, node_id)
+        if satisfied:
+            self._print(f"{node_prefix}    ✓ 运行时依赖已满足")
+            # 确保库缓存是最新的
+            update_cache_cmd = ' '.join(ssh_cmd) + ' "sudo ldconfig"'
+            try:
+                subprocess.run(update_cache_cmd, shell=True, check=False, timeout=10, capture_output=True)
+            except:
+                pass
+            return True
+        
+        if not missing:
+            # 包已安装但库不可用，只需更新库缓存
+            self._print(f"{node_prefix}    更新库缓存...")
+            update_cache_cmd = ' '.join(ssh_cmd) + ' "sudo ldconfig"'
+            try:
+                subprocess.run(update_cache_cmd, shell=True, check=True, timeout=10, capture_output=True)
+                self._print(f"{node_prefix}    ✓ 库缓存已更新")
+                return True
+            except subprocess.CalledProcessError as e:
+                self._print(f"{node_prefix}    ⚠ 更新库缓存失败: {e}")
+                return False
+        
+        # 安装缺失的包
+        self._print(f"{node_prefix}    安装运行时依赖: {', '.join(missing)}...")
+        
+        # 更新包列表
+        update_cmd = ' '.join(ssh_cmd) + ' "sudo apt-get update -qq"'
+        try:
+            subprocess.run(update_cmd, shell=True, check=True, timeout=60, capture_output=True)
+        except subprocess.CalledProcessError as e:
+            self._print(f"{node_prefix}    ⚠ 更新包列表失败: {e}")
+            return False
+        
+        # 安装运行时库（参考 Dockerfile 运行阶段）
+        # 先验证每个包是否存在
+        valid_packages = []
+        for pkg in missing:
+            check_cmd = ' '.join(ssh_cmd) + f' "apt-cache show {pkg} >/dev/null 2>&1 && echo EXISTS || echo NOT_EXISTS"'
+            check_result = subprocess.run(check_cmd, shell=True, check=False, timeout=10, capture_output=True, text=True)
+            if 'EXISTS' in check_result.stdout:
+                valid_packages.append(pkg)
+            else:
+                self._print(f"{node_prefix}    ⚠ 包 {pkg} 不存在，尝试查找替代包...")
+                # 尝试查找替代包（只查找运行时库，排除 dev 包）
+                # 提取包名前缀（去掉版本号）
+                pkg_prefix = pkg
+                if pkg.endswith('5') or pkg.endswith('4') or pkg.endswith('3'):
+                    pkg_prefix = pkg[:-1]
+                find_cmd = ' '.join(ssh_cmd) + f' "apt-cache search --names-only ^{pkg_prefix} | grep -E \"^(libzmq|libczmq)[0-9]\" | head -1 | awk \'{{print $1}}\'"'
+                find_result = subprocess.run(find_cmd, shell=True, check=False, timeout=10, capture_output=True, text=True)
+                alt_pkg = find_result.stdout.strip().split()[0] if find_result.stdout.strip() else None
+                if alt_pkg and alt_pkg.startswith(('libzmq', 'libczmq')):
+                    # 验证替代包是否存在
+                    check_alt_cmd = ' '.join(ssh_cmd) + f' "apt-cache show {alt_pkg} >/dev/null 2>&1 && echo EXISTS || echo NOT_EXISTS"'
+                    check_alt_result = subprocess.run(check_alt_cmd, shell=True, check=False, timeout=10, capture_output=True, text=True)
+                    if 'EXISTS' in check_alt_result.stdout:
+                        valid_packages.append(alt_pkg)
+                        self._print(f"{node_prefix}    找到替代包: {alt_pkg}")
+                    else:
+                        self._print(f"{node_prefix}    ⚠ 无法找到 {pkg} 的替代包")
+                else:
+                    self._print(f"{node_prefix}    ⚠ 无法找到 {pkg} 的替代包")
+        
+        if not valid_packages:
+            self._print(f"{node_prefix}    ✗ 没有可用的包可以安装")
+            return False
+        
+        missing_packages_str = ' '.join(valid_packages)
+        install_cmd = ' '.join(ssh_cmd) + f' "sudo apt-get install -y {missing_packages_str}"'
+        try:
+            # 不使用 -qq，以便看到安装输出用于调试
+            result = subprocess.run(install_cmd, shell=True, check=True, timeout=120, capture_output=True, text=True)
+            
+            # 检查安装输出，确认包是否真的安装了
+            if result.stdout or result.stderr:
+                output = (result.stdout or '') + (result.stderr or '')
+                # 检查是否有 "E: 无法定位软件包" 错误
+                if '无法定位软件包' in output or 'Unable to locate package' in output:
+                    self._print(f"{node_prefix}    ⚠ 警告: 某些包可能不存在")
+                    # 输出错误信息
+                    error_lines = [line for line in output.split('\n') if 'Unable to locate package' in line or '无法定位软件包' in line]
+                    for line in error_lines[:5]:  # 只显示前5个错误
+                        self._print(f"{node_prefix}    {line[:100]}")
+            
+            self._print(f"{node_prefix}    ✓ 安装命令执行完成")
+            
+            # 等待一下，确保包管理器完成所有操作
+            time.sleep(2)
+            
+            # 更新库缓存
+            self._print(f"{node_prefix}    更新库缓存...")
+            update_cache_cmd = ' '.join(ssh_cmd) + ' "sudo ldconfig"'
+            update_result = subprocess.run(update_cache_cmd, shell=True, check=False, timeout=10, capture_output=True, text=True)
+            if update_result.returncode != 0:
+                self._print(f"{node_prefix}    ⚠ 库缓存更新可能失败: {update_result.stderr[:200]}")
+            
+            # 再次等待，确保库缓存更新完成
+            time.sleep(1)
+            
+            # 验证安装 - 重试几次，因为可能需要时间
+            for verify_attempt in range(3):
+                satisfied, still_missing = self.check_vm_runtime_dependencies(ssh_cmd, node_id)
+                if satisfied:
+                    self._print(f"{node_prefix}    ✓ 运行时依赖验证通过")
+                    return True
+                
+                if verify_attempt < 2:
+                    # 再次更新库缓存并等待
+                    self._print(f"{node_prefix}    验证失败，重试验证（{verify_attempt + 1}/3）...")
+                    subprocess.run(update_cache_cmd, shell=True, check=False, timeout=10, capture_output=True)
+                    time.sleep(2)
+                else:
+                    # 最后一次验证失败，输出详细信息
+                    self._print(f"{node_prefix}    ⚠ 运行时依赖验证失败，仍缺失: {still_missing}")
+                    # 输出调试信息
+                    debug_cmd = ' '.join(ssh_cmd) + ' "dpkg -l | grep -i zmq; echo ---; ldconfig -p | grep -i zmq | head -5"'
+                    debug_result = subprocess.run(debug_cmd, shell=True, check=False, timeout=10, capture_output=True, text=True)
+                    if debug_result.stdout:
+                        self._print(f"{node_prefix}    调试信息: {debug_result.stdout[:300]}")
+                    return False
+                
+        except subprocess.CalledProcessError as e:
+            self._print(f"{node_prefix}    ✗ 运行时依赖安装失败: {e}")
+            error_output = e.stderr if e.stderr else (e.stdout if e.stdout else '')
+            if error_output:
+                self._print(f"{node_prefix}    错误信息: {error_output[:400]}")
+                # 检查是否是包不存在的问题
+                if '无法定位软件包' in error_output or 'Unable to locate package' in error_output:
+                    self._print(f"{node_prefix}    提示: 包可能不存在，尝试手动查找: apt-cache search libzmq")
+            return False
+    
     def _start_backend_service(self, ssh_cmd: list, node: dict, node_id: int = None) -> bool:
         """启动后端服务"""
-        # 先检查 ZeroMQ 运行时库
-        check_lib_cmd = ' '.join(ssh_cmd) + ' "ldconfig -p | grep -E \"(libzmq|libczmq)\" > /dev/null && echo OK || echo MISSING"'
-        try:
-            lib_check = subprocess.run(check_lib_cmd, shell=True, check=False, timeout=5, capture_output=True, text=True)
-            if 'MISSING' in lib_check.stdout:
-                node_prefix = f"[节点 {node_id}] " if node_id is not None else ""
-                self._print(f"{node_prefix}    ⚠ 警告: ZeroMQ 运行时库可能未正确安装，尝试更新库缓存...")
-                update_cache_cmd = ' '.join(ssh_cmd) + ' "sudo ldconfig"'
-                subprocess.run(update_cache_cmd, shell=True, check=False, timeout=10, capture_output=True)
-        except:
-            pass
+        node_prefix = f"[节点 {node_id}] " if node_id is not None else ""
+        
+        # 先检查并安装运行时依赖（参考 Dockerfile 运行阶段）
+        self._print(f"{node_prefix}    检查运行时依赖...")
+        if not self.install_vm_runtime_dependencies(ssh_cmd, node_id):
+            self._print(f"{node_prefix}    ⚠ 警告: 运行时依赖安装失败，但继续尝试启动服务")
         
         start_backend_cmd = ' '.join(ssh_cmd) + ' "cd ~/iarnet && nohup ./iarnet --config=config.yaml > iarnet.log 2>&1 & sleep 2 && pgrep -f iarnet > /dev/null && echo started || echo failed"'
         for attempt in range(3):
@@ -522,6 +761,14 @@ class IarnetDeployer:
         except subprocess.CalledProcessError as e:
             self._print(f"[节点 {node_id}]   ✗ 配置文件上传失败: {e}")
             return False
+        
+        # 2.5. 检查并安装运行时依赖（参考 Dockerfile 运行阶段）
+        # 在部署二进制文件之前确保运行时依赖已安装
+        if build or restart:
+            self._print(f"[节点 {node_id}] 2.5. 检查并安装运行时依赖（参考 Dockerfile 运行阶段）...")
+            if not self.install_vm_runtime_dependencies(ssh_cmd, node_id):
+                self._print(f"[节点 {node_id}]   ⚠ 警告: 运行时依赖安装失败，但继续部署流程")
+                self._print(f"[节点 {node_id}]   提示: 如果启动失败，请手动安装: sudo apt-get install -y libzmq5 libczmq4 && sudo ldconfig")
         
         # 3. 上传二进制文件（如果指定）
         if build:

@@ -1,432 +1,524 @@
 package delegated_scheduling
 
 import (
-	"errors"
+	"context"
 	"fmt"
 	"testing"
-	"time"
 
-	"github.com/9triver/iarnet/internal/domain/resource/discovery"
+	"github.com/9triver/iarnet/internal/domain/resource/policy"
+	"github.com/9triver/iarnet/internal/domain/resource/scheduler"
 	"github.com/9triver/iarnet/internal/domain/resource/types"
 	testutil "github.com/9triver/iarnet/test/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-var errNoSchedulingCapability = errors.New("domain scheduler lacks autonomous scheduling")
+// TestDelegatedScheduling_SuccessfulDeployment 测试场景1：一次成功部署
+// 展示：本地节点委托远程节点进行调度，远程节点返回调度结果，本地节点策略评估通过，确认部署成功
+func TestDelegatedScheduling_SuccessfulDeployment(t *testing.T) {
+	testutil.PrintTestHeader(t, "委托调度 - 一次成功部署",
+		"展示两阶段提交流程：ProposeRemoteSchedule -> 策略评估 -> CommitRemoteSchedule")
 
-type scheduleProposal struct {
-	ProviderID string
-	NodeID     string
-	Score      float64
-	Labels     map[string]string
-	Message    string
-}
-
-type policyDecision struct {
-	Accept bool
-	Retry  bool
-	Reason string
-}
-
-type delegationResult struct {
-	Success    bool
-	Path       string
-	ProviderID string
-	NodeID     string
-	Message    string
-	NextAction string
-	AuditTrail []string
-}
-
-type resourceManager interface {
-	ProposeSchedule(req *types.Info) (*scheduleProposal, error)
-	CommitDeployment(proposal *scheduleProposal) (*delegationResult, error)
-	ListDomains(req *types.Info) ([]*discovery.PeerNode, error)
-	DeployAtNode(node *discovery.PeerNode, req *types.Info) (*delegationResult, error)
-}
-
-type executionEngineDelegator struct {
-	rm             resourceManager
-	evaluatePolicy func(req *types.Info, proposal *scheduleProposal) policyDecision
-	nodeSelector   func(nodes []*discovery.PeerNode, req *types.Info) *discovery.PeerNode
-	maxRetries     int
-	auditSink      func(entry string)
-}
-
-func (d *executionEngineDelegator) coordinate(req *types.Info) (*delegationResult, error) {
-	if req == nil {
-		return nil, fmt.Errorf("resource request is required")
-	}
-	if d.rm == nil || d.evaluatePolicy == nil {
-		return nil, fmt.Errorf("resource manager and policy evaluator are required")
-	}
-	nodeSelector := d.nodeSelector
-	if nodeSelector == nil {
-		nodeSelector = selectNodeByCPU
-	}
-	maxRetries := d.maxRetries
-	if maxRetries <= 0 {
-		maxRetries = 3
+	// Mock scheduler service
+	mockScheduler := &mockSchedulerService{
+		proposeResult: &scheduler.LocalScheduleResult{
+			NodeID:     "remote-node-1",
+			NodeName:   "远程节点1",
+			ProviderID: "remote-provider-1",
+			Available: &types.Info{
+				CPU:    5000,                    // 满足 2000 * 1.2 = 2400 的安全裕度要求
+				Memory: 10 * 1024 * 1024 * 1024, // 满足 4GB * 1.2 = 4.8GB 的要求
+				GPU:    1,
+			},
+		},
+		commitSuccess: true,
 	}
 
-	var trail []string
-	record := func(entry string) {
-		if entry == "" {
-			return
-		}
-		trail = append(trail, entry)
-		if d.auditSink != nil {
-			d.auditSink(entry)
-		}
+	// 创建策略链（资源安全裕度策略）
+	policyChain := policy.NewChain()
+	safetyPolicy := &mockResourceSafetyMarginPolicy{
+		cpuRatio:    1.2,
+		memoryRatio: 1.2,
+		gpuRatio:    1.0,
+	}
+	policyChain.AddPolicy(safetyPolicy)
+
+	req := &types.Info{
+		CPU:    2000,
+		Memory: 4 * 1024 * 1024 * 1024,
+		GPU:    1,
 	}
 
-	record(fmt.Sprintf("request: cpu=%d memory=%d gpu=%d", req.CPU, req.Memory, req.GPU))
+	testutil.PrintTestSection(t, "步骤 1: 本地节点调用远程节点的 ProposeRemoteSchedule")
+	testutil.PrintResourceRequest(t, req)
+	testutil.PrintInfo(t, "本地节点通过 RPC 调用远程节点的 ProposeLocalSchedule，获取调度结果但不触发部署")
+
+	// 第一阶段：调用远程节点获取调度结果
+	remoteResult, err := mockScheduler.ProposeRemoteSchedule(
+		context.Background(),
+		"remote-node-1",
+		"localhost:50051",
+		req,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, remoteResult)
+
+	testutil.PrintInfo(t, fmt.Sprintf("远程调度结果: NodeID=%s, ProviderID=%s, 可用CPU=%d, 可用内存=%d",
+		remoteResult.NodeID, remoteResult.ProviderID,
+		remoteResult.Available.CPU, remoteResult.Available.Memory))
+
+	testutil.PrintTestSection(t, "步骤 2: 本地节点使用策略链评估远程调度结果")
+	testutil.PrintInfo(t, "使用资源安全裕度策略评估调度结果...")
+
+	// 构建策略评估上下文
+	policyCtx := &policy.Context{
+		NodeID:        remoteResult.NodeID,
+		NodeName:      remoteResult.NodeName,
+		ProviderID:    remoteResult.ProviderID,
+		Available:     remoteResult.Available,
+		Request:       req,
+		LocalNodeID:   "local-node",
+		LocalDomainID: "domain-1",
+	}
+
+	// 执行策略评估
+	policyResult := policyChain.Evaluate(policyCtx)
+	assert.Equal(t, policy.DecisionAccept, policyResult.Decision)
+	testutil.PrintInfo(t, fmt.Sprintf("策略评估通过: %s", policyResult.Reason))
+
+	testutil.PrintTestSection(t, "步骤 3: 本地节点调用远程节点的 CommitRemoteSchedule 确认部署")
+	commitReq := &scheduler.CommitLocalScheduleRequest{
+		RuntimeEnv:            types.RuntimeEnvPython,
+		ResourceRequest:       req,
+		ProviderID:            remoteResult.ProviderID,
+		UpstreamZMQAddress:    "tcp://local:5555",
+		UpstreamStoreAddress:  "tcp://local:6666",
+		UpstreamLoggerAddress: "tcp://local:7777",
+	}
+
+	commitResp, err := mockScheduler.CommitRemoteSchedule(
+		context.Background(),
+		"remote-node-1",
+		"localhost:50051",
+		commitReq,
+	)
+	require.NoError(t, err)
+	assert.True(t, commitResp.Success)
+	assert.Equal(t, "remote-node-1", commitResp.NodeID)
+	assert.Equal(t, "remote-provider-1", commitResp.ProviderID)
+
+	testutil.PrintInfo(t, fmt.Sprintf("部署成功: NodeID=%s, ProviderID=%s",
+		commitResp.NodeID, commitResp.ProviderID))
+	testutil.PrintSuccess(t, "一次成功部署场景验证完成：两阶段提交流程成功执行")
+}
+
+// TestDelegatedScheduling_RejectAndRetry 测试场景2：拒绝并重新调度
+// 展示：第一次调度结果被策略拒绝，重新调用 ProposeRemoteSchedule 获取新的调度结果，最终成功部署
+func TestDelegatedScheduling_RejectAndRetry(t *testing.T) {
+	testutil.PrintTestHeader(t, "委托调度 - 拒绝并重新调度",
+		"展示策略拒绝第一次调度结果后，重新调度并最终成功部署的流程")
+
+	// Mock scheduler service - 提供两个不同的调度结果
+	proposalIndex := 0
+	proposeResults := []*scheduler.LocalScheduleResult{
+		// 第一次：资源不足，不满足安全裕度
+		{
+			NodeID:     "remote-node-1",
+			NodeName:   "远程节点1",
+			ProviderID: "remote-provider-1",
+			Available: &types.Info{
+				CPU:    2300,                   // 不满足 2000 * 1.2 = 2400 的要求
+				Memory: 4 * 1024 * 1024 * 1024, // 不满足 4GB * 1.2 = 4.8GB 的要求（刚好不够）
+				GPU:    1,
+			},
+		},
+		// 第二次：资源充足，满足安全裕度
+		{
+			NodeID:     "remote-node-1",
+			NodeName:   "远程节点1",
+			ProviderID: "remote-provider-2",
+			Available: &types.Info{
+				CPU:    5000,                    // 满足要求
+				Memory: 10 * 1024 * 1024 * 1024, // 满足要求
+				GPU:    1,
+			},
+		},
+	}
+
+	mockScheduler := &mockSchedulerService{
+		proposeResults: proposeResults,
+		proposeFunc: func() *scheduler.LocalScheduleResult {
+			if proposalIndex < len(proposeResults) {
+				result := proposeResults[proposalIndex]
+				proposalIndex++
+				return result
+			}
+			return nil
+		},
+		commitSuccess: true,
+	}
+
+	// 创建策略链（资源安全裕度策略）
+	policyChain := policy.NewChain()
+	safetyPolicy := &mockResourceSafetyMarginPolicy{
+		cpuRatio:    1.2,
+		memoryRatio: 1.2,
+		gpuRatio:    1.0,
+	}
+	policyChain.AddPolicy(safetyPolicy)
+
+	req := &types.Info{
+		CPU:    2000,
+		Memory: 4 * 1024 * 1024 * 1024,
+		GPU:    1,
+	}
+
+	maxRetries := 3
+	var selectedResult *scheduler.LocalScheduleResult
+	var commitResp *scheduler.DeployResponse
+
+	testutil.PrintTestSection(t, "步骤 1: 第一次调用 ProposeRemoteSchedule")
+	testutil.PrintResourceRequest(t, req)
 
 	for attempt := 0; attempt < maxRetries; attempt++ {
-		proposal, err := d.rm.ProposeSchedule(req)
-		if err != nil {
-			if errors.Is(err, errNoSchedulingCapability) {
-				return d.coordinateWithEngineSelection(req, nodeSelector, trail)
-			}
-			return nil, err
+		testutil.PrintInfo(t, fmt.Sprintf("尝试 %d/%d: 调用远程节点的 ProposeRemoteSchedule", attempt+1, maxRetries))
+
+		// 调用远程节点获取调度结果
+		result, err := mockScheduler.ProposeRemoteSchedule(
+			context.Background(),
+			"remote-node-1",
+			"localhost:50051",
+			req,
+		)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+
+		testutil.PrintInfo(t, fmt.Sprintf("调度结果: ProviderID=%s, 可用CPU=%d, 可用内存=%d",
+			result.ProviderID, result.Available.CPU, result.Available.Memory))
+
+		testutil.PrintTestSection(t, fmt.Sprintf("步骤 %d: 策略评估", attempt+2))
+		// 构建策略评估上下文
+		policyCtx := &policy.Context{
+			NodeID:        result.NodeID,
+			NodeName:      result.NodeName,
+			ProviderID:    result.ProviderID,
+			Available:     result.Available,
+			Request:       req,
+			LocalNodeID:   "local-node",
+			LocalDomainID: "domain-1",
 		}
 
-		record(fmt.Sprintf("proposal:%s@%s score=%.2f", proposal.ProviderID, proposal.NodeID, proposal.Score))
-		decision := d.evaluatePolicy(req, proposal)
-		if decision.Accept {
-			record("policy:accept")
-			result, err := d.rm.CommitDeployment(proposal)
-			if err != nil {
-				return nil, err
+		// 执行策略评估
+		policyResult := policyChain.Evaluate(policyCtx)
+
+		if policyResult.Decision == policy.DecisionReject {
+			testutil.PrintInfo(t, fmt.Sprintf("策略拒绝: [%s] %s", policyResult.Policy, policyResult.Reason))
+			if attempt < maxRetries-1 {
+				testutil.PrintInfo(t, "调度结果被策略拒绝，将重新调度...")
+				continue
+			} else {
+				t.Fatalf("达到最大重试次数，仍然被策略拒绝")
 			}
-			result.Path = "entrust-commit"
-			result.AuditTrail = append(trail, fmt.Sprintf("commit:%s", proposal.NodeID))
-			return result, nil
 		}
 
-		record("policy:reject")
-		if !decision.Retry || attempt == maxRetries-1 {
-			return &delegationResult{
-				Success:    false,
-				Path:       "refuse",
-				Message:    decision.Reason,
-				NextAction: "request_reschedule",
-				AuditTrail: append(trail, "policy:final_reject"),
-			}, nil
-		}
-		record("policy:request_retry")
+		// 策略通过
+		testutil.PrintInfo(t, fmt.Sprintf("策略评估通过: %s", policyResult.Reason))
+		selectedResult = result
+		break
 	}
 
-	return nil, fmt.Errorf("exceeded retry attempts")
+	require.NotNil(t, selectedResult, "应该找到一个满足策略的调度结果")
+
+	testutil.PrintTestSection(t, "步骤 3: 确认部署")
+	testutil.PrintInfo(t, fmt.Sprintf("使用 ProviderID=%s 进行部署", selectedResult.ProviderID))
+
+	commitReq := &scheduler.CommitLocalScheduleRequest{
+		RuntimeEnv:            types.RuntimeEnvPython,
+		ResourceRequest:       req,
+		ProviderID:            selectedResult.ProviderID,
+		UpstreamZMQAddress:    "tcp://local:5555",
+		UpstreamStoreAddress:  "tcp://local:6666",
+		UpstreamLoggerAddress: "tcp://local:7777",
+	}
+
+	var err error
+	commitResp, err = mockScheduler.CommitRemoteSchedule(
+		context.Background(),
+		"remote-node-1",
+		"localhost:50051",
+		commitReq,
+	)
+	require.NoError(t, err)
+	assert.True(t, commitResp.Success)
+
+	testutil.PrintInfo(t, fmt.Sprintf("部署成功: NodeID=%s, ProviderID=%s",
+		commitResp.NodeID, commitResp.ProviderID))
+	testutil.PrintSuccess(t, "拒绝并重新调度场景验证完成：第一次被拒绝，第二次成功部署")
 }
 
-func (d *executionEngineDelegator) coordinateWithEngineSelection(
-	req *types.Info,
-	nodeSelector func(nodes []*discovery.PeerNode, req *types.Info) *discovery.PeerNode,
-	trail []string,
-) (*delegationResult, error) {
-	nodes, err := d.rm.ListDomains(req)
-	if err != nil {
-		return nil, err
-	}
-	if len(nodes) == 0 {
-		return nil, fmt.Errorf("no nodes available for manual selection")
-	}
-	selected := nodeSelector(nodes, req)
-	if selected == nil {
-		return nil, fmt.Errorf("node selector returned nil")
-	}
-	selectedEntry := fmt.Sprintf("engine:selected:%s", selected.NodeID)
-	trail = append(trail, selectedEntry)
-	if d.auditSink != nil {
-		d.auditSink(selectedEntry)
-	}
-	result, err := d.rm.DeployAtNode(selected, req)
-	if err != nil {
-		return nil, err
-	}
-	result.Path = "engine-select"
-	result.NodeID = selected.NodeID
-	result.AuditTrail = append(trail, fmt.Sprintf("delegate:%s", selected.NodeID))
-	return result, nil
-}
+// TestDelegatedScheduling_ListProvidersAndLocalDecision 测试场景3：直接获取列表并本地决策
+// 展示：当远程节点无自主调度能力时，本地节点获取 Provider 列表，在本地进行调度决策，然后确认部署
+func TestDelegatedScheduling_ListProvidersAndLocalDecision(t *testing.T) {
+	testutil.PrintTestHeader(t, "委托调度 - 直接获取列表并本地决策",
+		"展示无自主调度能力场景：获取 Provider 列表 -> 本地决策 -> 确认部署")
 
-func selectNodeByCPU(nodes []*discovery.PeerNode, _ *types.Info) *discovery.PeerNode {
-	var selected *discovery.PeerNode
-	var maxCPU int64 = -1
-	for _, node := range nodes {
-		if node == nil ||
-			node.Status != discovery.NodeStatusOnline ||
-			node.ResourceCapacity == nil ||
-			node.ResourceCapacity.Available == nil {
+	// Mock scheduler service - 提供 Provider 列表
+	mockScheduler := &mockSchedulerService{
+		providerList: &scheduler.ProviderListResponse{
+			Success:  true,
+			NodeID:   "remote-node-1",
+			NodeName: "远程节点1",
+			Providers: []*scheduler.ProviderInfo{
+				{
+					ProviderID:   "remote-provider-1",
+					ProviderName: "Provider 1",
+					ProviderType: "docker",
+					Status:       "connected",
+					Available: &types.Info{
+						CPU:    3000,
+						Memory: 6 * 1024 * 1024 * 1024,
+						GPU:    0,
+					},
+					TotalCapacity: &types.Info{
+						CPU:    4000,
+						Memory: 8 * 1024 * 1024 * 1024,
+						GPU:    0,
+					},
+					Used: &types.Info{
+						CPU:    1000,
+						Memory: 2 * 1024 * 1024 * 1024,
+						GPU:    0,
+					},
+					ResourceTags: types.NewResourceTags(true, false, true, false),
+				},
+				{
+					ProviderID:   "remote-provider-2",
+					ProviderName: "Provider 2",
+					ProviderType: "docker",
+					Status:       "connected",
+					Available: &types.Info{
+						CPU:    5000, // 资源更充足
+						Memory: 10 * 1024 * 1024 * 1024,
+						GPU:    1, // 有 GPU
+					},
+					TotalCapacity: &types.Info{
+						CPU:    6000,
+						Memory: 12 * 1024 * 1024 * 1024,
+						GPU:    1,
+					},
+					Used: &types.Info{
+						CPU:    1000,
+						Memory: 2 * 1024 * 1024 * 1024,
+						GPU:    0,
+					},
+					ResourceTags: types.NewResourceTags(true, true, true, false),
+				},
+			},
+		},
+		commitSuccess: true,
+	}
+
+	req := &types.Info{
+		CPU:    2000,
+		Memory: 4 * 1024 * 1024 * 1024,
+		GPU:    1, // 需要 GPU
+	}
+
+	testutil.PrintTestSection(t, "步骤 1: 获取远程节点的 Provider 列表")
+	testutil.PrintResourceRequest(t, req)
+	testutil.PrintInfo(t, "远程节点无自主调度能力，调用 ListRemoteProviders 获取所有 Provider 列表")
+
+	providerList, err := mockScheduler.ListRemoteProviders(
+		context.Background(),
+		"remote-node-1",
+		"localhost:50051",
+		true, // includeResources
+	)
+	require.NoError(t, err)
+	require.NotNil(t, providerList)
+	assert.True(t, providerList.Success)
+
+	testutil.PrintInfo(t, fmt.Sprintf("获取到 %d 个 Provider", len(providerList.Providers)))
+	for i, p := range providerList.Providers {
+		testutil.PrintInfo(t, fmt.Sprintf("  Provider %d: ID=%s, 可用CPU=%d, 可用内存=%d, GPU=%d, 状态=%s",
+			i+1, p.ProviderID, p.Available.CPU, p.Available.Memory, p.Available.GPU, p.Status))
+	}
+
+	testutil.PrintTestSection(t, "步骤 2: 本地节点进行调度决策")
+	testutil.PrintInfo(t, "根据资源需求在本地选择最合适的 Provider...")
+
+	// 本地调度决策：选择满足资源需求且资源最充足的 Provider
+	var selectedProvider *scheduler.ProviderInfo
+	for _, p := range providerList.Providers {
+		if p.Status != "connected" {
 			continue
 		}
-		if node.ResourceCapacity.Available.CPU > maxCPU {
-			maxCPU = node.ResourceCapacity.Available.CPU
-			selected = node
+		// 检查是否满足资源需求
+		if p.Available.CPU >= req.CPU &&
+			p.Available.Memory >= req.Memory &&
+			p.Available.GPU >= req.GPU {
+			// 选择资源最充足的 Provider（按可用 CPU 排序）
+			if selectedProvider == nil || p.Available.CPU > selectedProvider.Available.CPU {
+				selectedProvider = p
+			}
 		}
 	}
-	if selected == nil && len(nodes) > 0 {
-		selected = nodes[0]
-	}
-	return selected
-}
 
-type mockDomainScheduler struct {
-	proposals          []*scheduleProposal
-	proposalIdx        int
-	commitResponse     *delegationResult
-	listNodes          []*discovery.PeerNode
-	nodeDeployResponse *delegationResult
-	noScheduler        bool
+	require.NotNil(t, selectedProvider, "应该找到一个满足资源需求的 Provider")
+	testutil.PrintInfo(t, fmt.Sprintf("选中 Provider: ID=%s, 可用CPU=%d, 可用内存=%d, GPU=%d",
+		selectedProvider.ProviderID,
+		selectedProvider.Available.CPU,
+		selectedProvider.Available.Memory,
+		selectedProvider.Available.GPU))
 
-	proposeCalls int
-	commitCalls  int
-	listCalls    int
-	deployCalls  int
-}
+	testutil.PrintTestSection(t, "步骤 3: 确认部署")
+	testutil.PrintInfo(t, fmt.Sprintf("使用选中的 ProviderID=%s 进行部署", selectedProvider.ProviderID))
 
-func (m *mockDomainScheduler) ProposeSchedule(_ *types.Info) (*scheduleProposal, error) {
-	if m.noScheduler {
-		return nil, errNoSchedulingCapability
-	}
-	if m.proposalIdx >= len(m.proposals) {
-		return nil, fmt.Errorf("no more proposals")
-	}
-	m.proposeCalls++
-	p := m.proposals[m.proposalIdx]
-	m.proposalIdx++
-	return p, nil
-}
-
-func (m *mockDomainScheduler) CommitDeployment(proposal *scheduleProposal) (*delegationResult, error) {
-	m.commitCalls++
-	if m.commitResponse == nil {
-		return nil, fmt.Errorf("commit response not configured")
-	}
-	res := *m.commitResponse
-	res.ProviderID = proposal.ProviderID
-	res.NodeID = proposal.NodeID
-	return &res, nil
-}
-
-func (m *mockDomainScheduler) ListDomains(_ *types.Info) ([]*discovery.PeerNode, error) {
-	m.listCalls++
-	return m.listNodes, nil
-}
-
-func (m *mockDomainScheduler) DeployAtNode(node *discovery.PeerNode, _ *types.Info) (*delegationResult, error) {
-	m.deployCalls++
-	if m.nodeDeployResponse == nil {
-		return nil, fmt.Errorf("deploy response not configured")
-	}
-	res := *m.nodeDeployResponse
-	res.NodeID = node.NodeID
-	return &res, nil
-}
-
-// ---------- 测试用例 ----------
-
-// 4.1 具备自主调度机制：执行引擎拒绝第一次调度结果并要求域调度器重新调度
-func TestDelegatedScheduling_AutonomousScheduler_RejectAndRetry(t *testing.T) {
-	testutil.PrintTestHeader(t, "委托调度 - 自主调度(拒绝&重试)",
-		"执行引擎按策略拒绝调度结果，触发域调度器重新调度")
-
-	firstActorPlacement := "provider-edge-b@edge-b"
-	testutil.PrintInfo(t, fmt.Sprintf("前置条件：计算任务 actor#1 已部署在 %s", firstActorPlacement))
-
-	rm := &mockDomainScheduler{
-		proposals: []*scheduleProposal{
-			{
-				ProviderID: "provider-edge-a",
-				NodeID:     "edge-a",
-				Score:      0.6,
-				Labels:     map[string]string{"gpu": "0"},
-				Message:    "缺少 GPU",
-			},
-			{
-				ProviderID: "provider-edge-b",
-				NodeID:     "edge-b",
-				Score:      0.9,
-				Labels:     map[string]string{"gpu": "1"},
-				Message:    "具备 GPU",
-			},
-		},
-		commitResponse: &delegationResult{
-			Success: true,
-			Message: "deployment committed",
-		},
+	commitReq := &scheduler.CommitLocalScheduleRequest{
+		RuntimeEnv:            types.RuntimeEnvPython,
+		ResourceRequest:       req,
+		ProviderID:            selectedProvider.ProviderID,
+		UpstreamZMQAddress:    "tcp://local:5555",
+		UpstreamStoreAddress:  "tcp://local:6666",
+		UpstreamLoggerAddress: "tcp://local:7777",
 	}
 
-	var auditTrail []string
-	attempt := 0
-	firstEvaluationLogged := false
-	retryEvaluationLogged := false
-	delegator := &executionEngineDelegator{
-		rm: rm,
-		evaluatePolicy: func(_ *types.Info, proposal *scheduleProposal) policyDecision {
-			attempt++
-
-			if attempt >= 2 && !retryEvaluationLogged {
-				testutil.PrintTestSection(t, "步骤 3: 校验重调结果并确认接受")
-				retryEvaluationLogged = true
-			}
-			testutil.PrintInfo(t,
-				fmt.Sprintf("域调度器提案 %d: %s@%s",
-					attempt, proposal.ProviderID, proposal.NodeID))
-			if attempt == 1 && !firstEvaluationLogged {
-				testutil.PrintTestSection(t, "步骤 2: 校验第一次调度结果（触发重调）")
-				firstEvaluationLogged = true
-			}
-			if proposal.Labels["gpu"] != "1" {
-				testutil.PrintInfo(t, fmt.Sprintf(
-					"执行引擎判断 actor#2 需与 actor#1 同节点 (%s)，当前结果不满足数据亲和性要求，发起重调",
-					firstActorPlacement,
-				))
-				return policyDecision{
-					Accept: false,
-					Retry:  true,
-					Reason: "gpu required",
-				}
-			}
-			testutil.PrintInfo(t, fmt.Sprintf(
-				"域调度器重调后输出 %s@%s，满足与 actor#1 同节点的亲和策略",
-				proposal.ProviderID, proposal.NodeID,
-			))
-			testutil.PrintInfo(t, "执行引擎判断该结果满足所有策略，选择接受")
-			return policyDecision{Accept: true}
-		},
-		maxRetries: 2,
-		auditSink: func(entry string) {
-			auditTrail = append(auditTrail, entry)
-		},
-	}
-
-	req := &types.Info{CPU: 3000, Memory: 4 * 1024 * 1024 * 1024}
-	testutil.PrintTestSection(t, "步骤 1: 执行引擎获取调度提案")
-	testutil.PrintResourceRequest(t, req)
-
-	result, err := delegator.coordinate(req)
+	commitResp, err := mockScheduler.CommitRemoteSchedule(
+		context.Background(),
+		"remote-node-1",
+		"localhost:50051",
+		commitReq,
+	)
 	require.NoError(t, err)
+	assert.True(t, commitResp.Success)
+	assert.Equal(t, selectedProvider.ProviderID, commitResp.ProviderID)
 
-	assert.True(t, result.Success)
-	assert.Equal(t, "entrust-commit", result.Path)
-	assert.Equal(t, "provider-edge-b", result.ProviderID)
-	assert.Equal(t, 2, rm.proposeCalls)
-	assert.Equal(t, 1, rm.commitCalls)
-	assert.Contains(t, auditTrail, "policy:reject")
-
-	testutil.PrintSchedulingDecision(t, result.Path, true, "执行引擎成功在第二次提案中接受调度")
-	testutil.PrintSuccess(t, "拒绝并重试场景验证完成")
+	testutil.PrintInfo(t, fmt.Sprintf("部署成功: NodeID=%s, ProviderID=%s",
+		commitResp.NodeID, commitResp.ProviderID))
+	testutil.PrintSuccess(t, "直接获取列表并本地决策场景验证完成：成功获取列表、本地决策并部署")
 }
 
-// 4.1 具备自主调度机制：执行引擎直接接受第一次调度结果
-func TestDelegatedScheduling_AutonomousScheduler_Accept(t *testing.T) {
-	testutil.PrintTestHeader(t, "委托调度 - 自主调度(直接接受)",
-		"执行引擎第一次提案即通过策略校验")
+// Mock implementations
 
-	rm := &mockDomainScheduler{
-		proposals: []*scheduleProposal{
-			{
-				ProviderID: "provider-core",
-				NodeID:     "core-node",
-				Score:      0.95,
-				Labels:     map[string]string{"gpu": "2"},
-			},
-		},
-		commitResponse: &delegationResult{
-			Success: true,
-			Message: "deployment committed",
-		},
-	}
-
-	delegator := &executionEngineDelegator{
-		rm: rm,
-		evaluatePolicy: func(_ *types.Info, _ *scheduleProposal) policyDecision {
-			return policyDecision{Accept: true}
-		},
-	}
-
-	req := &types.Info{CPU: 1000, Memory: 1 * 1024 * 1024 * 1024}
-	testutil.PrintTestSection(t, "步骤 1: 获取首个提案并即时通过")
-	testutil.PrintResourceRequest(t, req)
-
-	result, err := delegator.coordinate(req)
-	require.NoError(t, err)
-
-	testutil.PrintTestSection(t, "步骤 2: 校验提交部署")
-	assert.True(t, result.Success)
-	assert.Equal(t, "entrust-commit", result.Path)
-	assert.Equal(t, 1, rm.proposeCalls)
-	assert.Equal(t, 1, rm.commitCalls)
-
-	testutil.PrintSchedulingDecision(t, result.Path, true, "执行引擎直接接受首个调度方案")
-	testutil.PrintSuccess(t, "直接接受场景验证完成")
+type mockSchedulerService struct {
+	proposeResult  *scheduler.LocalScheduleResult
+	proposeResults []*scheduler.LocalScheduleResult
+	proposeFunc    func() *scheduler.LocalScheduleResult
+	commitSuccess  bool
+	commitError    error
+	providerList   *scheduler.ProviderListResponse
 }
 
-// 4.2 无自主调度机制：域调度器提供域信息，执行引擎自选节点并委托部署
-func TestDelegatedScheduling_NoScheduler_EngineSelects(t *testing.T) {
-	testutil.PrintTestHeader(t, "委托调度 - 无调度机制(自选节点)",
-		"算力网络缺少自主调度时，执行引擎基于自身分级调度策略筛选节点，再委托部署")
+func (m *mockSchedulerService) ProposeLocalSchedule(ctx context.Context, req *types.Info) (*scheduler.LocalScheduleResult, error) {
+	if m.proposeFunc != nil {
+		result := m.proposeFunc()
+		if result == nil {
+			return nil, fmt.Errorf("no more proposals")
+		}
+		return result, nil
+	}
+	if m.proposeResult == nil {
+		return nil, fmt.Errorf("no proposal available")
+	}
+	return m.proposeResult, nil
+}
 
-	nodes := []*discovery.PeerNode{
-		{
-			NodeID:   "edge-a",
-			NodeName: "edge-alpha",
-			Status:   discovery.NodeStatusOnline,
-			LastSeen: time.Now(),
-			ResourceCapacity: &types.Capacity{
-				Available: &types.Info{CPU: 2000, Memory: 4 * 1024 * 1024 * 1024},
-			},
-		},
-		{
-			NodeID:   "edge-b",
-			NodeName: "edge-beta",
-			Status:   discovery.NodeStatusOnline,
-			LastSeen: time.Now(),
-			ResourceCapacity: &types.Capacity{
-				Available: &types.Info{CPU: 4000, Memory: 8 * 1024 * 1024 * 1024},
-			},
-		},
+func (m *mockSchedulerService) CommitLocalSchedule(ctx context.Context, req *scheduler.CommitLocalScheduleRequest) (*scheduler.DeployResponse, error) {
+	if m.commitError != nil {
+		return &scheduler.DeployResponse{
+			Success: false,
+			Error:   m.commitError.Error(),
+		}, nil
 	}
 
-	rm := &mockDomainScheduler{
-		noScheduler: true,
-		listNodes:   nodes,
-		nodeDeployResponse: &delegationResult{
-			Success: true,
-			Message: "delegated deployment executed",
-		},
+	if !m.commitSuccess {
+		return &scheduler.DeployResponse{
+			Success: false,
+			Error:   "commit failed",
+		}, nil
 	}
 
-	var auditTrail []string
-	delegator := &executionEngineDelegator{
-		rm: rm,
-		evaluatePolicy: func(_ *types.Info, _ *scheduleProposal) policyDecision {
-			return policyDecision{Accept: false}
-		},
-		auditSink: func(entry string) {
-			auditTrail = append(auditTrail, entry)
-		},
+	return &scheduler.DeployResponse{
+		Success:    true,
+		Component:  nil,
+		NodeID:     "remote-node-1",
+		NodeName:   "远程节点1",
+		ProviderID: req.ProviderID,
+	}, nil
+}
+
+func (m *mockSchedulerService) ProposeRemoteSchedule(ctx context.Context, targetNodeID string, targetAddress string, req *types.Info) (*scheduler.LocalScheduleResult, error) {
+	return m.ProposeLocalSchedule(ctx, req)
+}
+
+func (m *mockSchedulerService) CommitRemoteSchedule(ctx context.Context, targetNodeID string, targetAddress string, req *scheduler.CommitLocalScheduleRequest) (*scheduler.DeployResponse, error) {
+	return m.CommitLocalSchedule(ctx, req)
+}
+
+func (m *mockSchedulerService) ListRemoteProviders(ctx context.Context, targetNodeID string, targetAddress string, includeResources bool) (*scheduler.ProviderListResponse, error) {
+	if m.providerList == nil {
+		return &scheduler.ProviderListResponse{
+			Success: false,
+			Error:   "provider list not configured",
+		}, nil
+	}
+	return m.providerList, nil
+}
+
+// Mock policies
+
+type mockResourceSafetyMarginPolicy struct {
+	cpuRatio    float64
+	memoryRatio float64
+	gpuRatio    float64
+}
+
+func (p *mockResourceSafetyMarginPolicy) Name() string {
+	return "resource_safety_margin"
+}
+
+func (p *mockResourceSafetyMarginPolicy) Evaluate(ctx *policy.Context) policy.Result {
+	if ctx.Available == nil || ctx.Request == nil {
+		return policy.Result{
+			Decision: policy.DecisionReject,
+			Policy:   p.Name(),
+			Reason:   "available or request is nil",
+		}
 	}
 
-	req := &types.Info{CPU: 2500, Memory: 3 * 1024 * 1024 * 1024}
-	testutil.PrintTestSection(t, "步骤 1: 域调度器返回域内节点信息")
-	testutil.PrintResourceRequest(t, req)
-	testutil.PrintPeerNodeOverview(t, nodes)
+	// Check CPU
+	if ctx.Available.CPU < int64(float64(ctx.Request.CPU)*p.cpuRatio) {
+		return policy.Result{
+			Decision: policy.DecisionReject,
+			Policy:   p.Name(),
+			Reason: fmt.Sprintf("CPU safety margin not met: available=%d, required=%d",
+				ctx.Available.CPU, int64(float64(ctx.Request.CPU)*p.cpuRatio)),
+		}
+	}
 
-	result, err := delegator.coordinate(req)
-	require.NoError(t, err)
+	// Check Memory
+	if ctx.Available.Memory < int64(float64(ctx.Request.Memory)*p.memoryRatio) {
+		return policy.Result{
+			Decision: policy.DecisionReject,
+			Policy:   p.Name(),
+			Reason: fmt.Sprintf("Memory safety margin not met: available=%d, required=%d",
+				ctx.Available.Memory, int64(float64(ctx.Request.Memory)*p.memoryRatio)),
+		}
+	}
 
-	testutil.PrintTestSection(t, "步骤 2: 执行引擎选择节点并委托部署")
-	assert.True(t, result.Success)
-	assert.Equal(t, "engine-select", result.Path)
-	assert.Equal(t, "edge-b", result.NodeID)
-	assert.Equal(t, 1, rm.listCalls)
-	assert.Equal(t, 1, rm.deployCalls)
-	assert.Contains(t, auditTrail, "engine:selected:edge-b")
+	// Check GPU
+	if ctx.Available.GPU < int64(float64(ctx.Request.GPU)*p.gpuRatio) {
+		return policy.Result{
+			Decision: policy.DecisionReject,
+			Policy:   p.Name(),
+			Reason: fmt.Sprintf("GPU safety margin not met: available=%d, required=%d",
+				ctx.Available.GPU, int64(float64(ctx.Request.GPU)*p.gpuRatio)),
+		}
+	}
 
-	testutil.PrintSchedulingDecision(t, result.Path, true, "执行引擎自选 edge-b 并让域调度器执行部署")
-	testutil.PrintSuccess(t, "执行引擎手动选节点场景验证通过")
+	return policy.Result{
+		Decision: policy.DecisionAccept,
+		Policy:   p.Name(),
+		Reason:   "all safety margins met",
+	}
 }

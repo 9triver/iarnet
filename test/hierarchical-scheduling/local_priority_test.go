@@ -34,6 +34,52 @@ func (f *fakeLocalResourceManager) DeployComponent(
 	return f.component, nil
 }
 
+func (f *fakeLocalResourceManager) DeployComponentOnProvider(
+	ctx context.Context,
+	runtimeEnv types.RuntimeEnv,
+	resourceRequest *types.Info,
+	providerID string,
+) (*component.Component, error) {
+	f.deployCalls++
+	if f.err != nil {
+		return nil, f.err
+	}
+	if f.component != nil {
+		f.component.SetProviderID(providerID)
+	}
+	return f.component, nil
+}
+
+func (f *fakeLocalResourceManager) ScheduleLocalProvider(
+	ctx context.Context,
+	resourceRequest *types.Info,
+) (*scheduler.LocalScheduleResult, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &scheduler.LocalScheduleResult{
+		NodeID:     f.GetNodeID(),
+		NodeName:   f.GetNodeName(),
+		ProviderID: "local-provider-1",
+		Available: &types.Info{
+			CPU:    4000,
+			Memory: 8 * 1024 * 1024 * 1024,
+			GPU:    1,
+		},
+	}, nil
+}
+
+func (f *fakeLocalResourceManager) ListAllProviders(
+	ctx context.Context,
+	includeResources bool,
+) ([]*scheduler.ProviderInfo, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	// 返回一个空的 Provider 列表（测试中不需要）
+	return []*scheduler.ProviderInfo{}, nil
+}
+
 func (f *fakeLocalResourceManager) GetNodeID() string {
 	return "local-node-001"
 }
@@ -61,7 +107,7 @@ func (f *fakeDiscoveryService) PerformGossip(ctx context.Context) error {
 func (f *fakeDiscoveryService) QueryResources(
 	ctx context.Context,
 	resourceRequest *types.Info,
-	requiredTags *discovery.ResourceTags,
+	requiredTags *types.ResourceTags,
 ) ([]*discovery.PeerNode, error) {
 	f.queryCalls++
 	return f.remoteNodes, nil
@@ -100,7 +146,7 @@ func buildRemoteNodes() []*discovery.PeerNode {
 					GPU:    1,
 				},
 			},
-			ResourceTags: discovery.NewResourceTags(true, true, true, false),
+			ResourceTags: types.NewResourceTags(true, true, true, false),
 			LastSeen:     time.Now(),
 			LastUpdated:  time.Now(),
 		},
@@ -121,7 +167,7 @@ func buildRemoteNodes() []*discovery.PeerNode {
 					GPU:    0,
 				},
 			},
-			ResourceTags: discovery.NewResourceTags(true, false, true, false),
+			ResourceTags: types.NewResourceTags(true, false, true, false),
 			LastSeen:     time.Now(),
 			LastUpdated:  time.Now(),
 		},

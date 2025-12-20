@@ -59,6 +59,13 @@ class DockerProviderDeployer:
         
         self.user = self.vm_config['global']['user']
         
+        # 获取 Registry 信息（默认使用第一个 iarnet 节点）
+        iarnet_config = self.vm_config['vm_types']['iarnet']
+        registry_ip_suffix = iarnet_config['ip_start'] + 0
+        self.registry_ip = f"{iarnet_config['ip_base']}.{registry_ip_suffix}"
+        self.registry_port = 5000
+        self.registry_url = f"{self.registry_ip}:{self.registry_port}"
+        
         # 构建节点信息映射
         self.node_info = {}
         for i in range(self.docker_config['count']):
@@ -89,6 +96,178 @@ class DockerProviderDeployer:
             )
             return result.returncode == 0
         except:
+            return False
+    
+    def check_docker_installed(self, ssh_cmd: list) -> bool:
+        """检查 Docker 是否已安装"""
+        check_cmd = ' '.join(ssh_cmd) + ' "docker --version >/dev/null 2>&1 && echo OK || echo NOT_INSTALLED"'
+        try:
+            result = subprocess.run(check_cmd, shell=True, check=False, timeout=10, capture_output=True, text=True)
+            return 'OK' in result.stdout
+        except:
+            return False
+    
+    def configure_registry_access(self, ssh_cmd: list, node_id: int = None, node: dict = None) -> bool:
+        """配置节点以访问 Registry"""
+        if node:
+            node_prefix = f"[节点 {node_id}] {node['hostname']} ({node['ip']}) "
+        elif node_id is not None:
+            node_info = self.node_info.get(node_id, {})
+            hostname = node_info.get('hostname', f'node-{node_id}')
+            ip = node_info.get('ip', 'unknown')
+            node_prefix = f"[节点 {node_id}] {hostname} ({ip}) "
+        else:
+            node_prefix = ""
+        
+        # 检查是否已配置
+        check_cmd = ' '.join(ssh_cmd) + f' "test -f /etc/docker/daemon.json && grep -q {self.registry_ip} /etc/docker/daemon.json && echo CONFIGURED || echo NOT_CONFIGURED"'
+        try:
+            result = subprocess.run(check_cmd, shell=True, check=False, timeout=10, capture_output=True, text=True)
+            if 'CONFIGURED' in result.stdout:
+                self._print(f"{node_prefix}    ✓ Registry 已配置")
+                return True
+        except:
+            pass
+        
+        # 配置 insecure-registries
+        self._print(f"{node_prefix}    配置 Registry 访问...")
+        
+        # 使用 Python 脚本在远程执行，避免引号转义问题
+        # 先读取现有配置（如果存在），然后合并
+        python_script = f'''
+import json
+import sys
+
+registry_url = "{self.registry_url}"
+
+# 读取现有配置
+try:
+    with open("/etc/docker/daemon.json", "r") as f:
+        config = json.load(f)
+except (FileNotFoundError, json.JSONDecodeError):
+    config = {{}}
+
+# 添加 insecure-registries
+if "insecure-registries" not in config:
+    config["insecure-registries"] = []
+
+if registry_url not in config["insecure-registries"]:
+    config["insecure-registries"].append(registry_url)
+
+# 写入配置
+with open("/etc/docker/daemon.json", "w") as f:
+    json.dump(config, f, indent=2)
+
+print("OK")
+'''
+        
+        # 使用 base64 编码传递 Python 脚本，避免引号问题
+        import base64
+        script_encoded = base64.b64encode(python_script.encode('utf-8')).decode('utf-8')
+        
+        # 在远程执行 Python 脚本
+        config_cmd = ' '.join(ssh_cmd) + f' "echo {script_encoded} | base64 -d | sudo python3 && sudo systemctl restart docker"'
+        try:
+            result = subprocess.run(config_cmd, shell=True, check=True, timeout=30, capture_output=True, text=True)
+            # 等待 Docker 重启
+            time.sleep(3)
+            self._print(f"{node_prefix}    ✓ Registry 配置成功")
+            return True
+        except subprocess.CalledProcessError as e:
+            self._print(f"{node_prefix}    ⚠ Registry 配置失败: {e}")
+            if e.stderr:
+                self._print(f"{node_prefix}    错误信息: {e.stderr[:200]}")
+            # 尝试备用方法：使用临时文件
+            return self._configure_registry_fallback(ssh_cmd, node_id, node)
+    
+    def _configure_registry_fallback(self, ssh_cmd: list, node_id: int = None, node: dict = None) -> bool:
+        """备用配置方法：使用临时文件"""
+        if node:
+            node_prefix = f"[节点 {node_id}] {node['hostname']} ({node['ip']}) "
+        elif node_id is not None:
+            node_info = self.node_info.get(node_id, {})
+            hostname = node_info.get('hostname', f'node-{node_id}')
+            ip = node_info.get('ip', 'unknown')
+            node_prefix = f"[节点 {node_id}] {hostname} ({ip}) "
+        else:
+            node_prefix = ""
+        self._print(f"{node_prefix}    尝试备用配置方法...")
+        
+        # 使用 printf 和 heredoc 来避免引号问题
+        config_script = f'''#!/bin/bash
+# 读取现有配置或创建新配置
+if [ -f /etc/docker/daemon.json ]; then
+    # 使用 Python 合并配置
+    python3 << 'PYEOF'
+import json
+import sys
+
+try:
+    with open("/etc/docker/daemon.json", "r") as f:
+        config = json.load(f)
+except:
+    config = {{}}
+
+if "insecure-registries" not in config:
+    config["insecure-registries"] = []
+
+registry_url = "{self.registry_url}"
+if registry_url not in config["insecure-registries"]:
+    config["insecure-registries"].append(registry_url)
+
+with open("/etc/docker/daemon.json", "w") as f:
+    json.dump(config, f, indent=2)
+PYEOF
+else
+    # 创建新配置
+    cat > /etc/docker/daemon.json << 'JSONEOF'
+{{
+  "insecure-registries": ["{self.registry_url}"]
+}}
+JSONEOF
+fi
+'''
+        
+        # 使用 base64 编码传递脚本
+        import base64
+        script_encoded = base64.b64encode(config_script.encode('utf-8')).decode('utf-8')
+        
+        config_cmd = ' '.join(ssh_cmd) + f' "echo {script_encoded} | base64 -d | sudo bash && sudo systemctl restart docker"'
+        try:
+            result = subprocess.run(config_cmd, shell=True, check=True, timeout=30, capture_output=True, text=True)
+            time.sleep(3)
+            self._print(f"{node_prefix}    ✓ Registry 配置成功（使用备用方法）")
+            return True
+        except subprocess.CalledProcessError as e:
+            self._print(f"{node_prefix}    ✗ Registry 配置失败: {e}")
+            if e.stderr:
+                self._print(f"{node_prefix}    错误信息: {e.stderr[:300]}")
+            return False
+    
+    def verify_registry_access(self, ssh_cmd: list, node_id: int = None, node: dict = None) -> bool:
+        """验证节点是否可以访问 Registry"""
+        if node:
+            node_prefix = f"[节点 {node_id}] {node['hostname']} ({node['ip']}) "
+        elif node_id is not None:
+            node_info = self.node_info.get(node_id, {})
+            hostname = node_info.get('hostname', f'node-{node_id}')
+            ip = node_info.get('ip', 'unknown')
+            node_prefix = f"[节点 {node_id}] {hostname} ({ip}) "
+        else:
+            node_prefix = ""
+        
+        # 检查 Registry 是否可访问
+        check_cmd = ' '.join(ssh_cmd) + f' "curl -s --connect-timeout 5 http://{self.registry_url}/v2/ >/dev/null && echo ACCESSIBLE || echo NOT_ACCESSIBLE"'
+        try:
+            result = subprocess.run(check_cmd, shell=True, check=False, timeout=10, capture_output=True, text=True)
+            if 'ACCESSIBLE' in result.stdout:
+                self._print(f"{node_prefix}    ✓ Registry 可访问: {self.registry_url}")
+                return True
+            else:
+                self._print(f"{node_prefix}    ⚠ Registry 不可访问: {self.registry_url}")
+                return False
+        except:
+            self._print(f"{node_prefix}    ⚠ 无法验证 Registry 访问")
             return False
     
     def _start_provider_service(self, ssh_cmd: list, node: dict, node_id: int = None) -> bool:
@@ -233,7 +412,7 @@ class DockerProviderDeployer:
         
         # 0. 如果指定 restart，先停止现有服务
         if restart:
-            self._print(f"[节点 {node_id}] 0. 停止现有服务...")
+            self._print(f"[节点 {node_id}] {node['hostname']} ({node['ip']}) 0. 停止现有服务...")
             stop_commands = [
                 'pkill -9 -f docker-provider',
                 'killall -9 docker-provider 2>/dev/null',
@@ -251,10 +430,22 @@ class DockerProviderDeployer:
             
             # 等待服务停止
             time.sleep(2)
-            self._print(f"[节点 {node_id}]   ✓ 服务已停止")
+            self._print(f"[节点 {node_id}] {node['hostname']} ({node['ip']})   ✓ 服务已停止")
         
-        # 1. 创建必要的目录
-        self._print(f"[节点 {node_id}] 1. 创建目录结构...")
+        # 1. 检查并配置 Docker（如果需要）
+        self._print(f"[节点 {node_id}] {node['hostname']} ({node['ip']}) 1. 检查 Docker...")
+        if not self.check_docker_installed(ssh_cmd):
+            self._print(f"[节点 {node_id}] {node['hostname']} ({node['ip']})   ⚠ Docker 未安装，请先安装 Docker")
+            self._print(f"[节点 {node_id}] {node['hostname']} ({node['ip']})   提示: curl -fsSL https://get.docker.com | sudo sh")
+        else:
+            self._print(f"[节点 {node_id}] {node['hostname']} ({node['ip']})   ✓ Docker 已安装")
+            # 配置 Registry 访问
+            self.configure_registry_access(ssh_cmd, node_id, node)
+            # 验证 Registry 访问
+            self.verify_registry_access(ssh_cmd, node_id, node)
+        
+        # 2. 创建必要的目录
+        self._print(f"[节点 {node_id}] {node['hostname']} ({node['ip']}) 2. 创建目录结构...")
         mkdir_cmd = ' '.join(ssh_cmd) + ' "mkdir -p ~/docker-provider && ls -ld ~/docker-provider"'
         mkdir_result = subprocess.run(mkdir_cmd, shell=True, check=False, capture_output=True, text=True, timeout=10)
         if mkdir_result.returncode != 0:
@@ -262,8 +453,8 @@ class DockerProviderDeployer:
         else:
             self._print(f"[节点 {node_id}]   ✓ 目录结构创建成功")
         
-        # 2. 上传配置文件
-        self._print(f"[节点 {node_id}] 2. 上传配置文件: {config_file.name}...")
+        # 3. 上传配置文件
+        self._print(f"[节点 {node_id}] {node['hostname']} ({node['ip']}) 3. 上传配置文件: {config_file.name}...")
         scp_cmd = [
             'scp',
             '-o', 'StrictHostKeyChecking=no',
@@ -287,7 +478,7 @@ class DockerProviderDeployer:
                 self._print(f"[节点 {node_id}]   ✗ 错误: 二进制文件不存在: {binary_path}")
                 return False
             
-            self._print(f"[节点 {node_id}] 3. 上传二进制文件...")
+            self._print(f"[节点 {node_id}] {node['hostname']} ({node['ip']}) 4. 上传二进制文件...")
             # 直接使用用户名构建远程主目录路径
             remote_home = f"/home/{self.user}"
             remote_path = f"{remote_home}/docker-provider/docker-provider"
@@ -465,6 +656,49 @@ class DockerProviderDeployer:
         if failed_nodes:
             self._print(f"失败的节点: {failed_nodes}")
         self._print("=" * 60)
+    
+    def configure_all_nodes_registry(self, node_ids: list):
+        """配置所有节点以访问 Registry"""
+        # 显示 Registry 信息
+        iarnet_config = self.vm_config['vm_types']['iarnet']
+        registry_node_id = 0
+        registry_ip_suffix = iarnet_config['ip_start'] + registry_node_id
+        registry_hostname = f"{iarnet_config['hostname_prefix']}-{registry_node_id+1:02d}"
+        
+        self._print(f"\nRegistry 信息:")
+        self._print(f"  运行节点: {registry_hostname} ({self.registry_ip})")
+        self._print(f"  Registry URL: {self.registry_url}")
+        self._print(f"\n开始配置 {len(node_ids)} 个节点以访问 Registry...")
+        self._print("=" * 60)
+        
+        ssh_cmd_base = [
+            'ssh',
+            '-o', 'StrictHostKeyChecking=no',
+            '-o', 'UserKnownHostsFile=/dev/null',
+            '-o', 'ConnectTimeout=5'
+        ]
+        
+        success_count = 0
+        for node_id in node_ids:
+            node = self.node_info[node_id]
+            ssh_cmd = ssh_cmd_base + [f"{self.user}@{node['ip']}"]
+            
+            if not self.check_node_connectivity(node_id):
+                self._print(f"[节点 {node_id}] {node['hostname']} ({node['ip']}) ⚠ 无法连接，跳过")
+                continue
+            
+            if not self.check_docker_installed(ssh_cmd):
+                self._print(f"[节点 {node_id}] {node['hostname']} ({node['ip']}) ⚠ Docker 未安装，跳过")
+                continue
+            
+            if self.configure_registry_access(ssh_cmd, node_id, node):
+                self.verify_registry_access(ssh_cmd, node_id, node)
+                success_count += 1
+        
+        self._print("\n" + "=" * 60)
+        self._print(f"Registry 配置完成: {success_count}/{len(node_ids)} 个节点成功")
+        self._print(f"Registry URL: {self.registry_url}")
+        self._print("=" * 60)
 
 def main():
     parser = argparse.ArgumentParser(description='在 docker 节点上部署 docker provider 服务')
@@ -495,6 +729,11 @@ def main():
         help='重启服务（会先停止现有服务，然后启动新服务）'
     )
     parser.add_argument(
+        '--configure-registry', '-R',
+        action='store_true',
+        help='配置节点以访问 Docker Registry（用于拉取 component 镜像）'
+    )
+    parser.add_argument(
         '--max-workers',
         type=int,
         help='最大并发部署节点数（默认: min(节点数, 10)）'
@@ -523,6 +762,12 @@ def main():
         print(f"错误: 节点ID超出范围: {invalid_nodes}")
         print(f"有效范围: 0-{max_node_id}")
         sys.exit(1)
+    
+    # 如果指定了 configure-registry，先配置所有节点的 Registry 访问
+    if args.configure_registry:
+        print("\n配置所有节点以访问 Docker Registry...")
+        print("=" * 60)
+        deployer.configure_all_nodes_registry(node_ids)
     
     # 执行部署
     deployer.deploy_to_nodes(

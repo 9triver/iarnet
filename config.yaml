@@ -35,6 +35,25 @@ resource:
     fanout: 3
     use_anti_entropy: true
     anti_entropy_interval_seconds: 300
+  # 调度策略配置：用于评估和筛选跨节点委托调度的结果
+  schedule_policies:
+    # 资源安全裕度策略：要求可用资源至少是请求资源的 1.2 倍
+    - type: resource_safety_margin
+      enable: true
+      params:
+        cpu_ratio: 1.2      # CPU 安全系数
+        memory_ratio: 1.2   # 内存安全系数
+        gpu_ratio: 1.0      # GPU 安全系数（不放大）
+    # 节点黑名单策略：拒绝来自黑名单节点的调度结果
+    - type: node_blacklist
+      enable: false         # 默认关闭，需要时启用并配置 node_ids
+      params:
+        node_ids: []
+    # Provider 黑名单策略：拒绝来自黑名单 Provider 的调度结果
+    - type: provider_blacklist
+      enable: false         # 默认关闭，需要时启用并配置 provider_ids
+      params:
+        provider_ids: []
 
 enable_local_docker: true
 

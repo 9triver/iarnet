@@ -6,7 +6,7 @@
 
 # 全局配置
 global:
-  base_image: "/var/lib/libvirt/images/ubuntu-22.04-cloud.qcow2"  # 基础镜像路径
+  base_image: "/var/lib/libvirt/images/ubuntu-22.04-cloud-docker.qcow2"  # 基础镜像路径
   network_name: "iarnet-network"  # libvirt 网络名称
   ssh_key_path: "~/.ssh/id_rsa.pub"  # SSH 公钥路径
   user: "ubuntu"  # 默认用户

@@ -597,7 +597,7 @@ func createK8sTestService() (*provider.Service, error) {
 		Gpu:    0,
 	}
 
-	return provider.NewService(kubeconfig, false, "default", "iarnet.managed=true", []string{"cpu", "memory"}, totalCapacity)
+	return provider.NewService(kubeconfig, false, "default", "iarnet.managed=true", []string{"cpu", "memory"}, totalCapacity, false) // allowConnectionFailure: false
 }
 
 // getK8sKubeconfig 获取 kubeconfig 路径

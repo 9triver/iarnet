@@ -8,6 +8,7 @@ import (
 	"github.com/9triver/iarnet/internal/domain/resource/component"
 	"github.com/9triver/iarnet/internal/domain/resource/discovery"
 	"github.com/9triver/iarnet/internal/domain/resource/logger"
+	"github.com/9triver/iarnet/internal/domain/resource/policy"
 	"github.com/9triver/iarnet/internal/domain/resource/provider"
 	"github.com/9triver/iarnet/internal/domain/resource/scheduler"
 	"github.com/9triver/iarnet/internal/domain/resource/store"
@@ -147,6 +148,28 @@ func bootstrapResource(iarnet *Iarnet) error {
 	resourceManager.SetSchedulerService(schedulerService)
 	iarnet.SchedulerService = schedulerService
 	resourceManager.SetIsHead(iarnet.Config.Resource.IsHead)
+
+	// 初始化调度策略链
+	if len(iarnet.Config.Resource.SchedulePolicies) > 0 {
+		policyFactory := policy.NewFactory()
+		policyConfigs := make([]policy.PolicyConfig, 0, len(iarnet.Config.Resource.SchedulePolicies))
+		for _, cfg := range iarnet.Config.Resource.SchedulePolicies {
+			policyConfigs = append(policyConfigs, policy.PolicyConfig{
+				Type:   cfg.Type,
+				Enable: cfg.Enable,
+				Params: cfg.Params,
+			})
+		}
+		policyChain, err := policyFactory.CreateChain(policyConfigs)
+		if err != nil {
+			logrus.Warnf("Failed to create schedule policy chain: %v, continuing without policies", err)
+		} else {
+			resourceManager.SetSchedulePolicyChain(policyChain)
+			logrus.Infof("Schedule policy chain initialized with %d policies", len(policyConfigs))
+		}
+	} else {
+		logrus.Debug("No schedule policies configured")
+	}
 
 	logrus.Info("Resource module initialized")
 	return nil

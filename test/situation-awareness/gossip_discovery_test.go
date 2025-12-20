@@ -64,7 +64,7 @@ func TestGossipDiscovery_NewPeers(t *testing.T) {
 				GPU:    0,
 			},
 		},
-		discovery.NewResourceTags(true, false, true, false), // CPU, Memory
+		types.NewResourceTags(true, false, true, false), // CPU, Memory
 	)
 
 	// 启动管理器
@@ -110,7 +110,7 @@ func TestGossipDiscovery_NewPeers(t *testing.T) {
 				GPU:    1,
 			},
 		},
-		ResourceTags: discovery.NewResourceTags(true, true, true, false), // CPU, GPU, Memory
+		ResourceTags: types.NewResourceTags(true, true, true, false), // CPU, GPU, Memory
 		Status:       discovery.NodeStatusOnline,
 		LastSeen:     time.Now(),
 		LastUpdated:  time.Now(),
@@ -207,7 +207,7 @@ func TestGossipDiscovery_NewPeers(t *testing.T) {
 			Used:      &types.Info{CPU: 500, Memory: 512 * 1024 * 1024, GPU: 0},
 			Available: &types.Info{CPU: 1500, Memory: 1536 * 1024 * 1024, GPU: 0},
 		},
-		ResourceTags: discovery.NewResourceTags(true, false, true, false),
+		ResourceTags: types.NewResourceTags(true, false, true, false),
 		Status:       discovery.NodeStatusOnline,
 		LastSeen:     time.Now(),
 		LastUpdated:  time.Now(),
@@ -259,7 +259,7 @@ func TestGossipDiscovery_AggregatedView(t *testing.T) {
 			Used:      &types.Info{CPU: 2000, Memory: 2 * 1024 * 1024 * 1024, GPU: 0},
 			Available: &types.Info{CPU: 6000, Memory: 6 * 1024 * 1024 * 1024, GPU: 0},
 		},
-		discovery.NewResourceTags(true, false, true, false),
+		types.NewResourceTags(true, false, true, false),
 	)
 
 	err := manager.Start(ctx)
@@ -278,7 +278,7 @@ func TestGossipDiscovery_AggregatedView(t *testing.T) {
 				Used:      &types.Info{CPU: 1000, Memory: 1 * 1024 * 1024 * 1024, GPU: 0},
 				Available: &types.Info{CPU: 3000, Memory: 3 * 1024 * 1024 * 1024, GPU: 1},
 			},
-			ResourceTags: discovery.NewResourceTags(true, true, true, false),
+			ResourceTags: types.NewResourceTags(true, true, true, false),
 			Status:       discovery.NodeStatusOnline,
 			LastSeen:     time.Now(),
 			LastUpdated:  time.Now(),
@@ -294,7 +294,7 @@ func TestGossipDiscovery_AggregatedView(t *testing.T) {
 				Used:      &types.Info{CPU: 500, Memory: 512 * 1024 * 1024, GPU: 0},
 				Available: &types.Info{CPU: 1500, Memory: 1536 * 1024 * 1024, GPU: 0},
 			},
-			ResourceTags: discovery.NewResourceTags(true, false, true, false),
+			ResourceTags: types.NewResourceTags(true, false, true, false),
 			Status:       discovery.NodeStatusOnline,
 			LastSeen:     time.Now(),
 			LastUpdated:  time.Now(),
@@ -310,7 +310,7 @@ func TestGossipDiscovery_AggregatedView(t *testing.T) {
 				Used:      &types.Info{CPU: 3000, Memory: 3 * 1024 * 1024 * 1024, GPU: 1},
 				Available: &types.Info{CPU: 3000, Memory: 3 * 1024 * 1024 * 1024, GPU: 1},
 			},
-			ResourceTags: discovery.NewResourceTags(true, true, true, true), // 支持所有资源
+			ResourceTags: types.NewResourceTags(true, true, true, true), // 支持所有资源
 			Status:       discovery.NodeStatusOnline,
 			LastSeen:     time.Now(),
 			LastUpdated:  time.Now(),
@@ -401,7 +401,7 @@ func TestGossipDiscovery_AggregatedView(t *testing.T) {
 		GPU:    0,                      // 不需要 GPU（降低要求）
 	}
 
-	requiredTags := discovery.NewResourceTags(true, false, true, false) // CPU, Memory（不需要GPU）
+	requiredTags := types.NewResourceTags(true, false, true, false) // CPU, Memory（不需要GPU）
 
 	availableNodes := aggregateView.FindAvailableNodes(resourceRequest, requiredTags)
 	t.Logf("\n%s", colorize("资源查询结果:", colorYellow+colorBold))
@@ -455,7 +455,7 @@ func TestGossipDiscovery_ExpirationManagement(t *testing.T) {
 			Used:      &types.Info{CPU: 2000, Memory: 2 * 1024 * 1024 * 1024, GPU: 0},
 			Available: &types.Info{CPU: 6000, Memory: 6 * 1024 * 1024 * 1024, GPU: 0},
 		},
-		discovery.NewResourceTags(true, false, true, false),
+		types.NewResourceTags(true, false, true, false),
 	)
 
 	err := manager.Start(ctx)
@@ -474,7 +474,7 @@ func TestGossipDiscovery_ExpirationManagement(t *testing.T) {
 			Used:      &types.Info{CPU: 1000, Memory: 1 * 1024 * 1024 * 1024, GPU: 0},
 			Available: &types.Info{CPU: 3000, Memory: 3 * 1024 * 1024 * 1024, GPU: 0},
 		},
-		ResourceTags: discovery.NewResourceTags(true, false, true, false),
+		ResourceTags: types.NewResourceTags(true, false, true, false),
 		Status:       discovery.NodeStatusOnline,
 		LastSeen:     time.Now(),
 		LastUpdated:  time.Now(),
@@ -498,7 +498,7 @@ func TestGossipDiscovery_ExpirationManagement(t *testing.T) {
 			Used:      &types.Info{CPU: 500, Memory: 512 * 1024 * 1024, GPU: 0},
 			Available: &types.Info{CPU: 1500, Memory: 1536 * 1024 * 1024, GPU: 0},
 		},
-		ResourceTags: discovery.NewResourceTags(true, false, true, false),
+		ResourceTags: types.NewResourceTags(true, false, true, false),
 		Status:       discovery.NodeStatusOnline,
 		LastSeen:     time.Now().Add(-nodeTTL - 1*time.Second), // 已经过期
 		LastUpdated:  time.Now().Add(-nodeTTL - 1*time.Second),

@@ -35,14 +35,22 @@ type ApplicationConfig struct {
 
 // ResourceConfig Resource 模块配置
 type ResourceConfig struct {
-	GlobalRegistryAddr string            `yaml:"global_registry_addr"` // e.g., "localhost:50010" - address of the global registry
-	Name               string            `yaml:"name"`                 // e.g., "node.1" - name of the node
-	Description        string            `yaml:"description"`          // e.g., "node.1 description" - description of the node
-	DomainID           string            `yaml:"domain_id"`            // e.g., "domain.AT9xbJe6RxzkPSL65bkwud" - domain ID of the node
-	IsHead             bool              `yaml:"is_head"`              // 是否为 head 节点
-	ComponentImages    map[string]string `yaml:"component_images"`     // e.g., "python:3.11-alpine" - image to use for actor containers
-	Store              StoreConfig       `yaml:"store"`                // Store configuration
-	Discovery          DiscoveryConfig   `yaml:"discovery"`            // Gossip 节点发现配置
+	GlobalRegistryAddr string                 `yaml:"global_registry_addr"` // e.g., "localhost:50010" - address of the global registry
+	Name               string                 `yaml:"name"`                 // e.g., "node.1" - name of the node
+	Description        string                 `yaml:"description"`          // e.g., "node.1 description" - description of the node
+	DomainID           string                 `yaml:"domain_id"`            // e.g., "domain.AT9xbJe6RxzkPSL65bkwud" - domain ID of the node
+	IsHead             bool                   `yaml:"is_head"`              // 是否为 head 节点
+	ComponentImages    map[string]string      `yaml:"component_images"`     // e.g., "python:3.11-alpine" - image to use for actor containers
+	Store              StoreConfig            `yaml:"store"`                // Store configuration
+	Discovery          DiscoveryConfig        `yaml:"discovery"`            // Gossip 节点发现配置
+	SchedulePolicies   []SchedulePolicyConfig `yaml:"schedule_policies"`    // 调度策略配置
+}
+
+// SchedulePolicyConfig 调度策略配置
+type SchedulePolicyConfig struct {
+	Type   string                 `yaml:"type"`   // 策略类型：resource_safety_margin, node_blacklist, provider_blacklist
+	Enable bool                   `yaml:"enable"` // 是否启用
+	Params map[string]interface{} `yaml:"params"` // 策略参数
 }
 
 // DiscoveryConfig Gossip 节点发现配置

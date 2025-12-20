@@ -97,47 +97,87 @@
 
 ---
 
-## 3. 算力网络资源调度委托（执行引擎 ⇄ 域调度器）
+## 3. 算力网络资源调度委托（两阶段提交机制）
 
 - **文件**：`delegated-scheduling/delegated_scheduling_test.go`
 
-### 3.1 具备自主调度机制：策略拒绝与重调
-- **测试函数**：`TestDelegatedScheduling_AutonomousScheduler_RejectAndRetry`
-- **覆盖子测试点**
-  - 域调度器能持续输出调度结果
-  - 执行引擎根据应用层策略（GPU 强亲和）拒绝首个结果，输出拒绝原因
-  - 域调度器按要求重新调度，执行引擎接受并启动应用
-- **执行步骤**
-  1. `mockDomainScheduler` 提供两个方案，测试日志打印 `provider@node`。
-  2. 策略函数检测首个方案缺 GPU，返回 `Retry=true` 并记录拒绝原因。
-  3. 第二个方案被接受后调用 `CommitDeployment`，记录 `entrust-commit`。
+本模块测试委托调度机制，采用两阶段提交（Propose -> Commit）的方式，支持策略评估和本地决策。所有测试用例使用 Mock 实现，不依赖真实网络环境。
 
-### 3.2 具备自主调度机制：一次调度即接受
-- **测试函数**：`TestDelegatedScheduling_AutonomousScheduler_Accept`
+### 3.1 一次成功部署
+- **测试函数**：`TestDelegatedScheduling_SuccessfulDeployment`
 - **覆盖子测试点**
-  - 首个调度方案满足策略要求
-  - 执行引擎直接接受，链路只触发一次 `ProposeSchedule` 与 `CommitDeployment`
+  - 本地节点通过 RPC 调用远程节点的 `ProposeRemoteSchedule` 获取调度结果
+  - 使用策略链评估远程调度结果（资源安全裕度策略）
+  - 策略评估通过后，调用 `CommitRemoteSchedule` 确认部署
+  - 验证两阶段提交流程的完整性和正确性
 - **执行步骤**
-  1. `mockDomainScheduler` 返回高分且具备 GPU 的方案。
-  2. 策略函数立即 `Accept`，委托器提交部署并记录审计轨迹。
+  1. 本地节点调用 `ProposeRemoteSchedule`，传入资源请求和目标节点信息
+  2. 远程节点返回调度结果（NodeID、ProviderID、可用资源）
+  3. 本地节点使用策略链评估调度结果，验证资源安全裕度
+  4. 策略评估通过后，调用 `CommitRemoteSchedule` 确认部署
+  5. 验证部署成功，返回正确的 NodeID 和 ProviderID
 
-### 3.3 无自主调度机制：执行引擎自选节点
-- **测试函数**：`TestDelegatedScheduling_NoScheduler_EngineSelects`
+### 3.2 拒绝并重新调度
+- **测试函数**：`TestDelegatedScheduling_RejectAndRetry`
 - **覆盖子测试点**
-  - 域调度器不具备自主调度能力，仅提供域内节点状态
-  - 执行引擎根据自身分级调度策略筛选节点，并委托域调度器执行
+  - 第一次调度结果被策略拒绝（资源不满足安全裕度要求）
+  - 重新调用 `ProposeRemoteSchedule` 获取新的调度结果
+  - 第二次调度结果通过策略评估，成功部署
+  - 验证重试机制和策略拒绝流程
 - **执行步骤**
-  1. 将 `mockDomainScheduler` 的 `noScheduler` 设为 `true`，提供节点列表与委托执行返回值。
-  2. 执行引擎调用 `ListDomains`、筛选节点（默认按可用 CPU 最大），日志记录 `engine:selected:<node>`。
-  3. 调用 `DeployAtNode` 执行部署，结果路径标记为 `engine-select`。
+  1. 第一次调用 `ProposeRemoteSchedule`，获取调度结果
+  2. 策略评估：资源不满足安全裕度要求，返回 `DecisionReject`
+  3. 记录拒绝原因，重新调用 `ProposeRemoteSchedule`
+  4. 第二次获取调度结果，资源充足，满足安全裕度要求
+  5. 策略评估通过，调用 `CommitRemoteSchedule` 确认部署
+  6. 验证最终部署成功
+
+### 3.3 直接获取列表并本地决策
+- **测试函数**：`TestDelegatedScheduling_ListProvidersAndLocalDecision`
+- **覆盖子测试点**
+  - 远程节点无自主调度能力时，调用 `ListRemoteProviders` 获取 Provider 列表
+  - 本地节点根据资源需求在 Provider 列表中进行调度决策
+  - 选择满足资源需求且资源最充足的 Provider
+  - 使用选中的 Provider 调用 `CommitRemoteSchedule` 确认部署
+- **执行步骤**
+  1. 调用 `ListRemoteProviders`，传入目标节点信息和 `includeResources=true`
+  2. 获取远程节点的所有 Provider 列表及其资源信息（可用资源、总容量、已使用资源、资源标签）
+  3. 本地节点遍历 Provider 列表，根据资源需求（CPU、Memory、GPU）筛选满足条件的 Provider
+  4. 在满足条件的 Provider 中选择资源最充足的（按可用 CPU 排序）
+  5. 使用选中的 ProviderID 调用 `CommitRemoteSchedule` 确认部署
+  6. 验证部署成功，返回正确的 ProviderID
 
 ---
 
 ## 4. 运行方式与注意事项
-1. **运行全部测试**：在 `iarnet` 根目录执行 `go test -v ./test/...`。
-2. **运行各子任务测试**：
-   - 态势感知：`go test -v ./test/situation-awareness`
-   - 分级调度：`go test -v ./test/hierarchical-scheduling`
-   - 委托调度：`go test -v ./test/delegated-scheduling`
-   - （如需 util/其他子包，可用 `go test -v ./test/<pkg>` 类似命令）
-3. **需要 Docker 的用例**：建议先运行 `docker ps` 确保守护进程存活，必要时请以 root 或加入 `docker` 组。
+
+### 4.1 运行全部测试
+在 `iarnet` 根目录执行：
+```bash
+go test -v ./test/...
+```
+
+### 4.2 运行各子任务测试
+- **态势感知**：`go test -v ./test/situation-awareness`
+- **分级调度**：`go test -v ./test/hierarchical-scheduling`
+- **委托调度**：`go test -v ./test/delegated-scheduling`
+
+### 4.3 前置条件
+- **Docker 相关测试**：需要本地 Docker 环境可用
+  - 建议先运行 `docker ps` 确保守护进程存活
+  - 必要时请以 root 或加入 `docker` 组
+  - 需要 Docker 的测试会自动跳过（SKIP）如果 Docker 不可用
+- **Kubernetes 相关测试**：需要可用的 Kubernetes 集群
+  - 需要配置 `~/.kube/config` 或设置 `KUBECONFIG` 环境变量
+  - 如果 Kubernetes 不可用，相关测试会自动跳过（SKIP）
+- **委托调度测试**：完全使用 Mock 实现，无需额外依赖
+
+### 4.4 测试结果说明
+- **PASS**：测试通过
+- **SKIP**：测试跳过（通常因为前置条件不满足，如 Docker/K8s 不可用）
+- **FAIL**：测试失败（需要检查代码或环境配置）
+
+### 4.5 测试覆盖范围
+- ✅ **态势感知**：Docker Provider、K8s Provider、Gossip 发现、资源监控
+- ✅ **分级调度**：本地优先调度、跨域调度
+- ✅ **委托调度**：两阶段提交、策略评估、本地决策
