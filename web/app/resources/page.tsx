@@ -804,7 +804,8 @@ export default function ResourcesPage() {
                 刷新数据
               </Button>
               
-              <Dialog open={isNodeDialogOpen} onOpenChange={setIsNodeDialogOpen}>
+              {/* 动态添加节点功能尚未实现，暂时注释 */}
+              {/* <Dialog open={isNodeDialogOpen} onOpenChange={setIsNodeDialogOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline">
                     <Plus className="mr-2 h-4 w-4" />
@@ -843,7 +844,7 @@ export default function ResourcesPage() {
                     </Button>
                   </DialogFooter>
                 </DialogContent>
-              </Dialog>
+              </Dialog> */}
 
               <Dialog open={isBatchDialogOpen} onOpenChange={(open) => {
                 setIsBatchDialogOpen(open)

@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/9triver/iarnet/internal/domain/resource/component"
@@ -13,6 +14,7 @@ import (
 type Manager interface {
 	Add(controller *Controller) error
 	Get(appID string) *Controller
+	Remove(appID string) error
 	On(eventType EventType, handler EventHandler)
 	HandleSession(ctx context.Context, recv func() (*ctrlpb.Message, error), send func(*ctrlpb.Message) error) error
 }
@@ -47,6 +49,17 @@ func (m *manager) Get(appID string) *Controller {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.controllers[appID]
+}
+
+func (m *manager) Remove(appID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, ok := m.controllers[appID]; !ok {
+		return fmt.Errorf("controller for app %s not found", appID)
+	}
+	delete(m.controllers, appID)
+	logrus.Infof("Removed controller for application %s", appID)
+	return nil
 }
 
 func (m *manager) On(eventType EventType, handler EventHandler) {

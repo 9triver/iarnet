@@ -67,7 +67,8 @@ RUN apk add --no-cache \
     netcat-openbsd \
     zeromq \
     czmq \
-    git
+    git \
+    coreutils
 
 # 创建非 root 用户
 RUN addgroup -S appuser && adduser -S -G appuser appuser
@@ -102,7 +103,24 @@ export BACKEND_URL="${BACKEND_URL:-http://localhost:8083}"
 export DOCKER_HOST="${DOCKER_HOST:-unix:///var/run/docker.sock}"
 export DOCKER_TLS_CERTDIR=""
 
-# 启动容器内 dockerd（dind）
+# 检查是否使用主机 Docker socket（通过环境变量或检查 socket 是否已挂载）
+USE_HOST_DOCKER="${USE_HOST_DOCKER:-0}"
+DOCKERD_PID=""
+
+# 检查 Docker socket 是否已挂载（来自主机）
+if [ -S /var/run/docker.sock ] && [ "$USE_HOST_DOCKER" = "1" ]; then
+    echo "[启动脚本] 检测到主机 Docker socket，使用主机 Docker 引擎..."
+    # 测试连接
+    if docker info >/dev/null 2>&1; then
+        echo "[启动脚本] 主机 Docker 连接成功，跳过启动内置 dockerd"
+    else
+        echo "[启动脚本] 警告: 无法连接到主机 Docker，尝试启动内置 dockerd..."
+        USE_HOST_DOCKER="0"
+    fi
+fi
+
+# 如果没有使用主机 Docker，启动容器内 dockerd（dind）
+if [ "$USE_HOST_DOCKER" != "1" ]; then
 echo "[启动脚本] 启动内置 dockerd..."
 mkdir -p /var/lib/docker
 dockerd --host=tcp://0.0.0.0:2375 --host=unix:///var/run/docker.sock &
@@ -120,11 +138,17 @@ for i in $(seq 1 30); do
     fi
     sleep 1
 done
+fi
 
-# 启动后端服务（后台运行，输出到 stdout/stderr，这样 docker logs 可以看到）
+# 启动后端服务（实时输出到日志文件，同时输出到 stdout/stderr）
 echo "[启动脚本] 启动 iarnet 后端服务..."
 cd /app
+# 如果日志文件已挂载，使用 tee 实时输出到文件和控制台；否则只输出到控制台
+if [ -w /app/iarnet.log ]; then
+    /app/iarnet -config /app/config.yaml 2>&1 | tee -a /app/iarnet.log &
+else
 /app/iarnet -config /app/config.yaml &
+fi
 BACKEND_PID=$!
 
 # 等待后端启动
@@ -140,17 +164,28 @@ for i in $(seq 1 30); do
     sleep 1
 done
 
-# 启动前端服务（后台运行，输出到 stdout/stderr，这样 docker logs 可以看到）
+# 启动前端服务（实时输出到日志文件，同时输出到 stdout/stderr）
 echo "[启动脚本] 启动 iarnet 前端服务..."
 cd /app/web
+# 如果日志文件已挂载，使用 tee 实时输出到文件和控制台；否则只输出到控制台
+if [ -w /app/iarnet.log ]; then
+    npm start 2>&1 | tee -a /app/iarnet.log &
+else
 npm start &
+fi
 FRONTEND_PID=$!
 
 # 定义清理函数
 cleanup() {
     echo "[启动脚本] 收到退出信号，正在停止服务..."
-    kill $BACKEND_PID $FRONTEND_PID $DOCKERD_PID 2>/dev/null || true
-    wait $BACKEND_PID $FRONTEND_PID $DOCKERD_PID 2>/dev/null || true
+    kill $BACKEND_PID $FRONTEND_PID 2>/dev/null || true
+    if [ -n "$DOCKERD_PID" ]; then
+        kill $DOCKERD_PID 2>/dev/null || true
+    fi
+    wait $BACKEND_PID $FRONTEND_PID 2>/dev/null || true
+    if [ -n "$DOCKERD_PID" ]; then
+        wait $DOCKERD_PID 2>/dev/null || true
+    fi
     exit 0
 }
 

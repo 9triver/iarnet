@@ -192,11 +192,42 @@ class IarnetVMRecreator:
             print("\n✗ 创建虚拟机失败")
             return False
         
+        # 等待一下，让虚拟机启动
+        print("\n等待 10 秒让虚拟机启动...")
+        time.sleep(10)
+        
+        # 步骤2.5: 清理 iarnet 目录（从基础镜像中继承的数据）
+        if not self.cleanup_iarnet_dirs():
+            print("\n⚠ 清理 iarnet 目录失败，但继续执行...")
+        
         print("\n" + "=" * 60)
         print("✓ 所有 iarnet 虚拟机重新创建完成！")
         print("=" * 60)
         
         return True
+    
+    def cleanup_iarnet_dirs(self) -> bool:
+        """清理所有 iarnet 节点上的 iarnet 目录"""
+        print("\n" + "=" * 60)
+        print("步骤 2.5: 清理虚拟机上的 iarnet 目录")
+        print("=" * 60)
+        
+        try:
+            from cleanup_iarnet_dirs import IarnetDirCleaner
+            cleaner = IarnetDirCleaner(self.config_path)
+            success = cleaner.cleanup_iarnet_nodes(max_workers=10)
+            
+            if success:
+                print("\n✓ 所有节点的 iarnet 目录已清理")
+            else:
+                print("\n⚠ 部分节点清理失败，请检查日志")
+            
+            return success
+        except Exception as e:
+            print(f"\n✗ 清理过程出错: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
 
 def main():
     parser = argparse.ArgumentParser(description='使用新镜像重新创建所有 iarnet 虚拟机')

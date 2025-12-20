@@ -30,7 +30,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (currentUser) {
-      router.replace("/")
+      router.replace("/resources")
     }
   }, [currentUser, router])
 
@@ -38,7 +38,7 @@ export default function LoginPage() {
     setError(null)
     try {
       await login(values.username, values.password)
-      router.replace("/")
+      router.replace("/resources")
     } catch (err) {
       const message = err instanceof Error ? err.message : "登录失败"
       setError(message)

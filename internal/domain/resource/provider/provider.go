@@ -486,6 +486,31 @@ func (p *Provider) GetRealTimeUsage(ctx context.Context) (*types.Info, error) {
 	}, nil
 }
 
+// Undeploy 从 provider 中移除 component
+func (p *Provider) Undeploy(ctx context.Context, componentID string) error {
+	if p.client == nil {
+		return fmt.Errorf("provider not connected")
+	}
+	if p.id == "" {
+		return fmt.Errorf("provider not connected, please call Connect first")
+	}
+
+	req := &providerpb.UndeployRequest{
+		InstanceId: componentID,
+		ProviderId: p.id,
+	}
+	resp, err := p.client.Undeploy(ctx, req)
+	if err != nil {
+		return fmt.Errorf("failed to undeploy component: %w", err)
+	}
+	if resp.Error != "" {
+		return fmt.Errorf("failed to undeploy component: %s", resp.Error)
+	}
+
+	logrus.Infof("Undeployed component %s from provider %s", componentID, p.id)
+	return nil
+}
+
 func (p *Provider) Close() error {
 	if p.client != nil {
 		return p.conn.Close()

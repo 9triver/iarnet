@@ -38,7 +38,6 @@ echo -e "${YELLOW}开始 Docker 构建...${NC}"
 # 构建镜像（使用新的 runner/python Dockerfile）
 if [ "$ENVIRONMENT" = "python_3.11" ]; then
   docker build \
-    --target python_3.11 \
     -t "${FULL_TAG}" \
     -f containers/runner/python/Dockerfile .
 else

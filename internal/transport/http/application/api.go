@@ -314,6 +314,12 @@ func (api *API) handleStopApplication(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 清理应用的所有资源（components、controller 数据等）
+	if err := api.am.CleanupApplicationResources(ctx, appID); err != nil {
+		logrus.Errorf("Failed to cleanup application resources: %v", err)
+		// 不返回错误，因为 runner 已经停止，资源清理失败不应该影响停止操作
+	}
+
 	// 更新应用状态为已停止
 	if err := api.am.UpdateAppStatus(ctx, appID, apptypes.AppStatusStopped); err != nil {
 		logrus.Errorf("Failed to update application status to stopped: %v", err)

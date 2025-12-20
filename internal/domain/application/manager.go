@@ -12,6 +12,8 @@ import (
 	"github.com/9triver/iarnet/internal/domain/application/workspace"
 	"github.com/9triver/iarnet/internal/domain/execution"
 	"github.com/9triver/iarnet/internal/domain/execution/task"
+	"github.com/9triver/iarnet/internal/domain/resource/component"
+	"github.com/9triver/iarnet/internal/domain/resource/provider"
 	logrus "github.com/sirupsen/logrus"
 )
 
@@ -28,6 +30,11 @@ type Manager struct {
 	metadataSvc  metadata.Service
 	platform     *execution.Platform
 	loggerSvc    logger.Service
+	// 用于资源清理
+	resourceManager interface {
+		GetComponentManager() component.Manager
+		GetProviderService() provider.Service
+	}
 }
 
 func NewManager() *Manager {
@@ -61,6 +68,14 @@ func (m *Manager) SetApplicationLoggerService(loggerSvc logger.Service) *Manager
 	return m
 }
 
+func (m *Manager) SetResourceManager(resourceManager interface {
+	GetComponentManager() component.Manager
+	GetProviderService() provider.Service
+}) *Manager {
+	m.resourceManager = resourceManager
+	return m
+}
+
 // Start starts the application manager
 func (m *Manager) Start(ctx context.Context) error {
 
@@ -86,6 +101,81 @@ func (m *Manager) StopRunner(ctx context.Context, appID string) error {
 
 func (m *Manager) RemoveRunner(ctx context.Context, appID string) error {
 	return m.runnerSvc.RemoveRunner(ctx, appID)
+}
+
+// CleanupApplicationResources 清理应用的所有资源
+// 包括：移除 runner 容器、清理 components、清理 controller 数据
+func (m *Manager) CleanupApplicationResources(ctx context.Context, appID string) error {
+	if m.resourceManager == nil {
+		logrus.Warnf("Resource manager not set, skipping resource cleanup for application %s", appID)
+		return nil
+	}
+
+	componentManager := m.resourceManager.GetComponentManager()
+	providerService := m.resourceManager.GetProviderService()
+
+	// 1. 获取应用的 controller，从中获取所有 actors 和 components
+	actors, err := m.platform.GetActors(appID)
+	if err != nil {
+		logrus.Warnf("Failed to get actors for application %s: %v, continuing cleanup", appID, err)
+		actors = nil
+	}
+
+	// 2. 收集所有需要清理的 components
+	componentsToCleanup := make(map[string]*component.Component) // componentID -> Component
+	if actors != nil {
+		for _, actorList := range actors {
+			for _, actor := range actorList {
+				comp := actor.GetComponent()
+				if comp != nil {
+					componentsToCleanup[comp.GetID()] = comp
+				}
+			}
+		}
+	}
+
+	// 3. 从 provider 中移除 components
+	for componentID, comp := range componentsToCleanup {
+		providerID := comp.GetProviderID()
+		if providerID != "" {
+			p := providerService.GetProvider(providerID)
+			if p != nil {
+				if err := p.Undeploy(ctx, componentID); err != nil {
+					logrus.Warnf("Failed to undeploy component %s from provider %s: %v", componentID, providerID, err)
+				} else {
+					logrus.Infof("Undeployed component %s from provider %s", componentID, providerID)
+				}
+			} else {
+				logrus.Warnf("Provider %s not found for component %s", providerID, componentID)
+			}
+		}
+	}
+
+	// 4. 从 component manager 中移除 components
+	for componentID := range componentsToCleanup {
+		if err := componentManager.RemoveComponent(ctx, componentID); err != nil {
+			logrus.Warnf("Failed to remove component %s from manager: %v", componentID, err)
+		} else {
+			logrus.Infof("Removed component %s from manager", componentID)
+		}
+	}
+
+	// 5. 从 controller manager 中移除 controller
+	if err := m.platform.RemoveController(ctx, appID); err != nil {
+		logrus.Warnf("Failed to remove controller for application %s: %v", appID, err)
+	} else {
+		logrus.Infof("Removed controller for application %s", appID)
+	}
+
+	// 6. 移除 runner 容器
+	if err := m.RemoveRunner(ctx, appID); err != nil {
+		logrus.Warnf("Failed to remove runner for application %s: %v", appID, err)
+	} else {
+		logrus.Infof("Removed runner for application %s", appID)
+	}
+
+	logrus.Infof("Resource cleanup completed for application %s", appID)
+	return nil
 }
 
 // Workspace methods

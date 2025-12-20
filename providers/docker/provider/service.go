@@ -34,8 +34,8 @@ type Service struct {
 	allocated     *resourcepb.Info // 当前已分配的容量（内存中动态维护）
 
 	// GPU 管理
-	gpuIDs        []int         // 配置的可用 GPU ID 列表
-	gpuAllocated  map[int]int   // GPU ID -> 分配次数（支持多个容器共享同一 GPU）
+	gpuIDs       []int       // 配置的可用 GPU ID 列表
+	gpuAllocated map[int]int // GPU ID -> 分配次数（支持多个容器共享同一 GPU）
 }
 
 func NewService(host, tlsCertPath string, tlsVerify bool, apiVersion string, network string, resourceTags []string, totalCapacity *resourcepb.Info, gpuIDs []int, allowConnectionFailure bool) (*Service, error) {
@@ -339,6 +339,7 @@ func (s *Service) Deploy(ctx context.Context, req *providerpb.DeployRequest) (*p
 		Labels: map[string]string{
 			"iarnet.provider_id": providerID,
 			"iarnet.managed":     "true",
+			"iarnet.instance_id": req.InstanceId, // 用于 Undeploy 时查找容器
 		},
 	}
 
@@ -431,6 +432,170 @@ func (s *Service) Deploy(ctx context.Context, req *providerpb.DeployRequest) (*p
 	logrus.Infof("Container deployed successfully with ID: %s, allocated resources: CPU=%d, Memory=%d, GPU=%d",
 		resp.ID, req.ResourceRequest.Cpu, req.ResourceRequest.Memory, req.ResourceRequest.Gpu)
 	return &providerpb.DeployResponse{
+		Error: "",
+	}, nil
+}
+
+// Undeploy 移除已部署的 component（停止并删除容器）
+func (s *Service) Undeploy(ctx context.Context, req *providerpb.UndeployRequest) (*providerpb.UndeployResponse, error) {
+	// 鉴权：Undeploy 必须验证 provider_id，不允许未连接的 provider 移除
+	if err := s.checkAuth(req.ProviderId, false); err != nil {
+		return &providerpb.UndeployResponse{
+			Error: fmt.Sprintf("authentication failed: %v", err),
+		}, nil
+	}
+
+	// 检查 Docker 客户端是否可用
+	if s.client == nil {
+		return &providerpb.UndeployResponse{
+			Error: "Docker client is not available (test mode or connection failed)",
+		}, nil
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"instance_id": req.InstanceId,
+	}).Info("docker provider undeploy component")
+
+	// 查找容器（通过 instance_id，即容器名称）
+	containerID := req.InstanceId
+
+	// 先尝试通过容器名称查找容器
+	containers, err := s.client.ContainerList(ctx, container.ListOptions{
+		All: true, // 包括已停止的容器
+	})
+	if err != nil {
+		logrus.Errorf("Failed to list containers: %v", err)
+		return &providerpb.UndeployResponse{
+			Error: fmt.Sprintf("failed to list containers: %v", err),
+		}, nil
+	}
+
+	// 查找匹配的容器（通过名称或 ID）
+	// 优先通过标签查找（iarnet.instance_id 标签）
+	var targetContainer *container.Summary
+	providerID := s.manager.GetProviderID()
+
+	for _, c := range containers {
+		// 首先检查标签（如果容器有 iarnet.instance_id 标签，优先使用）
+		if c.Labels != nil {
+			if instanceID, ok := c.Labels["iarnet.instance_id"]; ok && instanceID == containerID {
+				// 验证 provider_id 是否匹配
+				if providerIDLabel, ok := c.Labels["iarnet.provider_id"]; ok && providerIDLabel == providerID {
+					targetContainer = &c
+					break
+				}
+			}
+		}
+
+		// 如果没有找到，检查容器名称是否匹配 instance_id
+		if targetContainer == nil && c.Names != nil {
+			for _, name := range c.Names {
+				// 容器名称通常以 / 开头，需要去掉
+				cleanName := strings.TrimPrefix(name, "/")
+				if cleanName == containerID || strings.HasSuffix(cleanName, containerID) {
+					// 验证 provider_id 是否匹配（通过标签）
+					if c.Labels != nil {
+						if providerIDLabel, ok := c.Labels["iarnet.provider_id"]; ok && providerIDLabel == providerID {
+							targetContainer = &c
+							break
+						}
+					}
+				}
+			}
+		}
+
+		// 最后检查容器 ID 是否匹配（支持短 ID 和长 ID）
+		if targetContainer == nil {
+			if c.ID == containerID || strings.HasPrefix(c.ID, containerID) {
+				// 验证 provider_id 是否匹配（通过标签）
+				if c.Labels != nil {
+					if providerIDLabel, ok := c.Labels["iarnet.provider_id"]; ok && providerIDLabel == providerID {
+						targetContainer = &c
+						break
+					}
+				}
+			}
+		}
+
+		if targetContainer != nil {
+			break
+		}
+	}
+
+	if targetContainer == nil {
+		logrus.Warnf("Container not found for instance_id: %s", containerID)
+		// 容器不存在，返回成功（幂等性）
+		return &providerpb.UndeployResponse{
+			Error: "",
+		}, nil
+	}
+
+	// 获取容器信息以获取资源使用情况
+	containerInfo, err := s.client.ContainerInspect(ctx, targetContainer.ID)
+	if err != nil {
+		logrus.Warnf("Failed to inspect container %s: %v, continuing with undeploy", targetContainer.ID, err)
+	} else {
+		// 从容器信息中获取资源使用情况
+		var cpu int64
+		var memory int64
+		var gpu int64
+
+		if containerInfo.HostConfig != nil {
+			// CPU: NanoCPUs -> millicores
+			// 1 CPU core = 1e9 NanoCPUs, 1 millicore = 1e6 NanoCPUs
+			if containerInfo.HostConfig.Resources.NanoCPUs > 0 {
+				cpu = containerInfo.HostConfig.Resources.NanoCPUs / 1e6
+			}
+			// Memory: bytes
+			if containerInfo.HostConfig.Resources.Memory > 0 {
+				memory = containerInfo.HostConfig.Resources.Memory
+			}
+			// GPU: 从 DeviceRequests 中获取
+			if len(containerInfo.HostConfig.Resources.DeviceRequests) > 0 {
+				for _, dr := range containerInfo.HostConfig.Resources.DeviceRequests {
+					if dr.Driver != "" && strings.Contains(strings.ToLower(dr.Driver), "nvidia") {
+						if len(dr.DeviceIDs) > 0 {
+							gpu += int64(len(dr.DeviceIDs))
+						} else if dr.Count > 0 {
+							gpu += int64(dr.Count)
+						}
+					}
+				}
+			}
+		}
+
+		// 释放资源
+		if cpu > 0 || memory > 0 || gpu > 0 {
+			s.ReleaseResources(cpu, memory, gpu)
+		}
+	}
+
+	// 停止容器（如果正在运行）
+	if targetContainer.State == "running" {
+		timeout := 30 // 30 秒超时
+		options := container.StopOptions{
+			Timeout: &timeout,
+		}
+		if err := s.client.ContainerStop(ctx, targetContainer.ID, options); err != nil {
+			logrus.Warnf("Failed to stop container %s: %v, continuing with removal", targetContainer.ID, err)
+		} else {
+			logrus.Infof("Stopped container: %s", targetContainer.ID)
+		}
+	}
+
+	// 删除容器
+	removeOptions := container.RemoveOptions{
+		Force: true, // 强制删除，即使容器正在运行
+	}
+	if err := s.client.ContainerRemove(ctx, targetContainer.ID, removeOptions); err != nil {
+		logrus.Errorf("Failed to remove container %s: %v", targetContainer.ID, err)
+		return &providerpb.UndeployResponse{
+			Error: fmt.Sprintf("failed to remove container: %v", err),
+		}, nil
+	}
+
+	logrus.Infof("Container undeployed successfully: %s", targetContainer.ID)
+	return &providerpb.UndeployResponse{
 		Error: "",
 	}, nil
 }

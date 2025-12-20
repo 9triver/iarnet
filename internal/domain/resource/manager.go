@@ -161,6 +161,16 @@ func (m *Manager) SetChanneler(channeler component.Channeler) {
 	m.componentManager.SetChanneler(channeler)
 }
 
+// GetComponentManager 获取 component manager
+func (m *Manager) GetComponentManager() component.Manager {
+	return m.componentManager
+}
+
+// GetProviderService 获取 provider service
+func (m *Manager) GetProviderService() provider.Service {
+	return m.providerService
+}
+
 // SetGlobalRegistryAddr 设置全局注册中心地址
 func (m *Manager) SetGlobalRegistryAddr(addr string) {
 	m.globalRegistryAddr = addr

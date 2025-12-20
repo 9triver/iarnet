@@ -104,8 +104,16 @@ class ImageSyncer:
             return False
     
     def sync_image_to_node(self, node_id: int, node_info: dict, image_name: str, 
-                          image_path: Path = None, skip_if_exists: bool = True) -> bool:
-        """同步镜像到单个节点"""
+                          image_path: Path = None, skip_if_exists: bool = False) -> bool:
+        """同步镜像到单个节点
+        
+        Args:
+            node_id: 节点ID
+            node_info: 节点信息
+            image_name: 镜像名称
+            image_path: 镜像文件路径
+            skip_if_exists: 如果镜像已存在是否跳过（默认 False，总是同步以确保使用最新版本）
+        """
         node_prefix = f"[节点 {node_id}] {node_info['hostname']} ({node_info['ip']}) "
         
         # 检查连通性
@@ -126,11 +134,14 @@ class ImageSyncer:
             self._print(f"{node_prefix}⚠ Docker 未安装，跳过")
             return False
         
-        # 检查镜像是否已存在
-        if skip_if_exists:
-            if self.check_image_exists_remote(ssh_cmd, image_name):
-                self._print(f"{node_prefix}✓ 镜像已存在: {image_name}")
-                return True
+        # 检查镜像是否已存在（仅用于信息提示，不跳过）
+        if self.check_image_exists_remote(ssh_cmd, image_name):
+            self._print(f"{node_prefix}ℹ 镜像已存在，将覆盖更新: {image_name}")
+        
+        # 如果设置了 skip_if_exists 且镜像存在，则跳过
+        if skip_if_exists and self.check_image_exists_remote(ssh_cmd, image_name):
+            self._print(f"{node_prefix}✓ 镜像已存在，跳过同步: {image_name}")
+            return True
         
         # 如果提供了镜像文件路径，直接传输
         if image_path and image_path.exists():
@@ -174,7 +185,7 @@ class ImageSyncer:
             return False
     
     def sync_image_to_nodes(self, image_name: str, node_type: str = 'docker', 
-                           node_ids: list = None, max_workers: int = 10, force: bool = False) -> bool:
+                           node_ids: list = None, max_workers: int = 10, force: bool = True) -> bool:
         """同步镜像到多个节点"""
         self._print(f"\n同步镜像到节点: {image_name}")
         self._print("=" * 60)
@@ -238,7 +249,7 @@ class ImageSyncer:
                         node_info,
                         image_name,
                         image_tar_path,
-                        skip_if_exists=not force
+                        skip_if_exists=False  # 默认总是同步，确保使用最新版本
                     ): node_info
                     for node_info in node_info_list
                 }
@@ -282,7 +293,7 @@ class ImageSyncer:
         return self.sync_image_to_nodes(image_name, node_type, node_ids)
 
     def sync_multiple_images(self, image_names: list, node_type: str = 'docker',
-                            node_ids: list = None, max_workers: int = 10, force: bool = False) -> bool:
+                            node_ids: list = None, max_workers: int = 10, force: bool = True) -> bool:
         """批量同步多个镜像"""
         self._print(f"\n批量同步 {len(image_names)} 个镜像到节点...")
         self._print("=" * 60)
@@ -341,9 +352,9 @@ def main():
         help='最大并发数 (默认: 10)'
     )
     parser.add_argument(
-        '--force', '-f',
+        '--skip-existing',
         action='store_true',
-        help='强制同步，即使节点上已存在镜像'
+        help='如果镜像已存在则跳过同步（默认：总是同步以确保使用最新版本）'
     )
     
     args = parser.parse_args()
@@ -372,14 +383,15 @@ def main():
         else:
             image_list = [args.image]
         
-        # 同步镜像
+        # 同步镜像（默认 force=True，确保总是同步最新版本；如果指定 --skip-existing 则跳过）
+        force_sync = not args.skip_existing
         if args.node_type == 'all':
             # 先同步到 iarnet 节点
-            syncer.sync_multiple_images(image_list, 'iarnet', node_ids, args.max_workers, args.force)
+            syncer.sync_multiple_images(image_list, 'iarnet', node_ids, args.max_workers, force_sync)
             # 再同步到 docker 节点
-            syncer.sync_multiple_images(image_list, 'docker', node_ids, args.max_workers, args.force)
+            syncer.sync_multiple_images(image_list, 'docker', node_ids, args.max_workers, force_sync)
         else:
-            syncer.sync_multiple_images(image_list, args.node_type, node_ids, args.max_workers, args.force)
+            syncer.sync_multiple_images(image_list, args.node_type, node_ids, args.max_workers, force_sync)
         
     except Exception as e:
         print(f"错误: {e}", file=sys.stderr)

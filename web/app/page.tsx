@@ -122,7 +122,8 @@ export default function HomePage() {
               </CardContent>
             </Card>
 
-            <Card className="hover:shadow-lg transition-shadow">
+            {/* 状态监控功能暂时移除（功能有问题） */}
+            {/* <Card className="hover:shadow-lg transition-shadow">
               <CardHeader>
                 <div className="flex items-center space-x-2">
                   <Activity className="h-6 w-6 text-primary" />
@@ -152,7 +153,7 @@ export default function HomePage() {
                   </a>
                 </Button>
               </CardContent>
-            </Card>
+            </Card> */}
           </div>
         </div>
       </main>

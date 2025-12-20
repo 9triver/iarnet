@@ -130,7 +130,7 @@ func TestService_GetAllocated(t *testing.T) {
 // createTestService 创建测试用的 Service 实例（不带容量配置）
 func createTestService() (*provider.Service, error) {
 	kubeconfig := getKubeconfig()
-	return provider.NewService(kubeconfig, false, "default", "iarnet.managed=true", []string{"cpu", "memory"}, nil)
+	return provider.NewService(kubeconfig, false, "default", "iarnet.managed=true", []string{"cpu", "memory"}, nil, true)
 }
 
 // createTestServiceWithCapacity 创建带有容量配置的测试用 Service 实例
@@ -144,7 +144,7 @@ func createTestServiceWithCapacity() (*provider.Service, error) {
 		Gpu:    0,
 	}
 
-	return provider.NewService(kubeconfig, false, "default", "iarnet.managed=true", []string{"cpu", "memory"}, totalCapacity)
+	return provider.NewService(kubeconfig, false, "default", "iarnet.managed=true", []string{"cpu", "memory"}, totalCapacity, true)
 }
 
 // getKubeconfig 获取 kubeconfig 路径

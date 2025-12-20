@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-在 iarnet 节点上部署 iarnet 服务
+在 iarnet 节点上部署 iarnet 服务（使用 Docker 容器）
 支持为每个节点使用独立的配置文件
 """
 
@@ -10,8 +10,6 @@ import yaml
 import argparse
 import subprocess
 import time
-import tempfile
-import tarfile
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Lock
@@ -21,7 +19,8 @@ SCRIPT_DIR = Path(__file__).parent.absolute()
 PROJECT_ROOT = SCRIPT_DIR.parent
 
 class IarnetDeployer:
-    # 类级别的锁，用于保护日志输出
+    """iarnet Docker 容器部署器"""
+    
     _log_lock = Lock()
     
     def __init__(self, vm_config_path: str, configs_dir: str = None):
@@ -29,7 +28,6 @@ class IarnetDeployer:
         # 处理vm_config_path（支持相对路径和绝对路径）
         vm_config_path_obj = Path(vm_config_path)
         if not vm_config_path_obj.is_absolute():
-            # 尝试从脚本目录查找
             if (SCRIPT_DIR / vm_config_path_obj.name).exists():
                 vm_config_path_obj = SCRIPT_DIR / vm_config_path_obj.name
             elif (PROJECT_ROOT / vm_config_path).exists():
@@ -53,7 +51,6 @@ class IarnetDeployer:
             if configs_dir_obj.is_absolute():
                 self.configs_dir = configs_dir_obj
             else:
-                # 相对路径：优先从脚本目录查找
                 if (SCRIPT_DIR / configs_dir_obj.name).exists() or 'iarnet-configs' in str(configs_dir_obj):
                     self.configs_dir = SCRIPT_DIR / configs_dir_obj.name if configs_dir_obj.name == 'iarnet-configs' else SCRIPT_DIR / configs_dir_obj
                 else:
@@ -73,6 +70,11 @@ class IarnetDeployer:
                 'config_file': self.configs_dir / f"config-node-{i:02d}.yaml"
             }
     
+    def _print(self, *args, **kwargs):
+        """线程安全的打印函数"""
+        with self._log_lock:
+            print(*args, **kwargs)
+    
     def check_node_connectivity(self, node_id: int) -> bool:
         """检查节点连通性"""
         node = self.node_info[node_id]
@@ -86,599 +88,251 @@ class IarnetDeployer:
         except:
             return False
     
-    def check_vm_runtime_dependencies(self, ssh_cmd: list, node_id: int = None):
-        """检查虚拟机上的运行时依赖（参考 Dockerfile 运行阶段）
-        
-        返回: (是否满足要求, 缺失的包列表)
-        """
-        node_prefix = f"[节点 {node_id}] " if node_id is not None else ""
-        missing_packages = []
-        
-        # 首先检查库文件是否可用（这是最可靠的方法）
-        check_libs_cmd = ' '.join(ssh_cmd) + ' "ldconfig -p 2>/dev/null | grep -E \"(libzmq|libczmq)\" | grep -E \"(libzmq|libczmq)\" | head -5"'
-        lib_check = subprocess.run(check_libs_cmd, shell=True, check=False, timeout=5, capture_output=True, text=True)
-        lib_output = lib_check.stdout.strip()
-        
-        # 检查是否有 libzmq 和 libczmq 库
-        has_libzmq = 'libzmq' in lib_output.lower()
-        has_libczmq = 'libczmq' in lib_output.lower()
-        
-        # 如果库文件都存在，说明依赖已满足
-        if has_libzmq and has_libczmq:
-            return True, []
-        
-        # 如果库文件不存在，检查已安装的包
-        # 尝试多种可能的包名（不同 Ubuntu 版本可能不同）
-        possible_zmq_packages = ['libzmq5', 'libzmq3', 'libzmq-dev']
-        possible_czmq_packages = ['libczmq4', 'libczmq3', 'libczmq-dev']
-        
-        check_packages_cmd = ' '.join(ssh_cmd) + ' "dpkg -l | grep -E \"^(ii|hi)\" | grep -iE \"(libzmq|libczmq)\" | awk \'{print $2}\' | sort"'
+    def check_docker_installed(self, ssh_cmd: list) -> bool:
+        """检查 Docker 是否已安装"""
+        check_cmd = ' '.join(ssh_cmd) + ' "docker --version >/dev/null 2>&1 && echo OK || echo FAIL"'
         try:
-            result = subprocess.run(check_packages_cmd, shell=True, check=False, timeout=10, capture_output=True, text=True)
-            installed_packages = set(line.strip().lower() for line in result.stdout.strip().split('\n') if line.strip())
-            
-            # 检查是否有任何 zmq 相关的包
-            has_zmq_pkg = any('libzmq' in pkg for pkg in installed_packages)
-            has_czmq_pkg = any('libczmq' in pkg for pkg in installed_packages)
-            
-            # 如果包已安装但库不可用，需要更新库缓存
-            if has_zmq_pkg and has_czmq_pkg and (not has_libzmq or not has_libczmq):
-                self._print(f"{node_prefix}    ⚠ 运行时库包已安装但库文件不可用，需要更新库缓存")
-                return False, []  # 返回空列表表示只需要更新缓存
-            
-            # 确定缺失的包（优先尝试标准包名）
-            if not has_libzmq and not has_zmq_pkg:
-                # 按优先级尝试标准包名
-                zmq_candidates = ['libzmq5', 'libzmq3', 'libzmq-dev']
-                found_zmq = False
-                for candidate in zmq_candidates:
-                    # 检查包是否存在
-                    check_pkg_cmd = ' '.join(ssh_cmd) + f' "apt-cache show {candidate} >/dev/null 2>&1 && echo EXISTS || echo NOT_EXISTS"'
-                    check_result = subprocess.run(check_pkg_cmd, shell=True, check=False, timeout=10, capture_output=True, text=True)
-                    if 'EXISTS' in check_result.stdout:
-                        # 如果是 dev 包，尝试找对应的运行时包
-                        if 'dev' in candidate:
-                            # libzmq-dev 通常依赖 libzmq5 或 libzmq3
-                            if 'libzmq5' not in zmq_candidates:
-                                missing_packages.append('libzmq5')
-                            else:
-                                missing_packages.append('libzmq3')
-                        else:
-                            missing_packages.append(candidate)
-                        found_zmq = True
-                        break
-                
-                if not found_zmq:
-                    # 如果标准包名都不存在，使用默认值
-                    missing_packages.append('libzmq5')
-            
-            if not has_libczmq and not has_czmq_pkg:
-                # 按优先级尝试标准包名
-                czmq_candidates = ['libczmq4', 'libczmq3', 'libczmq-dev']
-                found_czmq = False
-                for candidate in czmq_candidates:
-                    # 检查包是否存在
-                    check_pkg_cmd = ' '.join(ssh_cmd) + f' "apt-cache show {candidate} >/dev/null 2>&1 && echo EXISTS || echo NOT_EXISTS"'
-                    check_result = subprocess.run(check_pkg_cmd, shell=True, check=False, timeout=10, capture_output=True, text=True)
-                    if 'EXISTS' in check_result.stdout:
-                        # 如果是 dev 包，尝试找对应的运行时包
-                        if 'dev' in candidate:
-                            # libczmq-dev 通常依赖 libczmq4 或 libczmq3
-                            if 'libczmq4' not in czmq_candidates:
-                                missing_packages.append('libczmq4')
-                            else:
-                                missing_packages.append('libczmq3')
-                        else:
-                            missing_packages.append(candidate)
-                        found_czmq = True
-                        break
-                
-                if not found_czmq:
-                    # 如果标准包名都不存在，使用默认值
-                    missing_packages.append('libczmq4')
-            
-            return len(missing_packages) == 0, missing_packages
-            
-        except Exception as e:
-            self._print(f"{node_prefix}    ⚠ 检查运行时依赖时出错: {e}")
-            # 如果检查失败，尝试使用默认包名
-            if not has_libzmq:
-                missing_packages.append('libzmq5')
-            if not has_libczmq:
-                missing_packages.append('libczmq4')
-            return False, missing_packages
-    
-    def install_vm_runtime_dependencies(self, ssh_cmd: list, node_id: int = None) -> bool:
-        """在虚拟机上安装运行时依赖（参考 Dockerfile 运行阶段）
-        
-        安装的包：
-        - libzmq5: ZeroMQ 运行时库
-        - libczmq4: CZMQ 运行时库
-        """
-        node_prefix = f"[节点 {node_id}] " if node_id is not None else ""
-        
-        # 检查是否已满足要求
-        satisfied, missing = self.check_vm_runtime_dependencies(ssh_cmd, node_id)
-        if satisfied:
-            self._print(f"{node_prefix}    ✓ 运行时依赖已满足")
-            # 确保库缓存是最新的
-            update_cache_cmd = ' '.join(ssh_cmd) + ' "sudo ldconfig"'
-            try:
-                subprocess.run(update_cache_cmd, shell=True, check=False, timeout=10, capture_output=True)
-            except:
-                pass
-            return True
-        
-        if not missing:
-            # 包已安装但库不可用，只需更新库缓存
-            self._print(f"{node_prefix}    更新库缓存...")
-            update_cache_cmd = ' '.join(ssh_cmd) + ' "sudo ldconfig"'
-            try:
-                subprocess.run(update_cache_cmd, shell=True, check=True, timeout=10, capture_output=True)
-                self._print(f"{node_prefix}    ✓ 库缓存已更新")
-                return True
-            except subprocess.CalledProcessError as e:
-                self._print(f"{node_prefix}    ⚠ 更新库缓存失败: {e}")
-                return False
-        
-        # 安装缺失的包
-        self._print(f"{node_prefix}    安装运行时依赖: {', '.join(missing)}...")
-        
-        # 更新包列表
-        update_cmd = ' '.join(ssh_cmd) + ' "sudo apt-get update -qq"'
-        try:
-            subprocess.run(update_cmd, shell=True, check=True, timeout=60, capture_output=True)
-        except subprocess.CalledProcessError as e:
-            self._print(f"{node_prefix}    ⚠ 更新包列表失败: {e}")
-            return False
-        
-        # 安装运行时库（参考 Dockerfile 运行阶段）
-        # 先验证每个包是否存在
-        valid_packages = []
-        for pkg in missing:
-            check_cmd = ' '.join(ssh_cmd) + f' "apt-cache show {pkg} >/dev/null 2>&1 && echo EXISTS || echo NOT_EXISTS"'
-            check_result = subprocess.run(check_cmd, shell=True, check=False, timeout=10, capture_output=True, text=True)
-            if 'EXISTS' in check_result.stdout:
-                valid_packages.append(pkg)
-            else:
-                self._print(f"{node_prefix}    ⚠ 包 {pkg} 不存在，尝试查找替代包...")
-                # 尝试查找替代包（只查找运行时库，排除 dev 包）
-                # 提取包名前缀（去掉版本号）
-                pkg_prefix = pkg
-                if pkg.endswith('5') or pkg.endswith('4') or pkg.endswith('3'):
-                    pkg_prefix = pkg[:-1]
-                find_cmd = ' '.join(ssh_cmd) + f' "apt-cache search --names-only ^{pkg_prefix} | grep -E \"^(libzmq|libczmq)[0-9]\" | head -1 | awk \'{{print $1}}\'"'
-                find_result = subprocess.run(find_cmd, shell=True, check=False, timeout=10, capture_output=True, text=True)
-                alt_pkg = find_result.stdout.strip().split()[0] if find_result.stdout.strip() else None
-                if alt_pkg and alt_pkg.startswith(('libzmq', 'libczmq')):
-                    # 验证替代包是否存在
-                    check_alt_cmd = ' '.join(ssh_cmd) + f' "apt-cache show {alt_pkg} >/dev/null 2>&1 && echo EXISTS || echo NOT_EXISTS"'
-                    check_alt_result = subprocess.run(check_alt_cmd, shell=True, check=False, timeout=10, capture_output=True, text=True)
-                    if 'EXISTS' in check_alt_result.stdout:
-                        valid_packages.append(alt_pkg)
-                        self._print(f"{node_prefix}    找到替代包: {alt_pkg}")
-                    else:
-                        self._print(f"{node_prefix}    ⚠ 无法找到 {pkg} 的替代包")
-                else:
-                    self._print(f"{node_prefix}    ⚠ 无法找到 {pkg} 的替代包")
-        
-        if not valid_packages:
-            self._print(f"{node_prefix}    ✗ 没有可用的包可以安装")
-            return False
-        
-        missing_packages_str = ' '.join(valid_packages)
-        install_cmd = ' '.join(ssh_cmd) + f' "sudo apt-get install -y {missing_packages_str}"'
-        try:
-            # 不使用 -qq，以便看到安装输出用于调试
-            result = subprocess.run(install_cmd, shell=True, check=True, timeout=120, capture_output=True, text=True)
-            
-            # 检查安装输出，确认包是否真的安装了
-            if result.stdout or result.stderr:
-                output = (result.stdout or '') + (result.stderr or '')
-                # 检查是否有 "E: 无法定位软件包" 错误
-                if '无法定位软件包' in output or 'Unable to locate package' in output:
-                    self._print(f"{node_prefix}    ⚠ 警告: 某些包可能不存在")
-                    # 输出错误信息
-                    error_lines = [line for line in output.split('\n') if 'Unable to locate package' in line or '无法定位软件包' in line]
-                    for line in error_lines[:5]:  # 只显示前5个错误
-                        self._print(f"{node_prefix}    {line[:100]}")
-            
-            self._print(f"{node_prefix}    ✓ 安装命令执行完成")
-            
-            # 等待一下，确保包管理器完成所有操作
-            time.sleep(2)
-            
-            # 更新库缓存
-            self._print(f"{node_prefix}    更新库缓存...")
-            update_cache_cmd = ' '.join(ssh_cmd) + ' "sudo ldconfig"'
-            update_result = subprocess.run(update_cache_cmd, shell=True, check=False, timeout=10, capture_output=True, text=True)
-            if update_result.returncode != 0:
-                self._print(f"{node_prefix}    ⚠ 库缓存更新可能失败: {update_result.stderr[:200]}")
-            
-            # 再次等待，确保库缓存更新完成
-            time.sleep(1)
-            
-            # 验证安装 - 重试几次，因为可能需要时间
-            for verify_attempt in range(3):
-                satisfied, still_missing = self.check_vm_runtime_dependencies(ssh_cmd, node_id)
-                if satisfied:
-                    self._print(f"{node_prefix}    ✓ 运行时依赖验证通过")
-                    return True
-                
-                if verify_attempt < 2:
-                    # 再次更新库缓存并等待
-                    self._print(f"{node_prefix}    验证失败，重试验证（{verify_attempt + 1}/3）...")
-                    subprocess.run(update_cache_cmd, shell=True, check=False, timeout=10, capture_output=True)
-                    time.sleep(2)
-                else:
-                    # 最后一次验证失败，输出详细信息
-                    self._print(f"{node_prefix}    ⚠ 运行时依赖验证失败，仍缺失: {still_missing}")
-                    # 输出调试信息
-                    debug_cmd = ' '.join(ssh_cmd) + ' "dpkg -l | grep -i zmq; echo ---; ldconfig -p | grep -i zmq | head -5"'
-                    debug_result = subprocess.run(debug_cmd, shell=True, check=False, timeout=10, capture_output=True, text=True)
-                    if debug_result.stdout:
-                        self._print(f"{node_prefix}    调试信息: {debug_result.stdout[:300]}")
-                    return False
-                
-        except subprocess.CalledProcessError as e:
-            self._print(f"{node_prefix}    ✗ 运行时依赖安装失败: {e}")
-            error_output = e.stderr if e.stderr else (e.stdout if e.stdout else '')
-            if error_output:
-                self._print(f"{node_prefix}    错误信息: {error_output[:400]}")
-                # 检查是否是包不存在的问题
-                if '无法定位软件包' in error_output or 'Unable to locate package' in error_output:
-                    self._print(f"{node_prefix}    提示: 包可能不存在，尝试手动查找: apt-cache search libzmq")
+            result = subprocess.run(check_cmd, shell=True, check=False, timeout=5, capture_output=True, text=True)
+            return 'OK' in result.stdout
+        except:
             return False
     
-    def _start_backend_service(self, ssh_cmd: list, node: dict, node_id: int = None) -> bool:
-        """启动后端服务"""
-        node_prefix = f"[节点 {node_id}] " if node_id is not None else ""
-        
-        # 先检查并安装运行时依赖（参考 Dockerfile 运行阶段）
-        self._print(f"{node_prefix}    检查运行时依赖...")
-        if not self.install_vm_runtime_dependencies(ssh_cmd, node_id):
-            self._print(f"{node_prefix}    ⚠ 警告: 运行时依赖安装失败，但继续尝试启动服务")
-        
-        start_backend_cmd = ' '.join(ssh_cmd) + ' "cd ~/iarnet && nohup ./iarnet --config=config.yaml > iarnet.log 2>&1 & sleep 2 && pgrep -f iarnet > /dev/null && echo started || echo failed"'
-        for attempt in range(3):
-            try:
-                result = subprocess.run(start_backend_cmd, shell=True, check=True, timeout=30, capture_output=True, text=True)
-                if 'started' in result.stdout:
-                    # 等待一下，检查日志看是否有错误
-                    time.sleep(2)
-                    # 检查日志中是否有 ZeroMQ 错误
-                    check_log_cmd = ' '.join(ssh_cmd) + ' "tail -30 ~/iarnet/iarnet.log 2>/dev/null | grep -i \"zmq\\|zeromq\\|error attaching\" || echo NO_ERROR"'
-                    log_check = subprocess.run(check_log_cmd, shell=True, check=False, timeout=5, capture_output=True, text=True)
-                    if 'error attaching' in log_check.stdout.lower() or 'zmq' in log_check.stdout.lower():
-                        node_prefix = f"[节点 {node_id}] " if node_id is not None else ""
-                        self._print(f"{node_prefix}    ⚠ 检测到 ZeroMQ 错误，请检查日志: ~/iarnet/iarnet.log")
-                        self._print(f"{node_prefix}    建议运行诊断脚本: python3 deploy/ssh_vm.py {node['hostname']} 'bash -s' < deploy/diagnose_zmq.sh")
-                    
-                    # 再次验证服务是否真的在运行
-                    verify_cmd = ' '.join(ssh_cmd) + ' "pgrep -f iarnet > /dev/null && echo running || echo not_running"'
-                    verify_result = subprocess.run(verify_cmd, shell=True, check=True, timeout=5, capture_output=True, text=True)
-                    if 'running' in verify_result.stdout:
-                        return True
-                elif attempt < 2:
-                    time.sleep(3)
-            except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
-                if attempt < 2:
-                    time.sleep(3)
-        return False
-    
-    def _start_frontend_service(self, ssh_cmd: list, node: dict, node_id: int = None) -> bool:
-        """启动前端服务"""
-        node_prefix = f"[节点 {node_id}] " if node_id is not None else ""
-        self._print(f"{node_prefix}    停止旧的前端服务并释放端口...")
-        
-        # 使用多种方法停止前端进程
-        stop_commands = [
-            'pkill -9 -f "next start"',
-            'pkill -9 -f "node.*next"',
-            'killall -9 node 2>/dev/null',
-            'ps aux | grep -E "next|node.*3000" | grep -v grep | awk \'{print $2}\' | xargs kill -9 2>/dev/null'
-        ]
-        
-        for cmd in stop_commands:
-            stop_cmd = ' '.join(ssh_cmd) + f' "{cmd} || true"'
-            try:
-                subprocess.run(stop_cmd, shell=True, check=False, timeout=5, capture_output=True)
-            except subprocess.TimeoutExpired:
-                pass
-        
-        # 使用多种方法释放3000端口
-        port_release_commands = [
-            # 方法1: 使用 lsof
-            'lsof -ti:3000 | xargs kill -9 2>/dev/null',
-            # 方法2: 使用 fuser（如果可用）
-            'fuser -k 3000/tcp 2>/dev/null',
-            # 方法3: 使用 netstat + kill
-            'netstat -tlnp 2>/dev/null | grep :3000 | awk \'{print $7}\' | cut -d/ -f1 | xargs kill -9 2>/dev/null',
-            # 方法4: 使用 ss + kill
-            'ss -tlnp | grep :3000 | grep -oP \'pid=\\K\\d+\' | xargs kill -9 2>/dev/null'
-        ]
-        
-        for cmd in port_release_commands:
-            release_cmd = ' '.join(ssh_cmd) + f' "{cmd} || true"'
-            try:
-                subprocess.run(release_cmd, shell=True, check=False, timeout=5, capture_output=True)
-            except subprocess.TimeoutExpired:
-                pass
-        
-        # 等待端口释放（增加等待时间，确保 TIME_WAIT 状态结束）
-        self._print(f"{node_prefix}    等待端口完全释放...")
-        for wait_attempt in range(5):
-            time.sleep(2)
-            # 检查端口是否真的空闲（包括 TIME_WAIT 状态）
-            check_port_cmd = ' '.join(ssh_cmd) + ' "(lsof -i:3000 2>/dev/null || ss -tlnp | grep :3000 || netstat -tlnp 2>/dev/null | grep :3000 || echo PORT_FREE) | head -1"'
-            try:
-                check_result = subprocess.run(check_port_cmd, shell=True, check=False, timeout=5, capture_output=True, text=True)
-                output = check_result.stdout.strip()
-                if 'PORT_FREE' in output or not output:
-                    self._print(f"{node_prefix}    ✓ 端口3000已释放")
-                    break
-                else:
-                    # 检查是否是 TIME_WAIT 状态
-                    if 'TIME_WAIT' in output or 'TIME-WAIT' in output:
-                        self._print(f"{node_prefix}    端口处于 TIME_WAIT 状态，继续等待... ({wait_attempt + 1}/5)")
-                    else:
-                        self._print(f"{node_prefix}    ⚠ 端口可能仍被占用: {output[:80]}")
-                        # 再次尝试强制释放
-                        force_release_cmd = ' '.join(ssh_cmd) + ' "for pid in $(lsof -ti:3000 2>/dev/null); do kill -9 $pid 2>/dev/null; done"'
-                        subprocess.run(force_release_cmd, shell=True, check=False, timeout=5, capture_output=True)
-            except subprocess.TimeoutExpired:
-                pass
-        
-        # 最后检查一次，如果还是被占用，尝试使用不同的方法
-        final_check_cmd = ' '.join(ssh_cmd) + ' "timeout 1 bash -c \'</dev/tcp/localhost/3000\' 2>/dev/null && echo PORT_IN_USE || echo PORT_FREE"'
+    def check_image_exists(self, ssh_cmd: list, image_name: str) -> bool:
+        """检查镜像是否存在于远程节点"""
+        check_cmd = ' '.join(ssh_cmd) + f' "docker images -q {image_name} | head -1"'
         try:
-            final_check = subprocess.run(final_check_cmd, shell=True, check=False, timeout=3, capture_output=True, text=True)
-            if 'PORT_IN_USE' in final_check.stdout:
-                self._print(f"{node_prefix}    ⚠ 警告: 端口3000仍在使用中，尝试强制清理...")
-                # 使用更激进的方法
-                aggressive_cleanup = ' '.join(ssh_cmd) + ' "pkill -9 node; pkill -9 next; sleep 2; lsof -ti:3000 2>/dev/null | xargs kill -9 2>/dev/null || true"'
-                subprocess.run(aggressive_cleanup, shell=True, check=False, timeout=10, capture_output=True)
-                time.sleep(3)
+            result = subprocess.run(check_cmd, shell=True, check=False, timeout=5, capture_output=True, text=True)
+            return bool(result.stdout.strip())
+        except:
+            return False
+    
+    def stop_existing_container(self, ssh_cmd: list, container_name: str, node_id: int = None) -> bool:
+        """停止并删除现有的容器"""
+        node_prefix = f"[节点 {node_id}] " if node_id is not None else ""
+        
+        # 检查容器是否存在
+        check_cmd = ' '.join(ssh_cmd) + f' "docker ps -a --filter name=^{container_name}$ --format \'{{{{.Names}}}}\' | head -1"'
+        try:
+            result = subprocess.run(check_cmd, shell=True, check=False, timeout=5, capture_output=True, text=True)
+            if not result.stdout.strip():
+                return True  # 容器不存在，无需停止
         except:
             pass
         
-        backend_url = f"http://{node['ip']}:8083"
+        # 停止容器
+        self._print(f"{node_prefix}    停止现有容器: {container_name}")
+        stop_cmd = ' '.join(ssh_cmd) + f' "docker stop {container_name} >/dev/null 2>&1 || true"'
+        subprocess.run(stop_cmd, shell=True, check=False, timeout=10, capture_output=True)
         
-        # 启动前端服务（使用 PORT 和 HOSTNAME 环境变量）
-        # HOSTNAME=0.0.0.0 确保只绑定 IPv4，避免 IPv6 的 :::3000 问题
-        self._print(f"{node_prefix}    启动前端服务...")
-        start_frontend_cmd = ' '.join(ssh_cmd) + f' "cd ~/iarnet/web && rm -f ../web.log && PORT=3000 HOSTNAME=0.0.0.0 BACKEND_URL={backend_url} nohup npm start > ../web.log 2>&1 &"'
-        
-        for attempt in range(3):
-            try:
-                # 先启动服务（增加超时时间到30秒）
-                subprocess.run(start_frontend_cmd, shell=True, check=False, timeout=30, capture_output=True)
-                
-                # 等待服务启动（增加等待时间到10秒，给 Next.js 更多时间启动）
-                self._print(f"{node_prefix}    等待前端服务启动（尝试 {attempt + 1}/3）...")
-                time.sleep(10)
-                
-                # 检查进程是否在运行（增加超时时间到10秒）
-                check_process_cmd = ' '.join(ssh_cmd) + ' "pgrep -f \"next start\" > /dev/null && echo running || echo not_running"'
-                process_check = subprocess.run(check_process_cmd, shell=True, check=False, timeout=10, capture_output=True, text=True)
-                
-                if 'running' in process_check.stdout:
-                    # 检查端口是否真的在监听（增加超时时间到10秒）
-                    check_port_listen_cmd = ' '.join(ssh_cmd) + ' "timeout 5 bash -c \'</dev/tcp/localhost/3000\' 2>/dev/null && echo PORT_LISTENING || echo PORT_NOT_LISTENING"'
-                    port_check = subprocess.run(check_port_listen_cmd, shell=True, check=False, timeout=10, capture_output=True, text=True)
-                    
-                    if 'PORT_LISTENING' in port_check.stdout:
-                        self._print(f"{node_prefix}  ✓ 前端服务启动成功")
-                        self._print(f"{node_prefix}    前端访问地址: http://{node['ip']}:3000")
-                        return True
-                    else:
-                        # 检查日志看是否有错误（增加超时时间到10秒）
-                        check_log_cmd = ' '.join(ssh_cmd) + ' "tail -20 ~/iarnet/web.log 2>/dev/null | tail -5"'
-                        log_check = subprocess.run(check_log_cmd, shell=True, check=False, timeout=10, capture_output=True, text=True)
-                        if 'EADDRINUSE' in log_check.stdout:
-                            self._print(f"{node_prefix}    ⚠ 端口仍被占用（尝试 {attempt + 1}/3），清理后重试...")
-                            # 再次清理
-                            cleanup_cmd = ' '.join(ssh_cmd) + ' "pkill -9 -f next; pkill -9 node; sleep 2; lsof -ti:3000 2>/dev/null | xargs kill -9 2>/dev/null || true; sleep 2"'
-                            subprocess.run(cleanup_cmd, shell=True, check=False, timeout=15, capture_output=True)
-                            if attempt < 2:
-                                continue
-                
-                if attempt < 2:
-                    self._print(f"{node_prefix}    ⚠ 前端服务未正常启动（尝试 {attempt + 1}/3），等待后重试...")
-                    time.sleep(8)  # 增加重试等待时间
-                    
-            except subprocess.TimeoutExpired:
-                if attempt < 2:
-                    self._print(f"{node_prefix}    ⚠ 启动检查超时（尝试 {attempt + 1}/3），重试...")
-                    time.sleep(5)
-        
-        # 如果所有尝试都失败，显示错误信息和诊断命令
-        self._print(f"{node_prefix}  ⚠ 前端服务启动失败")
-        self._print(f"{node_prefix}  请检查日志: ssh {node['ip']} 'tail -50 ~/iarnet/web.log'")
-        self._print(f"{node_prefix}  诊断命令:")
-        self._print(f"{node_prefix}    # 检查进程: ssh {node['ip']} 'ps aux | grep next'")
-        self._print(f"{node_prefix}    # 检查端口: ssh {node['ip']} 'lsof -i:3000 || ss -tlnp | grep :3000'")
-        self._print(f"{node_prefix}    # 手动启动: ssh {node['ip']} 'cd ~/iarnet/web && PORT=3000 HOSTNAME=0.0.0.0 BACKEND_URL={backend_url} npm start'")
-        return False
-    
-    def check_build_dependencies(self) -> bool:
-        """检查构建所需的系统依赖"""
-        missing_deps = []
-        
-        # 先检查 pkg-config（其他检查依赖它）
-        pkg_config_available = False
-        try:
-            subprocess.run(['pkg-config', '--version'], 
-                         capture_output=True, check=True)
-            pkg_config_available = True
-        except (FileNotFoundError, subprocess.CalledProcessError):
-            missing_deps.append('pkg-config')
-        
-        # 如果 pkg-config 可用，检查各个库
-        if pkg_config_available:
-            # 检查 libzmq
-            try:
-                subprocess.run(['pkg-config', '--exists', 'libzmq'],
-                              capture_output=True, check=True)
-            except subprocess.CalledProcessError:
-                missing_deps.append('libzmq3-dev')
-            
-            # 检查 libczmq
-            try:
-                subprocess.run(['pkg-config', '--exists', 'libczmq'],
-                              capture_output=True, check=True)
-            except subprocess.CalledProcessError:
-                missing_deps.append('libczmq-dev')
-            
-            # 检查 libsodium（ZeroMQ 的加密依赖）
-            try:
-                subprocess.run(['pkg-config', '--exists', 'libsodium'],
-                              capture_output=True, check=True)
-            except subprocess.CalledProcessError:
-                missing_deps.append('libsodium-dev')
-        
-        # 检查 gcc（CGO 需要）
-        try:
-            subprocess.run(['gcc', '--version'], 
-                         capture_output=True, check=True)
-        except (FileNotFoundError, subprocess.CalledProcessError):
-            missing_deps.append('build-essential')
-        
-        if missing_deps:
-            print("  ✗ 缺少构建依赖:")
-            for dep in missing_deps:
-                print(f"    - {dep}")
-            print("\n  请安装缺失的依赖:")
-            print(f"    sudo apt-get update")
-            print(f"    sudo apt-get install -y {' '.join(missing_deps)}")
-            return False
+        # 删除容器
+        self._print(f"{node_prefix}    删除现有容器: {container_name}")
+        rm_cmd = ' '.join(ssh_cmd) + f' "docker rm {container_name} >/dev/null 2>&1 || true"'
+        subprocess.run(rm_cmd, shell=True, check=False, timeout=10, capture_output=True)
         
         return True
     
-    def build_binary(self, force_rebuild: bool = False) -> Path:
-        """在本地构建 iarnet 二进制文件"""
-        binary_path = PROJECT_ROOT / 'iarnet'
+    def upload_config_file(self, ssh_cmd: list, config_file: Path, node_id: int = None) -> bool:
+        """上传配置文件到虚拟机"""
+        node_prefix = f"[节点 {node_id}] " if node_id is not None else ""
         
-        # 检查是否已有二进制文件
-        if binary_path.exists() and not force_rebuild:
-            print(f"  ℹ 使用现有二进制文件: {binary_path}")
-            return binary_path
+        if not config_file.exists():
+            self._print(f"{node_prefix}    ✗ 配置文件不存在: {config_file}")
+            return False
         
-        # 检查构建依赖
-        print("  检查构建依赖...")
-        if not self.check_build_dependencies():
-            raise RuntimeError("缺少必要的构建依赖，请先安装依赖后再试")
-        print("  ✓ 构建依赖检查通过")
+        # 确保目标目录存在
+        ensure_dir_cmd = ' '.join(ssh_cmd) + ' "mkdir -p ~/iarnet"'
+        subprocess.run(ensure_dir_cmd, shell=True, check=False, timeout=5, capture_output=True)
         
-        # 构建二进制文件
-        print("  正在构建 iarnet 二进制文件...")
-        print("  使用 Go 国内代理: https://goproxy.cn")
+        # 使用 scp 上传配置文件
+        self._print(f"{node_prefix}    上传配置文件: {config_file.name}")
+        scp_cmd = [
+            'scp',
+            '-o', 'StrictHostKeyChecking=no',
+            '-o', 'UserKnownHostsFile=/dev/null',
+            str(config_file),
+            f"{self.user}@{ssh_cmd[-1].split('@')[1]}:~/iarnet/config.yaml"
+        ]
         
-        # 设置 Go 代理环境变量（使用国内代理加速下载）
-        env = os.environ.copy()
-        env['GOPROXY'] = 'https://goproxy.cn,direct'
-        env['GOSUMDB'] = 'sum.golang.org'
-        # 启用 CGO（goczmq 需要）
-        env['CGO_ENABLED'] = '1'
-        
-        build_cmd = ['go', 'build', '-o', str(binary_path), 'cmd/main.go']
         try:
-            result = subprocess.run(
-                build_cmd,
-                cwd=str(PROJECT_ROOT),
-                env=env,
-                check=True,
-                capture_output=True,
-                text=True
-            )
-            print("  ✓ 本地构建成功")
-            return binary_path
+            subprocess.run(scp_cmd, check=True, capture_output=True, timeout=10)
+            self._print(f"{node_prefix}    ✓ 配置文件上传成功")
+            return True
         except subprocess.CalledProcessError as e:
-            print(f"  ✗ 本地构建失败: {e}")
-            if e.stderr:
-                print(f"  错误信息: {e.stderr}")
-                # 检查是否是依赖问题
-                if 'libzmq' in e.stderr or 'libczmq' in e.stderr or 'libsodium' in e.stderr:
-                    print("\n  提示: 如果错误与 ZeroMQ 相关，请确保已安装:")
-                    print("    sudo apt-get install -y libzmq3-dev libczmq-dev libsodium-dev pkg-config build-essential")
-            raise
-        except FileNotFoundError:
-            print("  ✗ 错误: 未找到 go 命令，请先安装 Go")
-            raise
+            self._print(f"{node_prefix}    ✗ 配置文件上传失败: {e}")
+            return False
     
-    def build_frontend(self, force_rebuild: bool = False) -> Path:
-        """在本地构建前端项目（生产版本）"""
-        web_dir = PROJECT_ROOT / 'web'
-        build_dir = web_dir / '.next'
+    def ensure_directories(self, ssh_cmd: list, node_id: int = None) -> bool:
+        """确保必要的目录存在"""
+        node_prefix = f"[节点 {node_id}] " if node_id is not None else ""
         
-        # 检查是否已构建
-        if build_dir.exists() and not force_rebuild:
-            print(f"  ℹ 使用现有前端构建产物: {build_dir}")
-            # 验证构建产物是否完整
-            if not (build_dir / 'standalone').exists() and not (build_dir / 'static').exists():
-                print("  ⚠ 构建产物可能不完整，强制重新构建...")
-                force_rebuild = True
+        # 创建必要的目录
+        dirs = [
+            '~/iarnet/data',
+            '~/iarnet/workspaces'
+        ]
         
-        # 检查 Node.js 和 npm
+        for dir_path in dirs:
+            mkdir_cmd = ' '.join(ssh_cmd) + f' "mkdir -p {dir_path}"'
+            try:
+                subprocess.run(mkdir_cmd, shell=True, check=True, timeout=5, capture_output=True)
+            except subprocess.CalledProcessError:
+                self._print(f"{node_prefix}    ⚠ 创建目录失败: {dir_path}")
+                return False
+        
+        # 创建日志文件（如果不存在）
+        touch_log_cmd = ' '.join(ssh_cmd) + ' "touch ~/iarnet/iarnet.log && chmod 666 ~/iarnet/iarnet.log || true"'
+        subprocess.run(touch_log_cmd, shell=True, check=False, timeout=5, capture_output=True)
+        
+        return True
+    
+    def start_container(self, ssh_cmd: list, node: dict, node_id: int = None, image_name: str = "iarnet:latest") -> bool:
+        """启动 iarnet Docker 容器"""
+        node_prefix = f"[节点 {node_id}] " if node_id is not None else ""
+        container_name = f"iarnet-{node['hostname']}"
+        
+        # 检查镜像是否存在
+        if not self.check_image_exists(ssh_cmd, image_name):
+            self._print(f"{node_prefix}    ✗ 镜像不存在: {image_name}")
+            self._print(f"{node_prefix}    请先同步镜像到节点: python3 deploy/sync_iarnet_images.py --nodes {node_id}")
+            return False
+        
+        # 停止现有容器
+        self.stop_existing_container(ssh_cmd, container_name, node_id)
+        
+        # 确保目录存在
+        if not self.ensure_directories(ssh_cmd, node_id):
+            return False
+        
+        # 获取虚拟机上的 HOME 目录绝对路径（通过 SSH 执行）
+        get_home_cmd = ' '.join(ssh_cmd) + ' "echo $HOME"'
         try:
-            subprocess.run(['node', '--version'], capture_output=True, check=True)
-            subprocess.run(['npm', '--version'], capture_output=True, check=True)
-        except (FileNotFoundError, subprocess.CalledProcessError):
-            raise RuntimeError("未找到 Node.js 或 npm，请先安装 Node.js")
+            home_result = subprocess.run(get_home_cmd, shell=True, check=True, timeout=5, capture_output=True, text=True)
+            home_path = home_result.stdout.strip()
+            if not home_path:
+                self._print(f"{node_prefix}    ✗ 无法获取 HOME 目录路径")
+                return False
+            # 验证路径是虚拟机上的路径（不是本地路径）
+            if 'zhangyx' in home_path and self.user != 'zhangyx':
+                self._print(f"{node_prefix}    ⚠ 警告: 获取到的路径可能不正确: {home_path}")
+                # 使用配置的用户名构建路径
+                home_path = f'/home/{self.user}'
+                self._print(f"{node_prefix}    使用配置的用户路径: {home_path}")
+        except subprocess.CalledProcessError:
+            self._print(f"{node_prefix}    ✗ 无法获取 HOME 目录路径")
+            return False
         
-        # 如果需要重新构建
-        if force_rebuild or not build_dir.exists():
-            # 构建前端
-            print("  正在构建前端项目（生产版本）...")
+        # 验证配置文件在虚拟机上是否存在
+        check_config_cmd = ' '.join(ssh_cmd) + f' "test -f {home_path}/iarnet/config.yaml && echo EXISTS || echo NOT_EXISTS"'
+        try:
+            config_check = subprocess.run(check_config_cmd, shell=True, check=False, timeout=5, capture_output=True, text=True)
+            if 'NOT_EXISTS' in config_check.stdout:
+                self._print(f"{node_prefix}    ✗ 配置文件不存在: {home_path}/iarnet/config.yaml")
+                self._print(f"{node_prefix}    请确保已上传配置文件")
+                return False
+        except:
+            pass  # 如果检查失败，继续执行（可能权限问题）
+        
+        # 清空日志文件（每次重启容器时清除旧日志）
+        # 确保文件存在且有正确的权限（容器内需要可写）
+        log_file_path = f'{home_path}/iarnet/iarnet.log'
+        self._print(f"{node_prefix}    清空日志文件: {log_file_path}")
+        # 使用 truncate 或 echo -n 清空文件，确保文件存在且有写权限
+        clear_log_cmd = ' '.join(ssh_cmd) + f' "truncate -s 0 {log_file_path} 2>/dev/null || echo -n > {log_file_path} 2>/dev/null || true"'
+        subprocess.run(clear_log_cmd, shell=True, check=False, timeout=5, capture_output=True)
+        # 确保文件有正确的权限（容器内可写）
+        chmod_log_cmd = ' '.join(ssh_cmd) + f' "chmod 666 {log_file_path} 2>/dev/null || true"'
+        subprocess.run(chmod_log_cmd, shell=True, check=False, timeout=5, capture_output=True)
+        
+        # 构建 docker run 命令
+        # 使用 host 网络模式，使容器与虚拟机共享网络
+        # 挂载 docker socket，使容器可以使用主机的 Docker
+        # 挂载配置文件、数据目录和日志文件
+        # 使用绝对路径避免路径展开问题
+        docker_run_cmd_parts = [
+            'docker', 'run',
+            '--name', container_name,
+            '--network', 'host',  # 使用主机网络
+            '--restart', 'unless-stopped',
+            '-v', '/var/run/docker.sock:/var/run/docker.sock',  # 挂载 Docker socket
+            '-v', f'{home_path}/iarnet/config.yaml:/app/config.yaml:ro',  # 只读挂载配置文件
+            '-v', f'{home_path}/iarnet/data:/app/data',  # 数据目录
+            '-v', f'{home_path}/iarnet/workspaces:/app/workspaces',  # 工作空间目录
+            '-v', f'{home_path}/iarnet/iarnet.log:/app/iarnet.log',  # 日志文件
+            '-e', f'BACKEND_URL=http://{node["ip"]}:8083',
+            '-e', 'DOCKER_HOST=unix:///var/run/docker.sock',
+            '-e', 'USE_HOST_DOCKER=1',  # 使用主机 Docker
+            '-d',  # 后台运行
+            image_name
+        ]
+        
+        # 执行 docker run 命令
+        # 使用 shlex.quote 来正确转义每个参数
+        self._print(f"{node_prefix}    启动容器: {container_name}")
+        import shlex
+        quoted_parts = [shlex.quote(part) for part in docker_run_cmd_parts]
+        docker_run_cmd_str = ' '.join(quoted_parts)
+        run_cmd = ' '.join(ssh_cmd) + f' "{docker_run_cmd_str}"'
+        
+        try:
+            result = subprocess.run(run_cmd, shell=True, check=False, timeout=30, capture_output=True, text=True)
             
-            # 安装依赖
-            print("    安装 npm 依赖...")
-            install_cmd = ['npm', 'install', '--legacy-peer-deps']
-            try:
-                result = subprocess.run(
-                    install_cmd,
-                    cwd=str(web_dir),
-                    check=True,
-                    capture_output=True,
-                    text=True
-                )
-                print("    ✓ 依赖安装成功")
-            except subprocess.CalledProcessError as e:
-                print(f"    ✗ 依赖安装失败: {e}")
-                if e.stderr:
-                    print(f"    错误信息: {e.stderr}")
-                raise
+            if result.returncode != 0:
+                self._print(f"{node_prefix}    ✗ 启动容器失败: {result.stderr[:300]}")
+                return False
             
-            # 构建生产版本
-            print("    构建生产版本...")
-            build_cmd = ['npm', 'run', 'build']
-            try:
-                result = subprocess.run(
-                    build_cmd,
-                    cwd=str(web_dir),
-                    check=True,
-                    capture_output=True,
-                    text=True
-                )
-                print("    ✓ 前端构建成功")
-            except subprocess.CalledProcessError as e:
-                print(f"    ✗ 前端构建失败: {e}")
-                if e.stderr:
-                    print(f"    错误信息: {e.stderr}")
-                raise
-        
-        # 验证构建产物
-        if not build_dir.exists():
-            raise RuntimeError("前端构建失败：未找到构建产物 .next 目录")
-        
-        return web_dir
+            container_id = result.stdout.strip()
+            if container_id:
+                self._print(f"{node_prefix}    ✓ 容器已启动: {container_id[:12]}")
+            else:
+                self._print(f"{node_prefix}    ⚠ 容器启动但未返回 ID")
+            
+            # 等待容器启动
+            time.sleep(3)
+            
+            # 检查容器状态
+            status_cmd = ' '.join(ssh_cmd) + f' "docker ps --filter name=^{container_name}$ --format \'{{{{.Status}}}}\' | head -1"'
+            status_result = subprocess.run(status_cmd, shell=True, check=False, timeout=10, capture_output=True, text=True)
+            
+            if status_result.stdout.strip():
+                self._print(f"{node_prefix}    ✓ 容器运行中: {status_result.stdout.strip()}")
+                
+                # 检查服务是否就绪（检查端口 8083）
+                for attempt in range(5):
+                    time.sleep(2)
+                    check_port_cmd = ' '.join(ssh_cmd) + ' "timeout 3 bash -c \'</dev/tcp/localhost/8083\' 2>/dev/null && echo PORT_OK || echo PORT_NOT_READY"'
+                    port_result = subprocess.run(check_port_cmd, shell=True, check=False, timeout=5, capture_output=True, text=True)
+                    
+                    if 'PORT_OK' in port_result.stdout:
+                        self._print(f"{node_prefix}    ✓ 后端服务已就绪 (http://{node['ip']}:8083)")
+                        self._print(f"{node_prefix}    ✓ 前端服务已就绪 (http://{node['ip']}:3000)")
+                        return True
+                
+                # 如果端口检查失败，查看日志
+                log_cmd = ' '.join(ssh_cmd) + f' "docker logs --tail 20 {container_name} 2>&1 | tail -10"'
+                log_result = subprocess.run(log_cmd, shell=True, check=False, timeout=10, capture_output=True, text=True)
+                if log_result.stdout:
+                    self._print(f"{node_prefix}    容器日志: {log_result.stdout.strip()}")
+                
+                self._print(f"{node_prefix}    ⚠ 服务可能未完全就绪，请检查日志")
+                return True  # 容器已启动，即使服务未就绪也返回成功
+            else:
+                # 容器可能已停止，查看日志
+                log_cmd = ' '.join(ssh_cmd) + f' "docker logs --tail 30 {container_name} 2>&1"'
+                log_result = subprocess.run(log_cmd, shell=True, check=False, timeout=10, capture_output=True, text=True)
+                if log_result.stdout:
+                    self._print(f"{node_prefix}    容器日志: {log_result.stdout.strip()[:500]}")
+                
+                self._print(f"{node_prefix}    ✗ 容器未运行")
+                return False
+                
+        except subprocess.TimeoutExpired:
+            self._print(f"{node_prefix}    ✗ 启动容器超时")
+            return False
+        except Exception as e:
+            self._print(f"{node_prefix}    ✗ 启动容器异常: {e}")
+            return False
     
-    def _print(self, *args, **kwargs):
-        """线程安全的打印函数"""
-        with self._log_lock:
-            print(*args, **kwargs)
-    
-    def deploy_to_node(self, node_id: int, build: bool = False, restart: bool = False, binary_path: Path = None, deploy_frontend: bool = False, frontend_dir: Path = None) -> bool:
+    def deploy_to_node(self, node_id: int, restart: bool = False, image_name: str = "iarnet:latest") -> bool:
         """部署到指定节点"""
         if node_id not in self.node_info:
             self._print(f"[节点 {node_id}] 错误: 节点 {node_id} 不存在")
@@ -710,406 +364,42 @@ class IarnetDeployer:
             f"{self.user}@{node['ip']}"
         ]
         
-        # 0. 如果指定 restart，先停止所有服务
-        if restart:
-            self._print(f"[节点 {node_id}] 0. 停止现有服务...")
-            stop_commands = [
-                'pkill -9 -f iarnet',
-                'pkill -9 -f "next start"',
-                'pkill -9 -f "node.*next"',
-                'killall -9 node 2>/dev/null',
-                # 释放端口
-                'lsof -ti:3000 | xargs kill -9 2>/dev/null',
-                'lsof -ti:8083 | xargs kill -9 2>/dev/null',
-                'fuser -k 3000/tcp 2>/dev/null',
-                'fuser -k 8083/tcp 2>/dev/null'
-            ]
-            
-            for cmd in stop_commands:
-                stop_cmd = ' '.join(ssh_cmd) + f' "{cmd} || true"'
-                try:
-                    subprocess.run(stop_cmd, shell=True, check=False, timeout=5, capture_output=True)
-                except subprocess.TimeoutExpired:
-                    pass
-            
-            # 等待服务停止
-            time.sleep(2)
-            self._print(f"[节点 {node_id}]   ✓ 服务已停止")
-        
-        # 1. 创建必要的目录
-        self._print(f"[节点 {node_id}] 1. 创建目录结构...")
-        # 先确保主目录存在，再创建子目录
-        mkdir_cmd = ' '.join(ssh_cmd) + ' "mkdir -p ~/iarnet && mkdir -p ~/iarnet/data ~/iarnet/workspaces ~/iarnet/web && ls -ld ~/iarnet"'
-        mkdir_result = subprocess.run(mkdir_cmd, shell=True, check=False, capture_output=True, text=True, timeout=10)
-        if mkdir_result.returncode != 0:
-            self._print(f"[节点 {node_id}]   ⚠ 目录创建可能有问题: {mkdir_result.stderr}")
-        else:
-            self._print(f"[节点 {node_id}]   ✓ 目录结构创建成功")
-        
-        # 2. 上传配置文件
-        self._print(f"[节点 {node_id}] 2. 上传配置文件: {config_file.name}...")
-        scp_cmd = [
-            'scp',
-            '-o', 'StrictHostKeyChecking=no',
-            '-o', 'UserKnownHostsFile=/dev/null',
-            str(config_file),
-            f"{self.user}@{node['ip']}:~/iarnet/config.yaml"
-        ]
-        try:
-            subprocess.run(scp_cmd, check=True, capture_output=True)
-            self._print(f"[节点 {node_id}]   ✓ 配置文件上传成功")
-        except subprocess.CalledProcessError as e:
-            self._print(f"[节点 {node_id}]   ✗ 配置文件上传失败: {e}")
+        # 检查 Docker 是否安装
+        if not self.check_docker_installed(ssh_cmd):
+            self._print(f"[节点 {node_id}] 错误: Docker 未安装")
+            self._print(f"[节点 {node_id}] 请先安装 Docker 或使用已安装 Docker 的基础镜像")
             return False
         
-        # 2.5. 检查并安装运行时依赖（参考 Dockerfile 运行阶段）
-        # 在部署二进制文件之前确保运行时依赖已安装
-        if build or restart:
-            self._print(f"[节点 {node_id}] 2.5. 检查并安装运行时依赖（参考 Dockerfile 运行阶段）...")
-            if not self.install_vm_runtime_dependencies(ssh_cmd, node_id):
-                self._print(f"[节点 {node_id}]   ⚠ 警告: 运行时依赖安装失败，但继续部署流程")
-                self._print(f"[节点 {node_id}]   提示: 如果启动失败，请手动安装: sudo apt-get install -y libzmq5 libczmq4 && sudo ldconfig")
+        # 如果指定 restart，先停止现有容器
+        if restart:
+            container_name = f"iarnet-{node['hostname']}"
+            self._print(f"[节点 {node_id}] 停止现有容器...")
+            self.stop_existing_container(ssh_cmd, container_name, node_id)
         
-        # 3. 上传二进制文件（如果指定）
-        if build:
-            if binary_path is None:
-                binary_path = PROJECT_ROOT / 'iarnet'
-            
-            if not binary_path.exists():
-                self._print(f"[节点 {node_id}]   ✗ 错误: 二进制文件不存在: {binary_path}")
-                return False
-            
-            self._print(f"[节点 {node_id}] 3. 上传二进制文件...")
-            # 直接使用用户名构建远程主目录路径（更可靠）
-            # SSH 警告信息可能混入输出，直接构建路径更安全
-            remote_home = f"/home/{self.user}"
-            remote_path = f"{remote_home}/iarnet/iarnet"
-            self._print(f"[节点 {node_id}]     用户名: {self.user}")
-            self._print(f"[节点 {node_id}]     远程路径: {remote_path}")
-            
-            # 先验证目标目录是否存在且有写权限（使用绝对路径）
-            verify_dir_cmd = ' '.join(ssh_cmd) + f' "test -d {remote_home}/iarnet && test -w {remote_home}/iarnet && echo OK || echo FAIL"'
-            verify_result = subprocess.run(verify_dir_cmd, shell=True, check=False, capture_output=True, text=True, timeout=5)
-            # 清理警告信息
-            verify_output_lines = [line.strip() for line in verify_result.stdout.split('\n') if line.strip() and 'Warning:' not in line]
-            verify_output = verify_output_lines[-1] if verify_output_lines else verify_result.stdout.strip()
-            
-            if 'OK' not in verify_output:
-                self._print(f"[节点 {node_id}]   ✗ 目标目录 {remote_home}/iarnet 不存在或没有写权限")
-                # 尝试重新创建目录
-                fix_dir_cmd = ' '.join(ssh_cmd) + f' "mkdir -p {remote_home}/iarnet && chmod 755 {remote_home}/iarnet"'
-                fix_result = subprocess.run(fix_dir_cmd, shell=True, check=False, timeout=5, capture_output=True, text=True)
-                if fix_result.returncode != 0:
-                    self._print(f"[节点 {node_id}]   ✗ 无法创建目录")
-                    return False
-            
-            # 检查并删除已存在的目标文件（无论是文件还是目录，使用绝对路径）
-            self._print(f"[节点 {node_id}]     检查目标文件是否存在...")
-            check_target_cmd = ' '.join(ssh_cmd) + f' "if [ -e {remote_path} ]; then if [ -d {remote_path} ]; then echo IS_DIR; else echo IS_FILE; fi; else echo NOT_EXISTS; fi"'
-            check_result = subprocess.run(check_target_cmd, shell=True, check=False, capture_output=True, text=True, timeout=5)
-            target_status_lines = [line.strip() for line in check_result.stdout.split('\n') if line.strip() and 'Warning:' not in line]
-            target_status = target_status_lines[-1] if target_status_lines else check_result.stdout.strip()
-            
-            if 'IS_DIR' in target_status:
-                self._print(f"[节点 {node_id}]     ℹ 目标路径已存在且是目录，正在删除...")
-                rm_cmd = ' '.join(ssh_cmd) + f' "rm -rf {remote_path}"'
-                rm_result = subprocess.run(rm_cmd, shell=True, check=True, timeout=10, capture_output=True, text=True)
-                self._print(f"[节点 {node_id}]     ✓ 目录已删除")
-            elif 'IS_FILE' in target_status:
-                self._print(f"[节点 {node_id}]     ℹ 目标文件已存在，正在删除...")
-                rm_cmd = ' '.join(ssh_cmd) + f' "rm -f {remote_path}"'
-                rm_result = subprocess.run(rm_cmd, shell=True, check=True, timeout=10, capture_output=True, text=True)
-                self._print(f"[节点 {node_id}]     ✓ 文件已删除")
-            
-            # 上传二进制文件
-            self._print(f"[节点 {node_id}]     正在上传二进制文件...")
-            scp_binary_cmd = [
-                'scp',
-                '-o', 'StrictHostKeyChecking=no',
-                '-o', 'UserKnownHostsFile=/dev/null',
-                '-o', 'ConnectTimeout=10',
-                str(binary_path),
-                f"{self.user}@{node['ip']}:{remote_path}"
-            ]
-            try:
-                result = subprocess.run(scp_binary_cmd, check=True, capture_output=True, text=True, timeout=30)
-                self._print(f"[节点 {node_id}]   ✓ 二进制文件上传成功")
-            except subprocess.TimeoutExpired:
-                self._print(f"[节点 {node_id}]   ✗ 二进制文件上传超时")
-                self._print(f"[节点 {node_id}]   请检查网络连接或手动上传: scp {binary_path} {self.user}@{node['ip']}:{remote_path}")
-                return False
-            except subprocess.CalledProcessError as e:
-                error_msg = e.stderr if e.stderr else (e.stdout if e.stdout else str(e))
-                self._print(f"[节点 {node_id}]   ✗ 二进制文件上传失败")
-                self._print(f"[节点 {node_id}]   错误信息: {error_msg}")
-                # 诊断问题
-                self._print(f"[节点 {node_id}]   诊断信息:")
-                # 检查目录权限和文件状态
-                check_cmd = ' '.join(ssh_cmd) + f' "ls -ld {remote_home}/iarnet && ls -la {remote_home}/iarnet/ | head -5 && df -h {remote_home}/iarnet"'
-                diag_result = subprocess.run(check_cmd, shell=True, check=False, capture_output=True, text=True, timeout=5)
-                if diag_result.stdout:
-                    self._print(f"[节点 {node_id}]     目录信息: {diag_result.stdout[:400]}")
-                if diag_result.stderr:
-                    self._print(f"[节点 {node_id}]     错误: {diag_result.stderr[:200]}")
-                return False
-            
-            # 设置执行权限
-            try:
-                chmod_cmd = ' '.join(ssh_cmd) + ' "chmod +x ~/iarnet/iarnet"'
-                subprocess.run(chmod_cmd, shell=True, check=True, timeout=10, capture_output=True)
-                self._print(f"[节点 {node_id}]   ✓ 二进制文件上传成功")
-            except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-                self._print(f"[节点 {node_id}]   ⚠ 设置执行权限失败，但继续执行: {e}")
-            
-            # 部署完后端后立即启动后端服务
-            self._print(f"[节点 {node_id}]     启动后端服务...")
-            backend_running = self._start_backend_service(ssh_cmd, node, node_id)
-            if backend_running:
-                self._print(f"[节点 {node_id}]   ✓ 后端服务启动成功")
-            else:
-                self._print(f"[节点 {node_id}]   ⚠ 后端服务启动失败，请检查日志: ~/iarnet/iarnet.log")
+        # 上传配置文件
+        self._print(f"[节点 {node_id}] 1. 上传配置文件...")
+        if not self.upload_config_file(ssh_cmd, config_file, node_id):
+            return False
         
-        # 4. 部署前端（如果指定）
-        if deploy_frontend:
-            if frontend_dir is None:
-                frontend_dir = PROJECT_ROOT / 'web'
-            
-            if not frontend_dir.exists():
-                self._print(f"[节点 {node_id}]   ✗ 错误: 前端目录不存在: {frontend_dir}")
-                return False
-            
-            # 检查本地是否已构建（必须）
-            build_dir = frontend_dir / '.next'
-            if not build_dir.exists():
-                self._print(f"[节点 {node_id}]   ✗ 错误: 前端未在本地构建，请先构建前端")
-                self._print(f"[节点 {node_id}]   运行: cd {frontend_dir} && npm install --legacy-peer-deps && npm run build")
-                return False
-            
-            step_num = "4" if build else "3"
-            self._print(f"[节点 {node_id}] {step_num}. 部署前端项目（使用本地构建产物）...")
-            
-            # 检查是否可以使用 rsync（更高效）
-            use_rsync = False
-            try:
-                subprocess.run(['rsync', '--version'], capture_output=True, check=True)
-                use_rsync = True
-            except (FileNotFoundError, subprocess.CalledProcessError):
-                self._print(f"[节点 {node_id}]     提示: 未找到 rsync，将使用 tar+scp 上传文件")
-            
-            if use_rsync:
-                # 使用 rsync 上传前端文件（只上传必要文件）
-                # 包括：.next（构建产物）、public（静态资源）、package.json、next.config.js 等
-                rsync_cmd = [
-                    'rsync',
-                    '-avz',
-                    '--delete',
-                    '--include', '.next/',
-                    '--include', '.next/**',
-                    '--include', 'public/',
-                    '--include', 'public/**',
-                    '--include', 'package.json',
-                    '--include', 'package-lock.json',
-                    '--include', 'next.config.js',
-                    '--include', 'next.config.mjs',
-                    '--exclude', '*',
-                    '--exclude', 'node_modules',
-                    '--exclude', '.git',
-                    '--exclude', '.next/cache',
-                    f"{str(frontend_dir)}/",
-                    f"{self.user}@{node['ip']}:~/iarnet/web/"
-                ]
-                try:
-                    subprocess.run(rsync_cmd, check=True, capture_output=True, text=True)
-                    self._print(f"[节点 {node_id}]   ✓ 前端文件上传成功（使用 rsync）")
-                except subprocess.CalledProcessError as e:
-                    self._print(f"[节点 {node_id}]   ⚠ rsync 上传失败，尝试使用 tar+scp 方式...")
-                    use_rsync = False
-            
-            if not use_rsync:
-                # 使用 tar+scp 方式上传（只打包必要文件）
-                self._print(f"[节点 {node_id}]     打包前端文件（仅构建产物和必要文件）...")
-                
-                with tempfile.NamedTemporaryFile(suffix='.tar.gz', delete=False) as tmp_file:
-                    tmp_tar = tmp_file.name
-                    try:
-                        with tarfile.open(tmp_tar, 'w:gz') as tar:
-                            # 添加构建产物目录
-                            if build_dir.exists():
-                                tar.add(build_dir, arcname='web/.next')
-                            
-                            # 添加 public 目录（静态资源）
-                            public_dir = frontend_dir / 'public'
-                            if public_dir.exists():
-                                tar.add(public_dir, arcname='web/public')
-                            
-                            # 添加必要的配置文件
-                            for config_file in ['package.json', 'package-lock.json', 'next.config.js', 'next.config.mjs']:
-                                config_path = frontend_dir / config_file
-                                if config_path.exists():
-                                    tar.add(config_path, arcname=f'web/{config_file}')
-                        
-                        self._print(f"[节点 {node_id}]     上传前端文件包...")
-                        scp_tar_cmd = [
-                            'scp',
-                            '-o', 'StrictHostKeyChecking=no',
-                            '-o', 'UserKnownHostsFile=/dev/null',
-                            tmp_tar,
-                            f"{self.user}@{node['ip']}:~/iarnet/web.tar.gz"
-                        ]
-                        subprocess.run(scp_tar_cmd, check=True, capture_output=True, timeout=120)
-                        
-                        # 在远程解压
-                        extract_cmd = ' '.join(ssh_cmd) + ' "cd ~/iarnet && rm -rf web && mkdir -p web && tar -xzf web.tar.gz && rm web.tar.gz"'
-                        subprocess.run(extract_cmd, shell=True, check=True, timeout=60)
-                        self._print(f"[节点 {node_id}]   ✓ 前端文件上传成功（使用 tar+scp）")
-                    finally:
-                        if os.path.exists(tmp_tar):
-                            os.unlink(tmp_tar)
-            
-            # 在远程服务器上安装生产依赖（只需要运行时依赖）
-            self._print(f"[节点 {node_id}]     在远程服务器上安装生产依赖...")
-            install_cmd = ' '.join(ssh_cmd) + ' "cd ~/iarnet/web && npm install --legacy-peer-deps --production"'
-            install_result = subprocess.run(install_cmd, shell=True, check=False, capture_output=True, text=True, timeout=300)
-            if install_result.returncode == 0:
-                self._print(f"[节点 {node_id}]     ✓ 生产依赖安装成功")
-            else:
-                self._print(f"[节点 {node_id}]     ⚠ 依赖安装可能有问题，但继续...")
-                if install_result.stderr:
-                    self._print(f"[节点 {node_id}]     错误信息: {install_result.stderr[:300]}")
-            
-            self._print(f"[节点 {node_id}]     ℹ 使用本地构建产物，无需远程构建")
-            
-            # 部署完前端后，如果后端已运行，立即启动前端
-            self._print(f"[节点 {node_id}]     检查后端服务状态...")
-            verify_backend_cmd = ' '.join(ssh_cmd) + ' "pgrep -f iarnet > /dev/null && echo running || echo not_running"'
-            backend_running = False
-            try:
-                verify_result = subprocess.run(verify_backend_cmd, shell=True, check=True, timeout=5, capture_output=True, text=True)
-                backend_running = 'running' in verify_result.stdout
-            except:
-                pass
-            
-            if backend_running:
-                self._print(f"[节点 {node_id}]     后端服务正在运行，启动前端服务...")
-                self._start_frontend_service(ssh_cmd, node, node_id)
-            else:
-                self._print(f"[节点 {node_id}]     ⚠ 后端服务未运行，前端将在后端启动后自动启动")
+        # 启动容器
+        self._print(f"[节点 {node_id}] 2. 启动 Docker 容器...")
+        if not self.start_container(ssh_cmd, node, node_id, image_name):
+            return False
         
-        # 如果指定了 restart 但没有部署后端和前端，需要启动服务
-        if restart and not build and not deploy_frontend:
-            self._print(f"[节点 {node_id}] 4. 启动服务...")
-            # 启动后端服务
-            self._print(f"[节点 {node_id}]     启动后端服务...")
-            backend_running = self._start_backend_service(ssh_cmd, node, node_id)
-            if backend_running:
-                self._print(f"[节点 {node_id}]   ✓ 后端服务启动成功")
-                
-                # 检查是否有前端，如果有则启动前端
-                check_frontend_cmd = ' '.join(ssh_cmd) + ' "test -d ~/iarnet/web && test -f ~/iarnet/web/package.json && echo EXISTS || echo NOT_EXISTS"'
-                try:
-                    check_result = subprocess.run(check_frontend_cmd, shell=True, check=False, timeout=5, capture_output=True, text=True)
-                    if 'EXISTS' in check_result.stdout:
-                        self._print(f"[节点 {node_id}]     启动前端服务...")
-                        self._start_frontend_service(ssh_cmd, node, node_id)
-                except:
-                    pass
-            else:
-                self._print(f"[节点 {node_id}]   ⚠ 后端服务启动失败，请检查日志: ~/iarnet/iarnet.log")
+        self._print(f"[节点 {node_id}] ✓ 部署完成")
+        self._print(f"[节点 {node_id}] 访问地址:")
+        self._print(f"[节点 {node_id}]   后端: http://{node['ip']}:8083")
+        self._print(f"[节点 {node_id}]   前端: http://{node['ip']}:3000")
+        self._print(f"[节点 {node_id}]   日志: ssh {node['ip']} 'tail -f ~/iarnet/iarnet.log'")
         
-        self._print(f"[节点 {node_id}] " + "=" * 60)
-        self._print(f"[节点 {node_id}] ✓ 节点 {node_id} 部署完成")
         return True
     
-    def install_deps_with_ansible(self, node_ids: list) -> bool:
-        """使用 Ansible 安装依赖"""
-        print("\n使用 Ansible 安装依赖...")
-        print("=" * 60)
-        
-        # 检查 ansible 是否安装
-        try:
-            subprocess.run(['ansible-playbook', '--version'], 
-                         capture_output=True, check=True)
-        except (FileNotFoundError, subprocess.CalledProcessError):
-            print("错误: 未找到 ansible-playbook，请先安装 Ansible")
-            print("安装方法: sudo apt-get install ansible 或 pip3 install ansible")
-            return False
-        
-        # 生成临时 inventory 文件
-        inventory_file = SCRIPT_DIR / 'ansible' / 'inventory-temp.ini'
-        with open(inventory_file, 'w') as f:
-            f.write("[iarnet_nodes]\n")
-            for node_id in node_ids:
-                if node_id in self.node_info:
-                    node = self.node_info[node_id]
-                    f.write(f"{node['hostname']} ansible_host={node['ip']} ansible_user={self.user}\n")
-        
-        # 运行 ansible playbook
-        playbook_path = SCRIPT_DIR / 'ansible' / 'playbooks' / 'install-iarnet-deps.yml'
-        if not playbook_path.exists():
-            print(f"错误: Ansible playbook 不存在: {playbook_path}")
-            return False
-        
-        ansible_cmd = [
-            'ansible-playbook',
-            '-i', str(inventory_file),
-            str(playbook_path),
-            '--become',
-            '--become-method=sudo',
-            '--ask-become-pass'
-        ]
-        
-        try:
-            result = subprocess.run(ansible_cmd, check=True)
-            print("  ✓ 依赖安装成功")
-            return True
-        except subprocess.CalledProcessError as e:
-            print(f"  ✗ 依赖安装失败: {e}")
-            return False
-        finally:
-            # 清理临时文件
-            if inventory_file.exists():
-                inventory_file.unlink()
-    
-    def deploy_to_nodes(self, node_ids: list, build: bool = False, restart: bool = False, install_deps: bool = False, deploy_frontend: bool = False, max_workers: int = None):
+    def deploy_to_nodes(self, node_ids: list, restart: bool = False, image_name: str = "iarnet:latest", max_workers: int = None):
         """批量部署到多个节点（并行执行）"""
-        print(f"批量部署到节点: {node_ids}")
-        print("=" * 60)
+        self._print(f"批量部署到节点: {node_ids}")
+        self._print("=" * 60)
         
-        # 先安装依赖（如果指定）
-        if install_deps:
-            if not self.install_deps_with_ansible(node_ids):
-                print("警告: 依赖安装失败，但继续部署流程")
-        
-        # 如果需要构建，先构建一次，所有节点复用同一个二进制文件
-        binary_path = None
-        if build:
-            print("\n在本地构建 iarnet 二进制文件（所有节点将复用此文件）...")
-            try:
-                binary_path = self.build_binary(force_rebuild=False)
-            except Exception as e:
-                print(f"错误: 构建失败，无法继续部署")
-                return
-        
-        # 如果需要部署前端，必须在本地构建一次，所有节点复用同一个构建产物
-        frontend_dir = None
-        if deploy_frontend:
-            print("\n在本地构建前端项目（所有节点将复用此构建产物）...")
-            try:
-                # 强制构建，确保有最新的构建产物
-                frontend_dir = self.build_frontend(force_rebuild=False)
-                # 验证构建产物存在
-                build_dir = frontend_dir / '.next'
-                if not build_dir.exists():
-                    raise RuntimeError("前端构建失败：未找到构建产物")
-                print(f"  ✓ 前端构建完成，构建产物: {build_dir}")
-            except Exception as e:
-                print(f"错误: 前端构建失败，无法继续部署: {e}")
-                return
-        
-        # 并行部署到各个节点
-        print(f"\n开始并行部署到 {len(node_ids)} 个节点...")
         if max_workers is None:
-            # 默认使用节点数量，但不超过 10 个并发
             max_workers = min(len(node_ids), 10)
         
         success_count = 0
@@ -1117,16 +407,12 @@ class IarnetDeployer:
         
         # 使用线程池并行部署
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # 提交所有部署任务
             future_to_node = {
                 executor.submit(
                     self.deploy_to_node,
                     node_id,
-                    build=build,
                     restart=restart,
-                    binary_path=binary_path,
-                    deploy_frontend=deploy_frontend,
-                    frontend_dir=frontend_dir
+                    image_name=image_name
                 ): node_id
                 for node_id in node_ids
             }
@@ -1138,32 +424,28 @@ class IarnetDeployer:
                     result = future.result()
                     if result:
                         success_count += 1
-                        with self._log_lock:
-                            print(f"[节点 {node_id}] ✓ 部署成功")
                     else:
                         failed_nodes.append(node_id)
-                        with self._log_lock:
-                            print(f"[节点 {node_id}] ✗ 部署失败")
                 except Exception as e:
                     failed_nodes.append(node_id)
-                    with self._log_lock:
-                        print(f"[节点 {node_id}] ✗ 部署异常: {e}")
+                    self._print(f"[节点 {node_id}] ✗ 部署异常: {e}")
         
         # 输出部署结果摘要
-        print("\n" + "=" * 60)
-        print(f"部署完成: {success_count}/{len(node_ids)} 个节点成功")
+        self._print("\n" + "=" * 60)
+        self._print(f"部署完成: {success_count}/{len(node_ids)} 个节点成功")
         if failed_nodes:
-            print(f"失败的节点: {failed_nodes}")
-        if deploy_frontend:
-            print("\n前端访问地址:")
-            for node_id in node_ids:
-                if node_id in self.node_info:
-                    node = self.node_info[node_id]
-                    print(f"  节点 {node_id} ({node['hostname']}): http://{node['ip']}:3000")
-        print("=" * 60)
+            self._print(f"失败的节点: {failed_nodes}")
+        self._print("\n访问地址:")
+        for node_id in node_ids:
+            if node_id in self.node_info and node_id not in failed_nodes:
+                node = self.node_info[node_id]
+                self._print(f"  节点 {node_id} ({node['hostname']}):")
+                self._print(f"    后端: http://{node['ip']}:8083")
+                self._print(f"    前端: http://{node['ip']}:3000")
+        self._print("=" * 60)
 
 def main():
-    parser = argparse.ArgumentParser(description='在 iarnet 节点上部署 iarnet 服务')
+    parser = argparse.ArgumentParser(description='在 iarnet 节点上部署 iarnet 服务（使用 Docker 容器）')
     parser.add_argument(
         '--vm-config', '-v',
         default=str(SCRIPT_DIR / 'vm-config.yaml'),
@@ -1182,33 +464,24 @@ def main():
     parser.add_argument(
         '--nodes', '-N',
         type=str,
-        help='部署到多个节点，格式: start-end 或逗号分隔的列表 (例如: 0-10 或 0,1,2)'
-    )
-    parser.add_argument(
-        '--build', '-b',
-        action='store_true',
-        help='在本地构建 iarnet 二进制文件并上传到节点'
-    )
-    parser.add_argument(
-        '--install-deps', '-i',
-        action='store_true',
-        help='使用 Ansible 安装节点依赖（Go、gRPC、ZeroMQ等）'
+        help='部署到多个节点，格式: start-end 或逗号分隔的列表 (例如: 0-9 或 0,1,2)'
     )
     parser.add_argument(
         '--restart', '-r',
         action='store_true',
-        help='重启 iarnet 服务'
+        help='重启 iarnet 服务（停止现有容器后重新启动）'
     )
     parser.add_argument(
-        '--frontend', '-f',
-        action='store_true',
-        help='部署前端项目（Next.js）'
+        '--image', '-i',
+        type=str,
+        default='iarnet:latest',
+        help='使用的 Docker 镜像名称 (默认: iarnet:latest)'
     )
     parser.add_argument(
-        '--max-workers',
+        '--max-workers', '-w',
         type=int,
         default=None,
-        help='并行部署的最大线程数（默认: min(节点数, 10)）'
+        help='并行部署的最大线程数 (默认: min(节点数, 10))'
     )
     
     args = parser.parse_args()
@@ -1231,16 +504,15 @@ def main():
         deployer = IarnetDeployer(args.vm_config, args.configs_dir)
         deployer.deploy_to_nodes(
             node_ids,
-            build=args.build,
             restart=args.restart,
-            install_deps=args.install_deps,
-            deploy_frontend=args.frontend,
+            image_name=args.image,
             max_workers=args.max_workers
         )
     except Exception as e:
         print(f"错误: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
 
 if __name__ == '__main__':
     main()
-

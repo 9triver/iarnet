@@ -263,37 +263,29 @@ virsh dominfo vm-iarnet-01
 virsh console vm-iarnet-01
 ```
 
-## 部署 iarnet 到节点
+## 部署 iarnet 到节点（Docker 容器部署）
 
-### 快速部署（推荐）
+iarnet 现在使用 Docker 容器方式部署，所有服务运行在容器中，简化了部署流程。
 
-使用完整部署脚本，一键完成所有步骤：
+### 前置要求
 
-```bash
-# 从项目根目录运行
-cd /home/zhangyx/iarnet
+1. **虚拟机需要安装 Docker**：
+   - 使用已安装 Docker 的基础镜像创建虚拟机（推荐）
+   - 或使用 Ansible 在虚拟机上安装 Docker（见下方说明）
 
-# 完整部署到节点 0-10（生成配置 + 安装依赖 + 本地构建 + 上传部署 + 启动服务）
-./deploy/deploy_iarnet_complete.sh 0-10
+2. **准备 iarnet Docker 镜像**：
+   - 在本地构建或拉取 `iarnet:latest` 镜像
+   - 使用 `sync_iarnet_images.py` 将镜像同步到各个节点
 
-# 或者分步执行
-./deploy/deploy_iarnet_complete.sh 0-10 true true true
-# 参数说明: 节点范围 安装依赖 本地构建 重启服务
-```
-
-### 分步部署
-
-如果需要更多控制，可以分步执行：
-
-### 分步部署
+### 部署步骤
 
 #### 步骤1: 生成配置文件
 
 为每个节点生成独立的配置文件：
 
 ```bash
-# 为节点 0-10 生成配置文件
-python3 deploy/generate_iarnet_configs.py --nodes 0-10
+# 为节点 0-9 生成配置文件
+python3 deploy/generate_iarnet_configs.py --nodes 0-9
 
 # 为单个节点生成配置
 python3 deploy/generate_iarnet_configs.py --nodes 0
@@ -307,69 +299,69 @@ python3 deploy/generate_iarnet_configs.py --nodes 0,1,2,5,10
 - `config-node-01.yaml` - 节点1的配置
 - ...
 
-#### 步骤2: 安装依赖（使用 Ansible）
+#### 步骤2: 同步 Docker 镜像到节点
 
-在虚拟机上安装 Go、gRPC、ZeroMQ、Node.js、Docker 等依赖：
-
-```bash
-# 安装依赖到节点 0-10
-python3 deploy/deploy_iarnet.py --nodes 0-10 --install-deps
-
-# 注意: 需要输入 sudo 密码
-```
-
-或者手动使用 Ansible：
+将 iarnet Docker 镜像同步到各个节点：
 
 ```bash
-cd deploy/ansible
-ansible-playbook -i inventory.ini playbooks/install-iarnet-deps.yml --become --ask-become-pass
+# 同步 iarnet 镜像到所有 iarnet 节点（默认总是同步，确保使用最新版本）
+python3 deploy/sync_iarnet_images.py --nodes 0-9
+
+# 同步到单个节点
+python3 deploy/sync_iarnet_images.py --nodes 0
+
+# 如果镜像已存在则跳过同步（不推荐，可能使用旧版本）
+python3 deploy/sync_iarnet_images.py --nodes 0-9 --skip-existing
+
+# 同时同步 iarnet 和 runner 镜像
+python3 deploy/sync_iarnet_images.py --nodes 0-9 --sync-runner
 ```
 
-**安装的依赖包括**：
-- **Go 语言环境**: Go 1.25.0（优先使用国内镜像源）
-- **gRPC 相关库**: libprotobuf-dev, protobuf-compiler, libgrpc-dev 等
-- **ZeroMQ 库**: libzmq3-dev, libczmq-dev（开发库）和 libzmq5, libczmq4（运行时库）
-- **Node.js 和 npm**: Node.js 20（用于前端项目）
-- **Docker**: Docker Engine（可选，用于容器化部署）
-- **其他运行时依赖**: ca-certificates, libssl-dev, libsqlite3-dev 等
+**注意**：默认情况下，即使镜像已存在也会同步，确保使用最新版本。
 
 #### 步骤3: 部署到节点
 
+使用部署脚本将配置文件上传并启动容器：
+
 ```bash
-# 只上传配置文件（不构建、不重启）
-python3 deploy/deploy_iarnet.py --nodes 0-10
-
-# 本地构建二进制文件并上传（推荐）
-python3 deploy/deploy_iarnet.py --nodes 0-10 --build
-
-# 部署并重启服务
-python3 deploy/deploy_iarnet.py --nodes 0-10 --restart
-
-# 完整部署（本地构建 + 上传 + 重启）
-python3 deploy/deploy_iarnet.py --nodes 0-10 --build --restart
-
-# 完整流程（安装依赖 + 构建 + 重启）
-python3 deploy/deploy_iarnet.py --nodes 0-10 --install-deps --build --restart
+# 部署到节点 0-9（上传配置文件 + 启动容器）
+python3 deploy/deploy_iarnet.py --nodes 0-9
 
 # 部署到单个节点
-python3 deploy/deploy_iarnet.py --node 0 --build --restart
+python3 deploy/deploy_iarnet.py --node 0
 
-# 部署后端和前端（本地构建前端，然后部署）
-python3 deploy/deploy_iarnet.py --nodes 0-10 --build --frontend --restart
+# 重启服务（停止现有容器后重新启动）
+python3 deploy/deploy_iarnet.py --nodes 0-9 --restart
 
-# 完整流程（安装依赖 + 构建后端 + 构建前端 + 部署 + 启动）
-python3 deploy/deploy_iarnet.py --nodes 0-10 --install-deps --build --frontend --restart
+# 使用自定义镜像名称
+python3 deploy/deploy_iarnet.py --nodes 0-9 --image iarnet:v1.0
+
+# 指定最大并发数
+python3 deploy/deploy_iarnet.py --nodes 0-9 --max-workers 5
 ```
 
 **部署流程说明**：
-- `--build`: 在本地构建后端二进制文件，然后上传到所有节点（只构建一次，所有节点复用）
-- `--frontend`: 在本地构建前端项目（Next.js），然后部署到所有节点（只构建一次，所有节点复用）
-- `--restart`: 重启服务（停止现有服务，然后启动后端，后端启动成功后立即启动前端）
+1. 检查节点连通性和 Docker 安装状态
+2. 检查 Docker 镜像是否存在
+3. 停止并删除现有容器（如果存在）
+4. 上传配置文件到 `~/iarnet/config.yaml`
+5. 创建必要的目录（`~/iarnet/data`、`~/iarnet/workspaces`）
+6. 启动 Docker 容器，配置如下：
+   - 使用 `--network host`：容器与虚拟机共享网络，可直接通过 IP 访问其他虚拟机
+   - 挂载 Docker socket：`-v /var/run/docker.sock:/var/run/docker.sock`，容器可以使用主机的 Docker
+   - 挂载配置文件：`-v $HOME/iarnet/config.yaml:/app/config.yaml:ro`（只读）
+   - 挂载数据目录：`-v $HOME/iarnet/data:/app/data`（持久化存储）
+   - 挂载工作空间：`-v $HOME/iarnet/workspaces:/app/workspaces`（持久化存储）
+   - 挂载日志文件：`-v $HOME/iarnet/iarnet.log:/app/iarnet.log`（实时日志输出）
+   - 环境变量：`USE_HOST_DOCKER=1`（使用主机 Docker，不使用 dind）
 
-**自动启动逻辑**：
-- 部署后端（`--build`）后，**自动启动后端服务**
-- 部署前端（`--frontend`）后，如果后端正在运行，**自动启动前端服务**
-- 使用 `--restart` 时，先停止所有服务，然后启动后端，后端启动成功后立即启动前端
+**容器特性**：
+- **网络模式**：使用主机网络（`--network host`），容器内服务直接监听在虚拟机的端口上
+  - 后端服务：`http://<虚拟机IP>:8083`
+  - 前端服务：`http://<虚拟机IP>:3000`
+- **Docker Socket 挂载**：容器内可以使用主机的 Docker 引擎，无需 Docker-in-Docker
+- **数据持久化**：数据目录挂载在容器外部，删除容器不会丢失数据
+- **日志输出**：容器日志实时输出到 `~/iarnet/iarnet.log` 文件
 
 ### 配置文件说明
 
@@ -381,63 +373,80 @@ python3 deploy/deploy_iarnet.py --nodes 0-10 --install-deps --build --frontend -
 - **database**: 节点特定的数据库路径
 - **logging**: 节点特定的日志配置
 
-### 部署流程
+### 完整部署流程示例
 
-完整部署流程包括以下步骤：
+```bash
+# 1. 生成配置文件
+python3 deploy/generate_iarnet_configs.py --nodes 0-9
 
-1. **生成配置文件**: 为每个节点生成独立的配置文件
-2. **安装依赖**（可选，使用 `--install-deps`）: 使用 Ansible 在虚拟机上安装：
-   - Go 语言环境
-   - gRPC 相关库（libprotobuf-dev, protobuf-compiler等）
-   - ZeroMQ 库（libzmq3-dev, libzmq5, libczmq4等，包括运行时库）
-   - Node.js 和 npm（用于前端）
-   - Docker（可选）
-   - 其他运行时依赖
-3. **本地构建**（可选，使用 `--build` 和 `--frontend`）: 
-   - **后端**: 在本地构建 iarnet 二进制文件（只构建一次，所有节点复用）
-   - **前端**: 在本地构建 Next.js 前端项目（只构建一次，所有节点复用）
-4. **上传文件**: 
-   - 上传配置文件到 `~/iarnet/config.yaml`
-   - 上传二进制文件到 `~/iarnet/iarnet`（如果使用 `--build`）
-   - 上传前端构建产物到 `~/iarnet/web/`（如果使用 `--frontend`）
-5. **自动启动服务**: 
-   - 部署后端后**自动启动后端服务**
-   - 部署前端后，如果后端正在运行，**自动启动前端服务**
-   - 使用 `--restart` 时，先停止所有服务，然后启动后端，后端启动成功后立即启动前端
+# 2. 同步 Docker 镜像（如果还没有同步）
+python3 deploy/sync_iarnet_images.py --nodes 0-9
 
-**重要说明**: 
-- **后端构建**: `--build` 参数会在**本地**构建二进制文件，然后上传到虚拟机。不再在虚拟机上构建，避免虚拟机缺少 Go 环境的问题。
-- **前端构建**: `--frontend` 参数会在**本地**构建前端项目（`npm run build`），然后只上传构建产物（`.next` 目录、`public` 目录、`package.json` 等）到虚拟机。在虚拟机上只安装生产依赖（`npm install --production`），不进行构建。
-- **启动流程**: 
-  - 部署后端 → 立即启动后端
-  - 部署前端 → 检查后端状态 → 如果后端运行中，立即启动前端
-  - 使用 `--restart` → 停止服务 → 启动后端 → 启动前端（如果部署了前端）
-- **超时设置**: 后端启动超时 30 秒，前端启动超时 40 秒，确保服务有足够时间启动
-- 使用 `--install-deps` 可以一次性安装所有依赖（包括前端依赖）
+# 3. 部署并启动容器
+python3 deploy/deploy_iarnet.py --nodes 0-9
+
+# 或者，如果需要重启现有容器
+python3 deploy/deploy_iarnet.py --nodes 0-9 --restart
+```
 
 ### 检查部署状态
 
 ```bash
-# SSH到节点检查后端服务状态
-python3 deploy/ssh_vm.py vm-iarnet-01 "ps aux | grep iarnet"
+# 检查容器状态
+python3 deploy/ssh_vm.py vm-iarnet-01 "docker ps | grep iarnet"
 
-# SSH到节点检查前端服务状态
-python3 deploy/ssh_vm.py vm-iarnet-01 "ps aux | grep 'next start'"
+# 检查容器日志
+python3 deploy/ssh_vm.py vm-iarnet-01 "docker logs iarnet-vm-iarnet-01 --tail 50"
 
-# 检查后端日志
+# 检查实时日志文件
 python3 deploy/ssh_vm.py vm-iarnet-01 "tail -f ~/iarnet/iarnet.log"
-
-# 检查前端日志
-python3 deploy/ssh_vm.py vm-iarnet-01 "tail -f ~/iarnet/web.log"
 
 # 检查配置文件
 python3 deploy/ssh_vm.py vm-iarnet-01 "cat ~/iarnet/config.yaml"
+
+# 检查数据目录
+python3 deploy/ssh_vm.py vm-iarnet-01 "ls -la ~/iarnet/data"
 
 # 检查前端访问（前端默认端口 3000）
 curl http://192.168.100.10:3000
 
 # 检查后端访问（后端默认端口 8083）
 curl http://192.168.100.10:8083
+```
+
+### 管理容器
+
+```bash
+# 停止容器
+python3 deploy/ssh_vm.py vm-iarnet-01 "docker stop iarnet-vm-iarnet-01"
+
+# 启动容器
+python3 deploy/ssh_vm.py vm-iarnet-01 "docker start iarnet-vm-iarnet-01"
+
+# 重启容器
+python3 deploy/ssh_vm.py vm-iarnet-01 "docker restart iarnet-vm-iarnet-01"
+
+# 删除容器（数据不会丢失，因为数据目录在容器外部）
+python3 deploy/ssh_vm.py vm-iarnet-01 "docker rm -f iarnet-vm-iarnet-01"
+
+# 查看容器详细信息
+python3 deploy/ssh_vm.py vm-iarnet-01 "docker inspect iarnet-vm-iarnet-01"
+```
+
+### 在虚拟机上安装 Docker（如果需要）
+
+如果虚拟机没有安装 Docker，可以使用 Ansible 批量安装：
+
+```bash
+cd deploy/ansible
+ansible-playbook playbooks/install-docker.yml --limit iarnet
+```
+
+或者使用便捷脚本：
+
+```bash
+cd deploy/ansible
+./install-docker.sh
 ```
 
 ## 使用 Ansible 批量管理

@@ -24,6 +24,7 @@ const (
 	Service_GetCapacity_FullMethodName      = "/resource.provider.Service/GetCapacity"
 	Service_GetAvailable_FullMethodName     = "/resource.provider.Service/GetAvailable"
 	Service_Deploy_FullMethodName           = "/resource.provider.Service/Deploy"
+	Service_Undeploy_FullMethodName         = "/resource.provider.Service/Undeploy"
 	Service_HealthCheck_FullMethodName      = "/resource.provider.Service/HealthCheck"
 	Service_GetRealTimeUsage_FullMethodName = "/resource.provider.Service/GetRealTimeUsage"
 )
@@ -37,6 +38,7 @@ type ServiceClient interface {
 	GetCapacity(ctx context.Context, in *GetCapacityRequest, opts ...grpc.CallOption) (*GetCapacityResponse, error)
 	GetAvailable(ctx context.Context, in *GetAvailableRequest, opts ...grpc.CallOption) (*GetAvailableResponse, error)
 	Deploy(ctx context.Context, in *DeployRequest, opts ...grpc.CallOption) (*DeployResponse, error)
+	Undeploy(ctx context.Context, in *UndeployRequest, opts ...grpc.CallOption) (*UndeployResponse, error)
 	HealthCheck(ctx context.Context, in *HealthCheckRequest, opts ...grpc.CallOption) (*HealthCheckResponse, error)
 	GetRealTimeUsage(ctx context.Context, in *GetRealTimeUsageRequest, opts ...grpc.CallOption) (*GetRealTimeUsageResponse, error)
 }
@@ -99,6 +101,16 @@ func (c *serviceClient) Deploy(ctx context.Context, in *DeployRequest, opts ...g
 	return out, nil
 }
 
+func (c *serviceClient) Undeploy(ctx context.Context, in *UndeployRequest, opts ...grpc.CallOption) (*UndeployResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UndeployResponse)
+	err := c.cc.Invoke(ctx, Service_Undeploy_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *serviceClient) HealthCheck(ctx context.Context, in *HealthCheckRequest, opts ...grpc.CallOption) (*HealthCheckResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(HealthCheckResponse)
@@ -128,6 +140,7 @@ type ServiceServer interface {
 	GetCapacity(context.Context, *GetCapacityRequest) (*GetCapacityResponse, error)
 	GetAvailable(context.Context, *GetAvailableRequest) (*GetAvailableResponse, error)
 	Deploy(context.Context, *DeployRequest) (*DeployResponse, error)
+	Undeploy(context.Context, *UndeployRequest) (*UndeployResponse, error)
 	HealthCheck(context.Context, *HealthCheckRequest) (*HealthCheckResponse, error)
 	GetRealTimeUsage(context.Context, *GetRealTimeUsageRequest) (*GetRealTimeUsageResponse, error)
 	mustEmbedUnimplementedServiceServer()
@@ -154,6 +167,9 @@ func (UnimplementedServiceServer) GetAvailable(context.Context, *GetAvailableReq
 }
 func (UnimplementedServiceServer) Deploy(context.Context, *DeployRequest) (*DeployResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Deploy not implemented")
+}
+func (UnimplementedServiceServer) Undeploy(context.Context, *UndeployRequest) (*UndeployResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Undeploy not implemented")
 }
 func (UnimplementedServiceServer) HealthCheck(context.Context, *HealthCheckRequest) (*HealthCheckResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method HealthCheck not implemented")
@@ -272,6 +288,24 @@ func _Service_Deploy_Handler(srv interface{}, ctx context.Context, dec func(inte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Service_Undeploy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UndeployRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ServiceServer).Undeploy(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Service_Undeploy_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ServiceServer).Undeploy(ctx, req.(*UndeployRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Service_HealthCheck_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(HealthCheckRequest)
 	if err := dec(in); err != nil {
@@ -334,6 +368,10 @@ var Service_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Deploy",
 			Handler:    _Service_Deploy_Handler,
+		},
+		{
+			MethodName: "Undeploy",
+			Handler:    _Service_Undeploy_Handler,
 		},
 		{
 			MethodName: "HealthCheck",

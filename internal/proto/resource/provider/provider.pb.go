@@ -466,6 +466,102 @@ func (x *DeployResponse) GetError() string {
 	return ""
 }
 
+type UndeployRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	InstanceId    string                 `protobuf:"bytes,1,opt,name=instance_id,json=instanceId,proto3" json:"instance_id,omitempty"`
+	ProviderId    string                 `protobuf:"bytes,2,opt,name=provider_id,json=providerId,proto3" json:"provider_id,omitempty"` // 可选的 provider_id，用于鉴权
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UndeployRequest) Reset() {
+	*x = UndeployRequest{}
+	mi := &file_resource_provider_provider_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UndeployRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UndeployRequest) ProtoMessage() {}
+
+func (x *UndeployRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_resource_provider_provider_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UndeployRequest.ProtoReflect.Descriptor instead.
+func (*UndeployRequest) Descriptor() ([]byte, []int) {
+	return file_resource_provider_provider_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *UndeployRequest) GetInstanceId() string {
+	if x != nil {
+		return x.InstanceId
+	}
+	return ""
+}
+
+func (x *UndeployRequest) GetProviderId() string {
+	if x != nil {
+		return x.ProviderId
+	}
+	return ""
+}
+
+type UndeployResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Error         string                 `protobuf:"bytes,1,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UndeployResponse) Reset() {
+	*x = UndeployResponse{}
+	mi := &file_resource_provider_provider_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UndeployResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UndeployResponse) ProtoMessage() {}
+
+func (x *UndeployResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_resource_provider_provider_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UndeployResponse.ProtoReflect.Descriptor instead.
+func (*UndeployResponse) Descriptor() ([]byte, []int) {
+	return file_resource_provider_provider_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *UndeployResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
 type HealthCheckRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ProviderId    string                 `protobuf:"bytes,1,opt,name=provider_id,json=providerId,proto3" json:"provider_id,omitempty"` // 可选的 provider_id，用于鉴权
@@ -475,7 +571,7 @@ type HealthCheckRequest struct {
 
 func (x *HealthCheckRequest) Reset() {
 	*x = HealthCheckRequest{}
-	mi := &file_resource_provider_provider_proto_msgTypes[9]
+	mi := &file_resource_provider_provider_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -487,7 +583,7 @@ func (x *HealthCheckRequest) String() string {
 func (*HealthCheckRequest) ProtoMessage() {}
 
 func (x *HealthCheckRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_provider_provider_proto_msgTypes[9]
+	mi := &file_resource_provider_provider_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -500,7 +596,7 @@ func (x *HealthCheckRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthCheckRequest.ProtoReflect.Descriptor instead.
 func (*HealthCheckRequest) Descriptor() ([]byte, []int) {
-	return file_resource_provider_provider_proto_rawDescGZIP(), []int{9}
+	return file_resource_provider_provider_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *HealthCheckRequest) GetProviderId() string {
@@ -523,7 +619,7 @@ type ResourceTags struct {
 
 func (x *ResourceTags) Reset() {
 	*x = ResourceTags{}
-	mi := &file_resource_provider_provider_proto_msgTypes[10]
+	mi := &file_resource_provider_provider_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -535,7 +631,7 @@ func (x *ResourceTags) String() string {
 func (*ResourceTags) ProtoMessage() {}
 
 func (x *ResourceTags) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_provider_provider_proto_msgTypes[10]
+	mi := &file_resource_provider_provider_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -548,7 +644,7 @@ func (x *ResourceTags) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResourceTags.ProtoReflect.Descriptor instead.
 func (*ResourceTags) Descriptor() ([]byte, []int) {
-	return file_resource_provider_provider_proto_rawDescGZIP(), []int{10}
+	return file_resource_provider_provider_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ResourceTags) GetCpu() bool {
@@ -589,7 +685,7 @@ type HealthCheckResponse struct {
 
 func (x *HealthCheckResponse) Reset() {
 	*x = HealthCheckResponse{}
-	mi := &file_resource_provider_provider_proto_msgTypes[11]
+	mi := &file_resource_provider_provider_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -601,7 +697,7 @@ func (x *HealthCheckResponse) String() string {
 func (*HealthCheckResponse) ProtoMessage() {}
 
 func (x *HealthCheckResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_provider_provider_proto_msgTypes[11]
+	mi := &file_resource_provider_provider_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -614,7 +710,7 @@ func (x *HealthCheckResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthCheckResponse.ProtoReflect.Descriptor instead.
 func (*HealthCheckResponse) Descriptor() ([]byte, []int) {
-	return file_resource_provider_provider_proto_rawDescGZIP(), []int{11}
+	return file_resource_provider_provider_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *HealthCheckResponse) GetCapacity() *resource.Capacity {
@@ -640,7 +736,7 @@ type DisconnectRequest struct {
 
 func (x *DisconnectRequest) Reset() {
 	*x = DisconnectRequest{}
-	mi := &file_resource_provider_provider_proto_msgTypes[12]
+	mi := &file_resource_provider_provider_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -652,7 +748,7 @@ func (x *DisconnectRequest) String() string {
 func (*DisconnectRequest) ProtoMessage() {}
 
 func (x *DisconnectRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_provider_provider_proto_msgTypes[12]
+	mi := &file_resource_provider_provider_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -665,7 +761,7 @@ func (x *DisconnectRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DisconnectRequest.ProtoReflect.Descriptor instead.
 func (*DisconnectRequest) Descriptor() ([]byte, []int) {
-	return file_resource_provider_provider_proto_rawDescGZIP(), []int{12}
+	return file_resource_provider_provider_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *DisconnectRequest) GetProviderId() string {
@@ -683,7 +779,7 @@ type DisconnectResponse struct {
 
 func (x *DisconnectResponse) Reset() {
 	*x = DisconnectResponse{}
-	mi := &file_resource_provider_provider_proto_msgTypes[13]
+	mi := &file_resource_provider_provider_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -695,7 +791,7 @@ func (x *DisconnectResponse) String() string {
 func (*DisconnectResponse) ProtoMessage() {}
 
 func (x *DisconnectResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_provider_provider_proto_msgTypes[13]
+	mi := &file_resource_provider_provider_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -708,7 +804,7 @@ func (x *DisconnectResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DisconnectResponse.ProtoReflect.Descriptor instead.
 func (*DisconnectResponse) Descriptor() ([]byte, []int) {
-	return file_resource_provider_provider_proto_rawDescGZIP(), []int{13}
+	return file_resource_provider_provider_proto_rawDescGZIP(), []int{15}
 }
 
 type GetRealTimeUsageRequest struct {
@@ -720,7 +816,7 @@ type GetRealTimeUsageRequest struct {
 
 func (x *GetRealTimeUsageRequest) Reset() {
 	*x = GetRealTimeUsageRequest{}
-	mi := &file_resource_provider_provider_proto_msgTypes[14]
+	mi := &file_resource_provider_provider_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -732,7 +828,7 @@ func (x *GetRealTimeUsageRequest) String() string {
 func (*GetRealTimeUsageRequest) ProtoMessage() {}
 
 func (x *GetRealTimeUsageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_provider_provider_proto_msgTypes[14]
+	mi := &file_resource_provider_provider_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -745,7 +841,7 @@ func (x *GetRealTimeUsageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetRealTimeUsageRequest.ProtoReflect.Descriptor instead.
 func (*GetRealTimeUsageRequest) Descriptor() ([]byte, []int) {
-	return file_resource_provider_provider_proto_rawDescGZIP(), []int{14}
+	return file_resource_provider_provider_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *GetRealTimeUsageRequest) GetProviderId() string {
@@ -764,7 +860,7 @@ type GetRealTimeUsageResponse struct {
 
 func (x *GetRealTimeUsageResponse) Reset() {
 	*x = GetRealTimeUsageResponse{}
-	mi := &file_resource_provider_provider_proto_msgTypes[15]
+	mi := &file_resource_provider_provider_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -776,7 +872,7 @@ func (x *GetRealTimeUsageResponse) String() string {
 func (*GetRealTimeUsageResponse) ProtoMessage() {}
 
 func (x *GetRealTimeUsageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_resource_provider_provider_proto_msgTypes[15]
+	mi := &file_resource_provider_provider_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -789,7 +885,7 @@ func (x *GetRealTimeUsageResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetRealTimeUsageResponse.ProtoReflect.Descriptor instead.
 func (*GetRealTimeUsageResponse) Descriptor() ([]byte, []int) {
-	return file_resource_provider_provider_proto_rawDescGZIP(), []int{15}
+	return file_resource_provider_provider_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *GetRealTimeUsageResponse) GetUsage() *resource.Info {
@@ -835,6 +931,13 @@ const file_resource_provider_provider_proto_rawDesc = "" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"&\n" +
 	"\x0eDeployResponse\x12\x14\n" +
+	"\x05error\x18\x01 \x01(\tR\x05error\"S\n" +
+	"\x0fUndeployRequest\x12\x1f\n" +
+	"\vinstance_id\x18\x01 \x01(\tR\n" +
+	"instanceId\x12\x1f\n" +
+	"\vprovider_id\x18\x02 \x01(\tR\n" +
+	"providerId\"(\n" +
+	"\x10UndeployResponse\x12\x14\n" +
 	"\x05error\x18\x01 \x01(\tR\x05error\"5\n" +
 	"\x12HealthCheckRequest\x12\x1f\n" +
 	"\vprovider_id\x18\x01 \x01(\tR\n" +
@@ -855,14 +958,15 @@ const file_resource_provider_provider_proto_rawDesc = "" +
 	"\vprovider_id\x18\x01 \x01(\tR\n" +
 	"providerId\"@\n" +
 	"\x18GetRealTimeUsageResponse\x12$\n" +
-	"\x05usage\x18\x01 \x01(\v2\x0e.resource.InfoR\x05usage2\x8f\x05\n" +
+	"\x05usage\x18\x01 \x01(\v2\x0e.resource.InfoR\x05usage2\xe4\x05\n" +
 	"\aService\x12P\n" +
 	"\aConnect\x12!.resource.provider.ConnectRequest\x1a\".resource.provider.ConnectResponse\x12Y\n" +
 	"\n" +
 	"Disconnect\x12$.resource.provider.DisconnectRequest\x1a%.resource.provider.DisconnectResponse\x12\\\n" +
 	"\vGetCapacity\x12%.resource.provider.GetCapacityRequest\x1a&.resource.provider.GetCapacityResponse\x12_\n" +
 	"\fGetAvailable\x12&.resource.provider.GetAvailableRequest\x1a'.resource.provider.GetAvailableResponse\x12M\n" +
-	"\x06Deploy\x12 .resource.provider.DeployRequest\x1a!.resource.provider.DeployResponse\x12\\\n" +
+	"\x06Deploy\x12 .resource.provider.DeployRequest\x1a!.resource.provider.DeployResponse\x12S\n" +
+	"\bUndeploy\x12\".resource.provider.UndeployRequest\x1a#.resource.provider.UndeployResponse\x12\\\n" +
 	"\vHealthCheck\x12%.resource.provider.HealthCheckRequest\x1a&.resource.provider.HealthCheckResponse\x12k\n" +
 	"\x10GetRealTimeUsage\x12*.resource.provider.GetRealTimeUsageRequest\x1a+.resource.provider.GetRealTimeUsageResponseB<Z:github.com/9triver/iarnet/internal/proto/resource/providerb\x06proto3"
 
@@ -878,7 +982,7 @@ func file_resource_provider_provider_proto_rawDescGZIP() []byte {
 	return file_resource_provider_provider_proto_rawDescData
 }
 
-var file_resource_provider_provider_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
+var file_resource_provider_provider_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
 var file_resource_provider_provider_proto_goTypes = []any{
 	(*ProviderType)(nil),             // 0: resource.provider.ProviderType
 	(*ConnectRequest)(nil),           // 1: resource.provider.ConnectRequest
@@ -889,42 +993,46 @@ var file_resource_provider_provider_proto_goTypes = []any{
 	(*GetAvailableResponse)(nil),     // 6: resource.provider.GetAvailableResponse
 	(*DeployRequest)(nil),            // 7: resource.provider.DeployRequest
 	(*DeployResponse)(nil),           // 8: resource.provider.DeployResponse
-	(*HealthCheckRequest)(nil),       // 9: resource.provider.HealthCheckRequest
-	(*ResourceTags)(nil),             // 10: resource.provider.ResourceTags
-	(*HealthCheckResponse)(nil),      // 11: resource.provider.HealthCheckResponse
-	(*DisconnectRequest)(nil),        // 12: resource.provider.DisconnectRequest
-	(*DisconnectResponse)(nil),       // 13: resource.provider.DisconnectResponse
-	(*GetRealTimeUsageRequest)(nil),  // 14: resource.provider.GetRealTimeUsageRequest
-	(*GetRealTimeUsageResponse)(nil), // 15: resource.provider.GetRealTimeUsageResponse
-	nil,                              // 16: resource.provider.DeployRequest.EnvVarsEntry
-	(*resource.Capacity)(nil),        // 17: resource.Capacity
-	(*resource.Info)(nil),            // 18: resource.Info
+	(*UndeployRequest)(nil),          // 9: resource.provider.UndeployRequest
+	(*UndeployResponse)(nil),         // 10: resource.provider.UndeployResponse
+	(*HealthCheckRequest)(nil),       // 11: resource.provider.HealthCheckRequest
+	(*ResourceTags)(nil),             // 12: resource.provider.ResourceTags
+	(*HealthCheckResponse)(nil),      // 13: resource.provider.HealthCheckResponse
+	(*DisconnectRequest)(nil),        // 14: resource.provider.DisconnectRequest
+	(*DisconnectResponse)(nil),       // 15: resource.provider.DisconnectResponse
+	(*GetRealTimeUsageRequest)(nil),  // 16: resource.provider.GetRealTimeUsageRequest
+	(*GetRealTimeUsageResponse)(nil), // 17: resource.provider.GetRealTimeUsageResponse
+	nil,                              // 18: resource.provider.DeployRequest.EnvVarsEntry
+	(*resource.Capacity)(nil),        // 19: resource.Capacity
+	(*resource.Info)(nil),            // 20: resource.Info
 }
 var file_resource_provider_provider_proto_depIdxs = []int32{
 	0,  // 0: resource.provider.ConnectResponse.provider_type:type_name -> resource.provider.ProviderType
-	17, // 1: resource.provider.GetCapacityResponse.capacity:type_name -> resource.Capacity
-	18, // 2: resource.provider.GetAvailableResponse.available:type_name -> resource.Info
-	18, // 3: resource.provider.DeployRequest.resource_request:type_name -> resource.Info
-	16, // 4: resource.provider.DeployRequest.env_vars:type_name -> resource.provider.DeployRequest.EnvVarsEntry
-	17, // 5: resource.provider.HealthCheckResponse.capacity:type_name -> resource.Capacity
-	10, // 6: resource.provider.HealthCheckResponse.resource_tags:type_name -> resource.provider.ResourceTags
-	18, // 7: resource.provider.GetRealTimeUsageResponse.usage:type_name -> resource.Info
+	19, // 1: resource.provider.GetCapacityResponse.capacity:type_name -> resource.Capacity
+	20, // 2: resource.provider.GetAvailableResponse.available:type_name -> resource.Info
+	20, // 3: resource.provider.DeployRequest.resource_request:type_name -> resource.Info
+	18, // 4: resource.provider.DeployRequest.env_vars:type_name -> resource.provider.DeployRequest.EnvVarsEntry
+	19, // 5: resource.provider.HealthCheckResponse.capacity:type_name -> resource.Capacity
+	12, // 6: resource.provider.HealthCheckResponse.resource_tags:type_name -> resource.provider.ResourceTags
+	20, // 7: resource.provider.GetRealTimeUsageResponse.usage:type_name -> resource.Info
 	1,  // 8: resource.provider.Service.Connect:input_type -> resource.provider.ConnectRequest
-	12, // 9: resource.provider.Service.Disconnect:input_type -> resource.provider.DisconnectRequest
+	14, // 9: resource.provider.Service.Disconnect:input_type -> resource.provider.DisconnectRequest
 	3,  // 10: resource.provider.Service.GetCapacity:input_type -> resource.provider.GetCapacityRequest
 	5,  // 11: resource.provider.Service.GetAvailable:input_type -> resource.provider.GetAvailableRequest
 	7,  // 12: resource.provider.Service.Deploy:input_type -> resource.provider.DeployRequest
-	9,  // 13: resource.provider.Service.HealthCheck:input_type -> resource.provider.HealthCheckRequest
-	14, // 14: resource.provider.Service.GetRealTimeUsage:input_type -> resource.provider.GetRealTimeUsageRequest
-	2,  // 15: resource.provider.Service.Connect:output_type -> resource.provider.ConnectResponse
-	13, // 16: resource.provider.Service.Disconnect:output_type -> resource.provider.DisconnectResponse
-	4,  // 17: resource.provider.Service.GetCapacity:output_type -> resource.provider.GetCapacityResponse
-	6,  // 18: resource.provider.Service.GetAvailable:output_type -> resource.provider.GetAvailableResponse
-	8,  // 19: resource.provider.Service.Deploy:output_type -> resource.provider.DeployResponse
-	11, // 20: resource.provider.Service.HealthCheck:output_type -> resource.provider.HealthCheckResponse
-	15, // 21: resource.provider.Service.GetRealTimeUsage:output_type -> resource.provider.GetRealTimeUsageResponse
-	15, // [15:22] is the sub-list for method output_type
-	8,  // [8:15] is the sub-list for method input_type
+	9,  // 13: resource.provider.Service.Undeploy:input_type -> resource.provider.UndeployRequest
+	11, // 14: resource.provider.Service.HealthCheck:input_type -> resource.provider.HealthCheckRequest
+	16, // 15: resource.provider.Service.GetRealTimeUsage:input_type -> resource.provider.GetRealTimeUsageRequest
+	2,  // 16: resource.provider.Service.Connect:output_type -> resource.provider.ConnectResponse
+	15, // 17: resource.provider.Service.Disconnect:output_type -> resource.provider.DisconnectResponse
+	4,  // 18: resource.provider.Service.GetCapacity:output_type -> resource.provider.GetCapacityResponse
+	6,  // 19: resource.provider.Service.GetAvailable:output_type -> resource.provider.GetAvailableResponse
+	8,  // 20: resource.provider.Service.Deploy:output_type -> resource.provider.DeployResponse
+	10, // 21: resource.provider.Service.Undeploy:output_type -> resource.provider.UndeployResponse
+	13, // 22: resource.provider.Service.HealthCheck:output_type -> resource.provider.HealthCheckResponse
+	17, // 23: resource.provider.Service.GetRealTimeUsage:output_type -> resource.provider.GetRealTimeUsageResponse
+	16, // [16:24] is the sub-list for method output_type
+	8,  // [8:16] is the sub-list for method input_type
 	8,  // [8:8] is the sub-list for extension type_name
 	8,  // [8:8] is the sub-list for extension extendee
 	0,  // [0:8] is the sub-list for field type_name
@@ -941,7 +1049,7 @@ func file_resource_provider_provider_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_resource_provider_provider_proto_rawDesc), len(file_resource_provider_provider_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   17,
+			NumMessages:   19,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -21,12 +21,13 @@ const baseNavigation = [
     icon: Package,
     description: "导入和部署应用",
   },
-  {
-    name: "状态监控",
-    href: "/status",
-    icon: Activity,
-    description: "监控本地资源运行状态",
-  },
+  // 状态监控功能暂时移除（功能有问题）
+  // {
+  //   name: "状态监控",
+  //   href: "/status",
+  //   icon: Activity,
+  //   description: "监控本地资源运行状态",
+  // },
 ]
 
 export function Sidebar() {

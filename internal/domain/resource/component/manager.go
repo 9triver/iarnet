@@ -12,6 +12,9 @@ import (
 
 type Manager interface {
 	AddComponent(ctx context.Context, component *Component) error
+	GetComponent(componentID string) *Component
+	GetAllComponents() []*Component
+	RemoveComponent(ctx context.Context, componentID string) error
 	Start(ctx context.Context) error
 	SetChanneler(channeler Channeler) // 用于后续注入真正的 channeler
 }
@@ -73,6 +76,33 @@ func (m *manager) AddComponent(ctx context.Context, component *Component) error 
 	defer m.mu.Unlock()
 	m.components[component.GetID()] = component
 
+	return nil
+}
+
+func (m *manager) GetComponent(componentID string) *Component {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.components[componentID]
+}
+
+func (m *manager) GetAllComponents() []*Component {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	components := make([]*Component, 0, len(m.components))
+	for _, comp := range m.components {
+		components = append(components, comp)
+	}
+	return components
+}
+
+func (m *manager) RemoveComponent(ctx context.Context, componentID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, ok := m.components[componentID]; !ok {
+		return fmt.Errorf("component %s not found", componentID)
+	}
+	delete(m.components, componentID)
+	logrus.Infof("Removed component %s from manager", componentID)
 	return nil
 }
 

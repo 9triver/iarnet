@@ -74,6 +74,12 @@ func bootstrapApplication(iarnet *Iarnet) error {
 		SetApplicationMetadataService(metadataService).
 		SetIgnisPlatform(iarnet.IgnisPlatform).
 		SetApplicationLoggerService(loggerService)
+
+	// 注入 Resource Manager（用于资源清理）
+	if iarnet.ResourceManager != nil {
+		appManager.SetResourceManager(iarnet.ResourceManager)
+	}
+
 	iarnet.ApplicationManager = appManager
 
 	logrus.Info("Application module initialized")

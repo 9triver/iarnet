@@ -390,6 +390,95 @@ func (s *Service) Deploy(ctx context.Context, req *providerpb.DeployRequest) (*p
 	}, nil
 }
 
+// Undeploy 移除已部署的 component（删除 Pod）
+func (s *Service) Undeploy(ctx context.Context, req *providerpb.UndeployRequest) (*providerpb.UndeployResponse, error) {
+	// 鉴权：Undeploy 必须验证 provider_id，不允许未连接的 provider 移除
+	if err := s.checkAuth(req.ProviderId, false); err != nil {
+		return &providerpb.UndeployResponse{
+			Error: fmt.Sprintf("authentication failed: %v", err),
+		}, nil
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"instance_id": req.InstanceId,
+	}).Info("k8s provider undeploy component")
+
+	// 检查 Kubernetes 客户端是否可用
+	if s.clientset == nil {
+		logrus.Warnf("Kubernetes client is not available (test mode), cannot undeploy Pod")
+		return &providerpb.UndeployResponse{
+			Error: "Kubernetes client is not available (test mode)",
+		}, nil
+	}
+
+	// 将 instance_id 转换为符合 RFC 1123 规范的 Pod 名称
+	podName := sanitizePodName(req.InstanceId)
+
+	// 先尝试通过 Pod 名称查找 Pod
+	pod, err := s.clientset.CoreV1().Pods(s.namespace).Get(ctx, podName, metav1.GetOptions{})
+	if err != nil {
+		// Pod 不存在，尝试通过标签查找（因为 instance_id 可能被转换，导致名称不匹配）
+		labelSelector := fmt.Sprintf("iarnet.instance_id=%s,iarnet.provider_id=%s,iarnet.managed=true", req.InstanceId, req.ProviderId)
+		pods, listErr := s.clientset.CoreV1().Pods(s.namespace).List(ctx, metav1.ListOptions{
+			LabelSelector: labelSelector,
+		})
+		if listErr != nil || len(pods.Items) == 0 {
+			logrus.Warnf("Pod not found for instance_id: %s (pod name: %s)", req.InstanceId, podName)
+			// Pod 不存在，返回成功（幂等性）
+			return &providerpb.UndeployResponse{
+				Error: "",
+			}, nil
+		}
+		// 使用找到的第一个 Pod
+		pod = &pods.Items[0]
+		podName = pod.Name
+	}
+
+	// 获取 Pod 的资源使用情况（用于释放资源）
+	var cpu int64
+	var memory int64
+	var gpu int64
+
+	for _, container := range pod.Spec.Containers {
+		// CPU 请求（millicores）
+		if cpuReq, ok := container.Resources.Requests[corev1.ResourceCPU]; ok {
+			cpu += cpuReq.MilliValue()
+		}
+		// 内存请求（bytes）
+		if memReq, ok := container.Resources.Requests[corev1.ResourceMemory]; ok {
+			memory += memReq.Value()
+		}
+		// GPU 请求
+		if gpuReq, ok := container.Resources.Requests["nvidia.com/gpu"]; ok {
+			gpu += gpuReq.Value()
+		}
+	}
+
+	// 释放资源
+	if cpu > 0 || memory > 0 || gpu > 0 {
+		s.ReleaseResources(cpu, memory, gpu)
+	}
+
+	// 删除 Pod
+	err = s.clientset.CoreV1().Pods(s.namespace).Delete(ctx, podName, metav1.DeleteOptions{
+		GracePeriodSeconds: func() *int64 {
+			gracePeriod := int64(30) // 30 秒优雅关闭时间
+			return &gracePeriod
+		}(),
+	})
+	if err != nil {
+		logrus.Errorf("Failed to delete Pod %s/%s: %v", s.namespace, podName, err)
+		return &providerpb.UndeployResponse{
+			Error: fmt.Sprintf("failed to delete pod: %v", err),
+		}, nil
+	}
+
+	logrus.Infof("Pod undeployed successfully: %s/%s", s.namespace, podName)
+	return &providerpb.UndeployResponse{
+		Error: "",
+	}, nil
+}
+
 // sanitizePodName 将名称转换为符合 RFC 1123 规范的 Kubernetes 资源名称
 // RFC 1123 规范：只能包含小写字母、数字、'-' 或 '.'，必须以字母或数字开头和结尾
 func sanitizePodName(name string) string {
