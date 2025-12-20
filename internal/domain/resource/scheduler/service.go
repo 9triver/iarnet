@@ -21,6 +21,21 @@ type Service interface {
 
 	// GetDeploymentStatus 获取部署状态
 	GetDeploymentStatus(ctx context.Context, componentID string, nodeID string) (*DeploymentStatus, error)
+
+	// ProposeLocalSchedule 在当前节点执行一次“只调度不部署”的本地调度
+	// 调用方只会拿到当前节点选中的本地 provider 及其可用资源信息，不会触发实际部署。
+	ProposeLocalSchedule(ctx context.Context, req *types.Info) (*LocalScheduleResult, error)
+
+	// CommitLocalSchedule 根据之前 ProposeLocalSchedule 返回的调度结果，在当前节点上确认部署
+	// 这是一个两阶段提交的第二阶段：第一阶段只做调度，第二阶段真正执行部署
+	CommitLocalSchedule(ctx context.Context, req *CommitLocalScheduleRequest) (*DeployResponse, error)
+
+	// ProposeRemoteSchedule 在远程节点执行一次“只调度不部署”的调度
+	// 返回远程节点选中的 provider 及其可用资源信息
+	ProposeRemoteSchedule(ctx context.Context, targetNodeID string, targetAddress string, req *types.Info) (*LocalScheduleResult, error)
+
+	// CommitRemoteSchedule 在远程节点上确认部署（两阶段提交的第二阶段）
+	CommitRemoteSchedule(ctx context.Context, targetNodeID string, targetAddress string, req *CommitLocalScheduleRequest) (*DeployResponse, error)
 }
 
 // DeployRequest 部署请求
@@ -52,6 +67,29 @@ type DeploymentStatus struct {
 	Component *component.Component
 }
 
+// LocalScheduleResult 表示在当前节点内做出的调度结果（不触发实际部署）
+type LocalScheduleResult struct {
+	// 当前节点信息
+	NodeID   string
+	NodeName string
+
+	// 被选中的本地 Provider ID
+	ProviderID string
+
+	// Provider 当前可用资源视图
+	Available *types.Info
+}
+
+// CommitLocalScheduleRequest 确认部署请求
+type CommitLocalScheduleRequest struct {
+	RuntimeEnv            types.RuntimeEnv
+	ResourceRequest       *types.Info
+	ProviderID            string // 从 ProposeLocalSchedule 返回的调度结果中获取
+	UpstreamZMQAddress    string
+	UpstreamStoreAddress  string
+	UpstreamLoggerAddress string
+}
+
 // ComponentStatus Component 状态
 type ComponentStatus int32
 
@@ -70,6 +108,12 @@ type service struct {
 		DeployComponent(ctx context.Context, runtimeEnv types.RuntimeEnv, resourceRequest *types.Info) (*component.Component, error)
 		GetNodeID() string
 		GetNodeName() string
+
+		// 只做本地调度、不做部署（由 resource.Manager 提供）
+		ScheduleLocalProvider(ctx context.Context, resourceRequest *types.Info) (*LocalScheduleResult, error)
+
+		// 在指定 provider 上部署（用于两阶段提交的第二阶段）
+		DeployComponentOnProvider(ctx context.Context, runtimeEnv types.RuntimeEnv, resourceRequest *types.Info, providerID string) (*component.Component, error)
 	}
 
 	// Discovery 服务（用于查找远程节点）
@@ -82,6 +126,12 @@ func NewService(
 		DeployComponent(ctx context.Context, runtimeEnv types.RuntimeEnv, resourceRequest *types.Info) (*component.Component, error)
 		GetNodeID() string
 		GetNodeName() string
+
+		// 只做本地调度、不做部署（由 resource.Manager 提供）
+		ScheduleLocalProvider(ctx context.Context, resourceRequest *types.Info) (*LocalScheduleResult, error)
+
+		// 在指定 provider 上部署（用于两阶段提交的第二阶段）
+		DeployComponentOnProvider(ctx context.Context, runtimeEnv types.RuntimeEnv, resourceRequest *types.Info, providerID string) (*component.Component, error)
 	},
 	discoveryService discovery.Service,
 ) Service {
@@ -214,6 +264,267 @@ func (s *service) deployRemotely(ctx context.Context, req *DeployRequest) (*Depl
 		return &DeployResponse{
 			Success: false,
 			Error:   fmt.Sprintf("failed to deploy on remote node: %v", err),
+		}, nil
+	}
+
+	if !protoResp.Success {
+		return &DeployResponse{
+			Success: false,
+			Error:   protoResp.Error,
+		}, nil
+	}
+
+	comp := convertComponentInfoFromProto(protoResp.Component)
+	if comp != nil {
+		comp.SetProviderID(protoResp.ProviderId)
+	}
+
+	return &DeployResponse{
+		Success:    true,
+		Component:  comp,
+		NodeID:     protoResp.NodeId,
+		NodeName:   protoResp.NodeName,
+		ProviderID: protoResp.ProviderId,
+	}, nil
+}
+
+// ProposeLocalSchedule 在当前节点执行一次“只调度不部署”的本地调度
+func (s *service) ProposeLocalSchedule(ctx context.Context, req *types.Info) (*LocalScheduleResult, error) {
+	if req == nil {
+		return nil, fmt.Errorf("resource request is required")
+	}
+
+	// 直接复用本地资源管理器中的调度逻辑（不触发部署）
+	result, err := s.localResourceManager.ScheduleLocalProvider(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to schedule local provider: %w", err)
+	}
+	if result == nil {
+		return nil, fmt.Errorf("local schedule result is nil")
+	}
+
+	return &LocalScheduleResult{
+		NodeID:     s.localResourceManager.GetNodeID(),
+		NodeName:   s.localResourceManager.GetNodeName(),
+		ProviderID: result.ProviderID,
+		Available:  result.Available,
+	}, nil
+}
+
+// CommitLocalSchedule 根据之前 ProposeLocalSchedule 返回的调度结果，在当前节点上确认部署
+func (s *service) CommitLocalSchedule(ctx context.Context, req *CommitLocalScheduleRequest) (*DeployResponse, error) {
+	if req == nil {
+		return &DeployResponse{
+			Success: false,
+			Error:   "request is required",
+		}, nil
+	}
+
+	if req.ResourceRequest == nil {
+		return &DeployResponse{
+			Success: false,
+			Error:   "resource request is required",
+		}, nil
+	}
+
+	if req.ProviderID == "" {
+		return &DeployResponse{
+			Success: false,
+			Error:   "provider ID is required",
+		}, nil
+	}
+
+	// 设置上游地址（如果提供）
+	localCtx := ctx
+	if req.UpstreamZMQAddress != "" || req.UpstreamStoreAddress != "" || req.UpstreamLoggerAddress != "" {
+		override := &provider.DeploymentEnvOverride{
+			ZMQAddress:    req.UpstreamZMQAddress,
+			StoreAddress:  req.UpstreamStoreAddress,
+			LoggerAddress: req.UpstreamLoggerAddress,
+		}
+		localCtx = provider.WithDeploymentEnvOverride(ctx, override)
+	}
+
+	// 在指定的 provider 上部署
+	comp, err := s.localResourceManager.DeployComponentOnProvider(localCtx, req.RuntimeEnv, req.ResourceRequest, req.ProviderID)
+	if err != nil {
+		return &DeployResponse{
+			Success: false,
+			Error:   err.Error(),
+		}, nil
+	}
+
+	return &DeployResponse{
+		Success:    true,
+		Component:  comp,
+		NodeID:     s.localResourceManager.GetNodeID(),
+		NodeName:   s.localResourceManager.GetNodeName(),
+		ProviderID: comp.GetProviderID(),
+	}, nil
+}
+
+// ProposeRemoteSchedule 在远程节点执行一次“只调度不部署”的调度
+func (s *service) ProposeRemoteSchedule(ctx context.Context, targetNodeID string, targetAddress string, req *types.Info) (*LocalScheduleResult, error) {
+	if req == nil {
+		return nil, fmt.Errorf("resource request is required")
+	}
+
+	// 获取目标节点地址
+	if targetAddress == "" {
+		if s.discoveryService == nil {
+			return nil, fmt.Errorf("discovery service is not available")
+		}
+
+		knownNodes := s.discoveryService.GetKnownNodes()
+		var targetNode *discovery.PeerNode
+		for _, node := range knownNodes {
+			if node.NodeID == targetNodeID {
+				targetNode = node
+				break
+			}
+		}
+
+		if targetNode == nil {
+			return nil, fmt.Errorf("target node %s not found", targetNodeID)
+		}
+
+		if targetNode.SchedulerAddress != "" {
+			targetAddress = targetNode.SchedulerAddress
+		} else {
+			targetAddress = targetNode.Address
+		}
+	}
+
+	if targetAddress == "" {
+		return nil, fmt.Errorf("target address is empty")
+	}
+
+	// 连接到远程节点的 scheduler RPC 服务
+	conn, err := grpc.NewClient(targetAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to target node: %w", err)
+	}
+	defer conn.Close()
+
+	// 创建客户端并调用远程调度
+	client := schedulerpb.NewSchedulerServiceClient(conn)
+
+	protoReq := &schedulerpb.ProposeLocalScheduleRequest{
+		ResourceRequest: &resourcepb.Info{
+			Cpu:    req.CPU,
+			Memory: req.Memory,
+			Gpu:    req.GPU,
+			Tags:   req.Tags,
+		},
+	}
+
+	protoResp, err := client.ProposeLocalSchedule(ctx, protoReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to propose schedule on remote node: %w", err)
+	}
+
+	if !protoResp.Success {
+		return nil, fmt.Errorf("remote schedule proposal rejected: %s", protoResp.Error)
+	}
+
+	return &LocalScheduleResult{
+		NodeID:     protoResp.NodeId,
+		NodeName:   protoResp.NodeName,
+		ProviderID: protoResp.ProviderId,
+		Available: func() *types.Info {
+			if protoResp.Available != nil {
+				return &types.Info{
+					CPU:    protoResp.Available.Cpu,
+					Memory: protoResp.Available.Memory,
+					GPU:    protoResp.Available.Gpu,
+					Tags:   append([]string(nil), protoResp.Available.Tags...),
+				}
+			}
+			return nil
+		}(),
+	}, nil
+}
+
+// CommitRemoteSchedule 在远程节点上确认部署（两阶段提交的第二阶段）
+func (s *service) CommitRemoteSchedule(ctx context.Context, targetNodeID string, targetAddress string, req *CommitLocalScheduleRequest) (*DeployResponse, error) {
+	if req == nil {
+		return &DeployResponse{
+			Success: false,
+			Error:   "request is required",
+		}, nil
+	}
+
+	// 获取目标节点地址
+	if targetAddress == "" {
+		if s.discoveryService == nil {
+			return &DeployResponse{
+				Success: false,
+				Error:   "discovery service is not available",
+			}, nil
+		}
+
+		knownNodes := s.discoveryService.GetKnownNodes()
+		var targetNode *discovery.PeerNode
+		for _, node := range knownNodes {
+			if node.NodeID == targetNodeID {
+				targetNode = node
+				break
+			}
+		}
+
+		if targetNode == nil {
+			return &DeployResponse{
+				Success: false,
+				Error:   fmt.Sprintf("target node %s not found", targetNodeID),
+			}, nil
+		}
+
+		if targetNode.SchedulerAddress != "" {
+			targetAddress = targetNode.SchedulerAddress
+		} else {
+			targetAddress = targetNode.Address
+		}
+	}
+
+	if targetAddress == "" {
+		return &DeployResponse{
+			Success: false,
+			Error:   "target address is empty",
+		}, nil
+	}
+
+	// 连接到远程节点的 scheduler RPC 服务
+	conn, err := grpc.NewClient(targetAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return &DeployResponse{
+			Success: false,
+			Error:   fmt.Sprintf("failed to connect to target node: %v", err),
+		}, nil
+	}
+	defer conn.Close()
+
+	// 创建客户端并调用远程确认部署
+	client := schedulerpb.NewSchedulerServiceClient(conn)
+
+	protoReq := &schedulerpb.CommitLocalScheduleRequest{
+		RuntimeEnv: string(req.RuntimeEnv),
+		ResourceRequest: &resourcepb.Info{
+			Cpu:    req.ResourceRequest.CPU,
+			Memory: req.ResourceRequest.Memory,
+			Gpu:    req.ResourceRequest.GPU,
+			Tags:   req.ResourceRequest.Tags,
+		},
+		ProviderId:            req.ProviderID,
+		UpstreamZmqAddress:    req.UpstreamZMQAddress,
+		UpstreamStoreAddress:  req.UpstreamStoreAddress,
+		UpstreamLoggerAddress: req.UpstreamLoggerAddress,
+	}
+
+	protoResp, err := client.CommitLocalSchedule(ctx, protoReq)
+	if err != nil {
+		return &DeployResponse{
+			Success: false,
+			Error:   fmt.Sprintf("failed to commit schedule on remote node: %v", err),
 		}, nil
 	}
 
