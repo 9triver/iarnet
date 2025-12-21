@@ -101,7 +101,17 @@ class K8sProviderDeployer:
         
         # 启动服务（使用后台执行，立即返回）
         # 使用 bash -c 确保命令在后台执行，并且 SSH 立即返回
-        start_cmd = ' '.join(ssh_cmd) + ' "bash -c \'cd ~/k8s-provider && nohup ./k8s-provider --config config.yaml > k8s-provider.log 2>&1 &\'"'
+        # 启动前确保 kubeconfig 文件存在且权限正确
+        start_cmd = ' '.join(ssh_cmd) + ''' "bash -c '
+# 确保 kubeconfig 文件存在且权限正确
+if [ ! -f /home/ubuntu/.kube/config ]; then
+  mkdir -p /home/ubuntu/.kube
+  sudo cp -f /etc/kubernetes/admin.conf /home/ubuntu/.kube/config
+  sudo chown $(id -u):$(id -g) /home/ubuntu/.kube/config
+  chmod 600 /home/ubuntu/.kube/config
+fi
+cd ~/k8s-provider && nohup ./k8s-provider --config config.yaml > k8s-provider.log 2>&1 &
+'"'''
         
         # 异步启动服务，不等待结果
         try:
