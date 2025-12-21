@@ -38,6 +38,9 @@ vm_types:
   # Kubernetes 集群配置
   k8s_clusters:
     count: 40  # 40个集群
+    # K8s 节点专用镜像（已安装 K8s 依赖，但不包含 Docker）
+    # 注意：此镜像不替换 global.base_image，因为其他节点类型需要 Docker
+    base_image: "/var/lib/libvirt/images/ubuntu-22.04-cloud-k8s-v1.qcow2"  # K8s 节点专用镜像
     master:
       cpu: 2
       memory: 2048
@@ -53,7 +56,7 @@ vm_types:
       count_per_cluster: 2
       cpu: 1
       memory: 1024
-      disk: 20
+      disk: 30
       hostname_prefix: "vm-k8s-cluster"
       hostname_suffix: "-worker"
       

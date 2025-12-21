@@ -11,6 +11,7 @@ import shutil
 import subprocess
 import libvirt
 import xml.etree.ElementTree as ET
+import re
 from pathlib import Path
 from typing import Dict, List, Any
 import argparse
@@ -230,6 +231,23 @@ ethernets:
         if os.path.exists(disk_path):
             print(f"  磁盘已存在: {disk_path}")
             return disk_path
+        
+        # 检查基础镜像的实际大小，确保虚拟磁盘大小不小于基础镜像
+        # 这是关键：如果虚拟磁盘小于基础镜像，会导致分区表不匹配，系统无法启动
+        try:
+            info_cmd = ['qemu-img', 'info', self.base_image]
+            info_result = subprocess.run(info_cmd, capture_output=True, text=True, check=True)
+            # 从输出中提取虚拟大小（GiB）
+            size_match = re.search(r'virtual size:.*?(\d+(?:\.\d+)?)\s*GiB', info_result.stdout)
+            if size_match:
+                base_image_size_gb = float(size_match.group(1))
+                # 如果请求的大小小于基础镜像大小，自动调整为至少等于基础镜像大小
+                if disk_size_gb < base_image_size_gb:
+                    print(f"  警告: 请求的磁盘大小 ({disk_size_gb}GB) 小于基础镜像大小 ({base_image_size_gb:.1f}GB)")
+                    print(f"  自动调整为 {int(base_image_size_gb) + 1}GB 以确保兼容性")
+                    disk_size_gb = int(base_image_size_gb) + 1
+        except Exception as e:
+            print(f"  警告: 无法检查基础镜像大小: {e}，使用配置的磁盘大小 {disk_size_gb}GB")
         
         # 检查目录权限，如果没有写入权限则使用sudo
         disk_dir = os.path.dirname(disk_path)
@@ -506,6 +524,16 @@ ethernets:
             
             # 创建master节点
             print(f"  创建master节点: {master_hostname} (IP: {master_ip})")
+            # 使用 K8s 专用镜像（如果配置了），否则使用全局镜像
+            k8s_base_image = k8s_config.get('base_image')
+            if k8s_base_image:
+                k8s_base_image = os.path.expanduser(k8s_base_image)
+                if os.path.exists(k8s_base_image):
+                    print(f"    使用 K8s 专用镜像: {k8s_base_image}")
+                    original_base_image = self.base_image
+                    self.base_image = k8s_base_image
+                else:
+                    print(f"    警告: K8s 专用镜像不存在 ({k8s_base_image})，使用全局镜像")
             result = self.create_vm(
                 hostname=master_hostname,
                 cpu=master_config['cpu'],
@@ -513,6 +541,9 @@ ethernets:
                 disk_size_gb=master_config['disk'],
                 ip_address=master_ip
             )
+            # 恢复原始 base_image（如果修改过）
+            if k8s_base_image and os.path.exists(k8s_base_image):
+                self.base_image = original_base_image
             results.append(result)
             
             # 创建worker节点
@@ -527,6 +558,15 @@ ethernets:
                     continue
                 
                 print(f"  创建worker节点: {worker_hostname} (IP: {worker_ip})")
+                # 使用 K8s 专用镜像（如果配置了），否则使用全局镜像
+                k8s_base_image = k8s_config.get('base_image')
+                if k8s_base_image:
+                    k8s_base_image = os.path.expanduser(k8s_base_image)
+                    if os.path.exists(k8s_base_image):
+                        original_base_image = self.base_image
+                        self.base_image = k8s_base_image
+                    else:
+                        print(f"    警告: K8s 专用镜像不存在 ({k8s_base_image})，使用全局镜像")
                 result = self.create_vm(
                     hostname=worker_hostname,
                     cpu=worker_config['cpu'],
@@ -534,6 +574,9 @@ ethernets:
                     disk_size_gb=worker_config['disk'],
                     ip_address=worker_ip
                 )
+                # 恢复原始 base_image（如果修改过）
+                if k8s_base_image and os.path.exists(k8s_base_image):
+                    self.base_image = original_base_image
                 results.append(result)
         
         return results

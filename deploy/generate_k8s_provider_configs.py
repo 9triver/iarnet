@@ -87,11 +87,11 @@ def generate_config_for_cluster(cluster_id: int, base_config: dict, master_confi
     if 'kubernetes' not in config:
         config['kubernetes'] = {}
     
-    # kubeconfig 留空，使用默认路径或 in-cluster 配置
-    config['kubernetes']['kubeconfig'] = ""
+    # provider 使用 sudo 运行，以 root 用户执行，所以使用 root 的 kubeconfig 文件
+    config['kubernetes']['kubeconfig'] = "/root/.kube/config"
     
-    # 使用 in-cluster 配置（因为 provider 运行在 master 节点上）
-    config['kubernetes']['in_cluster'] = True
+    # 不使用 in-cluster 配置（因为 provider 不是在 Pod 中运行）
+    config['kubernetes']['in_cluster'] = False
     
     # 命名空间使用 default
     config['kubernetes']['namespace'] = "default"

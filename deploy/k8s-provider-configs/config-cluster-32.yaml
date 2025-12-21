@@ -1,9 +1,9 @@
 server:
   port: 50084
 kubernetes:
-  kubeconfig: ''
+  kubeconfig: /root/.kube/config
   namespace: default
-  in_cluster: true
+  in_cluster: false
   label_selector: iarnet.managed=true
   allow_connection_failure: true
 resource:
