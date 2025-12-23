@@ -390,14 +390,26 @@ export default function ApplicationDetailPage() {
   const [logSearchTerm, setLogSearchTerm] = useState("")
   const [logLevelFilter, setLogLevelFilter] = useState<string>("all")
   
-  // 计算默认时间范围：最近两小时
+  // 计算默认时间范围：最近两小时，结束时间为当前时间+10分钟
   const getDefaultTimeRange = () => {
     const now = new Date()
     const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000)
+    const tenMinutesLater = new Date(now.getTime() + 10 * 60 * 1000)
     return {
       startTime: twoHoursAgo.toISOString(),
-      endTime: now.toISOString(),
+      endTime: tenMinutesLater.toISOString(),
     }
+  }
+  
+  // 更新时间范围：结束时间为当前时间+10分钟
+  const updateTimeRange = () => {
+    const now = new Date()
+    const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000)
+    const tenMinutesLater = new Date(now.getTime() + 10 * 60 * 1000)
+    setLogTimeRange({
+      startTime: twoHoursAgo.toISOString(),
+      endTime: tenMinutesLater.toISOString(),
+    })
   }
   
   const defaultTimeRange = getDefaultTimeRange()
@@ -471,6 +483,8 @@ export default function ApplicationDetailPage() {
     loadAppDAG()
     loadActors()
     fetchRunnerEnvironments()
+    // 页面加载时更新时间范围（结束时间为当前时间+10分钟）
+    updateTimeRange()
   }, [applicationId])
 
   // 当时间范围或日志级别改变时重新加载日志
@@ -902,6 +916,11 @@ export default function ApplicationDetailPage() {
     } finally {
       setIsLoadingAppLogs(false)
     }
+  }
+
+  // 处理刷新按钮点击：只加载日志，不更新时间范围
+  const handleRefreshLogs = () => {
+    loadLogs()
   }
 
   const filteredLogs = useMemo(() => {
@@ -1891,7 +1910,7 @@ export default function ApplicationDetailPage() {
                       </CardDescription>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <Button variant="outline" size="sm" onClick={loadLogs} disabled={isLoadingAppLogs}>
+                      <Button variant="outline" size="sm" onClick={handleRefreshLogs} disabled={isLoadingAppLogs}>
                         <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingAppLogs ? 'animate-spin' : ''}`} />
                         刷新
                       </Button>
