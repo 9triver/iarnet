@@ -26,7 +26,6 @@ import {
   Activity,
   User,
   Clock,
-  Shield,
   Calendar as CalendarIcon,
   Download,
   ArrowRight,
@@ -598,20 +597,15 @@ export default function AuditPage() {
 
   return (
     <AuthGuard>
-      <div className="flex h-screen bg-gray-50">
+      <div className="flex h-screen bg-background">
         <Sidebar />
         <main className="flex-1 overflow-auto">
-          <div className="p-8 space-y-6">
+          <div className="p-8">
             {/* Header */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <Shield className="h-6 w-6" />
-                <div>
-                  <h1 className="text-2xl font-bold">日志审计</h1>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    查看系统日志和用户操作记录
-                  </p>
-                </div>
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h1 className="text-3xl font-playfair font-bold text-foreground mb-2">日志审计</h1>
+                <p className="text-muted-foreground">查看系统日志和用户操作记录</p>
               </div>
               <div className="flex items-center space-x-2">
                 <Button variant="outline" onClick={exportToCSV} disabled={isLoading || currentLogs.length === 0}>

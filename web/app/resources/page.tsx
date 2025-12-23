@@ -788,7 +788,7 @@ export default function ResourcesPage() {
           {/* Header */}
           <div className="flex items-center justify-between mb-8">
             <div>
-              <h1 className="text-3xl font-playfair font-bold text-foreground mb-2">算力资源管理</h1>
+              <h1 className="text-3xl font-playfair font-bold text-foreground mb-2">资源管理</h1>
               <p className="text-muted-foreground">接入和管理您的算力资源，包括CPU、GPU、内存和网络资源</p>
             </div>
 

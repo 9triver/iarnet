@@ -10,7 +10,7 @@ import { useIARNetStore } from "@/lib/store"
 
 const baseNavigation = [
   {
-    name: "算力资源管理",
+    name: "资源管理",
     href: "/resources",
     icon: Server,
     description: "接入和管理算力资源",

@@ -14,7 +14,7 @@ const playfair = Playfair_Display({
 })
 
 export const metadata: Metadata = {
-  title: "IARNet - 算力资源管理平台",
+  title: "IARNet - 资源管理平台",
   description: "算力网络资源管理与智能应用部署平台",
   generator: "v0.app",
 }

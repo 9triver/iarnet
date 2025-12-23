@@ -62,7 +62,7 @@ export default function LoginPage() {
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader>
           <CardTitle className="text-2xl font-bold">登录 IARNet</CardTitle>
-          <CardDescription>输入账号密码以访问算力资源管理平台。</CardDescription>
+          <CardDescription>输入账号密码以访问资源管理平台。</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>

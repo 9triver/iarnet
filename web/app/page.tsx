@@ -62,7 +62,7 @@ export default function HomePage() {
               <CardHeader>
                 <div className="flex items-center space-x-2">
                   <Server className="h-6 w-6 text-primary" />
-                  <CardTitle>算力资源管理</CardTitle>
+                  <CardTitle>资源管理</CardTitle>
                 </div>
                 <CardDescription>接入和管理您的算力资源，包括CPU、GPU、存储和网络资源</CardDescription>
               </CardHeader>
