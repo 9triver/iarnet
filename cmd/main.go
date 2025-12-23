@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/9triver/iarnet/internal/bootstrap"
@@ -32,6 +33,15 @@ func main() {
 		log.Fatalf("Load config: %v", err)
 	}
 	util.InitLogger()
+
+	// 初始化日志文件输出
+	logDir := filepath.Join(cfg.DataDir, "logs")
+	if logPath, err := util.InitLoggerWithFile(logDir); err != nil {
+		logrus.Warnf("Failed to initialize log file: %v, continuing with console output only", err)
+	} else {
+		logrus.Infof("Log file initialized: %s", logPath)
+		defer util.CloseLogFile()
+	}
 
 	// 使用 Bootstrap 初始化所有模块（包含 ZMQ panic 恢复）
 	iarnet, err := bootstrap.Initialize(cfg)

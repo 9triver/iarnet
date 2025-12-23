@@ -5,7 +5,7 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { Server, Package, Activity, Menu, X, Cpu, LogOut } from "lucide-react"
+import { Server, Package, Activity, Menu, X, Cpu, LogOut, Shield } from "lucide-react"
 import { useIARNetStore } from "@/lib/store"
 
 const baseNavigation = [
@@ -20,6 +20,12 @@ const baseNavigation = [
     href: "/applications",
     icon: Package,
     description: "导入和部署应用",
+  },
+  {
+    name: "日志审计",
+    href: "/audit",
+    icon: Shield,
+    description: "查看系统日志和操作记录",
   },
   // 状态监控功能暂时移除（功能有问题）
   // {

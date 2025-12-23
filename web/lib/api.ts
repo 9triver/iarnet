@@ -34,7 +34,7 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}, timeout:
   }
 }
 
-async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+export async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${API_BASE}${endpoint}`
 
   // 如果是 FormData，不设置 Content-Type，让浏览器自动设置（包括 boundary）
@@ -383,4 +383,63 @@ export const authAPI = {
     }),
   getCurrentUser: () =>
     apiRequest<GetCurrentUserResponse>("/auth/me"),
+}
+
+// Audit API
+export interface GetAuditLogsParams {
+  limit?: number
+  offset?: number
+  level?: string
+  startTime?: string
+  endTime?: string
+}
+
+export interface AuditLogEntry {
+  timestamp: number // Unix 纳秒时间戳
+  level: number // 日志级别 (0-7)
+  message: string
+  fields?: Array<{ key: string; value: string }>
+  caller?: {
+    file: string
+    line: number
+    function: string
+  }
+}
+
+export interface GetAuditLogsResponse {
+  logs: AuditLogEntry[]
+  total: number
+}
+
+export const auditAPI = {
+  getLogs: (params?: GetAuditLogsParams) => {
+    const searchParams = new URLSearchParams()
+    if (params?.limit !== undefined) {
+      searchParams.set("limit", params.limit.toString())
+    }
+    if (params?.offset !== undefined) {
+      searchParams.set("offset", params.offset.toString())
+    }
+    if (params?.level) {
+      searchParams.set("level", params.level)
+    }
+    if (params?.startTime) {
+      searchParams.set("start_time", params.startTime)
+    }
+    if (params?.endTime) {
+      searchParams.set("end_time", params.endTime)
+    }
+    const query = searchParams.toString()
+    const endpoint = query ? `/audit/logs?${query}` : "/audit/logs"
+    return apiRequest<GetAuditLogsResponse>(endpoint)
+  },
+  getOperations: (params?: { limit?: number }) => {
+    const searchParams = new URLSearchParams()
+    if (params?.limit !== undefined) {
+      searchParams.set("limit", params.limit.toString())
+    }
+    const query = searchParams.toString()
+    const endpoint = query ? `/audit/operations?${query}` : "/audit/operations"
+    return apiRequest<GetAuditLogsResponse>(endpoint)
+  },
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/9triver/iarnet/internal/domain/resource"
 	"github.com/9triver/iarnet/internal/domain/resource/discovery"
 	applicationAPI "github.com/9triver/iarnet/internal/transport/http/application"
+	auditAPI "github.com/9triver/iarnet/internal/transport/http/audit"
 	authAPI "github.com/9triver/iarnet/internal/transport/http/auth"
 	resourceAPI "github.com/9triver/iarnet/internal/transport/http/resource"
 	"github.com/gorilla/mux"
@@ -37,6 +38,7 @@ func NewServer(opts Options) *Server {
 	authAPI.RegisterRoutes(router, opts.Config)
 	applicationAPI.RegisterRoutes(router, opts.AppMgr)
 	resourceAPI.RegisterRoutes(router, opts.ResMgr, opts.Config, opts.DiscoveryService)
+	auditAPI.RegisterRoutes(router, opts.ResMgr)
 
 	return &Server{Server: &http.Server{Addr: fmt.Sprintf("0.0.0.0:%d", opts.Port), Handler: router}, Router: router}
 }

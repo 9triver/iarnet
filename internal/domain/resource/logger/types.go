@@ -78,3 +78,9 @@ type QueryResult struct {
 	Total   int      // 总数量（如果支持）
 	HasMore bool     // 是否还有更多数据
 }
+
+// LogEntryWithComponentID 带组件ID的日志条目
+type LogEntryWithComponentID struct {
+	Entry       *Entry
+	ComponentID string
+}

@@ -841,6 +841,14 @@ func (m *Manager) GetLogsByTimeRange(ctx context.Context, componentID string, st
 	return m.loggerService.GetLogsByTimeRange(ctx, componentID, startTime, endTime, limit)
 }
 
+func (m *Manager) GetAllLogs(ctx context.Context, options *logger.QueryOptions) (*logger.QueryResult, error) {
+	return m.loggerService.GetAllLogs(ctx, options)
+}
+
+func (m *Manager) GetAllLogsWithComponentID(ctx context.Context, options *logger.QueryOptions) ([]*logger.LogEntryWithComponentID, int, error) {
+	return m.loggerService.GetAllLogsWithComponentID(ctx, options)
+}
+
 func (m *Manager) DeployComponent(ctx context.Context, runtimeEnv types.RuntimeEnv, resourceRequest *types.Info) (*component.Component, error) {
 	component, err := m.componentService.DeployComponent(ctx, runtimeEnv, resourceRequest)
 	if err == nil {
