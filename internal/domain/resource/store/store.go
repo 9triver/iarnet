@@ -32,6 +32,8 @@ func (s *Store) GetID() types.StoreID {
 }
 
 func (s *Store) SaveObject(obj object.Interface) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.objects[obj.GetID()] = obj
 }
 
@@ -64,6 +66,8 @@ func (s *Store) SaveStreamChunk(chunk *commonpb.StreamChunk) error {
 }
 
 func (s *Store) GetObject(id types.ObjectID) (object.Interface, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	obj, ok := s.objects[id]
 	if !ok {
 		return nil, fmt.Errorf("object not found")

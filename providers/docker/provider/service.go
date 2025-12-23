@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"slices"
 	"strconv"
@@ -356,20 +357,58 @@ func (s *Service) Deploy(ctx context.Context, req *providerpb.DeployRequest) (*p
 		ExtraHosts: []string{
 			"host.internal:host-gateway",
 		},
-		Mounts: []mount.Mount{
-			{
-				Type:     mount.TypeBind, // 或 TypeVolume
-				Source:   "/home/xhy/iarnet-demo/eps_helmet/images",
-				Target:   "/app/images",
-				ReadOnly: false,
-			},
-			{
-				Type:     mount.TypeBind, // 或 TypeVolume
-				Source:   "/home/xhy/iarnet-demo/eps_helmet",
-				Target:   "/app/eps_helmet",
-				ReadOnly: false,
-			},
-		},
+		Mounts: func() []mount.Mount {
+			var mounts []mount.Mount
+
+			// 定义需要挂载的目录映射
+			mountConfigs := []struct {
+				source   string
+				target   string
+				readOnly bool
+			}{
+				{
+					source:   "/home/xhy/iarnet-demo/eps_helmet/images",
+					target:   "/app/images",
+					readOnly: false,
+				},
+				{
+					source:   "/home/xhy/iarnet-demo/eps_helmet",
+					target:   "/app/eps_helmet",
+					readOnly: false,
+				},
+			}
+
+			// 检查每个目录是否存在，只挂载存在的目录
+			for _, cfg := range mountConfigs {
+				// 检查源路径是否存在
+				if info, err := os.Stat(cfg.source); err == nil {
+					// 如果是目录，直接使用
+					if info.IsDir() {
+						mounts = append(mounts, mount.Mount{
+							Type:     mount.TypeBind,
+							Source:   cfg.source,
+							Target:   cfg.target,
+							ReadOnly: cfg.readOnly,
+						})
+						logrus.Infof("Mounting directory: %s -> %s", cfg.source, cfg.target)
+					} else {
+						// 如果是文件，也允许挂载
+						mounts = append(mounts, mount.Mount{
+							Type:     mount.TypeBind,
+							Source:   cfg.source,
+							Target:   cfg.target,
+							ReadOnly: cfg.readOnly,
+						})
+						logrus.Infof("Mounting file: %s -> %s", cfg.source, cfg.target)
+					}
+				} else {
+					// 目录不存在，记录警告但不挂载
+					logrus.Warnf("Skipping mount: source path does not exist: %s (target: %s)", cfg.source, cfg.target)
+				}
+			}
+
+			return mounts
+		}(),
 		// Runtime: "nvidia",
 		// PortBindings: portBindings,
 	}

@@ -507,3 +507,18 @@ func (c *Controller) GetActors() map[string][]*task.Actor {
 	}
 	return actors
 }
+
+// Clear 清理 controller 的状态，使其恢复到应用启动之前的状态
+// 清理 functions、dags 和 toClientChan，但保留 controller 本身
+func (c *Controller) Clear() {
+	// 清理 functions
+	c.functions = make(map[string]*task.Function)
+
+	// 清理 dags
+	c.dags = make(map[string]*task.DAG)
+
+	// 清理 toClientChan
+	c.ClearToClientChan()
+
+	logrus.Infof("Cleared controller state for application %s", c.appID)
+}

@@ -314,7 +314,8 @@ func (api *API) handleStopApplication(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 清理应用的所有资源（components、controller 数据等）
+	// 清理应用的所有资源（components、controller 状态等）
+	// 注意：这里会清理 controller 的状态，但不会移除 controller 本身
 	if err := api.am.CleanupApplicationResources(ctx, appID); err != nil {
 		logrus.Errorf("Failed to cleanup application resources: %v", err)
 		// 不返回错误，因为 runner 已经停止，资源清理失败不应该影响停止操作

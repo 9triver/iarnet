@@ -341,7 +341,7 @@ echo "清理完成"
                         join_command = ' '.join(join_command.split())
                         if join_command and '--token' in join_command and '--discovery-token-ca-cert-hash' in join_command:
                             self._print(f"{cluster_prefix}   ✓ 从 init stderr 中提取到完整的 worker join 命令")
-                            break
+                        break
                         else:
                             join_command = ""
             
@@ -404,7 +404,7 @@ sudo chmod 600 /home/ubuntu/.kube/config /root/.kube/config'''
                 text=True
             )
             if result.returncode == 0:
-                self._print(f"{cluster_prefix}   ✓ kubectl 配置完成")
+            self._print(f"{cluster_prefix}   ✓ kubectl 配置完成")
             else:
                 error_msg = (result.stderr or result.stdout or '')[:200]
                 error_lines = [line for line in error_msg.split('\n') 
@@ -477,7 +477,7 @@ sudo chmod 600 /home/ubuntu/.kube/config /root/.kube/config'''
                         if '--token' in new_join_command and '--discovery-token-ca-cert-hash' in new_join_command:
                             join_command = new_join_command
                             self._print(f"{cluster_prefix}   ✓ 成功获取完整的 join 命令")
-                            break
+                        break
                         else:
                             if retry < max_retries - 1:
                                 self._print(f"{cluster_prefix}   获取的 join 命令不完整，等待后重试... ({retry+1}/{max_retries})")

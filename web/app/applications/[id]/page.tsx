@@ -1613,14 +1613,6 @@ export default function ApplicationDetailPage() {
                 <FileText className="h-4 w-4" />
                 <span>应用日志</span>
               </TabsTrigger>
-              <TabsTrigger value="metrics" disabled>
-                <Activity className="h-4 w-4 mr-2" />
-                监控指标
-              </TabsTrigger>
-              <TabsTrigger value="events" disabled>
-                <Clock className="h-4 w-4 mr-2" />
-                事件历史
-              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="files">
@@ -1945,36 +1937,6 @@ export default function ApplicationDetailPage() {
                       <LogListViewer logs={filteredLogs} />
                     </div>
                   )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="metrics">
-              <Card>
-                <CardHeader>
-                  <CardTitle>监控指标</CardTitle>
-                  <CardDescription>应用的性能监控数据（即将推出）</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Activity className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>监控指标功能正在开发中</p>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="events">
-              <Card>
-                <CardHeader>
-                  <CardTitle>事件历史</CardTitle>
-                  <CardDescription>应用的部署和运行事件记录（即将推出）</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>事件历史功能正在开发中</p>
-                  </div>
                 </CardContent>
               </Card>
             </TabsContent>

@@ -123,13 +123,11 @@ func (m *Manager) CleanupApplicationResources(ctx context.Context, appID string)
 
 	// 2. 收集所有需要清理的 components
 	componentsToCleanup := make(map[string]*component.Component) // componentID -> Component
-	if actors != nil {
-		for _, actorList := range actors {
-			for _, actor := range actorList {
-				comp := actor.GetComponent()
-				if comp != nil {
-					componentsToCleanup[comp.GetID()] = comp
-				}
+	for _, actorList := range actors {
+		for _, actor := range actorList {
+			comp := actor.GetComponent()
+			if comp != nil {
+				componentsToCleanup[comp.GetID()] = comp
 			}
 		}
 	}
@@ -160,11 +158,11 @@ func (m *Manager) CleanupApplicationResources(ctx context.Context, appID string)
 		}
 	}
 
-	// 5. 从 controller manager 中移除 controller
-	if err := m.platform.RemoveController(ctx, appID); err != nil {
-		logrus.Warnf("Failed to remove controller for application %s: %v", appID, err)
+	// 5. 清理 controller 的状态（不移除 controller，只清理其内部状态）
+	if err := m.platform.ClearController(ctx, appID); err != nil {
+		logrus.Warnf("Failed to clear controller state for application %s: %v", appID, err)
 	} else {
-		logrus.Infof("Removed controller for application %s", appID)
+		logrus.Infof("Cleared controller state for application %s", appID)
 	}
 
 	// 6. 移除 runner 容器

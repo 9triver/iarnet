@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -942,11 +943,36 @@ func (m *Manager) ProposeDelegatedDeployment(ctx context.Context, runtimeEnv typ
 		return nil, fmt.Errorf("no valid delegation proposals generated from discovery result")
 	}
 
-	logrus.Debugf("Generated %d delegated scheduling proposals for runtime=%s", len(proposals), runtimeEnv)
+	// 按照空余资源最多的 peer 排序（优先使用资源最充足的节点）
+	// 计算每个节点的空余资源评分：CPU + Memory/1024/1024/1024 (GB) + GPU
+	// 这样可以综合考虑 CPU、内存和 GPU 资源
+	sort.Slice(proposals, func(i, j int) bool {
+		scoreI := calculateAvailableResourceScore(proposals[i].Capacity)
+		scoreJ := calculateAvailableResourceScore(proposals[j].Capacity)
+		// 降序排序：资源最多的排在前面
+		return scoreI > scoreJ
+	})
+
+	logrus.Debugf("Generated %d delegated scheduling proposals for runtime=%s (sorted by available resources)", len(proposals), runtimeEnv)
 	return proposals, nil
 }
 
-// ScheduleLocalProvider 在当前 iarnet 节点内执行一次“只调度不部署”的本地调度。
+// calculateAvailableResourceScore 计算节点的空余资源评分
+// 评分越高表示空余资源越多，优先选择
+// 评分公式：CPU (millicores) + Memory (GB) + GPU
+// 这样可以综合考虑 CPU、内存和 GPU 资源
+func calculateAvailableResourceScore(capacity *types.Capacity) int64 {
+	if capacity == nil || capacity.Available == nil {
+		return 0
+	}
+	available := capacity.Available
+	// CPU (millicores) + Memory (GB) + GPU
+	// Memory 从 bytes 转换为 GB，以便与 CPU 和 GPU 在同一数量级
+	memoryGB := available.Memory / (1024 * 1024 * 1024)
+	return available.CPU + memoryGB + available.GPU
+}
+
+// ScheduleLocalProvider 在当前 iarnet 节点内执行一次"只调度不部署"的本地调度。
 // 它会复用 providerService.FindAvailableProvider 的逻辑返回一个合适的 Provider，
 // 同时查询该 Provider 当前的可用资源，打包成 scheduler.LocalScheduleResult 返回给调用方。
 func (m *Manager) ScheduleLocalProvider(ctx context.Context, resourceRequest *types.Info) (*scheduler.LocalScheduleResult, error) {

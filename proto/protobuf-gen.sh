@@ -425,14 +425,14 @@ generate_lucas() {
         touch "$PY_OUTPUT_LUCAS/controller/__init__.py"
     fi
     
-    # 3. Resource Logger (从 resource/logger 生成到 logger/)
-    if [ -d "$IARNET_PROTO_PROTO_DIR/resource/logger" ]; then
-        echo -e "${YELLOW}  生成 Lucas Resource Logger Python 代码: $PY_OUTPUT_LUCAS/logger${NC}"
+    # 3. Application Logger (从 application/logger 生成到 logger/)
+    if [ -d "$IARNET_PROTO_PROTO_DIR/application/logger" ]; then
+        echo -e "${YELLOW}  生成 Lucas Application Logger Python 代码: $PY_OUTPUT_LUCAS/logger${NC}"
         mkdir -p "$PY_OUTPUT_LUCAS/logger"
         
         # 从 proto 根目录调用，使用完整路径
         pushd "$IARNET_PROTO_PROTO_DIR" >/dev/null
-        for proto_file in resource/logger/*.proto; do
+        for proto_file in application/logger/*.proto; do
             if [ -f "$proto_file" ]; then
                 $PROTOC -I "$IARNET_PROTO_PROTO_DIR" \
                     --python_out="$PY_OUTPUT_LUCAS" \
@@ -443,15 +443,15 @@ generate_lucas() {
         done
         popd >/dev/null
         
-        # protoc 会生成到 resource/logger/，需要移动到 logger/
-        if [ -d "$PY_OUTPUT_LUCAS/resource/logger" ]; then
-            mv "$PY_OUTPUT_LUCAS/resource/logger"/* "$PY_OUTPUT_LUCAS/logger/" 2>/dev/null || true
-            rmdir "$PY_OUTPUT_LUCAS/resource/logger" 2>/dev/null || true
-            rmdir "$PY_OUTPUT_LUCAS/resource" 2>/dev/null || true
+        # protoc 会生成到 application/logger/，需要移动到 logger/
+        if [ -d "$PY_OUTPUT_LUCAS/application/logger" ]; then
+            mv "$PY_OUTPUT_LUCAS/application/logger"/* "$PY_OUTPUT_LUCAS/logger/" 2>/dev/null || true
+            rmdir "$PY_OUTPUT_LUCAS/application/logger" 2>/dev/null || true
+            rmdir "$PY_OUTPUT_LUCAS/application" 2>/dev/null || true
         fi
         
-        # 修复导入路径：将 from resource.logger import 改为 import logger_pb2
-        fix_imports "$PY_OUTPUT_LUCAS/logger" "resource/logger"
+        # 修复导入路径：将 from application.logger import 改为 import logger_pb2
+        fix_imports "$PY_OUTPUT_LUCAS/logger" "application/logger"
         touch "$PY_OUTPUT_LUCAS/logger/__init__.py"
     fi
     

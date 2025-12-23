@@ -65,7 +65,7 @@ vm_types:
     count: 60  # 60个Docker节点
     cpu: 2
     memory: 2048
-    disk: 20
+    disk: 40
     ip_base: "192.168.100"
     ip_start: 50  # 从 .50 开始，到 .109 结束（60个IP）
     hostname_prefix: "vm-docker"

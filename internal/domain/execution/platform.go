@@ -43,3 +43,7 @@ func (p *Platform) GetActors(appID string) (map[string][]*task.Actor, error) {
 func (p *Platform) RemoveController(ctx context.Context, appID string) error {
 	return p.controllerService.RemoveController(ctx, appID)
 }
+
+func (p *Platform) ClearController(ctx context.Context, appID string) error {
+	return p.controllerService.ClearController(ctx, appID)
+}

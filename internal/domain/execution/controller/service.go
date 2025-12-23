@@ -15,6 +15,7 @@ type Service interface {
 	GetDAGs(appID string) (map[string]*task.DAG, error)
 	GetActors(appID string) (map[string][]*task.Actor, error)
 	RemoveController(ctx context.Context, appID string) error
+	ClearController(ctx context.Context, appID string) error
 	Subscribe(eventType EventType, handler EventHandler)
 	HandleSession(ctx context.Context, recv func() (*ctrlpb.Message, error), send func(*ctrlpb.Message) error) error
 }
@@ -67,4 +68,13 @@ func (s *service) GetActors(appID string) (map[string][]*task.Actor, error) {
 
 func (s *service) RemoveController(ctx context.Context, appID string) error {
 	return s.manager.Remove(appID)
+}
+
+func (s *service) ClearController(ctx context.Context, appID string) error {
+	controller := s.manager.Get(appID)
+	if controller == nil {
+		return fmt.Errorf("controller not found")
+	}
+	controller.Clear()
+	return nil
 }
