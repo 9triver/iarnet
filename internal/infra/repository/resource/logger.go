@@ -44,6 +44,8 @@ type LoggerRepo interface {
 	BatchSaveLogs(ctx context.Context, daos []*LogEntryDAO) error
 	GetLogs(ctx context.Context, componentID string, limit, offset int) ([]*LogEntryDAO, error)
 	GetLogsByTimeRange(ctx context.Context, componentID string, startTime, endTime time.Time, limit int) ([]*LogEntryDAO, error)
+	GetAllLogs(ctx context.Context, limit, offset int) ([]*LogEntryDAO, error)
+	GetAllLogsByTimeRange(ctx context.Context, startTime, endTime time.Time, limit int) ([]*LogEntryDAO, error)
 	Close() error
 }
 
@@ -304,6 +306,95 @@ func (r *loggerRepoSQLite) GetLogsByTimeRange(ctx context.Context, componentID s
 	rows, err := r.db.QueryContext(ctx, baseQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query logs by time range: %w", err)
+	}
+	defer rows.Close()
+
+	var daos []*LogEntryDAO
+	for rows.Next() {
+		var dao LogEntryDAO
+		err := rows.Scan(
+			&dao.ID,
+			&dao.ComponentID,
+			&dao.Timestamp,
+			&dao.Level,
+			&dao.Message,
+			&dao.Fields,
+			&dao.CallerFile,
+			&dao.CallerLine,
+			&dao.CallerFunc,
+			&dao.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan log entry: %w", err)
+		}
+		daos = append(daos, &dao)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating logs: %w", err)
+	}
+
+	return daos, nil
+}
+
+// GetAllLogs 获取所有日志（不限制 componentID）
+func (r *loggerRepoSQLite) GetAllLogs(ctx context.Context, limit, offset int) ([]*LogEntryDAO, error) {
+	query := `
+		SELECT id, component_id, timestamp, level, message, 
+		       fields, caller_file, caller_line, caller_func, created_at
+		FROM resource_component_logs
+		ORDER BY timestamp DESC
+		LIMIT ? OFFSET ?
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query all logs: %w", err)
+	}
+	defer rows.Close()
+
+	var daos []*LogEntryDAO
+	for rows.Next() {
+		var dao LogEntryDAO
+		err := rows.Scan(
+			&dao.ID,
+			&dao.ComponentID,
+			&dao.Timestamp,
+			&dao.Level,
+			&dao.Message,
+			&dao.Fields,
+			&dao.CallerFile,
+			&dao.CallerLine,
+			&dao.CallerFunc,
+			&dao.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan log entry: %w", err)
+		}
+		daos = append(daos, &dao)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating logs: %w", err)
+	}
+
+	return daos, nil
+}
+
+// GetAllLogsByTimeRange 根据时间范围获取所有日志（不限制 componentID）
+func (r *loggerRepoSQLite) GetAllLogsByTimeRange(ctx context.Context, startTime, endTime time.Time, limit int) ([]*LogEntryDAO, error) {
+	query := `
+		SELECT id, component_id, timestamp, level, message, 
+		       fields, caller_file, caller_line, caller_func, created_at
+		FROM resource_component_logs
+		WHERE timestamp >= ? AND timestamp <= ?
+		ORDER BY timestamp DESC
+		LIMIT ?
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, startTime, endTime, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query all logs by time range: %w", err)
 	}
 	defer rows.Close()
 
