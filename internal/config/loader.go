@@ -38,6 +38,9 @@ func ApplyDefaults(cfg *Config) {
 	if cfg.Database.ResourceProviderDBPath == "" {
 		cfg.Database.ResourceProviderDBPath = "./data/resource_providers.db"
 	}
+	if cfg.Database.OperationLogDBPath == "" {
+		cfg.Database.OperationLogDBPath = "./data/operation_logs.db"
+	}
 	if cfg.Database.MaxOpenConns == 0 {
 		cfg.Database.MaxOpenConns = 10
 	}

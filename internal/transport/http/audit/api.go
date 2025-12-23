@@ -1,6 +1,7 @@
 package audit
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/9triver/iarnet/internal/domain/audit"
+	audittypes "github.com/9triver/iarnet/internal/domain/audit/types"
 	"github.com/9triver/iarnet/internal/domain/resource"
 	"github.com/9triver/iarnet/internal/transport/http/util/response"
 	"github.com/9triver/iarnet/internal/util"
@@ -19,18 +22,23 @@ import (
 
 // API 审计日志相关 API
 type API struct {
-	resMgr *resource.Manager
+	resMgr   *resource.Manager
+	auditMgr *audit.Manager
 }
 
-func NewAPI(resMgr *resource.Manager) *API {
-	return &API{resMgr: resMgr}
+func NewAPI(resMgr *resource.Manager, auditMgr *audit.Manager) *API {
+	return &API{
+		resMgr:   resMgr,
+		auditMgr: auditMgr,
+	}
 }
 
 // RegisterRoutes 注册审计相关路由
-func RegisterRoutes(router *mux.Router, resMgr *resource.Manager) {
-	api := NewAPI(resMgr)
+func RegisterRoutes(router *mux.Router, resMgr *resource.Manager, auditMgr *audit.Manager) {
+	api := NewAPI(resMgr, auditMgr)
 	router.HandleFunc("/audit/logs", api.handleGetAllLogs).Methods("GET")
-	logrus.Infof("Audit API routes registered: /audit/logs")
+	router.HandleFunc("/audit/operations", api.handleGetOperations).Methods("GET")
+	logrus.Infof("Audit API routes registered: /audit/logs, /audit/operations")
 }
 
 // LogLevel 日志级别（参考 common logger.proto）
@@ -320,4 +328,124 @@ func parseNonNegativeInt(raw string, defaultVal int) (int, error) {
 		return 0, fmt.Errorf("must be non-negative integer")
 	}
 	return value, nil
+}
+
+// handleGetOperations 获取操作日志
+func (api *API) handleGetOperations(w http.ResponseWriter, r *http.Request) {
+	if api.auditMgr == nil {
+		response.Success(map[string]interface{}{
+			"logs":     []interface{}{},
+			"total":    0,
+			"has_more": false,
+		}).WriteJSON(w)
+		return
+	}
+
+	query := r.URL.Query()
+	options := &audittypes.QueryOptions{}
+
+	// 解析时间范围参数
+	if startParam := strings.TrimSpace(query.Get("start_time")); startParam != "" {
+		startTime, err := time.Parse(time.RFC3339, startParam)
+		if err != nil {
+			response.BadRequest("invalid start_time, must be RFC3339").WriteJSON(w)
+			return
+		}
+		startTimeLocal := startTime.Local()
+		options.StartTime = &startTimeLocal
+	}
+
+	if endParam := strings.TrimSpace(query.Get("end_time")); endParam != "" {
+		endTime, err := time.Parse(time.RFC3339, endParam)
+		if err != nil {
+			response.BadRequest("invalid end_time, must be RFC3339").WriteJSON(w)
+			return
+		}
+		endTimeLocal := endTime.Local()
+		options.EndTime = &endTimeLocal
+	}
+
+	// 解析其他参数
+	if userParam := strings.TrimSpace(query.Get("user")); userParam != "" {
+		options.User = userParam
+	}
+	if operationParam := strings.TrimSpace(query.Get("operation")); operationParam != "" {
+		options.Operation = audittypes.OperationType(operationParam)
+	}
+	if resourceIDParam := strings.TrimSpace(query.Get("resource_id")); resourceIDParam != "" {
+		options.ResourceID = resourceIDParam
+	}
+
+	// 解析 limit 和 offset
+	limit, err := parsePositiveInt(query.Get("limit"), 100)
+	if err != nil {
+		response.BadRequest("invalid limit: " + err.Error()).WriteJSON(w)
+		return
+	}
+	options.Limit = limit
+
+	offset, err := parseNonNegativeInt(query.Get("offset"), 0)
+	if err != nil {
+		response.BadRequest("invalid offset: " + err.Error()).WriteJSON(w)
+		return
+	}
+	options.Offset = offset
+
+	result, err := api.auditMgr.GetOperations(r.Context(), options)
+	if err != nil {
+		logrus.Errorf("Failed to get operations: %v", err)
+		response.InternalError("failed to get operations: " + err.Error()).WriteJSON(w)
+		return
+	}
+
+	// 转换为前端需要的格式（与系统日志格式一致）
+	logs := make([]*LogEntry, 0, len(result.Logs))
+	for _, opLog := range result.Logs {
+		// 构建操作描述消息
+		message := fmt.Sprintf("%s %s", opLog.User, opLog.Action)
+		if opLog.ResourceType != "" && opLog.ResourceID != "" {
+			message += fmt.Sprintf(" (%s: %s)", opLog.ResourceType, opLog.ResourceID)
+		}
+
+		// 构建 fields
+		fields := []*LogField{
+			{Key: "user", Value: opLog.User},
+			{Key: "operation", Value: string(opLog.Operation)},
+			{Key: "action", Value: opLog.Action},
+		}
+		if opLog.ResourceType != "" {
+			fields = append(fields, &LogField{Key: "resource_type", Value: opLog.ResourceType})
+		}
+		if opLog.ResourceID != "" {
+			fields = append(fields, &LogField{Key: "resource_id", Value: opLog.ResourceID})
+		}
+		if opLog.IP != "" {
+			fields = append(fields, &LogField{Key: "ip", Value: opLog.IP})
+		}
+
+		// 将 before 和 after 添加到 fields
+		if opLog.Before != nil {
+			if beforeJSON, err := json.Marshal(opLog.Before); err == nil {
+				fields = append(fields, &LogField{Key: "before", Value: string(beforeJSON)})
+			}
+		}
+		if opLog.After != nil {
+			if afterJSON, err := json.Marshal(opLog.After); err == nil {
+				fields = append(fields, &LogField{Key: "after", Value: string(afterJSON)})
+			}
+		}
+
+		logs = append(logs, &LogEntry{
+			Timestamp: opLog.Timestamp.UnixNano(),
+			Level:     LogLevelInfo, // 操作日志统一为 info 级别
+			Message:   message,
+			Fields:    fields,
+		})
+	}
+
+	resp := GetAllLogsResponse{
+		Logs:  logs,
+		Total: result.Total,
+	}
+	response.Success(resp).WriteJSON(w)
 }

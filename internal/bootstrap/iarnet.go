@@ -6,6 +6,7 @@ import (
 
 	"github.com/9triver/iarnet/internal/config"
 	"github.com/9triver/iarnet/internal/domain/application"
+	"github.com/9triver/iarnet/internal/domain/audit"
 	"github.com/9triver/iarnet/internal/domain/execution"
 	"github.com/9triver/iarnet/internal/domain/resource"
 	"github.com/9triver/iarnet/internal/domain/resource/component"
@@ -42,6 +43,9 @@ type Iarnet struct {
 
 	// Execution 模块
 	IgnisPlatform *execution.Platform
+
+	// Audit 模块
+	AuditManager *audit.Manager
 }
 
 // Start 启动所有服务

@@ -35,7 +35,12 @@ func Initialize(cfg *config.Config) (*Iarnet, error) {
 		return nil, fmt.Errorf("failed to initialize application module: %w", err)
 	}
 
-	// 4. 初始化 Transport 层
+	// 4. 初始化 Audit 模块
+	if err := bootstrapAudit(iarnet); err != nil {
+		return nil, fmt.Errorf("failed to initialize audit module: %w", err)
+	}
+
+	// 5. 初始化 Transport 层
 	if err := bootstrapTransport(iarnet); err != nil {
 		return nil, fmt.Errorf("failed to initialize transport layer: %w", err)
 	}

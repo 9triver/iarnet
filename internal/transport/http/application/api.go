@@ -1,8 +1,10 @@
 package application
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -11,13 +13,17 @@ import (
 	"github.com/9triver/iarnet/internal/domain/application"
 	applogger "github.com/9triver/iarnet/internal/domain/application/logger"
 	apptypes "github.com/9triver/iarnet/internal/domain/application/types"
+	"github.com/9triver/iarnet/internal/domain/audit"
+	audittypes "github.com/9triver/iarnet/internal/domain/audit/types"
+	httpauth "github.com/9triver/iarnet/internal/transport/http/util/auth"
 	"github.com/9triver/iarnet/internal/transport/http/util/response"
+	"github.com/9triver/iarnet/internal/util"
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
 )
 
-func RegisterRoutes(router *mux.Router, am *application.Manager) {
-	api := NewAPI(am)
+func RegisterRoutes(router *mux.Router, am *application.Manager, auditMgr *audit.Manager) {
+	api := NewAPI(am, auditMgr)
 	router.HandleFunc("/application/stats", api.handleGetApplicationStats).Methods("GET")
 	router.HandleFunc("/application/runner-environments", api.handleGetRunnerEnvironments).Methods("GET")
 	router.HandleFunc("/application/apps", api.handleGetApplicationList).Methods("GET")
@@ -45,13 +51,81 @@ func RegisterRoutes(router *mux.Router, am *application.Manager) {
 }
 
 type API struct {
-	am *application.Manager
+	am       *application.Manager
+	auditMgr *audit.Manager
 }
 
-func NewAPI(am *application.Manager) *API {
+func NewAPI(am *application.Manager, auditMgr *audit.Manager) *API {
 	return &API{
-		am: am,
+		am:       am,
+		auditMgr: auditMgr,
 	}
+}
+
+// recordOperation 记录操作日志的辅助函数
+func (api *API) recordOperation(r *http.Request, operation audittypes.OperationType, resourceType, resourceID, action string, before, after map[string]interface{}) {
+	if api.auditMgr == nil {
+		return
+	}
+
+	// 从 context 中获取用户信息（由认证中间件注入）
+	user := httpauth.GetUsernameFromContext(r.Context())
+	if user == "" {
+		user = "unknown"
+	}
+
+	// 获取IP地址
+	ip := getClientIP(r)
+
+	// 生成操作日志ID
+	logID := util.GenIDWith("op.")
+
+	opLog := &audittypes.OperationLog{
+		ID:           logID,
+		User:         user,
+		Operation:    operation,
+		ResourceType: resourceType,
+		ResourceID:   resourceID,
+		Action:       action,
+		Before:       before,
+		After:        after,
+		Timestamp:    time.Now(),
+		IP:           ip,
+	}
+
+	// 异步记录操作日志，避免影响主流程
+	// 使用独立的 context，避免 HTTP 请求 context 被取消导致记录失败
+	go func() {
+		ctx := context.Background()
+		if err := api.auditMgr.RecordOperation(ctx, opLog); err != nil {
+			logrus.Errorf("Failed to record operation log: %v", err)
+		}
+	}()
+}
+
+// getClientIP 获取客户端IP地址
+func getClientIP(r *http.Request) string {
+	// 检查 X-Forwarded-For 头（代理/负载均衡器）
+	forwarded := r.Header.Get("X-Forwarded-For")
+	if forwarded != "" {
+		ips := strings.Split(forwarded, ",")
+		if len(ips) > 0 {
+			return strings.TrimSpace(ips[0])
+		}
+	}
+
+	// 检查 X-Real-IP 头
+	realIP := r.Header.Get("X-Real-IP")
+	if realIP != "" {
+		return realIP
+	}
+
+	// 直接从 RemoteAddr 获取
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return ip
 }
 
 func (api *API) handleGetApplicationDAG(w http.ResponseWriter, r *http.Request) {
@@ -121,6 +195,22 @@ func (api *API) handleCreateApplication(w http.ResponseWriter, r *http.Request) 
 	}
 
 	logrus.Infof("Application created successfully: id=%s (cloning in background)", appID)
+
+	// 记录操作日志
+	after := map[string]interface{}{
+		"id":              string(appID),
+		"name":            req.Name,
+		"git_url":         req.GitURL,
+		"branch":          req.Branch,
+		"description":     req.Description,
+		"runner_env":      req.RunnerEnv,
+		"execute_cmd":     req.ExecuteCmd,
+		"env_install_cmd": req.EnvInstallCmd,
+		"status":          "idle",
+	}
+	api.recordOperation(r, audittypes.OperationTypeCreateApplication, "application", string(appID),
+		fmt.Sprintf("创建应用: %s", req.Name), nil, after)
+
 	resp := CreateApplicationResponse{
 		ID: string(appID),
 	}
@@ -189,6 +279,19 @@ func (api *API) handleUpdateApplication(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// 记录操作前的状态
+	before := map[string]interface{}{
+		"id":              appID,
+		"name":            metadata.Name,
+		"git_url":         metadata.GitUrl,
+		"branch":          metadata.Branch,
+		"description":     metadata.Description,
+		"runner_env":      metadata.RunnerEnv,
+		"execute_cmd":     metadata.ExecuteCmd,
+		"env_install_cmd": metadata.EnvInstallCmd,
+		"status":          string(metadata.Status),
+	}
+
 	// 更新字段
 	if req.Name != nil {
 		metadata.Name = *req.Name
@@ -218,7 +321,25 @@ func (api *API) handleUpdateApplication(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// 记录操作后的状态
+	after := map[string]interface{}{
+		"id":              appID,
+		"name":            metadata.Name,
+		"git_url":         metadata.GitUrl,
+		"branch":          metadata.Branch,
+		"description":     metadata.Description,
+		"runner_env":      metadata.RunnerEnv,
+		"execute_cmd":     metadata.ExecuteCmd,
+		"env_install_cmd": metadata.EnvInstallCmd,
+		"status":          string(metadata.Status),
+	}
+
 	logrus.Infof("Application updated successfully: id=%s", appID)
+
+	// 记录操作日志
+	api.recordOperation(r, audittypes.OperationTypeUpdateApplication, "application", appID,
+		fmt.Sprintf("更新应用: %s", metadata.Name), before, after)
+
 	response.Success(map[string]string{"message": "Application updated successfully"}).WriteJSON(w)
 }
 
@@ -230,12 +351,24 @@ func (api *API) handleDeleteApplication(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// 验证应用是否存在
-	_, err := api.am.GetAppMetadata(r.Context(), appID)
+	// 验证应用是否存在并获取元数据
+	metadata, err := api.am.GetAppMetadata(r.Context(), appID)
 	if err != nil {
 		logrus.Warnf("Application not found: %s", appID)
 		response.NotFound("application not found").WriteJSON(w)
 		return
+	}
+
+	// 记录操作前的状态
+	before := map[string]interface{}{
+		"id":           appID,
+		"name":         metadata.Name,
+		"git_url":      metadata.GitUrl,
+		"branch":       metadata.Branch,
+		"description":  metadata.Description,
+		"runner_env":   metadata.RunnerEnv,
+		"status":       string(metadata.Status),
+		"container_id": metadata.ContainerID,
 	}
 
 	// 停止并移除 runner（如果存在）
@@ -263,6 +396,11 @@ func (api *API) handleDeleteApplication(w http.ResponseWriter, r *http.Request) 
 	}
 
 	logrus.Infof("Application deleted successfully: id=%s", appID)
+
+	// 记录操作日志
+	api.recordOperation(r, audittypes.OperationTypeDeleteApplication, "application", appID,
+		fmt.Sprintf("删除应用: %s", metadata.Name), before, nil)
+
 	response.Success(map[string]string{
 		"message": "Application deleted successfully",
 		"app_id":  appID,
@@ -279,6 +417,15 @@ func (api *API) handleRunApplication(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
+	// 获取操作前的状态
+	beforeMetadata, _ := api.am.GetAppMetadata(ctx, appID)
+	before := map[string]interface{}{
+		"id":           appID,
+		"name":         beforeMetadata.Name,
+		"status":       string(beforeMetadata.Status),
+		"container_id": beforeMetadata.ContainerID,
+	}
+
 	// 调用 manager 的 RunApplication 方法，封装了启动 runner 的完整逻辑
 	if err := api.am.RunApplication(ctx, appID); err != nil {
 		logrus.Errorf("Failed to run application %s: %v", appID, err)
@@ -293,6 +440,17 @@ func (api *API) handleRunApplication(w http.ResponseWriter, r *http.Request) {
 
 	// 获取更新后的应用信息
 	updatedMetadata, _ := api.am.GetAppMetadata(ctx, appID)
+	after := map[string]interface{}{
+		"id":           appID,
+		"name":         updatedMetadata.Name,
+		"status":       string(updatedMetadata.Status),
+		"container_id": updatedMetadata.ContainerID,
+	}
+
+	// 记录操作日志
+	api.recordOperation(r, audittypes.OperationTypeRunApplication, "application", appID,
+		fmt.Sprintf("运行应用: %s", updatedMetadata.Name), before, after)
+
 	resp := FromAppMetadataToGetResponse(updatedMetadata)
 	response.Success(resp).WriteJSON(w)
 }
@@ -660,12 +818,32 @@ func (api *API) handleSaveFileContent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 获取操作前的文件内容（如果存在）
+	var beforeContent string
+	if existingContent, _, err := api.am.GetFileContent(ctx, appID, filePath); err == nil {
+		beforeContent = existingContent
+	}
+
 	// 调用 manager 保存文件内容
 	if err := api.am.SaveFileContent(ctx, appID, filePath, req.Content); err != nil {
 		logrus.Errorf("Failed to save file content for app %s: %v", appID, err)
 		response.InternalError("failed to save file content: " + err.Error()).WriteJSON(w)
 		return
 	}
+
+	// 记录操作日志
+	before := map[string]interface{}{
+		"application_id": appID,
+		"file_path":      filePath,
+		"content_length": len(beforeContent),
+	}
+	after := map[string]interface{}{
+		"application_id": appID,
+		"file_path":      filePath,
+		"content_length": len(req.Content),
+	}
+	api.recordOperation(r, audittypes.OperationTypeUpdateFile, "file", fmt.Sprintf("%s:%s", appID, filePath),
+		fmt.Sprintf("更新文件: %s", filePath), before, after)
 
 	resp := SaveFileContentResponse{
 		Message:  "File saved successfully",
@@ -704,6 +882,14 @@ func (api *API) handleCreateFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 记录操作日志
+	after := map[string]interface{}{
+		"application_id": appID,
+		"file_path":      req.FilePath,
+	}
+	api.recordOperation(r, audittypes.OperationTypeCreateFile, "file", fmt.Sprintf("%s:%s", appID, req.FilePath),
+		fmt.Sprintf("创建文件: %s", req.FilePath), nil, after)
+
 	resp := CreateFileResponse{
 		Message:  "File created successfully",
 		FilePath: req.FilePath,
@@ -734,12 +920,22 @@ func (api *API) handleDeleteFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 记录操作前的状态
+	before := map[string]interface{}{
+		"application_id": appID,
+		"file_path":      req.FilePath,
+	}
+
 	// 调用 manager 删除文件
 	if err := api.am.DeleteFile(ctx, appID, req.FilePath); err != nil {
 		logrus.Errorf("Failed to delete file for app %s: %v", appID, err)
 		response.InternalError("failed to delete file: " + err.Error()).WriteJSON(w)
 		return
 	}
+
+	// 记录操作日志
+	api.recordOperation(r, audittypes.OperationTypeDeleteFile, "file", fmt.Sprintf("%s:%s", appID, req.FilePath),
+		fmt.Sprintf("删除文件: %s", req.FilePath), before, nil)
 
 	resp := DeleteFileResponse{
 		Message:  "File deleted successfully",
@@ -778,6 +974,14 @@ func (api *API) handleCreateDirectory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 记录操作日志
+	after := map[string]interface{}{
+		"application_id": appID,
+		"dir_path":       req.DirPath,
+	}
+	api.recordOperation(r, audittypes.OperationTypeCreateDirectory, "directory", fmt.Sprintf("%s:%s", appID, req.DirPath),
+		fmt.Sprintf("创建目录: %s", req.DirPath), nil, after)
+
 	resp := CreateDirectoryResponse{
 		Message: "Directory created successfully",
 		DirPath: req.DirPath,
@@ -808,12 +1012,22 @@ func (api *API) handleDeleteDirectory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 记录操作前的状态
+	before := map[string]interface{}{
+		"application_id": appID,
+		"dir_path":       req.DirPath,
+	}
+
 	// 调用 manager 删除目录
 	if err := api.am.DeleteDirectory(ctx, appID, req.DirPath); err != nil {
 		logrus.Errorf("Failed to delete directory for app %s: %v", appID, err)
 		response.InternalError("failed to delete directory: " + err.Error()).WriteJSON(w)
 		return
 	}
+
+	// 记录操作日志
+	api.recordOperation(r, audittypes.OperationTypeDeleteDirectory, "directory", fmt.Sprintf("%s:%s", appID, req.DirPath),
+		fmt.Sprintf("删除目录: %s", req.DirPath), before, nil)
 
 	resp := DeleteDirectoryResponse{
 		Message: "Directory deleted successfully",

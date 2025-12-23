@@ -6,24 +6,29 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/9triver/iarnet/internal/config"
+	"github.com/9triver/iarnet/internal/domain/audit"
+	audittypes "github.com/9triver/iarnet/internal/domain/audit/types"
 	"github.com/9triver/iarnet/internal/domain/resource"
 	"github.com/9triver/iarnet/internal/domain/resource/discovery"
 	"github.com/9triver/iarnet/internal/domain/resource/logger"
 	"github.com/9triver/iarnet/internal/domain/resource/provider"
 	"github.com/9triver/iarnet/internal/domain/resource/types"
+	httpauth "github.com/9triver/iarnet/internal/transport/http/util/auth"
 	"github.com/9triver/iarnet/internal/transport/http/util/response"
+	"github.com/9triver/iarnet/internal/util"
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
 )
 
-func RegisterRoutes(router *mux.Router, resMgr *resource.Manager, cfg *config.Config, discoveryService discovery.Service) {
-	api := NewAPI(resMgr, cfg, discoveryService)
+func RegisterRoutes(router *mux.Router, resMgr *resource.Manager, cfg *config.Config, discoveryService discovery.Service, auditMgr *audit.Manager) {
+	api := NewAPI(resMgr, cfg, discoveryService, auditMgr)
 	router.HandleFunc("/resource/capacity", api.handleGetResourceCapacity).Methods("GET")
 	router.HandleFunc("/resource/node/info", api.handleGetNodeInfo).Methods("GET")
 	router.HandleFunc("/resource/provider", api.handleGetResourceProviders).Methods("GET")
@@ -190,14 +195,82 @@ type API struct {
 	resMgr           *resource.Manager
 	cfg              *config.Config
 	discoveryService discovery.Service
+	auditMgr         *audit.Manager
 }
 
-func NewAPI(resMgr *resource.Manager, cfg *config.Config, discoveryService discovery.Service) *API {
+func NewAPI(resMgr *resource.Manager, cfg *config.Config, discoveryService discovery.Service, auditMgr *audit.Manager) *API {
 	return &API{
 		resMgr:           resMgr,
 		cfg:              cfg,
 		discoveryService: discoveryService,
+		auditMgr:         auditMgr,
 	}
+}
+
+// recordOperation 记录操作日志的辅助函数
+func (api *API) recordOperation(r *http.Request, operation audittypes.OperationType, resourceType, resourceID, action string, before, after map[string]interface{}) {
+	if api.auditMgr == nil {
+		return
+	}
+
+	// 从 context 中获取用户信息（由认证中间件注入）
+	user := httpauth.GetUsernameFromContext(r.Context())
+	if user == "" {
+		user = "unknown"
+	}
+
+	// 获取IP地址
+	ip := getClientIP(r)
+
+	// 生成操作日志ID
+	logID := util.GenIDWith("op.")
+
+	opLog := &audittypes.OperationLog{
+		ID:           logID,
+		User:         user,
+		Operation:    operation,
+		ResourceType: resourceType,
+		ResourceID:   resourceID,
+		Action:       action,
+		Before:       before,
+		After:        after,
+		Timestamp:    time.Now(),
+		IP:           ip,
+	}
+
+	// 异步记录操作日志，避免影响主流程
+	// 使用独立的 context，避免 HTTP 请求 context 被取消导致记录失败
+	go func() {
+		ctx := context.Background()
+		if err := api.auditMgr.RecordOperation(ctx, opLog); err != nil {
+			logrus.Errorf("Failed to record operation log: %v", err)
+		}
+	}()
+}
+
+// getClientIP 获取客户端IP地址
+func getClientIP(r *http.Request) string {
+	// 检查 X-Forwarded-For 头（代理/负载均衡器）
+	forwarded := r.Header.Get("X-Forwarded-For")
+	if forwarded != "" {
+		ips := strings.Split(forwarded, ",")
+		if len(ips) > 0 {
+			return strings.TrimSpace(ips[0])
+		}
+	}
+
+	// 检查 X-Real-IP 头
+	realIP := r.Header.Get("X-Real-IP")
+	if realIP != "" {
+		return realIP
+	}
+
+	// 直接从 RemoteAddr 获取
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return ip
 }
 
 func (api *API) handleGetResourceCapacity(w http.ResponseWriter, r *http.Request) {
@@ -254,6 +327,17 @@ func (api *API) handleRegisterResourceProvider(w http.ResponseWriter, r *http.Re
 		response.InternalError("failed to register provider: " + err.Error()).WriteJSON(w)
 		return
 	}
+
+	// 记录操作日志
+	after := map[string]interface{}{
+		"id":      p.GetID(),
+		"name":    p.GetName(),
+		"host":    req.Host,
+		"port":    req.Port,
+		"address": fmt.Sprintf("%s:%d", req.Host, req.Port),
+	}
+	api.recordOperation(r, audittypes.OperationTypeRegisterResource, "resource_provider", p.GetID(),
+		fmt.Sprintf("接入资源提供者: %s (%s:%d)", req.Name, req.Host, req.Port), nil, after)
 
 	resp := RegisterResourceProviderResponse{
 		ID:   p.GetID(),
@@ -450,6 +534,12 @@ func (api *API) handleUpdateResourceProvider(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	// 记录操作前的状态
+	before := map[string]interface{}{
+		"id":   providerID,
+		"name": provider.GetName(),
+	}
+
 	// 检查是否有需要更新的字段
 	hasUpdates := false
 	updatedName := provider.GetName()
@@ -481,6 +571,16 @@ func (api *API) handleUpdateResourceProvider(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	// 记录操作后的状态
+	after := map[string]interface{}{
+		"id":   providerID,
+		"name": updatedName,
+	}
+
+	// 记录操作日志
+	api.recordOperation(r, audittypes.OperationTypeUpdateResource, "resource_provider", providerID,
+		fmt.Sprintf("更新资源提供者: %s -> %s", before["name"], updatedName), before, after)
+
 	// 构建响应
 	resp := UpdateResourceProviderResponse{
 		ID:      providerID,
@@ -499,12 +599,28 @@ func (api *API) handleUnregisterResourceProvider(w http.ResponseWriter, r *http.
 		return
 	}
 
+	// 获取操作前的状态
+	provider := api.resMgr.GetProvider(providerID)
+	if provider == nil {
+		response.NotFound("provider not found").WriteJSON(w)
+		return
+	}
+
+	before := map[string]interface{}{
+		"id":   providerID,
+		"name": provider.GetName(),
+	}
+
 	// 注销 provider
 	if err := api.resMgr.UnregisterProvider(providerID); err != nil {
 		logrus.Errorf("Failed to unregister provider %s: %v", providerID, err)
 		response.NotFound("provider not found: " + err.Error()).WriteJSON(w)
 		return
 	}
+
+	// 记录操作日志
+	api.recordOperation(r, audittypes.OperationTypeDeleteResource, "resource_provider", providerID,
+		fmt.Sprintf("删除资源提供者: %s", before["name"]), before, nil)
 
 	resp := UnregisterResourceProviderResponse{
 		ID:      providerID,

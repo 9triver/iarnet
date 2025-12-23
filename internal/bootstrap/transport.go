@@ -57,7 +57,7 @@ func bootstrapTransport(iarnet *Iarnet) error {
 
 	// 创建 RPC 服务器管理器（不启动，启动操作在 Start 方法中统一执行）
 	opts := rpc.Options{
-		ExecutionAddr:          executionAddr,
+		ExecutionAddr:         executionAddr,
 		StoreAddr:             storeAddr,
 		LoggerAddr:            loggerAddr,
 		ControllerService:     iarnet.IgnisPlatform,
@@ -82,6 +82,7 @@ func bootstrapTransport(iarnet *Iarnet) error {
 		Platform:         iarnet.IgnisPlatform,
 		Config:           iarnet.Config,
 		DiscoveryService: iarnet.DiscoveryService,
+		AuditMgr:         iarnet.AuditManager,
 	})
 
 	logrus.Info("Transport layer initialized")

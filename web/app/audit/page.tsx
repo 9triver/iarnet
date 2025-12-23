@@ -158,14 +158,30 @@ const LogListViewer = ({ logs }: { logs: LogEntry[] }) => {
 }
 
 export default function AuditPage() {
-  // 计算默认时间范围：最近两小时
+  // 计算默认时间范围：最近两小时，结束时间为当前时间+10分钟
   const getDefaultTimeRange = () => {
     const now = new Date()
     const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000)
+    const tenMinutesLater = new Date(now.getTime() + 10 * 60 * 1000)
     return {
       startTime: twoHoursAgo.toISOString(),
-      endTime: now.toISOString(),
+      endTime: tenMinutesLater.toISOString(),
     }
+  }
+
+  // 更新时间范围：结束时间为当前时间+10分钟
+  const updateTimeRange = () => {
+    const now = new Date()
+    const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000)
+    const tenMinutesLater = new Date(now.getTime() + 10 * 60 * 1000)
+    setOperationsTimeRange({
+      startTime: twoHoursAgo.toISOString(),
+      endTime: tenMinutesLater.toISOString(),
+    })
+    setAllLogsTimeRange({
+      startTime: twoHoursAgo.toISOString(),
+      endTime: tenMinutesLater.toISOString(),
+    })
   }
 
   const defaultTimeRange = getDefaultTimeRange()
@@ -215,6 +231,11 @@ export default function AuditPage() {
   }
   
   const [error, setError] = useState<string | null>(null)
+
+  // 页面加载时更新时间范围（结束时间为当前时间+10分钟）
+  useEffect(() => {
+    updateTimeRange()
+  }, [])
 
   const loadLogs = async () => {
     try {

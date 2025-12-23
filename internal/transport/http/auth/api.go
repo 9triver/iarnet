@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/9triver/iarnet/internal/config"
+	httpauth "github.com/9triver/iarnet/internal/transport/http/util/auth"
 	"github.com/9triver/iarnet/internal/transport/http/util/response"
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
@@ -34,6 +35,7 @@ type LoginRequest struct {
 
 type LoginResponse struct {
 	Username string `json:"username"`
+	Token    string `json:"token"`
 }
 
 type GetCurrentUserResponse struct {
@@ -78,15 +80,24 @@ func (api *API) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	logrus.Infof("User logged in: %s", username)
 
+	// 生成 JWT token
+	token, err := httpauth.GenerateToken(username)
+	if err != nil {
+		logrus.Errorf("Failed to generate token: %v", err)
+		response.InternalError("failed to generate token").WriteJSON(w)
+		return
+	}
+
 	resp := LoginResponse{
 		Username: username,
+		Token:    token,
 	}
 	response.Success(resp).WriteJSON(w)
 }
 
 func (api *API) handleGetCurrentUser(w http.ResponseWriter, r *http.Request) {
-	// 从请求头获取用户名（简单实现，实际应该使用 session 或 token）
-	username := r.Header.Get("X-Username")
+	// 从 context 中获取用户名（由中间件注入）
+	username := httpauth.GetUsernameFromContext(r.Context())
 	if username == "" {
 		response.Unauthorized("authentication required").WriteJSON(w)
 		return
@@ -111,4 +122,3 @@ func (api *API) handleGetCurrentUser(w http.ResponseWriter, r *http.Request) {
 	}
 	response.Success(resp).WriteJSON(w)
 }
-

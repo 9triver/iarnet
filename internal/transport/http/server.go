@@ -8,6 +8,7 @@ import (
 
 	"github.com/9triver/iarnet/internal/config"
 	"github.com/9triver/iarnet/internal/domain/application"
+	"github.com/9triver/iarnet/internal/domain/audit"
 	"github.com/9triver/iarnet/internal/domain/execution"
 	"github.com/9triver/iarnet/internal/domain/resource"
 	"github.com/9triver/iarnet/internal/domain/resource/discovery"
@@ -15,6 +16,7 @@ import (
 	auditAPI "github.com/9triver/iarnet/internal/transport/http/audit"
 	authAPI "github.com/9triver/iarnet/internal/transport/http/auth"
 	resourceAPI "github.com/9triver/iarnet/internal/transport/http/resource"
+	httpauth "github.com/9triver/iarnet/internal/transport/http/util/auth"
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
 )
@@ -26,6 +28,7 @@ type Options struct {
 	ResMgr           *resource.Manager
 	Platform         *execution.Platform
 	DiscoveryService discovery.Service
+	AuditMgr         *audit.Manager
 }
 
 type Server struct {
@@ -35,10 +38,19 @@ type Server struct {
 
 func NewServer(opts Options) *Server {
 	router := mux.NewRouter()
+
+	// 设置 JWT 密钥（如果配置中有）
+	if opts.Config != nil && opts.Config.Auth.JWTSecret != "" {
+		httpauth.SetSecret(opts.Config.Auth.JWTSecret)
+	}
+
+	// 应用认证中间件（除了登录接口）
+	router.Use(httpauth.AuthMiddleware)
+
 	authAPI.RegisterRoutes(router, opts.Config)
-	applicationAPI.RegisterRoutes(router, opts.AppMgr)
-	resourceAPI.RegisterRoutes(router, opts.ResMgr, opts.Config, opts.DiscoveryService)
-	auditAPI.RegisterRoutes(router, opts.ResMgr)
+	applicationAPI.RegisterRoutes(router, opts.AppMgr, opts.AuditMgr)
+	resourceAPI.RegisterRoutes(router, opts.ResMgr, opts.Config, opts.DiscoveryService, opts.AuditMgr)
+	auditAPI.RegisterRoutes(router, opts.ResMgr, opts.AuditMgr)
 
 	return &Server{Server: &http.Server{Addr: fmt.Sprintf("0.0.0.0:%d", opts.Port), Handler: router}, Router: router}
 }

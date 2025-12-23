@@ -2,6 +2,7 @@ package metadata
 
 import (
 	"context"
+	"time"
 
 	"github.com/9triver/iarnet/internal/domain/application/types"
 	"github.com/9triver/iarnet/internal/util"
@@ -52,6 +53,10 @@ func (s *service) UpdateAppStatus(ctx context.Context, appID string, status type
 		return err
 	}
 	metadata.Status = status
+	// 当应用状态变为运行中时，更新最后部署时间
+	if status == types.AppStatusRunning {
+		metadata.LastDeployed = time.Now()
+	}
 	s.cache.Set(appID, metadata)
 	return nil
 }

@@ -19,6 +19,12 @@ type Config struct {
 	Ignis       IgnisConfig       `yaml:"ignis"`       // Ignis module configuration
 	Transport   TransportConfig   `yaml:"transport"`   // Transport configuration
 	Database    DatabaseConfig    `yaml:"database"`    // Database configuration
+	Auth        AuthConfig        `yaml:"auth"`        // Authentication configuration
+}
+
+// AuthConfig 认证配置
+type AuthConfig struct {
+	JWTSecret string `yaml:"jwt_secret"` // JWT 密钥
 }
 
 // UserConfig 用户配置
@@ -138,6 +144,7 @@ type DatabaseConfig struct {
 	ApplicationDBPath      string `yaml:"application_db_path"`       // Application 数据库路径
 	ResourceProviderDBPath string `yaml:"resource_provider_db_path"` // Resource Provider 数据库路径
 	ResourceLoggerDBPath   string `yaml:"resource_logger_db_path"`   // Resource Logger 数据库路径
+	OperationLogDBPath     string `yaml:"operation_log_db_path"`     // Operation Log 数据库路径
 	MaxOpenConns           int    `yaml:"max_open_conns"`            // 最大打开连接数
 	MaxIdleConns           int    `yaml:"max_idle_conns"`            // 最大空闲连接数
 	ConnMaxLifetimeSeconds int    `yaml:"conn_max_lifetime_seconds"` // 连接最大生存时间（秒）
