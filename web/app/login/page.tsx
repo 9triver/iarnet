@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -17,9 +17,11 @@ interface LoginFormValues {
 
 export default function LoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const currentUser = useIARNetStore((state) => state.currentUser)
   const login = useIARNetStore((state) => state.login)
   const [error, setError] = useState<string | null>(null)
+  const [isRedirecting, setIsRedirecting] = useState(false)
 
   const form = useForm<LoginFormValues>({
     defaultValues: {
@@ -29,16 +31,22 @@ export default function LoginPage() {
   })
 
   useEffect(() => {
-    if (currentUser) {
-      router.replace("/resources")
+    // 只有在登录页面且用户已登录时才跳转
+    // 如果 URL 中有 redirect 参数，跳转到指定页面；否则跳转到资源管理页面
+    if (currentUser && !isRedirecting) {
+      setIsRedirecting(true)
+      const redirectTo = searchParams.get("redirect") || "/resources"
+      router.replace(redirectTo)
     }
-  }, [currentUser, router])
+  }, [currentUser, router, searchParams, isRedirecting])
 
   const onSubmit = async (values: LoginFormValues) => {
     setError(null)
     try {
       await login(values.username, values.password)
-      router.replace("/resources")
+      // 登录成功后，如果有 redirect 参数，跳转到指定页面；否则跳转到资源管理页面
+      const redirectTo = searchParams.get("redirect") || "/resources"
+      router.replace(redirectTo)
     } catch (err) {
       const message = err instanceof Error ? err.message : "登录失败"
       setError(message)
