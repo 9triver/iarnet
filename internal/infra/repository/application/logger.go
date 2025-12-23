@@ -276,17 +276,29 @@ func (r *loggerRepoSQLite) GetLogs(ctx context.Context, applicationID string, li
 
 // GetLogsByTimeRange 根据时间范围获取日志
 func (r *loggerRepoSQLite) GetLogsByTimeRange(ctx context.Context, applicationID string, startTime, endTime time.Time, limit int) ([]*LogEntryDAO, error) {
+	logrus.Debugf("GetLogsByTimeRange: applicationID=%s, startTime=%v (Local), endTime=%v (Local), limit=%d",
+		applicationID, startTime.Local(), endTime.Local(), limit)
+
 	query := `
 		SELECT id, application_id, timestamp, level, message, 
 		       fields, caller_file, caller_line, caller_func, created_at
 		FROM application_logs
 		WHERE application_id = ? AND timestamp >= ? AND timestamp <= ?
 		ORDER BY timestamp DESC
-		LIMIT ?
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, applicationID, startTime, endTime, limit)
+	var rows *sql.Rows
+	var err error
+	if limit > 0 {
+		query += " LIMIT ?"
+		rows, err = r.db.QueryContext(ctx, query, applicationID, startTime, endTime, limit)
+	} else {
+		// limit 为 0 时，不添加 LIMIT 子句，返回全部日志
+		rows, err = r.db.QueryContext(ctx, query, applicationID, startTime, endTime)
+	}
 	if err != nil {
+		logrus.Errorf("Failed to query logs by time range: %v, query: %s, args: applicationID=%s, startTime=%v, endTime=%v",
+			err, query, applicationID, startTime, endTime)
 		return nil, fmt.Errorf("failed to query logs by time range: %w", err)
 	}
 	defer rows.Close()
@@ -314,6 +326,15 @@ func (r *loggerRepoSQLite) GetLogsByTimeRange(ctx context.Context, applicationID
 
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating logs: %w", err)
+	}
+
+	logrus.Debugf("GetLogsByTimeRange: found %d logs for applicationID=%s", len(daos), applicationID)
+	if len(daos) > 0 {
+		logrus.Debugf("First log timestamp: %v (Local), Last log timestamp: %v (Local)",
+			daos[0].Timestamp.Local(), daos[len(daos)-1].Timestamp.Local())
+	} else {
+		logrus.Debugf("No logs found for applicationID=%s in time range [%v, %v]",
+			applicationID, startTime.Local(), endTime.Local())
 	}
 
 	return daos, nil

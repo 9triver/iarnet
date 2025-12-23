@@ -60,7 +60,12 @@ func (s *service) GetLogs(ctx context.Context, applicationID string, options *Qu
 
 	// 如果有时间范围，使用时间范围查询
 	if options.StartTime != nil && options.EndTime != nil {
-		daos, err := s.repo.GetLogsByTimeRange(ctx, applicationID, *options.StartTime, *options.EndTime, options.Limit)
+		// 如果 Limit 为 0，表示返回全部日志；否则使用指定的 limit
+		limit := options.Limit
+		if limit <= 0 {
+			limit = 0 // 0 表示无限制，返回全部日志
+		}
+		daos, err := s.repo.GetLogsByTimeRange(ctx, applicationID, *options.StartTime, *options.EndTime, limit)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get logs by time range: %w", err)
 		}
@@ -79,7 +84,7 @@ func (s *service) GetLogs(ctx context.Context, applicationID string, options *Qu
 		return &QueryResult{
 			Entries: entries,
 			Total:   len(entries),
-			HasMore: len(entries) >= options.Limit,
+			HasMore: false, // 时间范围查询返回全部日志，没有更多数据
 		}, nil
 	}
 

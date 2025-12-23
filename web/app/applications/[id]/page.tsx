@@ -15,10 +15,12 @@ import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Textarea } from "@/components/ui/textarea"
+import { DateTimePicker } from "@/components/ui/date-time-picker"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 import { CodeEditor } from "@/components/code-editor"
 import { AuthGuard } from "@/components/auth-guard"
+import { format } from "date-fns"
 import {
   ArrowLeft,
   Package,
@@ -384,10 +386,28 @@ export default function ApplicationDetailPage() {
   const [error, setError] = useState<string | null>(null)
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [isLoadingAppLogs, setIsLoadingAppLogs] = useState(false)
-  const [logLines, setLogLines] = useState(100)
   const [activeTab, setActiveTab] = useState("files")
   const [logSearchTerm, setLogSearchTerm] = useState("")
   const [logLevelFilter, setLogLevelFilter] = useState<string>("all")
+  
+  // 计算默认时间范围：最近两小时
+  const getDefaultTimeRange = () => {
+    const now = new Date()
+    const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000)
+    return {
+      startTime: twoHoursAgo.toISOString(),
+      endTime: now.toISOString(),
+    }
+  }
+  
+  const defaultTimeRange = getDefaultTimeRange()
+  const [logTimeRange, setLogTimeRange] = useState<{
+    startTime: string
+    endTime: string
+  }>({
+    startTime: defaultTimeRange.startTime,
+    endTime: defaultTimeRange.endTime,
+  })
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const isSubmittingRef = useRef(false) // 使用 ref 跟踪提交状态，避免状态更新导致的重新渲染
   const [runnerEnvironments, setRunnerEnvironments] = useState<string[]>([])
@@ -453,12 +473,12 @@ export default function ApplicationDetailPage() {
     fetchRunnerEnvironments()
   }, [applicationId])
 
-  // 当日志行数改变时重新加载日志
+  // 当时间范围或日志级别改变时重新加载日志
   useEffect(() => {
     if (applicationId && activeTab === "logs") {
       loadLogs()
     }
-  }, [logLines, logLevelFilter])
+  }, [logTimeRange.startTime, logTimeRange.endTime, logLevelFilter])
 
   // 处理标签页切换
   const handleTabChange = (value: string) => {
@@ -852,10 +872,18 @@ export default function ApplicationDetailPage() {
 
     try {
       setIsLoadingAppLogs(true)
+      console.log('Loading logs with time range:', {
+        startTime: logTimeRange.startTime,
+        endTime: logTimeRange.endTime,
+        level: logLevelFilter,
+      })
       const response = await applicationsAPI.getLogs(applicationId, {
-        limit: logLines,
+        startTime: logTimeRange.startTime,
+        endTime: logTimeRange.endTime,
         level: logLevelFilter !== "all" ? logLevelFilter : undefined,
       })
+      console.log('Logs API response:', response)
+      console.log('Logs count:', response.logs?.length || 0)
       const normalizedLogs: LogEntry[] = (response.logs || []).map((log, index) => ({
         id: `${log.timestamp}-${index}`,
         timestamp: log.timestamp,
@@ -866,6 +894,7 @@ export default function ApplicationDetailPage() {
         fields: log.fields,
         caller: log.caller,
       }))
+      console.log('Normalized logs count:', normalizedLogs.length)
       setLogs(normalizedLogs)
     } catch (err) {
       console.error('Failed to load logs:', err)
@@ -1862,17 +1891,6 @@ export default function ApplicationDetailPage() {
                       </CardDescription>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <Select value={logLines.toString()} onValueChange={(value) => setLogLines(Number(value))}>
-                        <SelectTrigger className="w-32">
-                          <SelectValue placeholder="选择行数" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="50">最近 50 行</SelectItem>
-                          <SelectItem value="100">最近 100 行</SelectItem>
-                          <SelectItem value="200">最近 200 行</SelectItem>
-                          <SelectItem value="500">最近 500 行</SelectItem>
-                        </SelectContent>
-                      </Select>
                       <Button variant="outline" size="sm" onClick={loadLogs} disabled={isLoadingAppLogs}>
                         <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingAppLogs ? 'animate-spin' : ''}`} />
                         刷新
@@ -1912,6 +1930,23 @@ export default function ApplicationDetailPage() {
                         <SelectItem value="debug">调试</SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
+                  <div className="flex items-center space-x-2 mt-4">
+                    <DateTimePicker
+                      value={logTimeRange.startTime}
+                      onChange={(value) => setLogTimeRange(prev => ({ ...prev, startTime: value }))}
+                      placeholder="开始时间"
+                      maxDate={logTimeRange.endTime ? new Date(logTimeRange.endTime) : undefined}
+                      maxTime={logTimeRange.endTime ? format(new Date(logTimeRange.endTime), "HH:mm") : undefined}
+                    />
+                    <span className="text-sm text-muted-foreground">至</span>
+                    <DateTimePicker
+                      value={logTimeRange.endTime}
+                      onChange={(value) => setLogTimeRange(prev => ({ ...prev, endTime: value }))}
+                      placeholder="结束时间"
+                      minDate={logTimeRange.startTime ? new Date(logTimeRange.startTime) : undefined}
+                      minTime={logTimeRange.startTime ? format(new Date(logTimeRange.startTime), "HH:mm") : undefined}
+                    />
                   </div>
                 </CardHeader>
                 <CardContent>

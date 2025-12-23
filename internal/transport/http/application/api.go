@@ -387,21 +387,59 @@ func (api *API) handleGetApplicationLogs(w http.ResponseWriter, r *http.Request)
 
 	query := r.URL.Query()
 
-	limit, err := parsePositiveInt(query.Get("limit"), 100)
-	if err != nil {
-		response.BadRequest("invalid limit: " + err.Error()).WriteJSON(w)
-		return
+	opts := &applogger.QueryOptions{}
+
+	// 解析时间范围参数
+	var hasTimeRange bool
+	if startParam := strings.TrimSpace(query.Get("start_time")); startParam != "" {
+		startTime, err := time.Parse(time.RFC3339, startParam)
+		if err != nil {
+			logrus.Debugf("Failed to parse start_time: %v, param: %s", err, startParam)
+			response.BadRequest("invalid start_time, must be RFC3339").WriteJSON(w)
+			return
+		}
+		// 转换为本地时间，因为数据库中的时间戳是本地时间
+		startTimeLocal := startTime.Local()
+		opts.StartTime = &startTimeLocal
+		hasTimeRange = true
+		logrus.Debugf("Parsed start_time: %v (UTC), %v (Local)", startTime.UTC(), startTimeLocal.Local())
 	}
 
-	offset, err := parseNonNegativeInt(query.Get("offset"), 0)
-	if err != nil {
-		response.BadRequest("invalid offset: " + err.Error()).WriteJSON(w)
-		return
+	if endParam := strings.TrimSpace(query.Get("end_time")); endParam != "" {
+		endTime, err := time.Parse(time.RFC3339, endParam)
+		if err != nil {
+			logrus.Debugf("Failed to parse end_time: %v, param: %s", err, endParam)
+			response.BadRequest("invalid end_time, must be RFC3339").WriteJSON(w)
+			return
+		}
+		// 转换为本地时间，因为数据库中的时间戳是本地时间
+		endTimeLocal := endTime.Local()
+		opts.EndTime = &endTimeLocal
+		hasTimeRange = true
+		logrus.Debugf("Parsed end_time: %v (UTC), %v (Local)", endTime.UTC(), endTimeLocal.Local())
 	}
 
-	opts := &applogger.QueryOptions{
-		Limit:  limit,
-		Offset: offset,
+	// 如果有时间范围，不解析 limit 和 offset，返回全部日志
+	// 如果没有时间范围，使用分页查询
+	if !hasTimeRange {
+		limit, err := parsePositiveInt(query.Get("limit"), 100)
+		if err != nil {
+			response.BadRequest("invalid limit: " + err.Error()).WriteJSON(w)
+			return
+		}
+
+		offset, err := parseNonNegativeInt(query.Get("offset"), 0)
+		if err != nil {
+			response.BadRequest("invalid offset: " + err.Error()).WriteJSON(w)
+			return
+		}
+
+		opts.Limit = limit
+		opts.Offset = offset
+	} else {
+		// 有时间范围时，设置 Limit 为 0 表示返回全部日志
+		opts.Limit = 0
+		opts.Offset = 0
 	}
 
 	if levelParam := strings.TrimSpace(query.Get("level")); levelParam != "" && strings.ToLower(levelParam) != "all" {
@@ -413,24 +451,8 @@ func (api *API) handleGetApplicationLogs(w http.ResponseWriter, r *http.Request)
 		opts.Level = level
 	}
 
-	if startParam := strings.TrimSpace(query.Get("start_time")); startParam != "" {
-		startTime, err := time.Parse(time.RFC3339, startParam)
-		if err != nil {
-			response.BadRequest("invalid start_time, must be RFC3339").WriteJSON(w)
-			return
-		}
-		opts.StartTime = &startTime
-	}
-
-	if endParam := strings.TrimSpace(query.Get("end_time")); endParam != "" {
-		endTime, err := time.Parse(time.RFC3339, endParam)
-		if err != nil {
-			response.BadRequest("invalid end_time, must be RFC3339").WriteJSON(w)
-			return
-		}
-		opts.EndTime = &endTime
-	}
-
+	logrus.Debugf("Querying logs for applicationID=%s, opts: StartTime=%v, EndTime=%v, Limit=%d, Offset=%d, Level=%s",
+		appID, opts.StartTime, opts.EndTime, opts.Limit, opts.Offset, opts.Level)
 	result, err := api.am.GetLogs(r.Context(), appID, opts)
 	if err != nil {
 		logrus.Errorf("Failed to get application logs: %v", err)
@@ -438,6 +460,8 @@ func (api *API) handleGetApplicationLogs(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	logrus.Debugf("Got %d logs for applicationID=%s, Total=%d, HasMore=%v",
+		len(result.Entries), appID, result.Total, result.HasMore)
 	resp := BuildGetApplicationLogsResponse(appID, result)
 	response.Success(resp).WriteJSON(w)
 }
