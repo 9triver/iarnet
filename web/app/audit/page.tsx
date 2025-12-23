@@ -147,15 +147,26 @@ function TimePicker({
 
   return (
     <div className="flex flex-col items-center space-y-3">
-      <label className="text-sm font-medium">时间:</label>
-      <div className="flex items-center gap-2">
-        <div className="relative h-48 w-16 overflow-hidden rounded-md border bg-background">
+      <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+        <Clock className="h-4 w-4" />
+        时间
+      </label>
+      <div className="flex items-center gap-3">
+        {/* 小时选择器 */}
+        <div className="relative h-56 w-14 overflow-hidden">
+          {/* 中间高亮指示器 */}
+          <div className="absolute inset-x-0 top-1/2 z-10 h-12 -translate-y-1/2 border-y border-primary/20 bg-primary/5 pointer-events-none" />
+          {/* 顶部渐变遮罩 */}
+          <div className="absolute inset-x-0 top-0 z-20 h-16 bg-gradient-to-b from-background via-background/80 to-transparent pointer-events-none" />
+          {/* 底部渐变遮罩 */}
+          <div className="absolute inset-x-0 bottom-0 z-20 h-16 bg-gradient-to-t from-background via-background/80 to-transparent pointer-events-none" />
           <div
             ref={hourScrollRef}
-            className="absolute inset-0 flex flex-col overflow-y-auto scrollbar-hide"
+            className="relative h-full flex flex-col overflow-y-auto scrollbar-hide py-20"
           >
             {hoursList.map((hour) => {
               const disabled = isHourDisabled(hour)
+              const isSelected = selectedHour === hour && !disabled
               return (
                 <button
                   key={hour}
@@ -163,11 +174,12 @@ function TimePicker({
                   onClick={() => handleHourChange(hour)}
                   disabled={disabled}
                   className={cn(
-                    "flex h-12 items-center justify-center text-sm transition-colors",
+                    "relative flex h-12 items-center justify-center text-sm font-medium transition-all duration-200",
+                    "rounded-md",
                     disabled
-                      ? "text-muted-foreground opacity-50 cursor-not-allowed"
-                      : "hover:bg-accent cursor-pointer",
-                    selectedHour === hour && !disabled && "bg-primary text-primary-foreground font-medium"
+                      ? "text-muted-foreground/40 cursor-not-allowed"
+                      : "text-foreground cursor-pointer hover:bg-accent/50",
+                    isSelected && "bg-primary text-primary-foreground shadow-md scale-105 z-10 mx-1"
                   )}
                 >
                   {hour.toString().padStart(2, "0")}
@@ -176,13 +188,25 @@ function TimePicker({
             })}
           </div>
         </div>
-        <div className="relative h-48 w-16 overflow-hidden rounded-md border bg-background">
+        
+        {/* 分隔符 */}
+        <div className="text-lg font-semibold text-muted-foreground">:</div>
+        
+        {/* 分钟选择器 */}
+        <div className="relative h-56 w-14 overflow-hidden">
+          {/* 中间高亮指示器 */}
+          <div className="absolute inset-x-0 top-1/2 z-10 h-12 -translate-y-1/2 border-y border-primary/20 bg-primary/5 pointer-events-none" />
+          {/* 顶部渐变遮罩 */}
+          <div className="absolute inset-x-0 top-0 z-20 h-16 bg-gradient-to-b from-background via-background/80 to-transparent pointer-events-none" />
+          {/* 底部渐变遮罩 */}
+          <div className="absolute inset-x-0 bottom-0 z-20 h-16 bg-gradient-to-t from-background via-background/80 to-transparent pointer-events-none" />
           <div
             ref={minuteScrollRef}
-            className="absolute inset-0 flex flex-col overflow-y-auto scrollbar-hide"
+            className="relative h-full flex flex-col overflow-y-auto scrollbar-hide py-20"
           >
             {minutesList.map((minute) => {
               const disabled = isMinuteDisabled(minute)
+              const isSelected = selectedMinute === minute && !disabled
               return (
                 <button
                   key={minute}
@@ -190,11 +214,12 @@ function TimePicker({
                   onClick={() => handleMinuteChange(minute)}
                   disabled={disabled}
                   className={cn(
-                    "flex h-12 items-center justify-center text-sm transition-colors",
+                    "relative flex h-12 items-center justify-center text-sm font-medium transition-all duration-200",
+                    "rounded-md",
                     disabled
-                      ? "text-muted-foreground opacity-50 cursor-not-allowed"
-                      : "hover:bg-accent cursor-pointer",
-                    selectedMinute === minute && !disabled && "bg-primary text-primary-foreground font-medium"
+                      ? "text-muted-foreground/40 cursor-not-allowed"
+                      : "text-foreground cursor-pointer hover:bg-accent/50",
+                    isSelected && "bg-primary text-primary-foreground shadow-md scale-105 z-10 mx-1"
                   )}
                 >
                   {minute.toString().padStart(2, "0")}
@@ -304,8 +329,8 @@ function DateTimePicker({
           onChange(maxDateMinusOne.toISOString())
           setTimeValue(format(maxDateMinusOne, "HH:mm"))
         } else {
-          onChange(newDate.toISOString())
-          setTimeValue(format(newDate, "HH:mm"))
+        onChange(newDate.toISOString())
+        setTimeValue(format(newDate, "HH:mm"))
         }
       }
     }
@@ -357,14 +382,14 @@ function DateTimePicker({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
-        <div className="flex p-3 gap-4">
-          <div>
-            <Calendar
+        <div className="flex p-3 gap-4 rounded-md overflow-hidden">
+          <div className="rounded-md overflow-hidden">
+          <Calendar
               locale={zhCN}
-              mode="single"
-              selected={selectedDate}
-              onSelect={handleDateSelect}
-              initialFocus
+            mode="single"
+            selected={selectedDate}
+            onSelect={handleDateSelect}
+            initialFocus
               disabled={(date) => {
                 if (minDate) {
                   const minDateOnly = new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate())
@@ -382,11 +407,11 @@ function DateTimePicker({
           </div>
           <div className="border-l pl-4 flex flex-col justify-center">
             <TimePicker 
-              value={timeValue} 
-              onChange={handleTimeChange}
+                value={timeValue}
+                onChange={handleTimeChange}
               minTime={timeLimits.minTime}
               maxTime={timeLimits.maxTime}
-            />
+              />
           </div>
         </div>
       </PopoverContent>
@@ -537,8 +562,46 @@ export default function AuditPage() {
   const [logType, setLogType] = useState<"operations" | "all">("operations")
   const [logSearchTerm, setLogSearchTerm] = useState("")
   const [logLevelFilter, setLogLevelFilter] = useState<string>("all")
-  const [startTime, setStartTime] = useState<string>(defaultTimeRange.startTime)
-  const [endTime, setEndTime] = useState<string>(defaultTimeRange.endTime)
+  
+  // 为两个标签页分别设置独立的时间状态
+  const [operationsTimeRange, setOperationsTimeRange] = useState<{
+    startTime: string
+    endTime: string
+  }>({
+    startTime: defaultTimeRange.startTime,
+    endTime: defaultTimeRange.endTime,
+  })
+  
+  const [allLogsTimeRange, setAllLogsTimeRange] = useState<{
+    startTime: string
+    endTime: string
+  }>({
+    startTime: defaultTimeRange.startTime,
+    endTime: defaultTimeRange.endTime,
+  })
+  
+  // 根据当前标签页获取对应的时间范围
+  const currentTimeRange = logType === "operations" ? operationsTimeRange : allLogsTimeRange
+  const startTime = currentTimeRange.startTime
+  const endTime = currentTimeRange.endTime
+  
+  // 设置时间范围的函数
+  const setStartTime = (value: string) => {
+    if (logType === "operations") {
+      setOperationsTimeRange(prev => ({ ...prev, startTime: value }))
+    } else {
+      setAllLogsTimeRange(prev => ({ ...prev, startTime: value }))
+    }
+  }
+  
+  const setEndTime = (value: string) => {
+    if (logType === "operations") {
+      setOperationsTimeRange(prev => ({ ...prev, endTime: value }))
+    } else {
+      setAllLogsTimeRange(prev => ({ ...prev, endTime: value }))
+    }
+  }
+  
   const [error, setError] = useState<string | null>(null)
 
   const loadLogs = async () => {
@@ -546,19 +609,22 @@ export default function AuditPage() {
       setIsLoading(true)
       setError(null)
 
+      // 根据当前标签页获取对应的时间范围
+      const timeRange = logType === "operations" ? operationsTimeRange : allLogsTimeRange
+
       // 准备查询参数
       const params: any = {}
       
       // 添加时间范围参数（RFC3339 格式）
-      if (startTime) {
-        params.startTime = startTime
+      if (timeRange.startTime) {
+        params.startTime = timeRange.startTime
       }
-      if (endTime) {
-        params.endTime = endTime
+      if (timeRange.endTime) {
+        params.endTime = timeRange.endTime
       }
       
       // 如果没有时间范围，使用默认的 limit
-      if (!startTime && !endTime) {
+      if (!timeRange.startTime && !timeRange.endTime) {
         params.limit = 100
       }
       
@@ -567,7 +633,9 @@ export default function AuditPage() {
         ? await auditAPI.getOperations({ limit: 100 })
         : await auditAPI.getLogs(params)
       
-      const logs = response.logs || []
+      // apiRequest 应该提取 data.data，但如果返回的是完整响应，需要访问 response.data.logs
+      // 兼容两种情况：response.logs（已提取）或 response.data.logs（完整响应）
+      const logs = (response as any).logs || (response as any).data?.logs || []
       
       const normalizedLogs: LogEntry[] = logs.map((log: any, index: number) => {
         if (index < 3) {
@@ -604,28 +672,10 @@ export default function AuditPage() {
         // 处理 caller 字段
         let caller: { file?: string; line?: number; function?: string } | undefined = undefined
         if (log.caller) {
-          // 处理 function 名称：去掉 (*Type) 部分，只保留函数名
-          // 例如: github.com/9triver/iarnet/internal/transport/http/audit.(*API).handleGetAllLogs
-          // 应该提取为: handleGetAllLogs
-          let functionName = log.caller.function
-          if (functionName) {
-            // 匹配 pattern: package.(*Type).FunctionName
-            const methodMatch = functionName.match(/\([^)]*\)\.([^.]+)$/)
-            if (methodMatch) {
-              functionName = methodMatch[1]
-            } else {
-              // 如果没有方法接收者，提取最后的函数名部分
-              const match = functionName.match(/\.([^.]+)$/)
-              if (match) {
-                functionName = match[1]
-              }
-            }
-          }
-          
-          // 只保留非空字段
+          // 完整保留函数名，不进行截取
           const file = log.caller.file && log.caller.file.trim() ? log.caller.file.trim() : undefined
           const line = log.caller.line !== undefined && log.caller.line !== 0 ? Number(log.caller.line) : undefined
-          const func = functionName && functionName.trim() ? functionName.trim() : undefined
+          const func = log.caller.function && log.caller.function.trim() ? log.caller.function.trim() : undefined
           
           // 如果至少有一个字段有值，才创建 caller 对象
           if (file || line || func) {
@@ -666,7 +716,7 @@ export default function AuditPage() {
 
   useEffect(() => {
     loadLogs()
-  }, [logType, startTime, endTime])
+  }, [logType, operationsTimeRange.startTime, operationsTimeRange.endTime, allLogsTimeRange.startTime, allLogsTimeRange.endTime])
 
   const filteredLogs = useMemo(() => {
     const searchTerm = logSearchTerm.trim().toLowerCase()

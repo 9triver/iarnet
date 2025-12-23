@@ -87,14 +87,24 @@ export async function apiRequest<T>(endpoint: string, options: RequestInit = {})
 
   // 处理后端标准响应格式 {code, message, data}
   if (data.code !== undefined) {
-    if (data.code < 200 || data.code >= 300) {
-      throw new APIError(data.code, data.message || data.error || "API request failed")
+    // 确保 code 是数字类型
+    const code = typeof data.code === 'number' ? data.code : parseInt(String(data.code), 10)
+    if (isNaN(code) || code < 200 || code >= 300) {
+      throw new APIError(code, data.message || data.error || "API request failed")
     }
-    return data.data
+    // 确保返回 data.data，如果 data.data 存在
+    if (data.data !== undefined) {
+      return data.data
+    }
+    // 如果 data.data 不存在，返回整个 data 对象（向后兼容）
+    return data
   }
 
-  // 兼容其他响应格式
-  return data.data || data
+  // 兼容其他响应格式：如果 data.data 存在，返回它；否则返回 data
+  if (data.data !== undefined) {
+    return data.data
+  }
+  return data
 }
 
 // 资源管理 API

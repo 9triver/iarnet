@@ -80,21 +80,34 @@ func (api *API) handleGetAllLogs(w http.ResponseWriter, r *http.Request) {
 	logrus.Infof("Received request: %s %s", r.Method, r.URL.Path)
 	query := r.URL.Query()
 
-	limit, err := parsePositiveInt(query.Get("limit"), 100)
-	if err != nil {
-		response.BadRequest("invalid limit: " + err.Error()).WriteJSON(w)
-		return
-	}
-
-	offset, err := parseNonNegativeInt(query.Get("offset"), 0)
-	if err != nil {
-		response.BadRequest("invalid offset: " + err.Error()).WriteJSON(w)
-		return
-	}
-
 	levelFilter := strings.TrimSpace(query.Get("level"))
 	if levelFilter != "" && strings.ToLower(levelFilter) == "all" {
 		levelFilter = ""
+	}
+
+	// 解析时间范围参数（RFC3339 格式）
+	var startTime, endTime *time.Time
+	if startTimeStr := strings.TrimSpace(query.Get("start_time")); startTimeStr != "" {
+		t, err := time.Parse(time.RFC3339, startTimeStr)
+		if err != nil {
+			response.BadRequest("invalid start_time format, expected RFC3339: " + err.Error()).WriteJSON(w)
+			return
+		}
+		// 将 UTC 时间转换为本地时间进行比较
+		startTimeLocal := t.In(time.Local)
+		startTime = &startTimeLocal
+		logrus.Debugf("Parsed start_time: UTC=%v, Local=%v", t, startTimeLocal)
+	}
+	if endTimeStr := strings.TrimSpace(query.Get("end_time")); endTimeStr != "" {
+		t, err := time.Parse(time.RFC3339, endTimeStr)
+		if err != nil {
+			response.BadRequest("invalid end_time format, expected RFC3339: " + err.Error()).WriteJSON(w)
+			return
+		}
+		// 将 UTC 时间转换为本地时间进行比较
+		endTimeLocal := t.In(time.Local)
+		endTime = &endTimeLocal
+		logrus.Debugf("Parsed end_time: UTC=%v, Local=%v", t, endTimeLocal)
 	}
 
 	logFilePath := util.GetLogFilePath()
@@ -107,7 +120,7 @@ func (api *API) handleGetAllLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	logs, err := readLogsFromFile(logFilePath, limit, offset, levelFilter)
+	logs, err := readLogsFromFile(logFilePath, levelFilter, startTime, endTime)
 	if err != nil {
 		logrus.Errorf("Failed to read logs from file: %v", err)
 		response.InternalError("failed to read logs: " + err.Error()).WriteJSON(w)
@@ -123,7 +136,7 @@ func (api *API) handleGetAllLogs(w http.ResponseWriter, r *http.Request) {
 
 // readLogsFromFile 从日志文件读取并解析日志
 // 按时间倒序（最新的在前）返回
-func readLogsFromFile(logFilePath string, limit, offset int, levelFilter string) ([]*LogEntry, error) {
+func readLogsFromFile(logFilePath string, levelFilter string, startTime, endTime *time.Time) ([]*LogEntry, error) {
 	file, err := os.Open(logFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open log file: %w", err)
@@ -153,6 +166,13 @@ func readLogsFromFile(logFilePath string, limit, offset int, levelFilter string)
 		if len(matches) < 4 {
 			// 无法解析的行，作为 info 文本返回
 			now := time.Now()
+			// 时间范围过滤
+			if startTime != nil && now.Before(*startTime) {
+				continue
+			}
+			if endTime != nil && now.After(*endTime) {
+				continue
+			}
 			allLogs = append(allLogs, &LogEntry{
 				Timestamp: now.UnixNano(),
 				Level:     LogLevelInfo,
@@ -174,10 +194,25 @@ func readLogsFromFile(logFilePath string, limit, offset int, levelFilter string)
 			continue
 		}
 
-		// 解析时间
-		timestamp, err := time.Parse("2006-01-02 15:04:05", timestampStr)
+		// 解析时间（使用本地时区，避免与前端 RFC3339 时间比较时发生时区偏差）
+		// 日志格式形如：2025-12-23 16:03:32（无时区信息，默认认为是本地时间）
+		timestamp, err := time.ParseInLocation("2006-01-02 15:04:05", timestampStr, time.Local)
 		if err != nil {
 			timestamp = time.Now()
+		}
+
+		// 时间范围过滤
+		// 注意：startTime 和 endTime 已经是本地时间（在 handleGetAllLogs 中已转换）
+		if startTime != nil && timestamp.Before(*startTime) {
+			continue
+		}
+		if endTime != nil && timestamp.After(*endTime) {
+			continue
+		}
+
+		// 调试日志：记录匹配的日志
+		if len(allLogs) == 0 {
+			logrus.Debugf("First matching log: timestamp=%v, startTime=%v, endTime=%v", timestamp, startTime, endTime)
 		}
 
 		entry := &LogEntry{
@@ -221,19 +256,7 @@ func readLogsFromFile(logFilePath string, limit, offset int, levelFilter string)
 		allLogs = append(allLogs, entry)
 	}
 
-	// 应用 offset / limit
-	start := offset
-	if start > len(allLogs) {
-		start = len(allLogs)
-	}
-	end := start + limit
-	if end > len(allLogs) {
-		end = len(allLogs)
-	}
-	if start >= len(allLogs) {
-		return []*LogEntry{}, nil
-	}
-	return allLogs[start:end], nil
+	return allLogs, nil
 }
 
 // 将字符串级别转换为 LogLevel
