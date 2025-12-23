@@ -2,7 +2,7 @@
 
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
-import { authAPI } from "@/lib/api"
+import { authAPI, tokenManager } from "@/lib/api"
 
 // 资源相关类型定义
 export interface Resource {
@@ -551,6 +551,8 @@ export const useIARNetStore = create<IARNetStore>()(
       },
 
       logout: () => {
+        tokenManager.removeToken()
+        authAPI.logout()
         set({ currentUser: null })
       },
     }),

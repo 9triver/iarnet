@@ -28,6 +28,9 @@ import {
   Clock,
   Shield,
   Calendar as CalendarIcon,
+  Download,
+  ArrowRight,
+  Globe,
 } from "lucide-react"
 import { AutoSizer, CellMeasurer, CellMeasurerCache, List, type ListRowProps } from "react-virtualized"
 
@@ -39,7 +42,8 @@ const LOG_LEVEL_STYLES: Record<string, { badge: string; dot: string; label: stri
   info: { badge: "bg-emerald-100 text-emerald-800", dot: "bg-emerald-500", label: "信息" },
 }
 
-type LogEntry = {
+// 系统日志条目
+type SystemLogEntry = {
   id: string
   timestamp?: string
   level?: string
@@ -50,12 +54,24 @@ type LogEntry = {
     line?: number
     function?: string
   }
-  user?: string
-  action?: string
-  resource?: string
 }
 
-const LogListViewer = ({ logs }: { logs: LogEntry[] }) => {
+// 操作日志条目
+type OperationLogEntry = {
+  id: string
+  user: string
+  operation: string
+  resource_id: string
+  resource_type: string
+  action: string
+  before?: Record<string, any>
+  after?: Record<string, any>
+  timestamp: string
+  ip?: string
+}
+
+// 系统日志查看器
+const SystemLogListViewer = ({ logs }: { logs: SystemLogEntry[] }) => {
   const cacheRef = useRef(
     new CellMeasurerCache({
       fixedWidth: true,
@@ -108,22 +124,6 @@ const LogListViewer = ({ logs }: { logs: LogEntry[] }) => {
                       <span className="text-xs text-muted-foreground font-mono">
                         {log.timestamp ? formatDateTime(log.timestamp) : "—"}
                       </span>
-                      {log.user && (
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <User className="h-3 w-3" />
-                          <span>{log.user}</span>
-                        </div>
-                      )}
-                      {log.action && (
-                        <Badge variant="outline" className="text-xs">
-                          {log.action}
-                        </Badge>
-                      )}
-                      {log.resource && (
-                        <span className="text-xs text-muted-foreground font-mono">
-                          {log.resource}
-                        </span>
-                      )}
                     </div>
                     <div className="text-[11px] text-muted-foreground font-mono flex items-center gap-2">
                       {log.caller && (
@@ -147,6 +147,127 @@ const LogListViewer = ({ logs }: { logs: LogEntry[] }) => {
                       {log.details}
                     </pre>
                   )}
+                </div>
+              </CellMeasurer>
+            )
+          }}
+        />
+      )}
+    </AutoSizer>
+  )
+}
+
+// 操作日志查看器
+const OperationLogListViewer = ({ logs }: { logs: OperationLogEntry[] }) => {
+  const cacheRef = useRef(
+    new CellMeasurerCache({
+      fixedWidth: true,
+      defaultHeight: 120,
+    })
+  )
+
+  useEffect(() => {
+    cacheRef.current.clearAll()
+  }, [logs])
+
+  if (logs.length === 0) {
+    return null
+  }
+
+  // 操作类型映射
+  const operationLabels: Record<string, string> = {
+    create_application: "创建应用",
+    update_application: "更新应用",
+    delete_application: "删除应用",
+    run_application: "运行应用",
+    stop_application: "停止应用",
+    create_file: "创建文件",
+    update_file: "更新文件",
+    delete_file: "删除文件",
+    create_directory: "创建目录",
+    delete_directory: "删除目录",
+    register_resource: "注册资源",
+    update_resource: "更新资源",
+    delete_resource: "删除资源",
+  }
+
+  return (
+    <AutoSizer>
+      {({ height, width }: { height: number; width: number }) => (
+        <List
+          width={width}
+          height={height}
+          rowCount={logs.length}
+          deferredMeasurementCache={cacheRef.current}
+          rowHeight={cacheRef.current.rowHeight}
+          overscanRowCount={6}
+          rowRenderer={({ index, key, parent, style }: ListRowProps) => {
+            const log = logs[index]
+            const operationLabel = operationLabels[log.operation] || log.operation
+
+            return (
+              <CellMeasurer
+                cache={cacheRef.current}
+                columnIndex={0}
+                key={key}
+                parent={parent}
+                rowIndex={index}
+              >
+                <div
+                  style={style}
+                  className="border-b border-gray-200/80 dark:border-gray-800/80 px-4 py-3 hover:bg-white dark:hover:bg-gray-900 transition-colors"
+                >
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <span className="text-xs text-muted-foreground font-mono">
+                          {formatDateTime(log.timestamp)}
+                        </span>
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <User className="h-3 w-3" />
+                          <span className="font-medium">{log.user}</span>
+                        </div>
+                        <Badge variant="outline" className="text-xs">
+                          {operationLabel}
+                        </Badge>
+                        {log.ip && (
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <Globe className="h-3 w-3" />
+                            <span>{log.ip}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        <span className="font-medium">{log.resource_type}</span>
+                        {log.resource_id && (
+                          <span className="ml-1 font-mono">: {log.resource_id}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-sm text-gray-900 dark:text-gray-100">
+                      {log.action}
+                    </div>
+                    {(log.before || log.after) && (
+                      <div className="flex gap-4 mt-2">
+                        {log.before && Object.keys(log.before).length > 0 && (
+                          <div className="flex-1">
+                            <div className="text-xs text-muted-foreground mb-1">操作前</div>
+                            <pre className="bg-red-50 dark:bg-red-950/20 rounded-md p-2 text-xs text-gray-700 dark:text-gray-300 overflow-x-auto whitespace-pre-wrap break-words font-mono border border-red-200 dark:border-red-900">
+                              {JSON.stringify(log.before, null, 2)}
+                            </pre>
+                          </div>
+                        )}
+                        {log.after && Object.keys(log.after).length > 0 && (
+                          <div className="flex-1">
+                            <div className="text-xs text-muted-foreground mb-1">操作后</div>
+                            <pre className="bg-green-50 dark:bg-green-950/20 rounded-md p-2 text-xs text-gray-700 dark:text-gray-300 overflow-x-auto whitespace-pre-wrap break-words font-mono border border-green-200 dark:border-green-900">
+                              {JSON.stringify(log.after, null, 2)}
+                            </pre>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </CellMeasurer>
             )
@@ -185,7 +306,8 @@ export default function AuditPage() {
   }
 
   const defaultTimeRange = getDefaultTimeRange()
-  const [logs, setLogs] = useState<LogEntry[]>([])
+  const [systemLogs, setSystemLogs] = useState<SystemLogEntry[]>([])
+  const [operationLogs, setOperationLogs] = useState<OperationLogEntry[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [logType, setLogType] = useState<"operations" | "all">("operations")
   const [logSearchTerm, setLogSearchTerm] = useState("")
@@ -242,106 +364,112 @@ export default function AuditPage() {
       setIsLoading(true)
       setError(null)
 
-      // 根据当前标签页获取对应的时间范围
-      const timeRange = logType === "operations" ? operationsTimeRange : allLogsTimeRange
-
-      // 准备查询参数
-      const params: any = {}
-      
-      // 添加时间范围参数（RFC3339 格式）
-      if (timeRange.startTime) {
-        params.startTime = timeRange.startTime
-      }
-      if (timeRange.endTime) {
-        params.endTime = timeRange.endTime
-      }
-      
-      // 如果没有时间范围，使用默认的 limit
-      if (!timeRange.startTime && !timeRange.endTime) {
-        params.limit = 100
-      }
-      
-      // 根据日志类型选择不同的 API
-      const response = logType === "operations"
-        ? await auditAPI.getOperations({ limit: 100 })
-        : await auditAPI.getLogs(params)
-      
-      // apiRequest 应该提取 data.data，但如果返回的是完整响应，需要访问 response.data.logs
-      // 兼容两种情况：response.logs（已提取）或 response.data.logs（完整响应）
-      const logs = (response as any).logs || (response as any).data?.logs || []
-      
-      const normalizedLogs: LogEntry[] = logs.map((log: any, index: number) => {
-        if (index < 3) {
-          console.log(`Processing log ${index}:`, log)
+      if (logType === "operations") {
+        // 加载操作日志
+        const timeRange = operationsTimeRange
+        const params: any = {}
+        
+        if (timeRange.startTime) {
+          params.startTime = timeRange.startTime
         }
-        // 处理 timestamp：后端返回的是纳秒时间戳（int64），需要转换为 ISO 字符串
-        let timestampStr: string | undefined = undefined
-        if (log.timestamp !== undefined && log.timestamp !== null) {
-          // 纳秒时间戳转换为毫秒
-          const timestampMs = Number(log.timestamp) / 1000000
-          timestampStr = new Date(timestampMs).toISOString()
+        if (timeRange.endTime) {
+          params.endTime = timeRange.endTime
+        }
+        if (!timeRange.startTime && !timeRange.endTime) {
+          params.limit = 100
         }
         
-        // 处理 level：后端返回的是数字（0-7），需要转换为字符串
-        const levelMap: Record<number, string> = {
-          0: "unknown",
-          1: "trace",
-          2: "debug",
-          3: "info",
-          4: "warn",
-          5: "error",
-          6: "fatal",
-          7: "panic",
-        }
-        const levelNum = typeof log.level === 'number' ? log.level : parseInt(log.level, 10)
-        const levelStr = levelMap[levelNum] || log.level || "info"
+        const response = await auditAPI.getOperations(params)
+        const logs = response.logs || []
         
-        // 处理 fields 字段
-        let details: string | undefined = undefined
-        if (log.fields && Array.isArray(log.fields) && log.fields.length > 0) {
-          details = log.fields.map((f: any) => `${f.key}: ${f.value}`).join("\n")
+        const normalizedLogs: OperationLogEntry[] = logs.map((log: any, index: number) => ({
+          id: log.id || `${log.timestamp || Date.now()}-${index}`,
+          user: log.user || "unknown",
+          operation: log.operation || "",
+          resource_id: log.resource_id || "",
+          resource_type: log.resource_type || "",
+          action: log.action || "",
+          before: log.before,
+          after: log.after,
+          timestamp: log.timestamp || new Date().toISOString(),
+          ip: log.ip,
+        }))
+        
+        setOperationLogs(normalizedLogs)
+      } else {
+        // 加载系统日志
+        const timeRange = allLogsTimeRange
+        const params: any = {}
+        
+        if (timeRange.startTime) {
+          params.startTime = timeRange.startTime
+        }
+        if (timeRange.endTime) {
+          params.endTime = timeRange.endTime
+        }
+        if (!timeRange.startTime && !timeRange.endTime) {
+          params.limit = 100
         }
         
-        // 处理 caller 字段
-        let caller: { file?: string; line?: number; function?: string } | undefined = undefined
-        if (log.caller) {
-          // 完整保留函数名，不进行截取
-          const file = log.caller.file && log.caller.file.trim() ? log.caller.file.trim() : undefined
-          const line = log.caller.line !== undefined && log.caller.line !== 0 ? Number(log.caller.line) : undefined
-          const func = log.caller.function && log.caller.function.trim() ? log.caller.function.trim() : undefined
+        const response = await auditAPI.getLogs(params)
+        const logs = (response as any).logs || (response as any).data?.logs || []
+        
+        const normalizedLogs: SystemLogEntry[] = logs.map((log: any, index: number) => {
+          let timestampStr: string | undefined = undefined
+          if (log.timestamp !== undefined && log.timestamp !== null) {
+            const timestampMs = Number(log.timestamp) / 1000000
+            timestampStr = new Date(timestampMs).toISOString()
+          }
           
-          // 如果至少有一个字段有值，才创建 caller 对象
-          if (file || line || func) {
-            caller = {
-              file,
-              line,
-              function: func,
+          const levelMap: Record<number, string> = {
+            0: "unknown",
+            1: "trace",
+            2: "debug",
+            3: "info",
+            4: "warn",
+            5: "error",
+            6: "fatal",
+            7: "panic",
+          }
+          const levelNum = typeof log.level === 'number' ? log.level : parseInt(log.level, 10)
+          const levelStr = levelMap[levelNum] || log.level || "info"
+          
+          let details: string | undefined = undefined
+          if (log.fields && Array.isArray(log.fields) && log.fields.length > 0) {
+            details = log.fields.map((f: any) => `${f.key}: ${f.value}`).join("\n")
+          }
+          
+          let caller: { file?: string; line?: number; function?: string } | undefined = undefined
+          if (log.caller) {
+            const file = log.caller.file && log.caller.file.trim() ? log.caller.file.trim() : undefined
+            const line = log.caller.line !== undefined && log.caller.line !== 0 ? Number(log.caller.line) : undefined
+            const func = log.caller.function && log.caller.function.trim() ? log.caller.function.trim() : undefined
+            
+            if (file || line || func) {
+              caller = { file, line, function: func }
             }
           }
-        }
+          
+          return {
+            id: `${log.timestamp || Date.now()}-${index}`,
+            timestamp: timestampStr,
+            level: levelStr,
+            message: log.message || log.content || "",
+            details,
+            caller,
+          }
+        })
         
-        return {
-          id: `${log.timestamp || Date.now()}-${index}`,
-          timestamp: timestampStr,
-          level: levelStr,
-          message: log.message || log.content || "",
-          details,
-          caller,
-          user: log.user || log.username || log.user_name,
-          action: log.action || log.operation,
-          resource: log.component_id || log.resource || log.resource_id || log.resource_type,
-        }
-      })
-      
-      console.log("Normalized logs count:", normalizedLogs.length)
-      if (normalizedLogs.length > 0) {
-        console.log("First normalized log:", normalizedLogs[0])
+        setSystemLogs(normalizedLogs)
       }
-      setLogs(normalizedLogs)
     } catch (err: any) {
       console.error('Failed to load logs:', err)
       setError(err.message || "加载日志失败")
-      setLogs([])
+      if (logType === "operations") {
+        setOperationLogs([])
+      } else {
+        setSystemLogs([])
+      }
     } finally {
       setIsLoading(false)
     }
@@ -351,21 +479,122 @@ export default function AuditPage() {
     loadLogs()
   }, [logType, operationsTimeRange.startTime, operationsTimeRange.endTime, allLogsTimeRange.startTime, allLogsTimeRange.endTime])
 
-  const filteredLogs = useMemo(() => {
+  const filteredSystemLogs = useMemo(() => {
     const searchTerm = logSearchTerm.trim().toLowerCase()
     const levelFilter = logLevelFilter.toLowerCase()
 
-    return logs.filter((log) => {
+    return systemLogs.filter((log) => {
       if (levelFilter !== "all" && log.level?.toLowerCase() !== levelFilter) {
         return false
       }
       if (searchTerm) {
-        const content = `${log.message ?? ""} ${log.details ?? ""} ${log.user ?? ""} ${log.action ?? ""} ${log.resource ?? ""}`.toLowerCase()
+        const content = `${log.message ?? ""} ${log.details ?? ""}`.toLowerCase()
         return content.includes(searchTerm)
       }
       return true
     })
-  }, [logs, logLevelFilter, logSearchTerm])
+  }, [systemLogs, logLevelFilter, logSearchTerm])
+
+  const filteredOperationLogs = useMemo(() => {
+    const searchTerm = logSearchTerm.trim().toLowerCase()
+
+    return operationLogs.filter((log) => {
+      if (searchTerm) {
+        const content = `${log.user ?? ""} ${log.action ?? ""} ${log.operation ?? ""} ${log.resource_type ?? ""} ${log.resource_id ?? ""}`.toLowerCase()
+        return content.includes(searchTerm)
+      }
+      return true
+    })
+  }, [operationLogs, logSearchTerm])
+
+  const currentLogs = logType === "operations" ? filteredOperationLogs : filteredSystemLogs
+
+  // 导出日志为 CSV 格式
+  const exportToCSV = () => {
+    if (logType === "operations") {
+      const headers = ["时间", "用户", "操作类型", "操作描述", "资源类型", "资源ID", "IP地址"]
+      const rows = filteredOperationLogs.map((log: OperationLogEntry) => {
+        const timestamp = formatDateTime(log.timestamp)
+        const user = log.user || "—"
+        const operation = log.operation || "—"
+        const action = (log.action || "").replace(/"/g, '""')
+        const resourceType = log.resource_type || "—"
+        const resourceId = log.resource_id || "—"
+        const ip = log.ip || "—"
+        
+        return [timestamp, user, operation, action, resourceType, resourceId, ip]
+      })
+      
+      const csvContent = [
+        headers.join(","),
+        ...rows.map((row: string[]) => row.map((cell: string) => `"${cell}"`).join(",")),
+      ].join("\n")
+
+      const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      const fileName = `操作日志_${format(new Date(), "yyyy-MM-dd_HH-mm-ss")}.csv`
+      link.download = fileName
+      link.click()
+      URL.revokeObjectURL(url)
+      return
+    }
+
+    const headers = ["时间", "级别", "消息", "详情", "调用位置"]
+    const rows = filteredSystemLogs.map((log: SystemLogEntry) => {
+      const timestamp = log.timestamp ? formatDateTime(log.timestamp) : "—"
+      const level = (log.level || "INFO").toUpperCase()
+      const message = (log.message || "").replace(/"/g, '""')
+      const details = (log.details || "").replace(/"/g, '""')
+      const caller = log.caller
+        ? `${log.caller.file || ""}${log.caller.line ? `:${log.caller.line}` : ""}${log.caller.function ? ` ${log.caller.function}` : ""}`
+        : "—"
+      
+      return [timestamp, level, message, details, caller]
+    })
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map((row: string[]) => row.map((cell: string) => `"${cell}"`).join(",")),
+    ].join("\n")
+
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    const fileName = `系统日志_${format(new Date(), "yyyy-MM-dd_HH-mm-ss")}.csv`
+    link.download = fileName
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
+  // 导出日志为 JSON 格式
+  const exportToJSON = () => {
+    const jsonContent = JSON.stringify(
+      {
+        type: logType === "operations" ? "操作日志" : "系统日志",
+        exportTime: new Date().toISOString(),
+        timeRange: {
+          startTime: currentTimeRange.startTime,
+          endTime: currentTimeRange.endTime,
+        },
+        total: currentLogs.length,
+        logs: currentLogs,
+      },
+      null,
+      2
+    )
+
+    const blob = new Blob([jsonContent], { type: "application/json;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    const fileName = `${logType === "operations" ? "操作日志" : "系统日志"}_${format(new Date(), "yyyy-MM-dd_HH-mm-ss")}.json`
+    link.download = fileName
+    link.click()
+    URL.revokeObjectURL(url)
+  }
 
   return (
     <AuthGuard>
@@ -384,10 +613,20 @@ export default function AuditPage() {
                   </p>
                 </div>
               </div>
-              <Button variant="outline" onClick={loadLogs} disabled={isLoading}>
-                <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-                刷新
-              </Button>
+              <div className="flex items-center space-x-2">
+                <Button variant="outline" onClick={exportToCSV} disabled={isLoading || currentLogs.length === 0}>
+                  <Download className="h-4 w-4 mr-2" />
+                  导出 CSV
+                </Button>
+                <Button variant="outline" onClick={exportToJSON} disabled={isLoading || currentLogs.length === 0}>
+                  <Download className="h-4 w-4 mr-2" />
+                  导出 JSON
+                </Button>
+                <Button variant="outline" onClick={loadLogs} disabled={isLoading}>
+                  <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+                  刷新
+                </Button>
+              </div>
             </div>
 
             {/* Tabs */}
@@ -399,7 +638,7 @@ export default function AuditPage() {
                 </TabsTrigger>
                 <TabsTrigger value="all" className="flex items-center space-x-2">
                   <FileText className="h-4 w-4" />
-                  <span>所有日志</span>
+                  <span>系统日志</span>
                 </TabsTrigger>
               </TabsList>
 
@@ -417,14 +656,14 @@ export default function AuditPage() {
                           ) : (
                             <>
                               <FileText className="h-5 w-5" />
-                              <span>所有日志</span>
+                              <span>系统日志</span>
                             </>
                           )}
                         </CardTitle>
                         <CardDescription>
                           {logType === "operations" 
                             ? "查看用户操作记录和系统事件" 
-                            : "查看系统所有日志记录"}
+                            : "查看系统日志记录"}
                         </CardDescription>
                       </div>
                     </div>
@@ -449,19 +688,21 @@ export default function AuditPage() {
                             </Button>
                           )}
                         </div>
-                        <Select value={logLevelFilter} onValueChange={setLogLevelFilter}>
-                          <SelectTrigger className="w-32">
-                            <Filter className="h-4 w-4 mr-2" />
-                            <SelectValue placeholder="级别" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">所有级别</SelectItem>
-                            <SelectItem value="error">错误</SelectItem>
-                            <SelectItem value="warn">警告</SelectItem>
-                            <SelectItem value="info">信息</SelectItem>
-                            <SelectItem value="debug">调试</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        {logType === "all" && (
+                          <Select value={logLevelFilter} onValueChange={setLogLevelFilter}>
+                            <SelectTrigger className="w-32">
+                              <Filter className="h-4 w-4 mr-2" />
+                              <SelectValue placeholder="级别" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">所有级别</SelectItem>
+                              <SelectItem value="error">错误</SelectItem>
+                              <SelectItem value="warn">警告</SelectItem>
+                              <SelectItem value="info">信息</SelectItem>
+                              <SelectItem value="debug">调试</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        )}
                       </div>
                       <div className="flex items-center space-x-2">
                         <DateTimePicker
@@ -497,21 +738,25 @@ export default function AuditPage() {
                         <RefreshCw className="h-6 w-6 animate-spin mr-2" />
                         <span>加载日志中...</span>
                       </div>
-                    ) : filteredLogs.length === 0 ? (
+                    ) : currentLogs.length === 0 ? (
                       <div className="flex flex-col items-center justify-center h-40 text-muted-foreground space-y-2 text-sm">
-                        {logSearchTerm || logLevelFilter !== "all" || startTime || endTime ? (
+                        {logSearchTerm || (logType === "all" && logLevelFilter !== "all") || startTime || endTime ? (
                           <Filter className="h-8 w-8 opacity-50" />
                         ) : (
                           <FileText className="h-8 w-8 opacity-50" />
                         )}
-                        <span>{logSearchTerm || logLevelFilter !== "all" || startTime || endTime ? "没有符合条件的日志" : "暂无日志数据"}</span>
+                        <span>{logSearchTerm || (logType === "all" && logLevelFilter !== "all") || startTime || endTime ? "没有符合条件的日志" : "暂无日志数据"}</span>
                         <span className="text-xs">
-                          {logSearchTerm || logLevelFilter !== "all" || startTime || endTime ? "调整筛选条件或清空搜索后重试" : "请稍后再试或刷新页面"}
+                          {logSearchTerm || (logType === "all" && logLevelFilter !== "all") || startTime || endTime ? "调整筛选条件或清空搜索后重试" : "请稍后再试或刷新页面"}
                         </span>
                       </div>
                     ) : (
                       <div className="h-[600px] w-full border rounded-md bg-gray-50 dark:bg-gray-900">
-                        <LogListViewer logs={filteredLogs} />
+                        {logType === "operations" ? (
+                          <OperationLogListViewer logs={filteredOperationLogs} />
+                        ) : (
+                          <SystemLogListViewer logs={filteredSystemLogs} />
+                        )}
                       </div>
                     )}
                   </CardContent>

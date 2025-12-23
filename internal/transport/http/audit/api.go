@@ -1,7 +1,6 @@
 package audit
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -398,54 +397,6 @@ func (api *API) handleGetOperations(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 转换为前端需要的格式（与系统日志格式一致）
-	logs := make([]*LogEntry, 0, len(result.Logs))
-	for _, opLog := range result.Logs {
-		// 构建操作描述消息
-		message := fmt.Sprintf("%s %s", opLog.User, opLog.Action)
-		if opLog.ResourceType != "" && opLog.ResourceID != "" {
-			message += fmt.Sprintf(" (%s: %s)", opLog.ResourceType, opLog.ResourceID)
-		}
-
-		// 构建 fields
-		fields := []*LogField{
-			{Key: "user", Value: opLog.User},
-			{Key: "operation", Value: string(opLog.Operation)},
-			{Key: "action", Value: opLog.Action},
-		}
-		if opLog.ResourceType != "" {
-			fields = append(fields, &LogField{Key: "resource_type", Value: opLog.ResourceType})
-		}
-		if opLog.ResourceID != "" {
-			fields = append(fields, &LogField{Key: "resource_id", Value: opLog.ResourceID})
-		}
-		if opLog.IP != "" {
-			fields = append(fields, &LogField{Key: "ip", Value: opLog.IP})
-		}
-
-		// 将 before 和 after 添加到 fields
-		if opLog.Before != nil {
-			if beforeJSON, err := json.Marshal(opLog.Before); err == nil {
-				fields = append(fields, &LogField{Key: "before", Value: string(beforeJSON)})
-			}
-		}
-		if opLog.After != nil {
-			if afterJSON, err := json.Marshal(opLog.After); err == nil {
-				fields = append(fields, &LogField{Key: "after", Value: string(afterJSON)})
-			}
-		}
-
-		logs = append(logs, &LogEntry{
-			Timestamp: opLog.Timestamp.UnixNano(),
-			Level:     LogLevelInfo, // 操作日志统一为 info 级别
-			Message:   message,
-			Fields:    fields,
-		})
-	}
-
-	resp := GetAllLogsResponse{
-		Logs:  logs,
-		Total: result.Total,
-	}
-	response.Success(resp).WriteJSON(w)
+	// 直接返回操作日志的原始结构
+	response.Success(result).WriteJSON(w)
 }

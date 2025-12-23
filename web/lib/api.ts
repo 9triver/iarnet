@@ -2,6 +2,23 @@ import { Application, ApplicationStats, CreateDirectoryResponse, CreateFileRespo
 
 // API 客户端工具函数
 const API_BASE = "/api"
+const TOKEN_KEY = "iarnet_auth_token"
+
+// Token 管理函数
+export const tokenManager = {
+  getToken: (): string | null => {
+    if (typeof window === "undefined") return null
+    return localStorage.getItem(TOKEN_KEY)
+  },
+  setToken: (token: string): void => {
+    if (typeof window === "undefined") return
+    localStorage.setItem(TOKEN_KEY, token)
+  },
+  removeToken: (): void => {
+    if (typeof window === "undefined") return
+    localStorage.removeItem(TOKEN_KEY)
+  },
+}
 
 export class APIError extends Error {
   constructor(
@@ -37,12 +54,19 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}, timeout:
 export async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${API_BASE}${endpoint}`
 
+  // 获取 token 并添加到请求头
+  const token = tokenManager.getToken()
+  const authHeaders: HeadersInit = token
+    ? { Authorization: `Bearer ${token}` }
+    : {}
+
   // 如果是 FormData，不设置 Content-Type，让浏览器自动设置（包括 boundary）
   const isFormData = options.body instanceof FormData
   const headers: HeadersInit = isFormData
-    ? { ...options.headers }
+    ? { ...authHeaders, ...options.headers }
     : {
         "Content-Type": "application/json",
+        ...authHeaders,
         ...options.headers,
       }
 
@@ -80,6 +104,12 @@ export async function apiRequest<T>(endpoint: string, options: RequestInit = {})
   // if (response.status !== 404) {
   //   console.log("API Response:", response.status, data)
   // }
+
+  // 处理 401 未授权错误，清除 token
+  if (response.status === 401) {
+    tokenManager.removeToken()
+    throw new APIError(response.status, data.message || data.error || "认证失败，请重新登录")
+  }
 
   if (!response.ok) {
     throw new APIError(response.status, data.message || data.error || "API request failed")
@@ -379,6 +409,7 @@ export interface LoginRequest {
 
 export interface LoginResponse {
   username: string
+  token: string
 }
 
 export interface GetCurrentUserResponse {
@@ -386,16 +417,25 @@ export interface GetCurrentUserResponse {
 }
 
 export const authAPI = {
-  login: (request: LoginRequest) =>
-    apiRequest<LoginResponse>("/auth/login", {
+  login: async (request: LoginRequest): Promise<LoginResponse> => {
+    const response = await apiRequest<LoginResponse>("/auth/login", {
       method: "POST",
       body: JSON.stringify(request),
-    }),
+    })
+    // 保存 token
+    if (response.token) {
+      tokenManager.setToken(response.token)
+    }
+    return response
+  },
+  logout: (): void => {
+    tokenManager.removeToken()
+  },
   getCurrentUser: () =>
     apiRequest<GetCurrentUserResponse>("/auth/me"),
 }
 
-// Audit API
+// Audit API - 系统日志
 export interface GetAuditLogsParams {
   limit?: number
   offset?: number
@@ -421,6 +461,36 @@ export interface GetAuditLogsResponse {
   total: number
 }
 
+// Audit API - 操作日志
+export interface GetOperationsParams {
+  limit?: number
+  offset?: number
+  startTime?: string
+  endTime?: string
+  user?: string
+  operation?: string
+  resourceId?: string
+}
+
+export interface OperationLogEntry {
+  id: string
+  user: string
+  operation: string
+  resource_id: string
+  resource_type: string
+  action: string
+  before?: Record<string, any>
+  after?: Record<string, any>
+  timestamp: string // ISO 8601 格式时间字符串
+  ip?: string
+}
+
+export interface GetOperationsResponse {
+  logs: OperationLogEntry[]
+  total: number
+  has_more?: boolean
+}
+
 export const auditAPI = {
   getLogs: (params?: GetAuditLogsParams) => {
     const searchParams = new URLSearchParams()
@@ -443,13 +513,31 @@ export const auditAPI = {
     const endpoint = query ? `/audit/logs?${query}` : "/audit/logs"
     return apiRequest<GetAuditLogsResponse>(endpoint)
   },
-  getOperations: (params?: { limit?: number }) => {
+  getOperations: (params?: GetOperationsParams) => {
     const searchParams = new URLSearchParams()
     if (params?.limit !== undefined) {
       searchParams.set("limit", params.limit.toString())
     }
+    if (params?.offset !== undefined) {
+      searchParams.set("offset", params.offset.toString())
+    }
+    if (params?.startTime) {
+      searchParams.set("start_time", params.startTime)
+    }
+    if (params?.endTime) {
+      searchParams.set("end_time", params.endTime)
+    }
+    if (params?.user) {
+      searchParams.set("user", params.user)
+    }
+    if (params?.operation) {
+      searchParams.set("operation", params.operation)
+    }
+    if (params?.resourceId) {
+      searchParams.set("resource_id", params.resourceId)
+    }
     const query = searchParams.toString()
     const endpoint = query ? `/audit/operations?${query}` : "/audit/operations"
-    return apiRequest<GetAuditLogsResponse>(endpoint)
+    return apiRequest<GetOperationsResponse>(endpoint)
   },
 }
