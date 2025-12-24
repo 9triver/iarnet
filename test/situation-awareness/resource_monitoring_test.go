@@ -10,13 +10,11 @@ import (
 	resourcepb "github.com/9triver/iarnet/internal/proto/resource"
 	providerpb "github.com/9triver/iarnet/internal/proto/resource/provider"
 	testutil "github.com/9triver/iarnet/test/util"
-	"github.com/moby/moby/api/types/container"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func init() {
-	// 初始化测试 logger，时间戳提前6小时
 	testutil.InitTestLogger()
 }
 
@@ -121,7 +119,12 @@ func TestResourceMonitoring_RealTimeUsageQuery(t *testing.T) {
 	require.NoError(t, err, "GetCapacity should succeed after container creation")
 	require.NotNil(t, afterCreateCapacity, "Capacity response should not be nil")
 	require.NotNil(t, afterCreateCapacity.Capacity, "Capacity should not be nil")
-	afterCreateUsed := afterCreateCapacity.Capacity.Used
+	// 复制值而不是引用，避免后续修改影响
+	afterCreateUsed := &resourcepb.Info{
+		Cpu:    afterCreateCapacity.Capacity.Used.Cpu,
+		Memory: afterCreateCapacity.Capacity.Used.Memory,
+		Gpu:    afterCreateCapacity.Capacity.Used.Gpu,
+	}
 
 	t.Log("\n" + testutil.Colorize("容器运行后资源使用情况:", testutil.ColorYellow+testutil.ColorBold))
 	t.Logf("  %s    %s", testutil.Colorize("已用 CPU:", testutil.ColorWhite+testutil.ColorBold),
@@ -200,7 +203,7 @@ func TestResourceMonitoring_RealTimeUsageQuery(t *testing.T) {
 
 	// 步骤 7: 验证清理后的资源使用（应该减少）
 	testutil.PrintTestSection(t, "步骤 7: 验证清理后的资源使用")
-	time.Sleep(2 * time.Second)
+	// 注意: 资源使用量在 Undeploy 时已在 provider 内存中立即释放，无需等待
 
 	finalCapacityReq := &providerpb.GetCapacityRequest{
 		ProviderId: providerID,
@@ -236,8 +239,25 @@ func TestResourceMonitoring_RealTimeUsageQuery(t *testing.T) {
 	t.Logf("  %s   %s", testutil.Colorize("内存减少:", testutil.ColorWhite+testutil.ColorBold),
 		testutil.Colorize(testutil.FormatBytes(memoryDecrease), testutil.ColorGreen))
 
+	// 验证资源使用减少（资源在 Undeploy 时已在内存中立即释放）
 	assert.LessOrEqual(t, finalUsed.Cpu, afterCreateUsed.Cpu,
-		"CPU usage should decrease after removing container")
+		"CPU usage should decrease immediately after Undeploy (tracked in provider memory)")
+	assert.LessOrEqual(t, finalUsed.Memory, afterCreateUsed.Memory,
+		"Memory usage should decrease immediately after Undeploy (tracked in provider memory)")
+
+	// 验证资源减少量是否正确（应该等于创建时增加的量）
+	expectedCpuDecrease := testCPU
+	expectedMemoryDecrease := testMemory
+	assert.Equal(t, expectedCpuDecrease, cpuDecrease,
+		"CPU decrease should match the requested amount")
+	assert.Equal(t, expectedMemoryDecrease, memoryDecrease,
+		"Memory decrease should match the requested amount")
+
+	// 验证资源恢复到初始状态
+	assert.Equal(t, initialUsed.Cpu, finalUsed.Cpu,
+		"CPU usage should return to initial state after undeploy")
+	assert.Equal(t, initialUsed.Memory, finalUsed.Memory,
+		"Memory usage should return to initial state after undeploy")
 
 	testutil.PrintSuccess(t, "资源实时使用查询完整验证通过")
 
@@ -395,32 +415,35 @@ func TestResourceMonitoring_HealthCheckMonitoring(t *testing.T) {
 
 	// 步骤 5: 验证健康检查的实时性（通过资源变化）
 	testutil.PrintTestSection(t, "步骤 5: 验证健康检查的实时性（通过资源变化）")
-	// 创建测试容器以改变资源状态
-	dockerClient, err := createDockerClient()
-	require.NoError(t, err, "Failed to create Docker client")
-	defer dockerClient.Close()
+	// 通过 Provider Deploy API 创建测试容器以改变资源状态
+	testContainerInstanceID := fmt.Sprintf("test-health-check-%d", time.Now().Unix())
+	testContainerImage := "alpine:latest"
+	testContainerCPU := int64(500)                  // 500 millicores
+	testContainerMemory := int64(128 * 1024 * 1024) // 128MB
 
-	testContainerName := fmt.Sprintf("test-health-check-%d", time.Now().Unix())
-	containerConfig := &container.Config{
-		Image: "alpine:latest",
-		Cmd:   []string{"sleep", "3600"},
-	}
-	hostConfig := &container.HostConfig{
-		Resources: container.Resources{
-			NanoCPUs: 500 * 1e6,         // 500 millicores
-			Memory:   128 * 1024 * 1024, // 128MB
+	testutil.PrintInfo(t, fmt.Sprintf("通过 Provider Deploy API 创建测试容器: %s", testContainerInstanceID))
+	testutil.PrintInfo(t, fmt.Sprintf("  镜像: %s", testContainerImage))
+	testutil.PrintInfo(t, fmt.Sprintf("  CPU: %d millicores, 内存: %s", testContainerCPU, testutil.FormatBytes(testContainerMemory)))
+
+	deployContainerReq := &providerpb.DeployRequest{
+		ProviderId: providerID,
+		InstanceId: testContainerInstanceID,
+		Image:      testContainerImage,
+		ResourceRequest: &resourcepb.Info{
+			Cpu:    testContainerCPU,
+			Memory: testContainerMemory,
+			Gpu:    0,
+		},
+		EnvVars: map[string]string{
+			"TEST_HEALTH_CHECK": "true",
 		},
 	}
 
-	createResp, err := dockerClient.ContainerCreate(ctx, containerConfig, hostConfig, nil, nil, testContainerName)
-	require.NoError(t, err, "Failed to create test container")
-	err = dockerClient.ContainerStart(ctx, createResp.ID, container.StartOptions{})
-	require.NoError(t, err, "Failed to start test container")
+	deployContainerResp, err := svc.Deploy(ctx, deployContainerReq)
+	require.NoError(t, err, "Deploy should succeed")
+	require.Empty(t, deployContainerResp.Error, fmt.Sprintf("Deploy should not return error, got: %s", deployContainerResp.Error))
 
-	testutil.PrintSuccess(t, "测试容器已创建并启动")
-
-	// 等待容器启动
-	time.Sleep(2 * time.Second)
+	testutil.PrintSuccess(t, fmt.Sprintf("测试容器通过 Provider Deploy API 创建并启动成功: %s", testContainerInstanceID))
 
 	// 执行健康检查（应该反映新的资源使用情况）
 	testutil.PrintInfo(t, "执行健康检查（容器运行后）...")
@@ -452,11 +475,18 @@ func TestResourceMonitoring_HealthCheckMonitoring(t *testing.T) {
 
 	testutil.PrintSuccess(t, "健康检查实时性验证通过：能够实时反映资源状态变化")
 
-	// 清理测试容器
-	err = dockerClient.ContainerStop(ctx, createResp.ID, container.StopOptions{})
-	require.NoError(t, err, "Failed to stop test container")
-	err = dockerClient.ContainerRemove(ctx, createResp.ID, container.RemoveOptions{Force: true})
-	require.NoError(t, err, "Failed to remove test container")
+	// 通过 Provider Undeploy API 清理测试容器
+	testutil.PrintInfo(t, fmt.Sprintf("通过 Provider Undeploy API 清理测试容器: %s", testContainerInstanceID))
+	undeployContainerReq := &providerpb.UndeployRequest{
+		ProviderId: providerID,
+		InstanceId: testContainerInstanceID,
+	}
+
+	undeployContainerResp, err := svc.Undeploy(ctx, undeployContainerReq)
+	require.NoError(t, err, "Undeploy should succeed")
+	require.Empty(t, undeployContainerResp.Error, fmt.Sprintf("Undeploy should not return error, got: %s", undeployContainerResp.Error))
+
+	testutil.PrintSuccess(t, "测试容器已通过 Provider Undeploy API 清理")
 
 	// 步骤 6: 验证健康检查监控的连续性
 	testutil.PrintTestSection(t, "步骤 6: 验证健康检查监控的连续性")

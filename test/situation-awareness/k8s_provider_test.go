@@ -19,7 +19,6 @@ import (
 )
 
 func init() {
-	// 初始化测试 logger，时间戳提前6小时
 	testutil.InitTestLogger()
 }
 

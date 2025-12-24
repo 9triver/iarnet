@@ -15,6 +15,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func init() {
+	testutil.InitTestLogger()
+}
+
 // actorMigrationManager 实现 Actor 动态迁移和卸载的管理器
 type actorMigrationManager struct {
 	// Actor 部署信息：actorID -> (nodeID, providerID, component)

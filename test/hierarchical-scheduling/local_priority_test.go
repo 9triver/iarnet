@@ -15,6 +15,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func init() {
+	testutil.InitTestLogger()
+}
+
 // fakeLocalResourceManager 实现 scheduler.Service 所需的本地资源管理接口
 type fakeLocalResourceManager struct {
 	deployCalls int

@@ -13,6 +13,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func init() {
+	testutil.InitTestLogger()
+}
+
 // TestDelegatedScheduling_SuccessfulDeployment 测试场景1：一次成功部署
 // 展示：本地节点委托远程节点进行调度，远程节点返回调度结果，本地节点策略评估通过，确认部署成功
 func TestDelegatedScheduling_SuccessfulDeployment(t *testing.T) {

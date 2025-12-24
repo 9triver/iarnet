@@ -13,6 +13,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func init() {
+	testutil.InitTestLogger()
+}
+
 // crossDomainScheduler 实现分级调度中的跨域调度流程。
 // 说明：部分功能在主工程中尚未完全实现，这里通过测试实现提前验证调度策略。
 type crossDomainScheduler struct {
