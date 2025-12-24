@@ -15,6 +15,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func init() {
+	// 初始化测试 logger，时间戳提前6小时
+	testutil.InitTestLogger()
+}
+
 // TestCase: 资源监控测试
 // 测试目的：验证资源态势感知中的资源监控功能，包括：
 // 1. 资源实时使用查询 - 验证能够实时查询资源使用情况
@@ -25,7 +30,7 @@ func TestResourceMonitoring_RealTimeUsageQuery(t *testing.T) {
 	testutil.PrintTestHeader(t, "测试用例: 资源实时使用查询",
 		"验证 Docker Provider 的资源实时使用查询功能")
 
-	if !isDockerAvailable() {
+	if !testutil.IsDockerAvailable() {
 		t.Skip("Docker is not available, skipping test")
 	}
 
@@ -33,7 +38,7 @@ func TestResourceMonitoring_RealTimeUsageQuery(t *testing.T) {
 
 	// 步骤 1: 创建并注册 Docker Provider
 	testutil.PrintTestSection(t, "步骤 1: 创建并注册 Docker Provider")
-	svc, err := createTestService()
+	svc, err := testutil.CreateDockerTestService()
 	require.NoError(t, err, "Failed to create Docker provider service")
 	defer svc.Close()
 
@@ -249,7 +254,7 @@ func TestResourceMonitoring_HealthCheckMonitoring(t *testing.T) {
 	testutil.PrintTestHeader(t, "测试用例: 资源健康检查监控",
 		"验证 Docker Provider 的资源健康检查监控功能")
 
-	if !isDockerAvailable() {
+	if !testutil.IsDockerAvailable() {
 		t.Skip("Docker is not available, skipping test")
 	}
 
@@ -257,7 +262,7 @@ func TestResourceMonitoring_HealthCheckMonitoring(t *testing.T) {
 
 	// 步骤 1: 创建并注册 Docker Provider
 	testutil.PrintTestSection(t, "步骤 1: 创建并注册 Docker Provider")
-	svc, err := createTestService()
+	svc, err := testutil.CreateDockerTestService()
 	require.NoError(t, err, "Failed to create Docker provider service")
 	defer svc.Close()
 

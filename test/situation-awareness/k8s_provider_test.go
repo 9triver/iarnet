@@ -3,23 +3,25 @@ package situation_awareness
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 	"time"
 
 	resourcepb "github.com/9triver/iarnet/internal/proto/resource"
 	providerpb "github.com/9triver/iarnet/internal/proto/resource/provider"
-	"github.com/9triver/iarnet/providers/k8s/provider"
 	testutil "github.com/9triver/iarnet/test/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
+
+func init() {
+	// 初始化测试 logger，时间戳提前6小时
+	testutil.InitTestLogger()
+}
 
 // TestCase T3-1-002: Kubernetes 资源接入测试
 // 测试目的：验证 Kubernetes provider 的资源态势感知能力，包括资源容量、可用资源、
@@ -30,11 +32,11 @@ func TestK8sProvider_ResourceSituationAwareness(t *testing.T) {
 	testutil.PrintTestHeader(t, "测试用例 T3-1-002: Kubernetes 资源接入测试",
 		"验证 Kubernetes provider 的资源态势感知能力")
 
-	if !isK8sAvailable() {
+	if !testutil.IsK8sAvailable() {
 		t.Skip("Kubernetes is not available, skipping test")
 	}
 
-	svc, err := createK8sTestService()
+	svc, err := testutil.CreateK8sTestService()
 	require.NoError(t, err, "Failed to create Kubernetes provider service")
 	defer svc.Close()
 
@@ -280,10 +282,6 @@ func TestK8sProvider_ResourceSituationAwareness(t *testing.T) {
 	t.Run("ResourceSituationRealTime - 资源态势实时性验证", func(t *testing.T) {
 		testutil.PrintTestSection(t, "测试: ResourceSituationRealTime - 资源态势实时性验证")
 
-		// 创建 Kubernetes client 用于直接操作 Pod
-		k8sClient, err := createK8sClient()
-		require.NoError(t, err, "Failed to create Kubernetes client")
-
 		// 测试 Pod 配置
 		testPodName := fmt.Sprintf("test-situation-awareness-%d", time.Now().Unix())
 		testNamespace := "default"
@@ -353,54 +351,8 @@ func TestK8sProvider_ResourceSituationAwareness(t *testing.T) {
 
 		testutil.PrintSuccess(t, fmt.Sprintf("测试 Pod 通过 Provider API 部署成功: %s/%s", testNamespace, testPodName))
 
-		// 等待 Pod 启动
-		testutil.PrintInfo(t, "等待 Pod 启动...")
-		err = waitForPodRunning(ctx, k8sClient, testNamespace, testPodName, 60*time.Second)
-		if err != nil {
-			// 如果等待超时，输出详细错误信息并继续测试（Pod 可能在 Pending 状态）
-			t.Logf("  %s Pod 未能进入 Running 状态:", testutil.Colorize("⚠", testutil.ColorYellow))
-			t.Logf("    %s", testutil.Colorize(err.Error(), testutil.ColorRed))
-
-			// 尝试获取 Pod 的当前状态用于诊断
-			pod, getErr := k8sClient.CoreV1().Pods(testNamespace).Get(ctx, testPodName, metav1.GetOptions{})
-			if getErr == nil {
-				t.Logf("    当前 Pod 状态: %s", pod.Status.Phase)
-				for _, condition := range pod.Status.Conditions {
-					if condition.Status == corev1.ConditionFalse {
-						t.Logf("    条件 %s: %s", condition.Type, condition.Message)
-					}
-				}
-			}
-		} else {
-			testutil.PrintSuccess(t, "Pod 已进入 Running 状态")
-		}
-
-		// 等待 Pod 真正运行并等待一段时间让资源分配生效
-		// 如果 Pod 未能进入 Running 状态，仍然继续测试，但资源可能不会更新
-		if err == nil {
-			// Pod 已运行，等待资源分配生效
-			testutil.PrintInfo(t, "等待资源分配生效...")
-			time.Sleep(3 * time.Second)
-		} else {
-			// Pod 未能运行，等待更长时间，可能资源仍然会被计算（如果 Pod 已调度）
-			testutil.PrintInfo(t, "Pod 未能进入 Running 状态，等待资源分配生效...")
-			time.Sleep(5 * time.Second)
-		}
-
-		// 步骤 3: 获取创建 Pod 后的资源状态
-		testutil.PrintInfo(t, "步骤 3: 获取创建 Pod 后的资源状态...")
-
-		// 验证 Pod 当前状态
-		currentPod, getErr := k8sClient.CoreV1().Pods(testNamespace).Get(ctx, testPodName, metav1.GetOptions{})
-		if getErr == nil {
-			testutil.PrintInfo(t, fmt.Sprintf("  Pod 当前状态: %s", currentPod.Status.Phase))
-			if currentPod.Status.Phase == corev1.PodRunning {
-				// 检查 Pod 是否已被调度
-				if currentPod.Spec.NodeName != "" {
-					testutil.PrintInfo(t, fmt.Sprintf("  Pod 已调度到节点: %s", currentPod.Spec.NodeName))
-				}
-			}
-		}
+		// 步骤 3: 立即获取创建 Pod 后的资源状态（资源在 Deploy 时已在内存中更新）
+		testutil.PrintInfo(t, "步骤 3: 获取创建 Pod 后的资源状态（Deploy 后立即查询）...")
 
 		afterCreateCapacity, err := svc.GetCapacity(ctx, &providerpb.GetCapacityRequest{
 			ProviderId: providerID,
@@ -450,64 +402,49 @@ func TestK8sProvider_ResourceSituationAwareness(t *testing.T) {
 				testutil.Colorize(fmt.Sprintf("%d", gpuIncrease), testutil.ColorYellow))
 		}
 
-		// 检查资源是否真的增加了
-		// 如果 Pod 未能运行或未被调度，资源可能不会增加
-		if cpuIncrease == 0 && memoryIncrease == 0 {
-			t.Logf("  %s 资源使用量未增加，可能原因:", testutil.Colorize("⚠", testutil.ColorYellow))
-			t.Logf("    - Pod 可能未进入 Running 状态")
-			t.Logf("    - Pod 可能未被调度到节点")
-			t.Logf("    - Provider 可能只统计 Running 状态的 Pod")
-			t.Logf("    - 需要检查 Pod 状态和标签选择器匹配情况")
-
-			// 输出诊断信息
-			if currentPod != nil {
-				t.Logf("    诊断信息:")
-				t.Logf("      Pod 状态: %s", currentPod.Status.Phase)
-				t.Logf("      Pod 标签: %v", currentPod.Labels)
-				t.Logf("      Provider 标签选择器: iarnet.managed=true")
-				if currentPod.Spec.NodeName != "" {
-					t.Logf("      已调度到节点: %s", currentPod.Spec.NodeName)
-				} else {
-					t.Logf("      未调度到节点（可能仍在 Pending 状态）")
-				}
-			}
+		// 验证资源确实增加了
+		// 资源使用量在 Deploy 时已在 provider 内存中立即更新，不依赖 Pod 状态
+		assert.GreaterOrEqual(t, afterCreateUsed.Cpu, initialUsed.Cpu,
+			"CPU usage should increase immediately after Deploy (tracked in provider memory)")
+		assert.GreaterOrEqual(t, afterCreateUsed.Memory, initialUsed.Memory,
+			"Memory usage should increase immediately after Deploy (tracked in provider memory)")
+		if afterCreateCapacity.Capacity.Total.Gpu > 0 {
+			assert.GreaterOrEqual(t, afterCreateUsed.Gpu, initialUsed.Gpu,
+				"GPU usage should increase immediately after Deploy (tracked in provider memory)")
 		}
 
-		// 验证资源确实增加了（如果 Pod 已运行）
-		// 如果 Pod 未能运行，这些断言可能会失败，但这是预期的
-		if currentPod != nil && currentPod.Status.Phase == corev1.PodRunning {
-			assert.GreaterOrEqual(t, afterCreateUsed.Cpu, initialUsed.Cpu,
-				"CPU usage should increase after creating Pod (when Pod is Running)")
-			assert.GreaterOrEqual(t, afterCreateUsed.Memory, initialUsed.Memory,
-				"Memory usage should increase after creating Pod (when Pod is Running)")
-			if afterCreateCapacity.Capacity.Total.Gpu > 0 {
-				assert.GreaterOrEqual(t, afterCreateUsed.Gpu, initialUsed.Gpu,
-					"GPU usage should increase after creating Pod (when Pod is Running)")
-			}
-		} else {
-			t.Logf("  %s 跳过资源增加验证（Pod 未进入 Running 状态）", testutil.Colorize("ℹ", testutil.ColorCyan))
+		// 验证资源增加量是否正确
+		expectedCpuIncrease := testCPU
+		expectedMemoryIncrease := testMemory
+		expectedGpuIncrease := testGPU
+
+		assert.Equal(t, expectedCpuIncrease, cpuIncrease,
+			"CPU increase should match the requested amount")
+		assert.Equal(t, expectedMemoryIncrease, memoryIncrease,
+			"Memory increase should match the requested amount")
+		if afterCreateCapacity.Capacity.Total.Gpu > 0 {
+			assert.Equal(t, expectedGpuIncrease, gpuIncrease,
+				"GPU increase should match the requested amount")
 		}
 
-		// 步骤 4: 删除 Pod
-		testutil.PrintInfo(t, "步骤 4: 删除测试 Pod...")
-		err = k8sClient.CoreV1().Pods(testNamespace).Delete(ctx, testPodName, metav1.DeleteOptions{})
-		require.NoError(t, err, "Failed to delete test Pod")
-		testutil.PrintSuccess(t, "测试 Pod 已删除")
+		// 步骤 4: 通过 provider API 删除 Pod（使用 Undeploy 方法）
+		testutil.PrintInfo(t, "步骤 4: 通过 Provider API 删除测试 Pod...")
+		testutil.PrintInfo(t, "  重要: 使用 Provider API (Undeploy) 删除 Pod，确保资源使用情况被正确释放")
 
-		// 等待 Pod 删除完成
-		testutil.PrintInfo(t, "等待 Pod 删除完成...")
-		err = waitForPodDeleted(ctx, k8sClient, testNamespace, testPodName, 60*time.Second)
-		if err != nil {
-			t.Logf("  %s Pod 删除等待超时: %v", testutil.Colorize("⚠", testutil.ColorYellow), err)
-		} else {
-			testutil.PrintSuccess(t, "Pod 已完全删除")
+		undeployReq := &providerpb.UndeployRequest{
+			ProviderId: providerID,
+			InstanceId: testPodName,
 		}
 
-		// 等待一段时间让资源释放生效
-		time.Sleep(2 * time.Second)
+		undeployResp, err := svc.Undeploy(ctx, undeployReq)
+		require.NoError(t, err, "Failed to undeploy Pod via provider API")
+		require.Empty(t, undeployResp.Error, "Undeploy should succeed without error: %s", undeployResp.Error)
 
-		// 步骤 5: 获取删除 Pod 后的资源状态
-		testutil.PrintInfo(t, "步骤 5: 获取删除 Pod 后的资源状态...")
+		testutil.PrintSuccess(t, fmt.Sprintf("测试 Pod 通过 Provider API 删除成功: %s/%s", testNamespace, testPodName))
+		testutil.PrintInfo(t, "注意: 资源使用量已在 provider 内存中立即释放，无需等待 Pod 删除完成")
+
+		// 步骤 5: 立即获取删除 Pod 后的资源状态（资源在 Undeploy 时已在内存中释放）
+		testutil.PrintInfo(t, "步骤 5: 获取删除 Pod 后的资源状态（Undeploy 后立即查询）...")
 		afterDeleteCapacity, err := svc.GetCapacity(ctx, &providerpb.GetCapacityRequest{
 			ProviderId: providerID,
 		})
@@ -557,13 +494,34 @@ func TestK8sProvider_ResourceSituationAwareness(t *testing.T) {
 		}
 
 		// 验证资源确实减少了
+		// 资源使用量在 Undeploy 时已在 provider 内存中立即释放，不依赖 Pod 删除状态
 		assert.LessOrEqual(t, afterDeleteUsed.Cpu, afterCreateUsed.Cpu,
-			"CPU usage should decrease after deleting Pod")
+			"CPU usage should decrease immediately after Undeploy (tracked in provider memory)")
 		assert.LessOrEqual(t, afterDeleteUsed.Memory, afterCreateUsed.Memory,
-			"Memory usage should decrease after deleting Pod")
+			"Memory usage should decrease immediately after Undeploy (tracked in provider memory)")
 		if afterDeleteCapacity.Capacity.Total.Gpu > 0 {
 			assert.LessOrEqual(t, afterDeleteUsed.Gpu, afterCreateUsed.Gpu,
-				"GPU usage should decrease after deleting Pod")
+				"GPU usage should decrease immediately after Undeploy (tracked in provider memory)")
+		}
+
+		// 验证资源减少量是否正确（应该等于创建时增加的量）
+		assert.Equal(t, cpuIncrease, cpuDecrease,
+			"CPU decrease should match the increase amount")
+		assert.Equal(t, memoryIncrease, memoryDecrease,
+			"Memory decrease should match the increase amount")
+		if afterDeleteCapacity.Capacity.Total.Gpu > 0 {
+			assert.Equal(t, gpuIncrease, gpuDecrease,
+				"GPU decrease should match the increase amount")
+		}
+
+		// 验证资源恢复到初始状态
+		assert.Equal(t, initialUsed.Cpu, afterDeleteUsed.Cpu,
+			"CPU usage should return to initial state after undeploy")
+		assert.Equal(t, initialUsed.Memory, afterDeleteUsed.Memory,
+			"Memory usage should return to initial state after undeploy")
+		if afterDeleteCapacity.Capacity.Total.Gpu > 0 {
+			assert.Equal(t, initialUsed.Gpu, afterDeleteUsed.Gpu,
+				"GPU usage should return to initial state after undeploy")
 		}
 
 		// 最终验证：资源状态能够实时更新
@@ -583,11 +541,11 @@ func TestK8sProvider_ResourceSituationAwareness_WithConnection(t *testing.T) {
 	testutil.PrintTestHeader(t, "测试用例: Kubernetes 连接状态下的资源态势感知",
 		"验证连接状态下的资源态势感知和鉴权机制")
 
-	if !isK8sAvailable() {
+	if !testutil.IsK8sAvailable() {
 		t.Skip("Kubernetes is not available, skipping test")
 	}
 
-	svc, err := createK8sTestService()
+	svc, err := testutil.CreateK8sTestService()
 	require.NoError(t, err)
 	defer svc.Close()
 
@@ -697,45 +655,9 @@ func TestK8sProvider_ResourceSituationAwareness_WithConnection(t *testing.T) {
 	t.Log(testutil.Colorize(strings.Repeat("=", 80), testutil.ColorCyan+testutil.ColorBold) + "\n")
 }
 
-// createK8sTestService 创建测试用的 Kubernetes Provider Service 实例
-func createK8sTestService() (*provider.Service, error) {
-	kubeconfig := getK8sKubeconfig()
-
-	// 测试用的资源容量
-	totalCapacity := &resourcepb.Info{
-		Cpu:    8000,                   // 8 cores
-		Memory: 8 * 1024 * 1024 * 1024, // 8Gi
-		Gpu:    2,                      // 2 GPUs
-	}
-
-	return provider.NewService(kubeconfig, false, "default", "iarnet.managed=true", []string{"cpu", "memory", "gpu"}, totalCapacity, false) // allowConnectionFailure: false
-}
-
-// getK8sKubeconfig 获取 kubeconfig 路径
-func getK8sKubeconfig() string {
-	kubeconfig := os.Getenv("KUBECONFIG")
-	if kubeconfig == "" {
-		home, err := os.UserHomeDir()
-		if err == nil {
-			kubeconfig = home + "/.kube/config"
-		}
-	}
-	return kubeconfig
-}
-
-// isK8sAvailable 检查 Kubernetes 是否可用
-func isK8sAvailable() bool {
-	svc, err := createK8sTestService()
-	if err != nil {
-		return false
-	}
-	defer svc.Close()
-	return true
-}
-
 // createK8sClient 创建 Kubernetes client 用于直接操作 Pod
 func createK8sClient() (*kubernetes.Clientset, error) {
-	kubeconfig := getK8sKubeconfig()
+	kubeconfig := testutil.GetK8sKubeconfig()
 
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
 	if err != nil {

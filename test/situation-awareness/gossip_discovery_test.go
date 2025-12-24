@@ -14,6 +14,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func init() {
+	// 初始化测试 logger，时间戳提前6小时
+	testutil.InitTestLogger()
+}
+
 // TestCase: Gossip 资源发现相关测试
 // 测试目的：验证 Gossip 协议在资源发现中的三个核心功能：
 // 1. 新增 peers - 验证新节点的发现和添加
@@ -185,7 +190,7 @@ func TestGossipDiscovery_NewPeers(t *testing.T) {
 		foundNode.ResourceCapacity.Total.GPU)
 
 	// 打印当前网络拓扑
-	printNetworkTopology(t, manager, "添加第一个 peer 后的网络拓扑")
+	testutil.PrintNetworkTopology(t, manager, "添加第一个 peer 后的网络拓扑")
 
 	// 测试添加多个 peers
 	testutil.PrintTestSection(t, "步骤 7: 测试添加多个 peers")
@@ -226,7 +231,7 @@ func TestGossipDiscovery_NewPeers(t *testing.T) {
 	t.Logf("  当前已知节点数: %d", len(knownNodes))
 
 	// 打印最终网络拓扑
-	printNetworkTopology(t, manager, "添加第二个 peer 后的网络拓扑")
+	testutil.PrintNetworkTopology(t, manager, "添加第二个 peer 后的网络拓扑")
 
 	t.Log("\n" + testutil.Colorize(strings.Repeat("=", 80), testutil.ColorCyan+testutil.ColorBold))
 	t.Log(testutil.Colorize("✓ Gossip 资源发现 - 新增 peers 测试通过", testutil.ColorGreen+testutil.ColorBold))
@@ -391,7 +396,7 @@ func TestGossipDiscovery_AggregatedView(t *testing.T) {
 	assert.Equal(t, 4, aggregateView.OnlineNodes, "All nodes should be online")
 
 	// 打印当前网络拓扑
-	printNetworkTopology(t, manager, "聚合视图测试的网络拓扑")
+	testutil.PrintNetworkTopology(t, manager, "聚合视图测试的网络拓扑")
 
 	// 测试资源查询
 	testutil.PrintTestSection(t, "步骤 5: 测试资源查询")
@@ -604,102 +609,9 @@ func TestGossipDiscovery_ExpirationManagement(t *testing.T) {
 	testutil.PrintSuccess(t, "节点更新机制正常工作")
 
 	// 打印最终网络拓扑
-	printNetworkTopology(t, manager, "过期治理测试后的网络拓扑")
+	testutil.PrintNetworkTopology(t, manager, "过期治理测试后的网络拓扑")
 
 	t.Log("\n" + testutil.Colorize(strings.Repeat("=", 80), testutil.ColorCyan+testutil.ColorBold))
 	t.Log(testutil.Colorize("✓ Gossip 资源发现 - 过期治理测试通过", testutil.ColorGreen+testutil.ColorBold))
 	t.Log(testutil.Colorize(strings.Repeat("=", 80), testutil.ColorCyan+testutil.ColorBold) + "\n")
-}
-
-// printNetworkTopology 打印网络拓扑状态
-func printNetworkTopology(t *testing.T, manager *discovery.NodeDiscoveryManager, title string) {
-	t.Helper()
-
-	localNode := manager.GetLocalNode()
-	knownNodes := manager.GetKnownNodes()
-	aggregateView := manager.GetAggregateView()
-
-	t.Log("\n" + testutil.Colorize(title+":", testutil.ColorYellow+testutil.ColorBold))
-	t.Log(testutil.Colorize(strings.Repeat("-", 80), testutil.ColorBlue))
-
-	// 打印本地节点
-	t.Logf("\n%s", testutil.Colorize("本地节点:", testutil.ColorCyan+testutil.ColorBold))
-	t.Logf("  %s: %s (%s)", testutil.Colorize("节点", testutil.ColorWhite+testutil.ColorBold),
-		testutil.Colorize(localNode.NodeName, testutil.ColorGreen), localNode.NodeID)
-	t.Logf("  %s: %s", testutil.Colorize("地址", testutil.ColorWhite+testutil.ColorBold), localNode.Address)
-	if localNode.ResourceCapacity != nil && localNode.ResourceCapacity.Total != nil {
-		t.Logf("  %s: CPU %d mC, Memory %s, GPU %d",
-			testutil.Colorize("资源", testutil.ColorWhite+testutil.ColorBold),
-			localNode.ResourceCapacity.Total.CPU,
-			testutil.FormatBytes(localNode.ResourceCapacity.Total.Memory),
-			localNode.ResourceCapacity.Total.GPU)
-	}
-
-	// 打印已知节点
-	t.Logf("\n%s (%d):", testutil.Colorize("已知节点", testutil.ColorCyan+testutil.ColorBold), len(knownNodes))
-	if len(knownNodes) == 0 {
-		t.Logf("  %s", testutil.Colorize("(无)", testutil.ColorYellow))
-	} else {
-		for i, node := range knownNodes {
-			statusColor := testutil.ColorGreen
-			if node.Status == discovery.NodeStatusOffline {
-				statusColor = testutil.ColorRed
-			} else if node.Status == discovery.NodeStatusError {
-				statusColor = testutil.ColorRed
-			}
-
-			t.Logf("  %d. %s (%s)", i+1,
-				testutil.Colorize(node.NodeName, testutil.ColorWhite+testutil.ColorBold), node.NodeID)
-			t.Logf("     地址: %s", node.Address)
-			t.Logf("     状态: %s", testutil.Colorize(string(node.Status), statusColor))
-			if node.ResourceCapacity != nil && node.ResourceCapacity.Total != nil {
-				t.Logf("     资源: CPU %d mC, Memory %s, GPU %d",
-					node.ResourceCapacity.Total.CPU,
-					testutil.FormatBytes(node.ResourceCapacity.Total.Memory),
-					node.ResourceCapacity.Total.GPU)
-				if node.ResourceCapacity.Available != nil {
-					t.Logf("     可用: CPU %d mC, Memory %s, GPU %d",
-						node.ResourceCapacity.Available.CPU,
-						testutil.FormatBytes(node.ResourceCapacity.Available.Memory),
-						node.ResourceCapacity.Available.GPU)
-				}
-			}
-			t.Logf("     发现来源: %s", node.SourcePeer)
-			t.Logf("     最后活跃: %s", node.LastSeen.Format("15:04:05"))
-		}
-	}
-
-	// 打印聚合视图统计
-	if aggregateView != nil {
-		aggCapacity := aggregateView.GetAggregatedCapacity()
-		if aggCapacity != nil {
-			t.Logf("\n%s", testutil.Colorize("聚合资源:", testutil.ColorCyan+testutil.ColorBold))
-			t.Logf("  %s: CPU %d mC, Memory %s, GPU %d",
-				testutil.Colorize("总计", testutil.ColorWhite+testutil.ColorBold),
-				aggCapacity.Total.CPU,
-				testutil.FormatBytes(aggCapacity.Total.Memory),
-				aggCapacity.Total.GPU)
-			t.Logf("  %s: CPU %d mC, Memory %s, GPU %d",
-				testutil.Colorize("已用", testutil.ColorWhite+testutil.ColorBold),
-				aggCapacity.Used.CPU,
-				testutil.FormatBytes(aggCapacity.Used.Memory),
-				aggCapacity.Used.GPU)
-			t.Logf("  %s: CPU %d mC, Memory %s, GPU %d",
-				testutil.Colorize("可用", testutil.ColorWhite+testutil.ColorBold),
-				aggCapacity.Available.CPU,
-				testutil.FormatBytes(aggCapacity.Available.Memory),
-				aggCapacity.Available.GPU)
-		}
-
-		t.Logf("\n%s", testutil.Colorize("节点统计:", testutil.ColorCyan+testutil.ColorBold))
-		t.Logf("  %s: %d", testutil.Colorize("总节点数", testutil.ColorWhite+testutil.ColorBold), aggregateView.TotalNodes)
-		t.Logf("  %s: %s", testutil.Colorize("在线节点", testutil.ColorWhite+testutil.ColorBold),
-			testutil.Colorize(fmt.Sprintf("%d", aggregateView.OnlineNodes), testutil.ColorGreen))
-		t.Logf("  %s: %s", testutil.Colorize("离线节点", testutil.ColorWhite+testutil.ColorBold),
-			testutil.Colorize(fmt.Sprintf("%d", aggregateView.OfflineNodes), testutil.ColorYellow))
-		t.Logf("  %s: %s", testutil.Colorize("错误节点", testutil.ColorWhite+testutil.ColorBold),
-			testutil.Colorize(fmt.Sprintf("%d", aggregateView.ErrorNodes), testutil.ColorRed))
-	}
-
-	t.Log(testutil.Colorize(strings.Repeat("-", 80), testutil.ColorBlue) + "\n")
 }

@@ -16,6 +16,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func init() {
+	// 初始化测试 logger，时间戳提前6小时
+	testutil.InitTestLogger()
+}
+
 // TestCase: 远程 docker 资源感知测试
 // 测试目的：验证远程节点接入 docker provider 后，当前节点可以通过 gossip 协议
 // 感知远程节点的 docker provider 所提供的资源容量
@@ -61,11 +66,11 @@ func TestRemoteDockerResourcePerception(t *testing.T) {
 	defer currentManager.Stop()
 
 	testutil.PrintSuccess(t, "当前节点创建并启动成功")
-	printNetworkTopology(t, currentManager, "当前节点初始状态")
+	testutil.PrintNetworkTopology(t, currentManager, "当前节点初始状态")
 
 	// 步骤 2: 创建远程节点并接入 Docker Provider
 	testutil.PrintTestSection(t, "步骤 2: 创建远程节点并接入 Docker Provider")
-	if !isDockerAvailable() {
+	if !testutil.IsDockerAvailable() {
 		t.Skip("Docker is not available, skipping test")
 	}
 
@@ -75,7 +80,7 @@ func TestRemoteDockerResourcePerception(t *testing.T) {
 	remoteSchedulerAddress := "192.168.1.200:50006"
 
 	// 创建远程节点的 Docker Provider
-	remoteDockerProvider, err := createTestService()
+	remoteDockerProvider, err := testutil.CreateDockerTestService()
 	require.NoError(t, err, "Failed to create remote Docker provider")
 
 	// 确保类型正确（使用 provider.Service）
@@ -336,7 +341,7 @@ func TestRemoteDockerResourcePerception(t *testing.T) {
 	testutil.PrintSuccess(t, "聚合视图成功包含远程节点的 Docker Provider 资源")
 
 	// 打印最终网络拓扑
-	printNetworkTopology(t, currentManager, "远程 Docker 资源感知测试后的网络拓扑")
+	testutil.PrintNetworkTopology(t, currentManager, "远程 Docker 资源感知测试后的网络拓扑")
 
 	t.Log("\n" + testutil.Colorize(strings.Repeat("=", 80), testutil.ColorCyan+testutil.ColorBold))
 	t.Log(testutil.Colorize("✓ 远程 docker 资源感知测试通过", testutil.ColorGreen+testutil.ColorBold))

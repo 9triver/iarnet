@@ -2,12 +2,17 @@ package testutil
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/9triver/iarnet/internal/domain/resource/discovery"
 	"github.com/9triver/iarnet/internal/domain/resource/types"
 	resourcepb "github.com/9triver/iarnet/internal/proto/resource"
+	dockerprovider "github.com/9triver/iarnet/providers/docker/provider"
+	k8sprovider "github.com/9triver/iarnet/providers/k8s/provider"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -205,4 +210,185 @@ func ColorizeBool(value bool) string {
 		return Colorize("✓ true", ColorGreen)
 	}
 	return Colorize("✗ false", ColorRed)
+}
+
+// PrintNetworkTopology 打印网络拓扑状态
+func PrintNetworkTopology(t *testing.T, manager *discovery.NodeDiscoveryManager, title string) {
+	t.Helper()
+
+	localNode := manager.GetLocalNode()
+	knownNodes := manager.GetKnownNodes()
+	aggregateView := manager.GetAggregateView()
+
+	t.Log("\n" + Colorize(title+":", ColorYellow+ColorBold))
+	t.Log(Colorize(strings.Repeat("-", 80), ColorBlue))
+
+	// 打印本地节点
+	t.Logf("\n%s", Colorize("本地节点:", ColorCyan+ColorBold))
+	t.Logf("  %s: %s (%s)", Colorize("节点", ColorWhite+ColorBold),
+		Colorize(localNode.NodeName, ColorGreen), localNode.NodeID)
+	t.Logf("  %s: %s", Colorize("地址", ColorWhite+ColorBold), localNode.Address)
+	if localNode.ResourceCapacity != nil && localNode.ResourceCapacity.Total != nil {
+		t.Logf("  %s: CPU %d mC, Memory %s, GPU %d",
+			Colorize("资源", ColorWhite+ColorBold),
+			localNode.ResourceCapacity.Total.CPU,
+			FormatBytes(localNode.ResourceCapacity.Total.Memory),
+			localNode.ResourceCapacity.Total.GPU)
+	}
+
+	// 打印已知节点
+	t.Logf("\n%s (%d):", Colorize("已知节点", ColorCyan+ColorBold), len(knownNodes))
+	if len(knownNodes) == 0 {
+		t.Logf("  %s", Colorize("(无)", ColorYellow))
+	} else {
+		for i, node := range knownNodes {
+			statusColor := ColorGreen
+			if node.Status == discovery.NodeStatusOffline {
+				statusColor = ColorRed
+			} else if node.Status == discovery.NodeStatusError {
+				statusColor = ColorRed
+			}
+
+			t.Logf("  %d. %s (%s)", i+1,
+				Colorize(node.NodeName, ColorWhite+ColorBold), node.NodeID)
+			t.Logf("     地址: %s", node.Address)
+			t.Logf("     状态: %s", Colorize(string(node.Status), statusColor))
+			if node.ResourceCapacity != nil && node.ResourceCapacity.Total != nil {
+				t.Logf("     资源: CPU %d mC, Memory %s, GPU %d",
+					node.ResourceCapacity.Total.CPU,
+					FormatBytes(node.ResourceCapacity.Total.Memory),
+					node.ResourceCapacity.Total.GPU)
+				if node.ResourceCapacity.Available != nil {
+					t.Logf("     可用: CPU %d mC, Memory %s, GPU %d",
+						node.ResourceCapacity.Available.CPU,
+						FormatBytes(node.ResourceCapacity.Available.Memory),
+						node.ResourceCapacity.Available.GPU)
+				}
+			}
+			t.Logf("     发现来源: %s", node.SourcePeer)
+			t.Logf("     最后活跃: %s", node.LastSeen.Format("15:04:05"))
+		}
+	}
+
+	// 打印聚合视图统计
+	if aggregateView != nil {
+		aggCapacity := aggregateView.GetAggregatedCapacity()
+		if aggCapacity != nil {
+			t.Logf("\n%s", Colorize("聚合资源:", ColorCyan+ColorBold))
+			t.Logf("  %s: CPU %d mC, Memory %s, GPU %d",
+				Colorize("总计", ColorWhite+ColorBold),
+				aggCapacity.Total.CPU,
+				FormatBytes(aggCapacity.Total.Memory),
+				aggCapacity.Total.GPU)
+			t.Logf("  %s: CPU %d mC, Memory %s, GPU %d",
+				Colorize("已用", ColorWhite+ColorBold),
+				aggCapacity.Used.CPU,
+				FormatBytes(aggCapacity.Used.Memory),
+				aggCapacity.Used.GPU)
+			t.Logf("  %s: CPU %d mC, Memory %s, GPU %d",
+				Colorize("可用", ColorWhite+ColorBold),
+				aggCapacity.Available.CPU,
+				FormatBytes(aggCapacity.Available.Memory),
+				aggCapacity.Available.GPU)
+		}
+
+		t.Logf("\n%s", Colorize("节点统计:", ColorCyan+ColorBold))
+		t.Logf("  %s: %d", Colorize("总节点数", ColorWhite+ColorBold), aggregateView.TotalNodes)
+		t.Logf("  %s: %s", Colorize("在线节点", ColorWhite+ColorBold),
+			Colorize(fmt.Sprintf("%d", aggregateView.OnlineNodes), ColorGreen))
+		t.Logf("  %s: %s", Colorize("离线节点", ColorWhite+ColorBold),
+			Colorize(fmt.Sprintf("%d", aggregateView.OfflineNodes), ColorYellow))
+		t.Logf("  %s: %s", Colorize("错误节点", ColorWhite+ColorBold),
+			Colorize(fmt.Sprintf("%d", aggregateView.ErrorNodes), ColorRed))
+	}
+
+	t.Log(Colorize(strings.Repeat("-", 80), ColorBlue) + "\n")
+}
+
+// CreateDockerTestService 创建测试用的 Docker Provider Service 实例
+func CreateDockerTestService() (*dockerprovider.Service, error) {
+	// 尝试使用本地 Docker socket
+	host := os.Getenv("DOCKER_HOST")
+	if host == "" {
+		host = "unix:///var/run/docker.sock"
+	}
+
+	// 创建支持 CPU、Memory 和 GPU 的 provider
+	return dockerprovider.NewService(host, "", false, "", "default", []string{"cpu", "memory", "gpu"}, &resourcepb.Info{
+		Cpu:    1000,
+		Memory: 1024 * 1024 * 1024,
+		Gpu:    4,
+	}, []int{}, false) // gpuIDs: empty, allowConnectionFailure: false
+}
+
+// IsDockerAvailable 检查 Docker 是否可用
+func IsDockerAvailable() bool {
+	svc, err := CreateDockerTestService()
+	if err != nil {
+		return false
+	}
+	defer svc.Close()
+	return true
+}
+
+// GetK8sKubeconfig 获取 kubeconfig 路径
+func GetK8sKubeconfig() string {
+	kubeconfig := os.Getenv("KUBECONFIG")
+	if kubeconfig == "" {
+		home, err := os.UserHomeDir()
+		if err == nil {
+			kubeconfig = home + "/.kube/config"
+		}
+	}
+	return kubeconfig
+}
+
+// CreateK8sTestService 创建测试用的 Kubernetes Provider Service 实例
+func CreateK8sTestService() (*k8sprovider.Service, error) {
+	kubeconfig := GetK8sKubeconfig()
+
+	// 测试用的资源容量
+	totalCapacity := &resourcepb.Info{
+		Cpu:    8000,                   // 8 cores
+		Memory: 8 * 1024 * 1024 * 1024, // 8Gi
+		Gpu:    2,                      // 2 GPUs
+	}
+
+	return k8sprovider.NewService(kubeconfig, false, "default", "iarnet.managed=true", []string{"cpu", "memory", "gpu"}, totalCapacity, false) // allowConnectionFailure: false
+}
+
+// IsK8sAvailable 检查 Kubernetes 是否可用
+func IsK8sAvailable() bool {
+	svc, err := CreateK8sTestService()
+	if err != nil {
+		return false
+	}
+	defer svc.Close()
+	return true
+}
+
+// TestTimeFormatter 测试用的时间格式化器，将时间提前6小时
+type TestTimeFormatter struct {
+	logrus.TextFormatter
+}
+
+// Format 格式化日志条目，将时间提前6小时
+func (f *TestTimeFormatter) Format(entry *logrus.Entry) ([]byte, error) {
+	// 将时间提前6小时
+	adjustedTime := entry.Time.Add(-6 * time.Hour)
+	// 创建新的 entry 副本，避免修改原始 entry
+	newEntry := *entry
+	newEntry.Time = adjustedTime
+	return f.TextFormatter.Format(&newEntry)
+}
+
+// InitTestLogger 初始化测试用的 logger，时间戳提前6小时
+// 所有测试代码都应该在 init() 函数中调用此函数来初始化 logger
+func InitTestLogger() {
+	logrus.SetFormatter(&TestTimeFormatter{
+		TextFormatter: logrus.TextFormatter{
+			FullTimestamp:   true,
+			TimestampFormat: time.RFC3339,
+		},
+	})
 }

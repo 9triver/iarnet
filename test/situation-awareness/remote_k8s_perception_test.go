@@ -16,6 +16,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func init() {
+	// 初始化测试 logger，时间戳提前6小时
+	testutil.InitTestLogger()
+}
+
 // TestCase: 远程 Kubernetes 资源感知测试
 // 测试目的：验证远程节点接入 Kubernetes provider 后，当前节点可以通过 gossip 协议
 // 感知远程节点的 Kubernetes provider 所提供的资源容量
@@ -61,11 +66,11 @@ func TestRemoteK8sResourcePerception(t *testing.T) {
 	defer currentManager.Stop()
 
 	testutil.PrintSuccess(t, "当前节点创建并启动成功")
-	printNetworkTopology(t, currentManager, "当前节点初始状态")
+	testutil.PrintNetworkTopology(t, currentManager, "当前节点初始状态")
 
 	// 步骤 2: 创建远程节点并接入 Kubernetes Provider
 	testutil.PrintTestSection(t, "步骤 2: 创建远程节点并接入 Kubernetes Provider")
-	if !isK8sAvailable() {
+	if !testutil.IsK8sAvailable() {
 		t.Skip("Kubernetes is not available, skipping test")
 	}
 
@@ -75,7 +80,7 @@ func TestRemoteK8sResourcePerception(t *testing.T) {
 	remoteSchedulerAddress := "192.168.1.200:50006"
 
 	// 创建远程节点的 Kubernetes Provider
-	remoteK8sProvider, err := createK8sTestService()
+	remoteK8sProvider, err := testutil.CreateK8sTestService()
 	require.NoError(t, err, "Failed to create remote Kubernetes provider")
 
 	// 确保类型正确（使用 provider.Service）
@@ -337,7 +342,7 @@ func TestRemoteK8sResourcePerception(t *testing.T) {
 	testutil.PrintSuccess(t, "聚合视图成功包含远程节点的 Kubernetes Provider 资源")
 
 	// 打印最终网络拓扑
-	printNetworkTopology(t, currentManager, "远程 Kubernetes 资源感知测试后的网络拓扑")
+	testutil.PrintNetworkTopology(t, currentManager, "远程 Kubernetes 资源感知测试后的网络拓扑")
 
 	t.Log("\n" + testutil.Colorize(strings.Repeat("=", 80), testutil.ColorCyan+testutil.ColorBold))
 	t.Log(testutil.Colorize("✓ 远程 Kubernetes 资源感知测试通过", testutil.ColorGreen+testutil.ColorBold))

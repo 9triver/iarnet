@@ -3,19 +3,21 @@ package situation_awareness
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 	"time"
 
 	resourcepb "github.com/9triver/iarnet/internal/proto/resource"
 	providerpb "github.com/9triver/iarnet/internal/proto/resource/provider"
-	"github.com/9triver/iarnet/providers/docker/provider"
 	testutil "github.com/9triver/iarnet/test/util"
-	"github.com/moby/moby/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func init() {
+	// 初始化测试 logger，时间戳提前6小时
+	testutil.InitTestLogger()
+}
 
 // TestCase T3-1-001: Docker 资源接入测试
 // 测试目的：验证 Docker provider 的资源态势感知能力，包括资源容量、可用资源、
@@ -26,11 +28,11 @@ func TestDockerProvider_ResourceSituationAwareness(t *testing.T) {
 	testutil.PrintTestHeader(t, "测试用例 T3-1-001: Docker 资源接入测试",
 		"验证 Docker provider 的资源态势感知能力")
 
-	if !isDockerAvailable() {
+	if !testutil.IsDockerAvailable() {
 		t.Skip("Docker is not available, skipping test")
 	}
 
-	svc, err := createTestService()
+	svc, err := testutil.CreateDockerTestService()
 	require.NoError(t, err, "Failed to create Docker provider service")
 	defer svc.Close()
 
@@ -555,11 +557,11 @@ func TestDockerProvider_ResourceSituationAwareness_WithConnection(t *testing.T) 
 	testutil.PrintTestHeader(t, "测试用例: 连接状态下的资源态势感知",
 		"验证连接状态下的资源态势感知和鉴权机制")
 
-	if !isDockerAvailable() {
+	if !testutil.IsDockerAvailable() {
 		t.Skip("Docker is not available, skipping test")
 	}
 
-	svc, err := createTestService()
+	svc, err := testutil.CreateDockerTestService()
 	require.NoError(t, err)
 	defer svc.Close()
 
@@ -667,62 +669,4 @@ func TestDockerProvider_ResourceSituationAwareness_WithConnection(t *testing.T) 
 	t.Log("\n" + testutil.Colorize(strings.Repeat("=", 80), testutil.ColorCyan+testutil.ColorBold))
 	t.Log(testutil.Colorize("✓ 所有连接状态下的资源态势感知测试通过", testutil.ColorGreen+testutil.ColorBold))
 	t.Log(testutil.Colorize(strings.Repeat("=", 80), testutil.ColorCyan+testutil.ColorBold) + "\n")
-}
-
-// createTestService 创建测试用的 Service 实例
-func createTestService() (*provider.Service, error) {
-	// 尝试使用本地 Docker socket
-	host := os.Getenv("DOCKER_HOST")
-	if host == "" {
-		host = "unix:///var/run/docker.sock"
-	}
-
-	// 创建支持 CPU、Memory 和 GPU 的 provider
-	return provider.NewService(host, "", false, "", "default", []string{"cpu", "memory", "gpu"}, &resourcepb.Info{
-		Cpu:    1000,
-		Memory: 1024 * 1024 * 1024,
-		Gpu:    4,
-	}, []int{}, false) // gpuIDs: empty, allowConnectionFailure: false
-}
-
-// isDockerAvailable 检查 Docker 是否可用
-func isDockerAvailable() bool {
-	svc, err := createTestService()
-	if err != nil {
-		return false
-	}
-	defer svc.Close()
-	return true
-}
-
-// createDockerClient 创建 Docker client 用于直接操作容器
-func createDockerClient() (*client.Client, error) {
-	host := os.Getenv("DOCKER_HOST")
-	if host == "" {
-		host = "unix:///var/run/docker.sock"
-	}
-
-	var opts []client.Opt
-	if host != "" {
-		opts = append(opts, client.WithHost(host))
-	} else {
-		opts = append(opts, client.FromEnv)
-	}
-
-	opts = append(opts, client.WithAPIVersionNegotiation())
-
-	cli, err := client.NewClientWithOpts(opts...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Docker client: %w", err)
-	}
-
-	// 测试连接
-	ctx := context.Background()
-	_, err = cli.Ping(ctx)
-	if err != nil {
-		cli.Close()
-		return nil, fmt.Errorf("failed to ping Docker daemon: %w", err)
-	}
-
-	return cli, nil
 }

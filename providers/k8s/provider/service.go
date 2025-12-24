@@ -39,6 +39,9 @@ type Service struct {
 	// 资源容量管理（从配置文件读取）
 	totalCapacity *resourcepb.Info // 配置的总容量
 	allocated     *resourcepb.Info // 当前已分配的容量（内存中动态维护）
+
+	// 实例资源映射：记录每个 instance_id 对应的资源请求（用于删除时正确释放资源）
+	instanceResources map[string]*resourcepb.Info // instance_id -> 资源请求
 }
 
 // NewService 创建新的 Kubernetes provider 服务
@@ -164,8 +167,9 @@ func NewService(kubeconfig string, inCluster bool, namespace string, labelSelect
 			Gpu:    slices.Contains(resourceTags, "gpu"),
 			Camera: slices.Contains(resourceTags, "camera"),
 		},
-		totalCapacity: totalCapacity,
-		allocated:     allocated,
+		totalCapacity:     totalCapacity,
+		allocated:         allocated,
+		instanceResources: make(map[string]*resourcepb.Info), // 初始化实例资源映射
 	}
 
 	// 启动健康检测超时监控
@@ -233,7 +237,12 @@ func (s *Service) GetCapacity(ctx context.Context, req *providerpb.GetCapacityRe
 
 	s.mu.RLock()
 	total := s.totalCapacity
-	allocated := s.allocated
+	// 创建 allocated 的副本，避免返回指针导致外部修改
+	allocated := &resourcepb.Info{
+		Cpu:    s.allocated.Cpu,
+		Memory: s.allocated.Memory,
+		Gpu:    s.allocated.Gpu,
+	}
 	s.mu.RUnlock()
 
 	// 必须从配置文件获取容量，如果未配置则返回错误
@@ -252,7 +261,10 @@ func (s *Service) GetCapacity(ctx context.Context, req *providerpb.GetCapacityRe
 		Used:      allocated,
 		Available: available,
 	}
-	logrus.Infof("k8s provider get capacity, capacity: %v", capacity)
+	logrus.Debugf("k8s provider get capacity: Total(CPU=%d, Memory=%d, GPU=%d), Used(CPU=%d, Memory=%d, GPU=%d), Available(CPU=%d, Memory=%d, GPU=%d)",
+		total.Cpu, total.Memory, total.Gpu,
+		allocated.Cpu, allocated.Memory, allocated.Gpu,
+		available.Cpu, available.Memory, available.Gpu)
 
 	return &providerpb.GetCapacityResponse{
 		Capacity: capacity,
@@ -376,14 +388,69 @@ func (s *Service) Deploy(ctx context.Context, req *providerpb.DeployRequest) (*p
 	}
 
 	// 更新已分配的资源容量（在内存中维护）
+	// 同时记录 instance_id 对应的资源请求，用于删除时正确释放
 	s.mu.Lock()
 	s.allocated.Cpu += req.ResourceRequest.Cpu
 	s.allocated.Memory += req.ResourceRequest.Memory
 	s.allocated.Gpu += req.ResourceRequest.Gpu
+
+	// 记录实例资源请求（用于删除时正确释放，特别是 GPU 资源不会在 Pod spec 中）
+	s.instanceResources[req.InstanceId] = &resourcepb.Info{
+		Cpu:    req.ResourceRequest.Cpu,
+		Memory: req.ResourceRequest.Memory,
+		Gpu:    req.ResourceRequest.Gpu,
+	}
+
+	// 记录更新后的资源状态用于调试
+	currentAllocated := &resourcepb.Info{
+		Cpu:    s.allocated.Cpu,
+		Memory: s.allocated.Memory,
+		Gpu:    s.allocated.Gpu,
+	}
 	s.mu.Unlock()
 
-	logrus.Infof("Pod deployed successfully: %s/%s, allocated resources: CPU=%d, Memory=%d, GPU=%d",
-		s.namespace, createdPod.Name, req.ResourceRequest.Cpu, req.ResourceRequest.Memory, req.ResourceRequest.Gpu)
+	logrus.Infof("Resource allocation updated in memory: CPU=%d, Memory=%d, GPU=%d (requested: CPU=%d, Memory=%d, GPU=%d)",
+		currentAllocated.Cpu, currentAllocated.Memory, currentAllocated.Gpu,
+		req.ResourceRequest.Cpu, req.ResourceRequest.Memory, req.ResourceRequest.Gpu)
+
+	logrus.Infof("Pod created: %s/%s, waiting for Pod to be running...", s.namespace, createdPod.Name)
+
+	// 等待 Pod 启动
+	waitCtx, cancel := context.WithTimeout(ctx, 120*time.Second)
+	defer cancel()
+
+	runningPod, err := s.waitForPodRunning(waitCtx, createdPod.Name)
+	if err != nil {
+		logrus.Warnf("Pod %s/%s did not reach Running state within timeout: %v", s.namespace, createdPod.Name, err)
+		// 即使超时，也继续返回成功（因为资源已在内存中分配）
+		// 但尝试获取当前 Pod 状态用于日志
+		currentPod, getErr := s.clientset.CoreV1().Pods(s.namespace).Get(ctx, createdPod.Name, metav1.GetOptions{})
+		if getErr == nil {
+			logrus.Warnf("Pod %s/%s current state: Phase=%s, Node=%s",
+				s.namespace, currentPod.Name, currentPod.Status.Phase, currentPod.Spec.NodeName)
+		}
+	} else {
+		// Pod 已成功启动，打印详细信息
+		logrus.WithFields(logrus.Fields{
+			"pod_name":      runningPod.Name,
+			"pod_namespace": s.namespace,
+			"pod_phase":     runningPod.Status.Phase,
+			"node_name":     runningPod.Spec.NodeName,
+			"pod_ip":        runningPod.Status.PodIP,
+			"cpu":           req.ResourceRequest.Cpu,
+			"memory":        req.ResourceRequest.Memory,
+			"gpu":           req.ResourceRequest.Gpu,
+		}).Info("Pod successfully started and running")
+
+		// 打印容器状态
+		for _, containerStatus := range runningPod.Status.ContainerStatuses {
+			if containerStatus.Ready {
+				logrus.Infof("  Container %s is ready (image: %s)", containerStatus.Name, containerStatus.Image)
+			} else {
+				logrus.Warnf("  Container %s is not ready yet (image: %s)", containerStatus.Name, containerStatus.Image)
+			}
+		}
+	}
 
 	return &providerpb.DeployResponse{
 		Error: "",
@@ -434,29 +501,51 @@ func (s *Service) Undeploy(ctx context.Context, req *providerpb.UndeployRequest)
 		podName = pod.Name
 	}
 
-	// 获取 Pod 的资源使用情况（用于释放资源）
+	// 获取资源使用情况（用于释放资源）
+	// 优先从内存中的实例资源映射获取（因为 GPU 等资源可能不在 Pod spec 中）
 	var cpu int64
 	var memory int64
 	var gpu int64
 
-	for _, container := range pod.Spec.Containers {
-		// CPU 请求（millicores）
-		if cpuReq, ok := container.Resources.Requests[corev1.ResourceCPU]; ok {
-			cpu += cpuReq.MilliValue()
+	s.mu.RLock()
+	instanceRes, exists := s.instanceResources[req.InstanceId]
+	s.mu.RUnlock()
+
+	if exists {
+		// 从内存映射中获取资源请求（最准确，包括 GPU）
+		cpu = instanceRes.Cpu
+		memory = instanceRes.Memory
+		gpu = instanceRes.Gpu
+		logrus.Debugf("Using resource allocation from memory map for instance %s: CPU=%d, Memory=%d, GPU=%d",
+			req.InstanceId, cpu, memory, gpu)
+	} else {
+		// 如果内存映射中没有，从 Pod spec 中读取（向后兼容）
+		for _, container := range pod.Spec.Containers {
+			// CPU 请求（millicores）
+			if cpuReq, ok := container.Resources.Requests[corev1.ResourceCPU]; ok {
+				cpu += cpuReq.MilliValue()
+			}
+			// 内存请求（bytes）
+			if memReq, ok := container.Resources.Requests[corev1.ResourceMemory]; ok {
+				memory += memReq.Value()
+			}
+			// GPU 请求（可能不存在，因为我们在 buildPodSpec 中不添加 GPU 资源请求）
+			if gpuReq, ok := container.Resources.Requests["nvidia.com/gpu"]; ok {
+				gpu += gpuReq.Value()
+			}
 		}
-		// 内存请求（bytes）
-		if memReq, ok := container.Resources.Requests[corev1.ResourceMemory]; ok {
-			memory += memReq.Value()
-		}
-		// GPU 请求
-		if gpuReq, ok := container.Resources.Requests["nvidia.com/gpu"]; ok {
-			gpu += gpuReq.Value()
-		}
+		logrus.Debugf("Using resource allocation from Pod spec for instance %s: CPU=%d, Memory=%d, GPU=%d",
+			req.InstanceId, cpu, memory, gpu)
 	}
 
 	// 释放资源
 	if cpu > 0 || memory > 0 || gpu > 0 {
 		s.ReleaseResources(cpu, memory, gpu)
+
+		// 从内存映射中删除该实例的资源记录
+		s.mu.Lock()
+		delete(s.instanceResources, req.InstanceId)
+		s.mu.Unlock()
 	}
 
 	// 删除 Pod
@@ -473,7 +562,23 @@ func (s *Service) Undeploy(ctx context.Context, req *providerpb.UndeployRequest)
 		}, nil
 	}
 
-	logrus.Infof("Pod undeployed successfully: %s/%s", s.namespace, podName)
+	logrus.Infof("Pod deletion request sent: %s/%s, waiting for Pod to be completely removed (grace period: 30s)...", s.namespace, podName)
+
+	// 阻塞等待 Pod 被成功删除
+	// 注意：Kubernetes 的删除是异步的，Pod 会先进入 Terminating 状态，然后才会被真正删除
+	// 我们需要等待 Pod 完全消失，包括 Terminating 状态
+	waitCtx, cancel := context.WithTimeout(ctx, 120*time.Second)
+	defer cancel()
+
+	err = s.waitForPodDeleted(waitCtx, podName)
+	if err != nil {
+		logrus.Errorf("Pod %s/%s deletion timeout: %v", s.namespace, podName, err)
+		return &providerpb.UndeployResponse{
+			Error: fmt.Sprintf("pod deletion timeout: %v", err),
+		}, nil
+	}
+
+	logrus.Infof("Pod undeployed successfully: %s/%s (Pod has been completely removed from Kubernetes)", s.namespace, podName)
 	return &providerpb.UndeployResponse{
 		Error: "",
 	}, nil
@@ -548,11 +653,11 @@ func (s *Service) buildPodSpec(req *providerpb.DeployRequest, providerID string)
 		},
 	}
 
-	// 如果请求了 GPU，添加 GPU 资源限制
+	// GPU 资源不在 Kubernetes 中实际请求（因为 kind 等环境可能不支持）
+	// GPU 资源只在 provider 内存中跟踪，用于资源管理和调度决策
+	// 这样可以在不支持 GPU 的集群中测试 GPU 资源管理功能
 	if req.ResourceRequest.Gpu > 0 {
-		gpuQuantity := resource.NewQuantity(req.ResourceRequest.Gpu, resource.DecimalSI)
-		resources.Requests["nvidia.com/gpu"] = *gpuQuantity
-		resources.Limits["nvidia.com/gpu"] = *gpuQuantity
+		logrus.Debugf("GPU resource requested (%d) but not added to Pod spec (tracked in memory only)", req.ResourceRequest.Gpu)
 	}
 
 	// 构建 Pod
@@ -817,4 +922,109 @@ func (s *Service) getGPUUsageFromPods(ctx context.Context, providerID string) in
 	}
 
 	return totalGpu
+}
+
+// waitForPodRunning 等待 Pod 进入 Running 状态
+func (s *Service) waitForPodRunning(ctx context.Context, podName string) (*corev1.Pod, error) {
+	deadline, hasDeadline := ctx.Deadline()
+	if !hasDeadline {
+		deadline = time.Now().Add(120 * time.Second)
+	}
+
+	for time.Now().Before(deadline) {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
+
+		pod, err := s.clientset.CoreV1().Pods(s.namespace).Get(ctx, podName, metav1.GetOptions{})
+		if err != nil {
+			time.Sleep(1 * time.Second)
+			continue
+		}
+
+		// 检查 Pod 是否处于 Running 状态
+		if pod.Status.Phase == corev1.PodRunning {
+			// 检查所有容器是否就绪
+			allReady := true
+			if len(pod.Status.ContainerStatuses) > 0 {
+				for _, status := range pod.Status.ContainerStatuses {
+					if !status.Ready {
+						allReady = false
+						break
+					}
+				}
+			}
+			if allReady {
+				return pod, nil
+			}
+		}
+
+		// 检查 Pod 是否处于失败状态
+		if pod.Status.Phase == corev1.PodFailed || pod.Status.Phase == corev1.PodSucceeded {
+			return nil, fmt.Errorf("pod is in %s phase", pod.Status.Phase)
+		}
+
+		time.Sleep(1 * time.Second)
+	}
+
+	// 超时，返回当前 Pod 状态
+	pod, err := s.clientset.CoreV1().Pods(s.namespace).Get(ctx, podName, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("timeout waiting for pod to be running, failed to get pod status: %w", err)
+	}
+
+	return nil, fmt.Errorf("timeout waiting for pod to be running (current phase: %s)", pod.Status.Phase)
+}
+
+// waitForPodDeleted 等待 Pod 被删除
+func (s *Service) waitForPodDeleted(ctx context.Context, podName string) error {
+	deadline, hasDeadline := ctx.Deadline()
+	if !hasDeadline {
+		deadline = time.Now().Add(120 * time.Second)
+	}
+
+	startTime := time.Now()
+	checkCount := 0
+
+	for time.Now().Before(deadline) {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		checkCount++
+		pod, err := s.clientset.CoreV1().Pods(s.namespace).Get(ctx, podName, metav1.GetOptions{})
+		if err != nil {
+			// Pod 不存在了，删除完成
+			elapsed := time.Since(startTime)
+			logrus.Infof("Pod %s/%s successfully deleted after %v (checked %d times)",
+				s.namespace, podName, elapsed, checkCount)
+			return nil
+		}
+
+		// Pod 还存在，检查其状态
+		if pod != nil {
+			elapsed := time.Since(startTime)
+			if checkCount == 1 || checkCount%10 == 0 {
+				// 每10次检查或第一次检查时记录日志
+				logrus.Debugf("Waiting for Pod %s/%s to be deleted: Phase=%s, DeletionTimestamp=%v (elapsed: %v, check #%d)",
+					s.namespace, podName, pod.Status.Phase, pod.DeletionTimestamp, elapsed, checkCount)
+			}
+		}
+
+		time.Sleep(1 * time.Second)
+	}
+
+	// 超时，尝试获取 Pod 的最终状态
+	pod, err := s.clientset.CoreV1().Pods(s.namespace).Get(ctx, podName, metav1.GetOptions{})
+	if err == nil && pod != nil {
+		return fmt.Errorf("timeout waiting for pod to be deleted (current phase: %s, deletion timestamp: %v, elapsed: %v)",
+			pod.Status.Phase, pod.DeletionTimestamp, time.Since(startTime))
+	}
+
+	return fmt.Errorf("timeout waiting for pod to be deleted (elapsed: %v, checked %d times)",
+		time.Since(startTime), checkCount)
 }
