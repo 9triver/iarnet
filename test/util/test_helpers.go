@@ -7,25 +7,43 @@ import (
 
 	"github.com/9triver/iarnet/internal/domain/resource/discovery"
 	"github.com/9triver/iarnet/internal/domain/resource/types"
+	resourcepb "github.com/9triver/iarnet/internal/proto/resource"
 )
 
 const (
-	colorReset = "\033[0m"
-	colorBold  = "\033[1m"
+	ColorReset = "\033[0m"
+	ColorBold  = "\033[1m"
 
-	colorGreen  = "\033[32m"
-	colorCyan   = "\033[36m"
-	colorBlue   = "\033[34m"
-	colorYellow = "\033[33m"
-	colorWhite  = "\033[37m"
-	colorRed    = "\033[31m"
+	ColorGreen  = "\033[32m"
+	ColorCyan   = "\033[36m"
+	ColorBlue   = "\033[34m"
+	ColorYellow = "\033[33m"
+	ColorWhite  = "\033[37m"
+	ColorRed    = "\033[31m"
 )
 
-func colorize(text, color string) string {
+// 保持向后兼容的小写常量
+const (
+	colorReset  = ColorReset
+	colorBold   = ColorBold
+	colorGreen  = ColorGreen
+	colorCyan   = ColorCyan
+	colorBlue   = ColorBlue
+	colorYellow = ColorYellow
+	colorWhite  = ColorWhite
+	colorRed    = ColorRed
+)
+
+func Colorize(text, color string) string {
 	if text == "" {
 		return ""
 	}
-	return color + text + colorReset
+	return color + text + ColorReset
+}
+
+// colorize 保持向后兼容
+func colorize(text, color string) string {
+	return Colorize(text, color)
 }
 
 func PrintTestHeader(t *testing.T, title, subtitle string) {
@@ -134,7 +152,7 @@ func PrintSchedulingDecision(t *testing.T, path string, success bool, detail str
 	}
 }
 
-func formatBytes(bytes int64) string {
+func FormatBytes(bytes int64) string {
 	if bytes <= 0 {
 		return "0 B"
 	}
@@ -148,4 +166,43 @@ func formatBytes(bytes int64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.2f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
+}
+
+// formatBytes 保持向后兼容
+func formatBytes(bytes int64) string {
+	return FormatBytes(bytes)
+}
+
+// PrintResourceInfo 打印资源容量信息
+func PrintResourceInfo(t *testing.T, capacity *resourcepb.Capacity) {
+	t.Helper()
+	if capacity == nil {
+		return
+	}
+	t.Log("\n" + Colorize("资源容量信息:", ColorYellow+ColorBold))
+	t.Logf("  %s    总计 %s, 已用 %s, 可用 %s",
+		Colorize("CPU:", ColorWhite+ColorBold),
+		Colorize(fmt.Sprintf("%d millicores", capacity.Total.Cpu), ColorWhite),
+		Colorize(fmt.Sprintf("%d millicores", capacity.Used.Cpu), ColorYellow),
+		Colorize(fmt.Sprintf("%d millicores", capacity.Available.Cpu), ColorGreen))
+	t.Logf("  %s   总计 %s, 已用 %s, 可用 %s",
+		Colorize("内存:", ColorWhite+ColorBold),
+		Colorize(FormatBytes(capacity.Total.Memory), ColorWhite),
+		Colorize(FormatBytes(capacity.Used.Memory), ColorYellow),
+		Colorize(FormatBytes(capacity.Available.Memory), ColorGreen))
+	if capacity.Total.Gpu > 0 {
+		t.Logf("  %s    总计 %s, 已用 %s, 可用 %s",
+			Colorize("GPU:", ColorWhite+ColorBold),
+			Colorize(fmt.Sprintf("%d", capacity.Total.Gpu), ColorWhite),
+			Colorize(fmt.Sprintf("%d", capacity.Used.Gpu), ColorYellow),
+			Colorize(fmt.Sprintf("%d", capacity.Available.Gpu), ColorGreen))
+	}
+}
+
+// ColorizeBool 为布尔值添加颜色（true=绿色，false=红色）
+func ColorizeBool(value bool) string {
+	if value {
+		return Colorize("✓ true", ColorGreen)
+	}
+	return Colorize("✗ false", ColorRed)
 }

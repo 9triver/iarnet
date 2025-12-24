@@ -11,6 +11,7 @@ import (
 	"github.com/9triver/iarnet/internal/domain/resource/types"
 	providerpb "github.com/9triver/iarnet/internal/proto/resource/provider"
 	"github.com/9triver/iarnet/providers/docker/provider"
+	testutil "github.com/9triver/iarnet/test/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,13 +22,13 @@ import (
 
 // TestRemoteDockerResourcePerception 测试远程 docker 资源感知
 func TestRemoteDockerResourcePerception(t *testing.T) {
-	printTestHeader(t, "测试用例: 远程 docker 资源感知",
+	testutil.PrintTestHeader(t, "测试用例: 远程 docker 资源感知",
 		"验证通过 Gossip 协议感知远程节点的 Docker Provider 资源容量")
 
 	ctx := context.Background()
 
 	// 步骤 1: 创建当前节点（本地节点）
-	printTestSection(t, "步骤 1: 创建当前节点（本地节点）")
+	testutil.PrintTestSection(t, "步骤 1: 创建当前节点（本地节点）")
 	currentNodeID := "test-node-current"
 	currentNodeName := "test-current"
 	currentAddress := "localhost:50005"
@@ -59,11 +60,11 @@ func TestRemoteDockerResourcePerception(t *testing.T) {
 	require.NoError(t, err, "Failed to start current node manager")
 	defer currentManager.Stop()
 
-	printSuccess(t, "当前节点创建并启动成功")
+	testutil.PrintSuccess(t, "当前节点创建并启动成功")
 	printNetworkTopology(t, currentManager, "当前节点初始状态")
 
 	// 步骤 2: 创建远程节点并接入 Docker Provider
-	printTestSection(t, "步骤 2: 创建远程节点并接入 Docker Provider")
+	testutil.PrintTestSection(t, "步骤 2: 创建远程节点并接入 Docker Provider")
 	if !isDockerAvailable() {
 		t.Skip("Docker is not available, skipping test")
 	}
@@ -95,10 +96,10 @@ func TestRemoteDockerResourcePerception(t *testing.T) {
 	require.NoError(t, err, "Failed to connect remote Docker provider")
 	require.True(t, connectResp.Success, "Remote Docker provider connection should succeed")
 
-	printSuccess(t, fmt.Sprintf("远程节点 Docker Provider 注册成功: %s", remoteProviderID))
+	testutil.PrintSuccess(t, fmt.Sprintf("远程节点 Docker Provider 注册成功: %s", remoteProviderID))
 
 	// 步骤 3: 获取远程节点的 Docker Provider 资源容量
-	printTestSection(t, "步骤 3: 获取远程节点的 Docker Provider 资源容量")
+	testutil.PrintTestSection(t, "步骤 3: 获取远程节点的 Docker Provider 资源容量")
 	capacityReq := &providerpb.GetCapacityRequest{
 		ProviderId: remoteProviderID,
 	}
@@ -109,25 +110,25 @@ func TestRemoteDockerResourcePerception(t *testing.T) {
 	require.NotNil(t, capacityResp.Capacity, "Capacity should not be nil")
 
 	remoteCapacity := capacityResp.Capacity
-	printSuccess(t, "成功获取远程节点 Docker Provider 资源容量")
+	testutil.PrintSuccess(t, "成功获取远程节点 Docker Provider 资源容量")
 
-	t.Log("\n" + colorize("远程节点 Docker Provider 资源容量:", colorYellow+colorBold))
+	t.Log("\n" + testutil.Colorize("远程节点 Docker Provider 资源容量:", testutil.ColorYellow+testutil.ColorBold))
 	t.Logf("  %s    总计: %s, 已用: %s, 可用: %s",
-		colorize("CPU:", colorWhite+colorBold),
-		colorize(fmt.Sprintf("%d millicores", remoteCapacity.Total.Cpu), colorWhite),
-		colorize(fmt.Sprintf("%d millicores", remoteCapacity.Used.Cpu), colorYellow),
-		colorize(fmt.Sprintf("%d millicores", remoteCapacity.Available.Cpu), colorGreen))
+		testutil.Colorize("CPU:", testutil.ColorWhite+testutil.ColorBold),
+		testutil.Colorize(fmt.Sprintf("%d millicores", remoteCapacity.Total.Cpu), testutil.ColorWhite),
+		testutil.Colorize(fmt.Sprintf("%d millicores", remoteCapacity.Used.Cpu), testutil.ColorYellow),
+		testutil.Colorize(fmt.Sprintf("%d millicores", remoteCapacity.Available.Cpu), testutil.ColorGreen))
 	t.Logf("  %s   总计: %s, 已用: %s, 可用: %s",
-		colorize("内存:", colorWhite+colorBold),
-		colorize(formatBytes(remoteCapacity.Total.Memory), colorWhite),
-		colorize(formatBytes(remoteCapacity.Used.Memory), colorYellow),
-		colorize(formatBytes(remoteCapacity.Available.Memory), colorGreen))
+		testutil.Colorize("内存:", testutil.ColorWhite+testutil.ColorBold),
+		testutil.Colorize(testutil.FormatBytes(remoteCapacity.Total.Memory), testutil.ColorWhite),
+		testutil.Colorize(testutil.FormatBytes(remoteCapacity.Used.Memory), testutil.ColorYellow),
+		testutil.Colorize(testutil.FormatBytes(remoteCapacity.Available.Memory), testutil.ColorGreen))
 	if remoteCapacity.Total.Gpu > 0 {
 		t.Logf("  %s    总计: %s, 已用: %s, 可用: %s",
-			colorize("GPU:", colorWhite+colorBold),
-			colorize(fmt.Sprintf("%d", remoteCapacity.Total.Gpu), colorWhite),
-			colorize(fmt.Sprintf("%d", remoteCapacity.Used.Gpu), colorYellow),
-			colorize(fmt.Sprintf("%d", remoteCapacity.Available.Gpu), colorGreen))
+			testutil.Colorize("GPU:", testutil.ColorWhite+testutil.ColorBold),
+			testutil.Colorize(fmt.Sprintf("%d", remoteCapacity.Total.Gpu), testutil.ColorWhite),
+			testutil.Colorize(fmt.Sprintf("%d", remoteCapacity.Used.Gpu), testutil.ColorYellow),
+			testutil.Colorize(fmt.Sprintf("%d", remoteCapacity.Available.Gpu), testutil.ColorGreen))
 	}
 
 	// 获取资源标签
@@ -146,14 +147,14 @@ func TestRemoteDockerResourcePerception(t *testing.T) {
 		healthResp.ResourceTags.Camera,
 	)
 
-	t.Log("\n" + colorize("远程节点 Docker Provider 资源标签:", colorYellow+colorBold))
-	t.Logf("  %s    %s", colorize("CPU:", colorWhite+colorBold), colorizeBool(remoteResourceTags.CPU))
-	t.Logf("  %s   %s", colorize("GPU:", colorWhite+colorBold), colorizeBool(remoteResourceTags.GPU))
-	t.Logf("  %s  %s", colorize("内存:", colorWhite+colorBold), colorizeBool(remoteResourceTags.Memory))
-	t.Logf("  %s %s", colorize("摄像头:", colorWhite+colorBold), colorizeBool(remoteResourceTags.Camera))
+	t.Log("\n" + testutil.Colorize("远程节点 Docker Provider 资源标签:", testutil.ColorYellow+testutil.ColorBold))
+	t.Logf("  %s    %s", testutil.Colorize("CPU:", testutil.ColorWhite+testutil.ColorBold), testutil.ColorizeBool(remoteResourceTags.CPU))
+	t.Logf("  %s   %s", testutil.Colorize("GPU:", testutil.ColorWhite+testutil.ColorBold), testutil.ColorizeBool(remoteResourceTags.GPU))
+	t.Logf("  %s  %s", testutil.Colorize("内存:", testutil.ColorWhite+testutil.ColorBold), testutil.ColorizeBool(remoteResourceTags.Memory))
+	t.Logf("  %s %s", testutil.Colorize("摄像头:", testutil.ColorWhite+testutil.ColorBold), testutil.ColorizeBool(remoteResourceTags.Camera))
 
 	// 步骤 4: 构建远程节点信息（包含 Docker Provider 资源容量）
-	printTestSection(t, "步骤 4: 构建远程节点信息（包含 Docker Provider 资源容量）")
+	testutil.PrintTestSection(t, "步骤 4: 构建远程节点信息（包含 Docker Provider 资源容量）")
 
 	// 转换资源容量格式
 	remoteNodeCapacity := &types.Capacity{
@@ -191,36 +192,36 @@ func TestRemoteDockerResourcePerception(t *testing.T) {
 		GossipCount:      0,
 	}
 
-	printSuccess(t, "远程节点信息构建完成（包含 Docker Provider 资源容量）")
+	testutil.PrintSuccess(t, "远程节点信息构建完成（包含 Docker Provider 资源容量）")
 	t.Logf("  节点 ID: %s", remotePeerNode.NodeID)
 	t.Logf("  节点名称: %s", remotePeerNode.NodeName)
 	t.Logf("  节点地址: %s", remotePeerNode.Address)
 	t.Logf("  资源来源: Docker Provider")
 
 	// 步骤 5: 通过 Gossip 协议传播远程节点信息到当前节点
-	printTestSection(t, "步骤 5: 通过 Gossip 协议传播远程节点信息到当前节点")
+	testutil.PrintTestSection(t, "步骤 5: 通过 Gossip 协议传播远程节点信息到当前节点")
 
 	// 设置节点发现回调
 	discoveredNodes := make(chan string, 10)
 	currentManager.SetOnNodeDiscovered(func(node *discovery.PeerNode) {
 		discoveredNodes <- node.NodeID
-		printSuccess(t, fmt.Sprintf("远程节点发现回调触发: %s (%s)", node.NodeName, node.NodeID))
+		testutil.PrintSuccess(t, fmt.Sprintf("远程节点发现回调触发: %s (%s)", node.NodeName, node.NodeID))
 	})
 
 	// 通过 Gossip 消息：当前节点接收到远程节点的信息
 	currentManager.ProcessNodeInfo(remotePeerNode, currentAddress)
-	printSuccess(t, "远程节点信息已通过 Gossip 协议传播到当前节点")
+	testutil.PrintSuccess(t, "远程节点信息已通过 Gossip 协议传播到当前节点")
 
 	// 等待回调执行
 	select {
 	case nodeID := <-discoveredNodes:
 		assert.Equal(t, remoteNodeID, nodeID, "Discovered node ID should match")
 	case <-time.After(1 * time.Second):
-		t.Logf("  %s 回调可能未触发或已触发", colorize("警告:", colorYellow))
+		t.Logf("  %s 回调可能未触发或已触发", testutil.Colorize("警告:", testutil.ColorYellow))
 	}
 
 	// 步骤 6: 验证当前节点能够感知远程节点的 Docker Provider 资源容量
-	printTestSection(t, "步骤 6: 验证当前节点能够感知远程节点的 Docker Provider 资源容量")
+	testutil.PrintTestSection(t, "步骤 6: 验证当前节点能够感知远程节点的 Docker Provider 资源容量")
 
 	knownNodes := currentManager.GetKnownNodes()
 	require.Equal(t, 1, len(knownNodes), "Current node should know about the remote node")
@@ -256,19 +257,19 @@ func TestRemoteDockerResourcePerception(t *testing.T) {
 	assert.Equal(t, remoteCapacity.Available.Gpu, discoveredRemoteNode.ResourceCapacity.Available.GPU,
 		"Remote node available GPU should match Docker provider capacity")
 
-	printSuccess(t, "当前节点成功感知到远程节点的 Docker Provider 资源容量")
+	testutil.PrintSuccess(t, "当前节点成功感知到远程节点的 Docker Provider 资源容量")
 
-	t.Log("\n" + colorize("感知到的远程节点资源容量:", colorYellow+colorBold))
+	t.Log("\n" + testutil.Colorize("感知到的远程节点资源容量:", testutil.ColorYellow+testutil.ColorBold))
 	t.Logf("  %s    总计: %s, 已用: %s, 可用: %s",
-		colorize("CPU:", colorWhite+colorBold),
-		colorize(fmt.Sprintf("%d millicores", discoveredRemoteNode.ResourceCapacity.Total.CPU), colorWhite),
-		colorize(fmt.Sprintf("%d millicores", discoveredRemoteNode.ResourceCapacity.Used.CPU), colorYellow),
-		colorize(fmt.Sprintf("%d millicores", discoveredRemoteNode.ResourceCapacity.Available.CPU), colorGreen))
+		testutil.Colorize("CPU:", testutil.ColorWhite+testutil.ColorBold),
+		testutil.Colorize(fmt.Sprintf("%d millicores", discoveredRemoteNode.ResourceCapacity.Total.CPU), testutil.ColorWhite),
+		testutil.Colorize(fmt.Sprintf("%d millicores", discoveredRemoteNode.ResourceCapacity.Used.CPU), testutil.ColorYellow),
+		testutil.Colorize(fmt.Sprintf("%d millicores", discoveredRemoteNode.ResourceCapacity.Available.CPU), testutil.ColorGreen))
 	t.Logf("  %s   总计: %s, 已用: %s, 可用: %s",
-		colorize("内存:", colorWhite+colorBold),
-		colorize(formatBytes(discoveredRemoteNode.ResourceCapacity.Total.Memory), colorWhite),
-		colorize(formatBytes(discoveredRemoteNode.ResourceCapacity.Used.Memory), colorYellow),
-		colorize(formatBytes(discoveredRemoteNode.ResourceCapacity.Available.Memory), colorGreen))
+		testutil.Colorize("内存:", testutil.ColorWhite+testutil.ColorBold),
+		testutil.Colorize(testutil.FormatBytes(discoveredRemoteNode.ResourceCapacity.Total.Memory), testutil.ColorWhite),
+		testutil.Colorize(testutil.FormatBytes(discoveredRemoteNode.ResourceCapacity.Used.Memory), testutil.ColorYellow),
+		testutil.Colorize(testutil.FormatBytes(discoveredRemoteNode.ResourceCapacity.Available.Memory), testutil.ColorGreen))
 
 	// 验证资源标签感知
 	require.NotNil(t, discoveredRemoteNode.ResourceTags, "Remote node resource tags should not be nil")
@@ -281,10 +282,10 @@ func TestRemoteDockerResourcePerception(t *testing.T) {
 	assert.Equal(t, remoteResourceTags.Camera, discoveredRemoteNode.ResourceTags.Camera,
 		"Remote node Camera tag should match Docker provider")
 
-	printSuccess(t, "当前节点成功感知到远程节点的 Docker Provider 资源标签")
+	testutil.PrintSuccess(t, "当前节点成功感知到远程节点的 Docker Provider 资源标签")
 
 	// 步骤 7: 验证聚合视图包含远程节点的 Docker Provider 资源
-	printTestSection(t, "步骤 7: 验证聚合视图包含远程节点的 Docker Provider 资源")
+	testutil.PrintTestSection(t, "步骤 7: 验证聚合视图包含远程节点的 Docker Provider 资源")
 
 	aggregateView := currentManager.GetAggregateView()
 	require.NotNil(t, aggregateView, "Aggregate view should not be nil")
@@ -303,27 +304,27 @@ func TestRemoteDockerResourcePerception(t *testing.T) {
 	assert.Equal(t, expectedTotalMemory, aggregatedCapacity.Total.Memory,
 		"Aggregated total Memory should include remote node Docker provider capacity")
 
-	t.Log("\n" + colorize("聚合资源容量（包含远程节点 Docker Provider）:", colorYellow+colorBold))
+	t.Log("\n" + testutil.Colorize("聚合资源容量（包含远程节点 Docker Provider）:", testutil.ColorYellow+testutil.ColorBold))
 	t.Logf("  %s    总计: %s, 已用: %s, 可用: %s",
-		colorize("CPU:", colorWhite+colorBold),
-		colorize(fmt.Sprintf("%d millicores", aggregatedCapacity.Total.CPU), colorWhite),
-		colorize(fmt.Sprintf("%d millicores", aggregatedCapacity.Used.CPU), colorYellow),
-		colorize(fmt.Sprintf("%d millicores", aggregatedCapacity.Available.CPU), colorGreen))
+		testutil.Colorize("CPU:", testutil.ColorWhite+testutil.ColorBold),
+		testutil.Colorize(fmt.Sprintf("%d millicores", aggregatedCapacity.Total.CPU), testutil.ColorWhite),
+		testutil.Colorize(fmt.Sprintf("%d millicores", aggregatedCapacity.Used.CPU), testutil.ColorYellow),
+		testutil.Colorize(fmt.Sprintf("%d millicores", aggregatedCapacity.Available.CPU), testutil.ColorGreen))
 	t.Logf("  %s   总计: %s, 已用: %s, 可用: %s",
-		colorize("内存:", colorWhite+colorBold),
-		colorize(formatBytes(aggregatedCapacity.Total.Memory), colorWhite),
-		colorize(formatBytes(aggregatedCapacity.Used.Memory), colorYellow),
-		colorize(formatBytes(aggregatedCapacity.Available.Memory), colorGreen))
+		testutil.Colorize("内存:", testutil.ColorWhite+testutil.ColorBold),
+		testutil.Colorize(testutil.FormatBytes(aggregatedCapacity.Total.Memory), testutil.ColorWhite),
+		testutil.Colorize(testutil.FormatBytes(aggregatedCapacity.Used.Memory), testutil.ColorYellow),
+		testutil.Colorize(testutil.FormatBytes(aggregatedCapacity.Available.Memory), testutil.ColorGreen))
 
-	printSuccess(t, "聚合视图成功包含远程节点的 Docker Provider 资源")
+	testutil.PrintSuccess(t, "聚合视图成功包含远程节点的 Docker Provider 资源")
 
 	// 打印最终网络拓扑
 	printNetworkTopology(t, currentManager, "远程 Docker 资源感知测试后的网络拓扑")
 
-	t.Log("\n" + colorize(strings.Repeat("=", 80), colorCyan+colorBold))
-	t.Log(colorize("✓ 远程 docker 资源感知测试通过", colorGreen+colorBold))
-	t.Log(colorize("  - 远程节点成功接入 Docker Provider", colorGreen))
-	t.Log(colorize("  - 当前节点通过 Gossip 协议感知到远程节点的 Docker Provider 资源容量", colorGreen))
-	t.Log(colorize("  - 聚合视图成功包含远程节点的 Docker Provider 资源", colorGreen))
-	t.Log(colorize(strings.Repeat("=", 80), colorCyan+colorBold) + "\n")
+	t.Log("\n" + testutil.Colorize(strings.Repeat("=", 80), testutil.ColorCyan+testutil.ColorBold))
+	t.Log(testutil.Colorize("✓ 远程 docker 资源感知测试通过", testutil.ColorGreen+testutil.ColorBold))
+	t.Log(testutil.Colorize("  - 远程节点成功接入 Docker Provider", testutil.ColorGreen))
+	t.Log(testutil.Colorize("  - 当前节点通过 Gossip 协议感知到远程节点的 Docker Provider 资源容量", testutil.ColorGreen))
+	t.Log(testutil.Colorize("  - 聚合视图成功包含远程节点的 Docker Provider 资源", testutil.ColorGreen))
+	t.Log(testutil.Colorize(strings.Repeat("=", 80), testutil.ColorCyan+testutil.ColorBold) + "\n")
 }

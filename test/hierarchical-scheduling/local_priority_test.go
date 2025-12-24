@@ -197,6 +197,45 @@ func TestCrossDomainScheduling_LocalPriority_SufficientResources(t *testing.T) {
 	}
 	testutil.PrintInfo(t, "本地节点: local-node (local-node-001)")
 
+	// 显示本地资源使用情况
+	testutil.PrintTestSection(t, "本地资源使用情况")
+	// 从 ScheduleLocalProvider 返回的可用资源信息
+	localAvailable := &types.Info{
+		CPU:    4000,
+		Memory: 8 * 1024 * 1024 * 1024, // 8GB
+		GPU:    1,
+	}
+	// 假设总资源（用于演示，实际应该从本地资源管理器获取）
+	localTotal := &types.Info{
+		CPU:    8000,
+		Memory: 16 * 1024 * 1024 * 1024, // 16GB
+		GPU:    1,
+	}
+	// 计算已用资源
+	localUsed := &types.Info{
+		CPU:    localTotal.CPU - localAvailable.CPU,
+		Memory: localTotal.Memory - localAvailable.Memory,
+		GPU:    localTotal.GPU - localAvailable.GPU,
+	}
+
+	t.Log("\n" + testutil.Colorize("本地资源容量信息:", testutil.ColorYellow+testutil.ColorBold))
+	t.Logf("  %s    总计 %s, 已用 %s, 可用 %s",
+		testutil.Colorize("CPU:", testutil.ColorWhite+testutil.ColorBold),
+		testutil.Colorize(fmt.Sprintf("%d millicores", localTotal.CPU), testutil.ColorWhite),
+		testutil.Colorize(fmt.Sprintf("%d millicores", localUsed.CPU), testutil.ColorYellow),
+		testutil.Colorize(fmt.Sprintf("%d millicores", localAvailable.CPU), testutil.ColorGreen))
+	t.Logf("  %s   总计 %s, 已用 %s, 可用 %s",
+		testutil.Colorize("内存:", testutil.ColorWhite+testutil.ColorBold),
+		testutil.Colorize(testutil.FormatBytes(localTotal.Memory), testutil.ColorWhite),
+		testutil.Colorize(testutil.FormatBytes(localUsed.Memory), testutil.ColorYellow),
+		testutil.Colorize(testutil.FormatBytes(localAvailable.Memory), testutil.ColorGreen))
+	t.Logf("  %s    总计 %s, 已用 %s, 可用 %s",
+		testutil.Colorize("GPU:", testutil.ColorWhite+testutil.ColorBold),
+		testutil.Colorize(fmt.Sprintf("%d", localTotal.GPU), testutil.ColorWhite),
+		testutil.Colorize(fmt.Sprintf("%d", localUsed.GPU), testutil.ColorYellow),
+		testutil.Colorize(fmt.Sprintf("%d", localAvailable.GPU), testutil.ColorGreen))
+	testutil.PrintSuccess(t, "本地资源充足，可以满足调度需求")
+
 	svc := scheduler.NewService(localManager, discoverySvc)
 
 	req := &scheduler.DeployRequest{

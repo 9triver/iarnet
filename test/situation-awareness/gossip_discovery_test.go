@@ -9,6 +9,7 @@ import (
 
 	"github.com/9triver/iarnet/internal/domain/resource/discovery"
 	"github.com/9triver/iarnet/internal/domain/resource/types"
+	testutil "github.com/9triver/iarnet/test/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,13 +22,13 @@ import (
 
 // TestGossipDiscovery_NewPeers 测试用例 1: Gossip 资源发现, 新增 peers
 func TestGossipDiscovery_NewPeers(t *testing.T) {
-	printTestHeader(t, "测试用例: Gossip 资源发现 - 新增 peers",
+	testutil.PrintTestHeader(t, "测试用例: Gossip 资源发现 - 新增 peers",
 		"验证通过 Gossip 协议发现和添加新的 peer 节点")
 
 	ctx := context.Background()
 
 	// 创建本地节点管理器
-	printTestSection(t, "步骤 1: 创建本地节点管理器")
+	testutil.PrintTestSection(t, "步骤 1: 创建本地节点管理器")
 	localNodeID := "test-node-local"
 	localNodeName := "test-local"
 	localAddress := "localhost:50005"
@@ -72,16 +73,16 @@ func TestGossipDiscovery_NewPeers(t *testing.T) {
 	require.NoError(t, err, "Failed to start node discovery manager")
 	defer manager.Stop()
 
-	printSuccess(t, "本地节点管理器创建并启动成功")
+	testutil.PrintSuccess(t, "本地节点管理器创建并启动成功")
 
 	// 验证初始状态
-	printTestSection(t, "步骤 2: 验证初始状态")
+	testutil.PrintTestSection(t, "步骤 2: 验证初始状态")
 	initialNodes := manager.GetKnownNodes()
 	assert.Equal(t, 0, len(initialNodes), "Initially should have no known nodes")
-	printSuccess(t, fmt.Sprintf("初始状态：已知节点数 = %d", len(initialNodes)))
+	testutil.PrintSuccess(t, fmt.Sprintf("初始状态：已知节点数 = %d", len(initialNodes)))
 
 	// 创建新 peer 节点信息
-	printTestSection(t, "步骤 3: 创建新 peer 节点信息")
+	testutil.PrintTestSection(t, "步骤 3: 创建新 peer 节点信息")
 	peerNodeID := "test-node-peer-1"
 	peerNodeName := "test-peer-1"
 	peerAddress := "192.168.1.100:50005"
@@ -120,34 +121,34 @@ func TestGossipDiscovery_NewPeers(t *testing.T) {
 		GossipCount:  0,
 	}
 
-	printInfo(t, fmt.Sprintf("新 peer 节点信息: %s (%s)", peerNodeName, peerNodeID))
+	testutil.PrintInfo(t, fmt.Sprintf("新 peer 节点信息: %s (%s)", peerNodeName, peerNodeID))
 	t.Logf("  地址: %s", peerAddress)
 	t.Logf("  资源: CPU %d mC, Memory %s, GPU %d",
 		newPeerNode.ResourceCapacity.Total.CPU,
-		formatBytes(newPeerNode.ResourceCapacity.Total.Memory),
+		testutil.FormatBytes(newPeerNode.ResourceCapacity.Total.Memory),
 		newPeerNode.ResourceCapacity.Total.GPU)
 
 	// 处理新节点信息（通过 Gossip 接收）
-	printTestSection(t, "步骤 4: 处理新节点信息（通过 Gossip 接收）")
+	testutil.PrintTestSection(t, "步骤 4: 处理新节点信息（通过 Gossip 接收）")
 	discoveredNodes := make(chan string, 10) // 使用 channel 来接收异步回调
 	manager.SetOnNodeDiscovered(func(node *discovery.PeerNode) {
 		discoveredNodes <- node.NodeID
-		printSuccess(t, fmt.Sprintf("节点发现回调触发: %s (%s)", node.NodeName, node.NodeID))
+		testutil.PrintSuccess(t, fmt.Sprintf("节点发现回调触发: %s (%s)", node.NodeName, node.NodeID))
 	})
 
 	manager.ProcessNodeInfo(newPeerNode, localAddress)
-	printSuccess(t, "新节点信息已处理")
+	testutil.PrintSuccess(t, "新节点信息已处理")
 
 	// 等待回调执行（异步执行，需要等待）
 	select {
 	case nodeID := <-discoveredNodes:
 		assert.Equal(t, peerNodeID, nodeID, "Discovered node ID should match")
 	case <-time.After(1 * time.Second):
-		t.Logf("  %s 回调可能未触发或已触发", colorize("警告:", colorYellow))
+		t.Logf("  %s 回调可能未触发或已触发", testutil.Colorize("警告:", testutil.ColorYellow))
 	}
 
 	// 验证节点已被添加
-	printTestSection(t, "步骤 5: 验证节点已被添加")
+	testutil.PrintTestSection(t, "步骤 5: 验证节点已被添加")
 	knownNodes := manager.GetKnownNodes()
 	require.Equal(t, 1, len(knownNodes), "Should have 1 known node after processing")
 
@@ -158,13 +159,13 @@ func TestGossipDiscovery_NewPeers(t *testing.T) {
 	assert.Equal(t, domainID, foundNode.DomainID, "Node domain ID should match")
 	assert.Equal(t, discovery.NodeStatusOnline, foundNode.Status, "Node status should be online")
 
-	printSuccess(t, fmt.Sprintf("节点已成功添加到已知节点列表: %s", foundNode.NodeName))
+	testutil.PrintSuccess(t, fmt.Sprintf("节点已成功添加到已知节点列表: %s", foundNode.NodeName))
 	t.Logf("  节点 ID: %s", foundNode.NodeID)
 	t.Logf("  节点地址: %s", foundNode.Address)
 	t.Logf("  节点状态: %s", foundNode.Status)
 
 	// 验证节点资源信息
-	printTestSection(t, "步骤 6: 验证节点资源信息")
+	testutil.PrintTestSection(t, "步骤 6: 验证节点资源信息")
 	require.NotNil(t, foundNode.ResourceCapacity, "Resource capacity should not be nil")
 	require.NotNil(t, foundNode.ResourceCapacity.Total, "Total capacity should not be nil")
 	assert.Equal(t, int64(4000), foundNode.ResourceCapacity.Total.CPU, "Total CPU should match")
@@ -177,17 +178,17 @@ func TestGossipDiscovery_NewPeers(t *testing.T) {
 	assert.True(t, foundNode.ResourceTags.Memory, "Should support Memory")
 	assert.False(t, foundNode.ResourceTags.Camera, "Should not support Camera")
 
-	printSuccess(t, "节点资源信息验证通过")
+	testutil.PrintSuccess(t, "节点资源信息验证通过")
 	t.Logf("  CPU: %d mC, Memory: %s, GPU: %d",
 		foundNode.ResourceCapacity.Total.CPU,
-		formatBytes(foundNode.ResourceCapacity.Total.Memory),
+		testutil.FormatBytes(foundNode.ResourceCapacity.Total.Memory),
 		foundNode.ResourceCapacity.Total.GPU)
 
 	// 打印当前网络拓扑
 	printNetworkTopology(t, manager, "添加第一个 peer 后的网络拓扑")
 
 	// 测试添加多个 peers
-	printTestSection(t, "步骤 7: 测试添加多个 peers")
+	testutil.PrintTestSection(t, "步骤 7: 测试添加多个 peers")
 	peer2NodeID := "test-node-peer-2"
 	peer2NodeName := "test-peer-2"
 	peer2Address := "192.168.1.101:50005"
@@ -221,26 +222,26 @@ func TestGossipDiscovery_NewPeers(t *testing.T) {
 	knownNodes = manager.GetKnownNodes()
 	assert.Equal(t, 2, len(knownNodes), "Should have 2 known nodes after adding second peer")
 
-	printSuccess(t, fmt.Sprintf("成功添加第二个 peer: %s", peer2NodeName))
+	testutil.PrintSuccess(t, fmt.Sprintf("成功添加第二个 peer: %s", peer2NodeName))
 	t.Logf("  当前已知节点数: %d", len(knownNodes))
 
 	// 打印最终网络拓扑
 	printNetworkTopology(t, manager, "添加第二个 peer 后的网络拓扑")
 
-	t.Log("\n" + colorize(strings.Repeat("=", 80), colorCyan+colorBold))
-	t.Log(colorize("✓ Gossip 资源发现 - 新增 peers 测试通过", colorGreen+colorBold))
-	t.Log(colorize(strings.Repeat("=", 80), colorCyan+colorBold) + "\n")
+	t.Log("\n" + testutil.Colorize(strings.Repeat("=", 80), testutil.ColorCyan+testutil.ColorBold))
+	t.Log(testutil.Colorize("✓ Gossip 资源发现 - 新增 peers 测试通过", testutil.ColorGreen+testutil.ColorBold))
+	t.Log(testutil.Colorize(strings.Repeat("=", 80), testutil.ColorCyan+testutil.ColorBold) + "\n")
 }
 
 // TestGossipDiscovery_AggregatedView 测试用例 2: Gossip 资源发现, 聚合视图
 func TestGossipDiscovery_AggregatedView(t *testing.T) {
-	printTestHeader(t, "测试用例: Gossip 资源发现 - 聚合视图",
+	testutil.PrintTestHeader(t, "测试用例: Gossip 资源发现 - 聚合视图",
 		"验证资源聚合视图的更新和查询功能")
 
 	ctx := context.Background()
 
 	// 创建节点管理器
-	printTestSection(t, "步骤 1: 创建节点管理器并添加多个节点")
+	testutil.PrintTestSection(t, "步骤 1: 创建节点管理器并添加多个节点")
 	manager := discovery.NewNodeDiscoveryManager(
 		"test-node-aggregate",
 		"test-aggregate",
@@ -322,10 +323,10 @@ func TestGossipDiscovery_AggregatedView(t *testing.T) {
 		manager.ProcessNodeInfo(node, "localhost:50005")
 	}
 
-	printSuccess(t, fmt.Sprintf("已添加 %d 个 peer 节点", len(nodes)))
+	testutil.PrintSuccess(t, fmt.Sprintf("已添加 %d 个 peer 节点", len(nodes)))
 
 	// 获取聚合视图
-	printTestSection(t, "步骤 2: 获取聚合视图")
+	testutil.PrintTestSection(t, "步骤 2: 获取聚合视图")
 	aggregateView := manager.GetAggregateView()
 	require.NotNil(t, aggregateView, "Aggregate view should not be nil")
 
@@ -342,37 +343,37 @@ func TestGossipDiscovery_AggregatedView(t *testing.T) {
 	expectedTotalMemory := int64((8 + 4 + 2 + 6) * 1024 * 1024 * 1024)
 	expectedTotalGPU := int64(0 + 1 + 0 + 2)
 
-	t.Log("\n" + colorize("聚合资源容量:", colorYellow+colorBold))
+	t.Log("\n" + testutil.Colorize("聚合资源容量:", testutil.ColorYellow+testutil.ColorBold))
 	t.Logf("  %s    总计: %s, 已用: %s, 可用: %s",
-		colorize("CPU:", colorWhite+colorBold),
-		colorize(fmt.Sprintf("%d millicores", aggregatedCapacity.Total.CPU), colorWhite),
-		colorize(fmt.Sprintf("%d millicores", aggregatedCapacity.Used.CPU), colorYellow),
-		colorize(fmt.Sprintf("%d millicores", aggregatedCapacity.Available.CPU), colorGreen))
+		testutil.Colorize("CPU:", testutil.ColorWhite+testutil.ColorBold),
+		testutil.Colorize(fmt.Sprintf("%d millicores", aggregatedCapacity.Total.CPU), testutil.ColorWhite),
+		testutil.Colorize(fmt.Sprintf("%d millicores", aggregatedCapacity.Used.CPU), testutil.ColorYellow),
+		testutil.Colorize(fmt.Sprintf("%d millicores", aggregatedCapacity.Available.CPU), testutil.ColorGreen))
 	t.Logf("  %s   总计: %s, 已用: %s, 可用: %s",
-		colorize("内存:", colorWhite+colorBold),
-		colorize(formatBytes(aggregatedCapacity.Total.Memory), colorWhite),
-		colorize(formatBytes(aggregatedCapacity.Used.Memory), colorYellow),
-		colorize(formatBytes(aggregatedCapacity.Available.Memory), colorGreen))
+		testutil.Colorize("内存:", testutil.ColorWhite+testutil.ColorBold),
+		testutil.Colorize(testutil.FormatBytes(aggregatedCapacity.Total.Memory), testutil.ColorWhite),
+		testutil.Colorize(testutil.FormatBytes(aggregatedCapacity.Used.Memory), testutil.ColorYellow),
+		testutil.Colorize(testutil.FormatBytes(aggregatedCapacity.Available.Memory), testutil.ColorGreen))
 	t.Logf("  %s    总计: %s, 已用: %s, 可用: %s",
-		colorize("GPU:", colorWhite+colorBold),
-		colorize(fmt.Sprintf("%d", aggregatedCapacity.Total.GPU), colorWhite),
-		colorize(fmt.Sprintf("%d", aggregatedCapacity.Used.GPU), colorYellow),
-		colorize(fmt.Sprintf("%d", aggregatedCapacity.Available.GPU), colorGreen))
+		testutil.Colorize("GPU:", testutil.ColorWhite+testutil.ColorBold),
+		testutil.Colorize(fmt.Sprintf("%d", aggregatedCapacity.Total.GPU), testutil.ColorWhite),
+		testutil.Colorize(fmt.Sprintf("%d", aggregatedCapacity.Used.GPU), testutil.ColorYellow),
+		testutil.Colorize(fmt.Sprintf("%d", aggregatedCapacity.Available.GPU), testutil.ColorGreen))
 
 	assert.Equal(t, expectedTotalCPU, aggregatedCapacity.Total.CPU, "Total CPU should match")
 	assert.Equal(t, expectedTotalMemory, aggregatedCapacity.Total.Memory, "Total Memory should match")
 	assert.Equal(t, expectedTotalGPU, aggregatedCapacity.Total.GPU, "Total GPU should match")
 
 	// 验证聚合资源标签
-	printTestSection(t, "步骤 3: 验证聚合资源标签")
+	testutil.PrintTestSection(t, "步骤 3: 验证聚合资源标签")
 	aggregatedTags := aggregateView.GetAggregatedTags()
 	require.NotNil(t, aggregatedTags, "Aggregated tags should not be nil")
 
-	t.Log("\n" + colorize("聚合资源标签:", colorYellow+colorBold))
-	t.Logf("  %s    %s", colorize("CPU:", colorWhite+colorBold), colorizeBool(aggregatedTags.CPU))
-	t.Logf("  %s   %s", colorize("GPU:", colorWhite+colorBold), colorizeBool(aggregatedTags.GPU))
-	t.Logf("  %s  %s", colorize("内存:", colorWhite+colorBold), colorizeBool(aggregatedTags.Memory))
-	t.Logf("  %s %s", colorize("摄像头:", colorWhite+colorBold), colorizeBool(aggregatedTags.Camera))
+	t.Log("\n" + testutil.Colorize("聚合资源标签:", testutil.ColorYellow+testutil.ColorBold))
+	t.Logf("  %s    %s", testutil.Colorize("CPU:", testutil.ColorWhite+testutil.ColorBold), testutil.ColorizeBool(aggregatedTags.CPU))
+	t.Logf("  %s   %s", testutil.Colorize("GPU:", testutil.ColorWhite+testutil.ColorBold), testutil.ColorizeBool(aggregatedTags.GPU))
+	t.Logf("  %s  %s", testutil.Colorize("内存:", testutil.ColorWhite+testutil.ColorBold), testutil.ColorizeBool(aggregatedTags.Memory))
+	t.Logf("  %s %s", testutil.Colorize("摄像头:", testutil.ColorWhite+testutil.ColorBold), testutil.ColorizeBool(aggregatedTags.Camera))
 
 	assert.True(t, aggregatedTags.CPU, "Should support CPU")
 	assert.True(t, aggregatedTags.GPU, "Should support GPU")
@@ -380,11 +381,11 @@ func TestGossipDiscovery_AggregatedView(t *testing.T) {
 	assert.True(t, aggregatedTags.Camera, "Should support Camera (at least one node)")
 
 	// 验证节点统计
-	printTestSection(t, "步骤 4: 验证节点统计")
-	t.Log("\n" + colorize("节点统计:", colorYellow+colorBold))
-	t.Logf("  %s: %d", colorize("总节点数", colorWhite+colorBold), aggregateView.TotalNodes)
-	t.Logf("  %s: %d", colorize("在线节点数", colorWhite+colorBold), aggregateView.OnlineNodes)
-	t.Logf("  %s: %d", colorize("离线节点数", colorWhite+colorBold), aggregateView.OfflineNodes)
+	testutil.PrintTestSection(t, "步骤 4: 验证节点统计")
+	t.Log("\n" + testutil.Colorize("节点统计:", testutil.ColorYellow+testutil.ColorBold))
+	t.Logf("  %s: %d", testutil.Colorize("总节点数", testutil.ColorWhite+testutil.ColorBold), aggregateView.TotalNodes)
+	t.Logf("  %s: %d", testutil.Colorize("在线节点数", testutil.ColorWhite+testutil.ColorBold), aggregateView.OnlineNodes)
+	t.Logf("  %s: %d", testutil.Colorize("离线节点数", testutil.ColorWhite+testutil.ColorBold), aggregateView.OfflineNodes)
 
 	assert.Equal(t, 4, aggregateView.TotalNodes, "Total nodes should be 4 (1 local + 3 peers)")
 	assert.Equal(t, 4, aggregateView.OnlineNodes, "All nodes should be online")
@@ -393,7 +394,7 @@ func TestGossipDiscovery_AggregatedView(t *testing.T) {
 	printNetworkTopology(t, manager, "聚合视图测试的网络拓扑")
 
 	// 测试资源查询
-	printTestSection(t, "步骤 5: 测试资源查询")
+	testutil.PrintTestSection(t, "步骤 5: 测试资源查询")
 	// 使用较小的资源需求，确保能找到节点
 	resourceRequest := &types.Info{
 		CPU:    1000,                   // 需要 1000 millicores（降低要求）
@@ -404,39 +405,39 @@ func TestGossipDiscovery_AggregatedView(t *testing.T) {
 	requiredTags := types.NewResourceTags(true, false, true, false) // CPU, Memory（不需要GPU）
 
 	availableNodes := aggregateView.FindAvailableNodes(resourceRequest, requiredTags)
-	t.Logf("\n%s", colorize("资源查询结果:", colorYellow+colorBold))
-	t.Logf("  %s: %s", colorize("资源需求", colorWhite+colorBold),
+	t.Logf("\n%s", testutil.Colorize("资源查询结果:", testutil.ColorYellow+testutil.ColorBold))
+	t.Logf("  %s: %s", testutil.Colorize("资源需求", testutil.ColorWhite+testutil.ColorBold),
 		fmt.Sprintf("CPU %d mC, Memory %s, GPU %d",
 			resourceRequest.CPU,
-			formatBytes(resourceRequest.Memory),
+			testutil.FormatBytes(resourceRequest.Memory),
 			resourceRequest.GPU))
-	t.Logf("  %s: %d 个节点", colorize("可用节点数", colorWhite+colorBold), len(availableNodes))
+	t.Logf("  %s: %d 个节点", testutil.Colorize("可用节点数", testutil.ColorWhite+testutil.ColorBold), len(availableNodes))
 
 	for i, node := range availableNodes {
 		t.Logf("  %d. %s (%s)", i+1, node.NodeName, node.NodeID)
 		t.Logf("     可用资源: CPU %d mC, Memory %s, GPU %d",
 			node.ResourceCapacity.Available.CPU,
-			formatBytes(node.ResourceCapacity.Available.Memory),
+			testutil.FormatBytes(node.ResourceCapacity.Available.Memory),
 			node.ResourceCapacity.Available.GPU)
 	}
 
 	// 验证查询结果（应该找到满足条件的节点）
 	assert.Greater(t, len(availableNodes), 0, "Should find at least one available node")
 
-	t.Log("\n" + colorize(strings.Repeat("=", 80), colorCyan+colorBold))
-	t.Log(colorize("✓ Gossip 资源发现 - 聚合视图测试通过", colorGreen+colorBold))
-	t.Log(colorize(strings.Repeat("=", 80), colorCyan+colorBold) + "\n")
+	t.Log("\n" + testutil.Colorize(strings.Repeat("=", 80), testutil.ColorCyan+testutil.ColorBold))
+	t.Log(testutil.Colorize("✓ Gossip 资源发现 - 聚合视图测试通过", testutil.ColorGreen+testutil.ColorBold))
+	t.Log(testutil.Colorize(strings.Repeat("=", 80), testutil.ColorCyan+testutil.ColorBold) + "\n")
 }
 
 // TestGossipDiscovery_ExpirationManagement 测试用例 3: Gossip 资源发现, 过期治理
 func TestGossipDiscovery_ExpirationManagement(t *testing.T) {
-	printTestHeader(t, "测试用例: Gossip 资源发现 - 过期治理",
+	testutil.PrintTestHeader(t, "测试用例: Gossip 资源发现 - 过期治理",
 		"验证节点过期清理机制")
 
 	ctx := context.Background()
 
 	// 创建节点管理器（使用较短的 TTL 以便测试）
-	printTestSection(t, "步骤 1: 创建节点管理器（TTL = 5秒）")
+	testutil.PrintTestSection(t, "步骤 1: 创建节点管理器（TTL = 5秒）")
 	nodeTTL := 5 * time.Second
 	manager := discovery.NewNodeDiscoveryManager(
 		"test-node-expiration",
@@ -463,7 +464,7 @@ func TestGossipDiscovery_ExpirationManagement(t *testing.T) {
 	defer manager.Stop()
 
 	// 添加一个正常节点
-	printTestSection(t, "步骤 2: 添加正常节点")
+	testutil.PrintTestSection(t, "步骤 2: 添加正常节点")
 	freshNode := &discovery.PeerNode{
 		NodeID:   "node-fresh",
 		NodeName: "node-fresh",
@@ -484,10 +485,10 @@ func TestGossipDiscovery_ExpirationManagement(t *testing.T) {
 	manager.ProcessNodeInfo(freshNode, "localhost:50005")
 	knownNodes := manager.GetKnownNodes()
 	assert.Equal(t, 1, len(knownNodes), "Should have 1 known node")
-	printSuccess(t, "正常节点已添加")
+	testutil.PrintSuccess(t, "正常节点已添加")
 
 	// 添加一个即将过期的节点
-	printTestSection(t, "步骤 3: 添加即将过期的节点")
+	testutil.PrintTestSection(t, "步骤 3: 添加即将过期的节点")
 	staleNode := &discovery.PeerNode{
 		NodeID:   "node-stale",
 		NodeName: "node-stale",
@@ -508,10 +509,10 @@ func TestGossipDiscovery_ExpirationManagement(t *testing.T) {
 	manager.ProcessNodeInfo(staleNode, "localhost:50005")
 	knownNodes = manager.GetKnownNodes()
 	assert.Equal(t, 2, len(knownNodes), "Should have 2 known nodes")
-	printSuccess(t, "过期节点已添加（LastSeen 已过期）")
+	testutil.PrintSuccess(t, "过期节点已添加（LastSeen 已过期）")
 
 	// 验证节点是否过期
-	printTestSection(t, "步骤 4: 验证节点过期状态")
+	testutil.PrintTestSection(t, "步骤 4: 验证节点过期状态")
 	freshNodeInfo, found := manager.GetNodeByID("node-fresh")
 	require.True(t, found, "Fresh node should be found")
 	assert.False(t, freshNodeInfo.IsStale(nodeTTL), "Fresh node should not be stale")
@@ -520,31 +521,31 @@ func TestGossipDiscovery_ExpirationManagement(t *testing.T) {
 	require.True(t, found, "Stale node should be found")
 	assert.True(t, staleNodeInfo.IsStale(nodeTTL), "Stale node should be stale")
 
-	t.Log("\n" + colorize("节点过期状态:", colorYellow+colorBold))
+	t.Log("\n" + testutil.Colorize("节点过期状态:", testutil.ColorYellow+testutil.ColorBold))
 	freshIsStale := freshNodeInfo.IsStale(nodeTTL)
 	t.Logf("  %s: %s (过期: %s)",
-		colorize("node-fresh", colorWhite+colorBold),
-		colorize("正常", colorGreen),
-		colorizeBool(freshIsStale))
+		testutil.Colorize("node-fresh", testutil.ColorWhite+testutil.ColorBold),
+		testutil.Colorize("正常", testutil.ColorGreen),
+		testutil.ColorizeBool(freshIsStale))
 	staleIsStale := staleNodeInfo.IsStale(nodeTTL)
 	t.Logf("  %s: %s (过期: %s)",
-		colorize("node-stale", colorWhite+colorBold),
-		colorize("已过期", colorRed),
-		colorizeBool(staleIsStale))
+		testutil.Colorize("node-stale", testutil.ColorWhite+testutil.ColorBold),
+		testutil.Colorize("已过期", testutil.ColorRed),
+		testutil.ColorizeBool(staleIsStale))
 
 	// 等待清理循环执行（清理间隔是 1 分钟，但我们可以手动触发清理）
-	printTestSection(t, "步骤 5: 触发清理操作")
+	testutil.PrintTestSection(t, "步骤 5: 触发清理操作")
 	lostNodes := []string{}
 	manager.SetOnNodeLost(func(nodeID string) {
 		lostNodes = append(lostNodes, nodeID)
-		printInfo(t, fmt.Sprintf("节点丢失回调触发: %s", nodeID))
+		testutil.PrintInfo(t, fmt.Sprintf("节点丢失回调触发: %s", nodeID))
 	})
 
 	// 手动触发清理（执行清理循环）
 	// 注意：实际的清理循环在 manager 内部运行，这里我们直接调用清理逻辑
 	// 由于清理是内部的，我们需要等待清理循环执行，或者通过更新节点来触发
 	// 为了测试，我们等待一小段时间让清理循环有机会执行
-	printInfo(t, "等待清理循环执行...")
+	testutil.PrintInfo(t, "等待清理循环执行...")
 	time.Sleep(2 * time.Second)
 
 	// 更新正常节点（保持活跃）
@@ -557,7 +558,7 @@ func TestGossipDiscovery_ExpirationManagement(t *testing.T) {
 	time.Sleep(2 * time.Second)
 
 	// 验证过期节点是否被清理
-	printTestSection(t, "步骤 6: 验证过期节点清理")
+	testutil.PrintTestSection(t, "步骤 6: 验证过期节点清理")
 	knownNodes = manager.GetKnownNodes()
 
 	// 检查过期节点是否还在
@@ -569,10 +570,10 @@ func TestGossipDiscovery_ExpirationManagement(t *testing.T) {
 		}
 	}
 
-	t.Log("\n" + colorize("清理结果:", colorYellow+colorBold))
-	t.Logf("  %s: %d", colorize("当前已知节点数", colorWhite+colorBold), len(knownNodes))
-	t.Logf("  %s: %s", colorize("过期节点是否仍存在", colorWhite+colorBold),
-		colorizeBool(staleNodeStillExists))
+	t.Log("\n" + testutil.Colorize("清理结果:", testutil.ColorYellow+testutil.ColorBold))
+	t.Logf("  %s: %d", testutil.Colorize("当前已知节点数", testutil.ColorWhite+testutil.ColorBold), len(knownNodes))
+	t.Logf("  %s: %s", testutil.Colorize("过期节点是否仍存在", testutil.ColorWhite+testutil.ColorBold),
+		testutil.ColorizeBool(staleNodeStillExists))
 
 	// 验证正常节点仍然存在
 	freshNodeStillExists := false
@@ -584,11 +585,11 @@ func TestGossipDiscovery_ExpirationManagement(t *testing.T) {
 	}
 
 	assert.True(t, freshNodeStillExists, "Fresh node should still exist")
-	t.Logf("  %s: %s", colorize("正常节点是否仍存在", colorWhite+colorBold),
-		colorizeBool(freshNodeStillExists))
+	t.Logf("  %s: %s", testutil.Colorize("正常节点是否仍存在", testutil.ColorWhite+testutil.ColorBold),
+		testutil.ColorizeBool(freshNodeStillExists))
 
 	// 测试节点更新（防止过期）
-	printTestSection(t, "步骤 7: 测试节点更新（防止过期）")
+	testutil.PrintTestSection(t, "步骤 7: 测试节点更新（防止过期）")
 	// 更新正常节点，保持其活跃状态
 	freshNode.LastSeen = time.Now()
 	freshNode.LastUpdated = time.Now()
@@ -600,14 +601,14 @@ func TestGossipDiscovery_ExpirationManagement(t *testing.T) {
 	require.True(t, found, "Updated node should be found")
 	assert.False(t, updatedNode.IsStale(nodeTTL), "Updated node should not be stale after update")
 
-	printSuccess(t, "节点更新机制正常工作")
+	testutil.PrintSuccess(t, "节点更新机制正常工作")
 
 	// 打印最终网络拓扑
 	printNetworkTopology(t, manager, "过期治理测试后的网络拓扑")
 
-	t.Log("\n" + colorize(strings.Repeat("=", 80), colorCyan+colorBold))
-	t.Log(colorize("✓ Gossip 资源发现 - 过期治理测试通过", colorGreen+colorBold))
-	t.Log(colorize(strings.Repeat("=", 80), colorCyan+colorBold) + "\n")
+	t.Log("\n" + testutil.Colorize(strings.Repeat("=", 80), testutil.ColorCyan+testutil.ColorBold))
+	t.Log(testutil.Colorize("✓ Gossip 资源发现 - 过期治理测试通过", testutil.ColorGreen+testutil.ColorBold))
+	t.Log(testutil.Colorize(strings.Repeat("=", 80), testutil.ColorCyan+testutil.ColorBold) + "\n")
 }
 
 // printNetworkTopology 打印网络拓扑状态
@@ -618,48 +619,48 @@ func printNetworkTopology(t *testing.T, manager *discovery.NodeDiscoveryManager,
 	knownNodes := manager.GetKnownNodes()
 	aggregateView := manager.GetAggregateView()
 
-	t.Log("\n" + colorize(title+":", colorYellow+colorBold))
-	t.Log(colorize(strings.Repeat("-", 80), colorBlue))
+	t.Log("\n" + testutil.Colorize(title+":", testutil.ColorYellow+testutil.ColorBold))
+	t.Log(testutil.Colorize(strings.Repeat("-", 80), testutil.ColorBlue))
 
 	// 打印本地节点
-	t.Logf("\n%s", colorize("本地节点:", colorCyan+colorBold))
-	t.Logf("  %s: %s (%s)", colorize("节点", colorWhite+colorBold),
-		colorize(localNode.NodeName, colorGreen), localNode.NodeID)
-	t.Logf("  %s: %s", colorize("地址", colorWhite+colorBold), localNode.Address)
+	t.Logf("\n%s", testutil.Colorize("本地节点:", testutil.ColorCyan+testutil.ColorBold))
+	t.Logf("  %s: %s (%s)", testutil.Colorize("节点", testutil.ColorWhite+testutil.ColorBold),
+		testutil.Colorize(localNode.NodeName, testutil.ColorGreen), localNode.NodeID)
+	t.Logf("  %s: %s", testutil.Colorize("地址", testutil.ColorWhite+testutil.ColorBold), localNode.Address)
 	if localNode.ResourceCapacity != nil && localNode.ResourceCapacity.Total != nil {
 		t.Logf("  %s: CPU %d mC, Memory %s, GPU %d",
-			colorize("资源", colorWhite+colorBold),
+			testutil.Colorize("资源", testutil.ColorWhite+testutil.ColorBold),
 			localNode.ResourceCapacity.Total.CPU,
-			formatBytes(localNode.ResourceCapacity.Total.Memory),
+			testutil.FormatBytes(localNode.ResourceCapacity.Total.Memory),
 			localNode.ResourceCapacity.Total.GPU)
 	}
 
 	// 打印已知节点
-	t.Logf("\n%s (%d):", colorize("已知节点", colorCyan+colorBold), len(knownNodes))
+	t.Logf("\n%s (%d):", testutil.Colorize("已知节点", testutil.ColorCyan+testutil.ColorBold), len(knownNodes))
 	if len(knownNodes) == 0 {
-		t.Logf("  %s", colorize("(无)", colorYellow))
+		t.Logf("  %s", testutil.Colorize("(无)", testutil.ColorYellow))
 	} else {
 		for i, node := range knownNodes {
-			statusColor := colorGreen
+			statusColor := testutil.ColorGreen
 			if node.Status == discovery.NodeStatusOffline {
-				statusColor = colorRed
+				statusColor = testutil.ColorRed
 			} else if node.Status == discovery.NodeStatusError {
-				statusColor = colorRed
+				statusColor = testutil.ColorRed
 			}
 
 			t.Logf("  %d. %s (%s)", i+1,
-				colorize(node.NodeName, colorWhite+colorBold), node.NodeID)
+				testutil.Colorize(node.NodeName, testutil.ColorWhite+testutil.ColorBold), node.NodeID)
 			t.Logf("     地址: %s", node.Address)
-			t.Logf("     状态: %s", colorize(string(node.Status), statusColor))
+			t.Logf("     状态: %s", testutil.Colorize(string(node.Status), statusColor))
 			if node.ResourceCapacity != nil && node.ResourceCapacity.Total != nil {
 				t.Logf("     资源: CPU %d mC, Memory %s, GPU %d",
 					node.ResourceCapacity.Total.CPU,
-					formatBytes(node.ResourceCapacity.Total.Memory),
+					testutil.FormatBytes(node.ResourceCapacity.Total.Memory),
 					node.ResourceCapacity.Total.GPU)
 				if node.ResourceCapacity.Available != nil {
 					t.Logf("     可用: CPU %d mC, Memory %s, GPU %d",
 						node.ResourceCapacity.Available.CPU,
-						formatBytes(node.ResourceCapacity.Available.Memory),
+						testutil.FormatBytes(node.ResourceCapacity.Available.Memory),
 						node.ResourceCapacity.Available.GPU)
 				}
 			}
@@ -672,33 +673,33 @@ func printNetworkTopology(t *testing.T, manager *discovery.NodeDiscoveryManager,
 	if aggregateView != nil {
 		aggCapacity := aggregateView.GetAggregatedCapacity()
 		if aggCapacity != nil {
-			t.Logf("\n%s", colorize("聚合资源:", colorCyan+colorBold))
+			t.Logf("\n%s", testutil.Colorize("聚合资源:", testutil.ColorCyan+testutil.ColorBold))
 			t.Logf("  %s: CPU %d mC, Memory %s, GPU %d",
-				colorize("总计", colorWhite+colorBold),
+				testutil.Colorize("总计", testutil.ColorWhite+testutil.ColorBold),
 				aggCapacity.Total.CPU,
-				formatBytes(aggCapacity.Total.Memory),
+				testutil.FormatBytes(aggCapacity.Total.Memory),
 				aggCapacity.Total.GPU)
 			t.Logf("  %s: CPU %d mC, Memory %s, GPU %d",
-				colorize("已用", colorWhite+colorBold),
+				testutil.Colorize("已用", testutil.ColorWhite+testutil.ColorBold),
 				aggCapacity.Used.CPU,
-				formatBytes(aggCapacity.Used.Memory),
+				testutil.FormatBytes(aggCapacity.Used.Memory),
 				aggCapacity.Used.GPU)
 			t.Logf("  %s: CPU %d mC, Memory %s, GPU %d",
-				colorize("可用", colorWhite+colorBold),
+				testutil.Colorize("可用", testutil.ColorWhite+testutil.ColorBold),
 				aggCapacity.Available.CPU,
-				formatBytes(aggCapacity.Available.Memory),
+				testutil.FormatBytes(aggCapacity.Available.Memory),
 				aggCapacity.Available.GPU)
 		}
 
-		t.Logf("\n%s", colorize("节点统计:", colorCyan+colorBold))
-		t.Logf("  %s: %d", colorize("总节点数", colorWhite+colorBold), aggregateView.TotalNodes)
-		t.Logf("  %s: %s", colorize("在线节点", colorWhite+colorBold),
-			colorize(fmt.Sprintf("%d", aggregateView.OnlineNodes), colorGreen))
-		t.Logf("  %s: %s", colorize("离线节点", colorWhite+colorBold),
-			colorize(fmt.Sprintf("%d", aggregateView.OfflineNodes), colorYellow))
-		t.Logf("  %s: %s", colorize("错误节点", colorWhite+colorBold),
-			colorize(fmt.Sprintf("%d", aggregateView.ErrorNodes), colorRed))
+		t.Logf("\n%s", testutil.Colorize("节点统计:", testutil.ColorCyan+testutil.ColorBold))
+		t.Logf("  %s: %d", testutil.Colorize("总节点数", testutil.ColorWhite+testutil.ColorBold), aggregateView.TotalNodes)
+		t.Logf("  %s: %s", testutil.Colorize("在线节点", testutil.ColorWhite+testutil.ColorBold),
+			testutil.Colorize(fmt.Sprintf("%d", aggregateView.OnlineNodes), testutil.ColorGreen))
+		t.Logf("  %s: %s", testutil.Colorize("离线节点", testutil.ColorWhite+testutil.ColorBold),
+			testutil.Colorize(fmt.Sprintf("%d", aggregateView.OfflineNodes), testutil.ColorYellow))
+		t.Logf("  %s: %s", testutil.Colorize("错误节点", testutil.ColorWhite+testutil.ColorBold),
+			testutil.Colorize(fmt.Sprintf("%d", aggregateView.ErrorNodes), testutil.ColorRed))
 	}
 
-	t.Log(colorize(strings.Repeat("-", 80), colorBlue) + "\n")
+	t.Log(testutil.Colorize(strings.Repeat("-", 80), testutil.ColorBlue) + "\n")
 }

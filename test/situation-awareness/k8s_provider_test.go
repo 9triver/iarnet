@@ -11,6 +11,7 @@ import (
 	resourcepb "github.com/9triver/iarnet/internal/proto/resource"
 	providerpb "github.com/9triver/iarnet/internal/proto/resource/provider"
 	"github.com/9triver/iarnet/providers/k8s/provider"
+	testutil "github.com/9triver/iarnet/test/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -26,7 +27,7 @@ import (
 
 // TestK8sProvider_ResourceSituationAwareness 测试 Kubernetes provider 的资源态势感知功能
 func TestK8sProvider_ResourceSituationAwareness(t *testing.T) {
-	printTestHeader(t, "测试用例 T3-1-002: Kubernetes 资源接入测试",
+	testutil.PrintTestHeader(t, "测试用例 T3-1-002: Kubernetes 资源接入测试",
 		"验证 Kubernetes provider 的资源态势感知能力")
 
 	if !isK8sAvailable() {
@@ -41,8 +42,8 @@ func TestK8sProvider_ResourceSituationAwareness(t *testing.T) {
 	providerID := "test-k8s-provider-situation-awareness"
 
 	// 首先需要连接 provider（注册）
-	printTestSection(t, "步骤 1: 注册 Kubernetes Provider")
-	printInfo(t, fmt.Sprintf("正在注册 Provider ID: %s", providerID))
+	testutil.PrintTestSection(t, "步骤 1: 注册 Kubernetes Provider")
+	testutil.PrintInfo(t, fmt.Sprintf("正在注册 Provider ID: %s", providerID))
 
 	connectReq := &providerpb.ConnectRequest{
 		ProviderId: providerID,
@@ -51,24 +52,24 @@ func TestK8sProvider_ResourceSituationAwareness(t *testing.T) {
 	require.NoError(t, err, "Connect should succeed")
 	require.True(t, connectResp.Success, "Connect should be successful")
 
-	printSuccess(t, fmt.Sprintf("Provider 注册成功: %s", providerID))
-	printInfo(t, fmt.Sprintf("Provider 类型: %s", connectResp.ProviderType.Name))
+	testutil.PrintSuccess(t, fmt.Sprintf("Provider 注册成功: %s", providerID))
+	testutil.PrintInfo(t, fmt.Sprintf("Provider 类型: %s", connectResp.ProviderType.Name))
 
 	t.Run("GetCapacity - 获取资源容量信息", func(t *testing.T) {
-		printTestSection(t, "测试: GetCapacity - 获取资源容量信息")
+		testutil.PrintTestSection(t, "测试: GetCapacity - 获取资源容量信息")
 
 		// 测试连接状态下获取容量
 		req := &providerpb.GetCapacityRequest{
 			ProviderId: providerID,
 		}
 
-		printInfo(t, "正在获取资源容量信息...")
+		testutil.PrintInfo(t, "正在获取资源容量信息...")
 		resp, err := svc.GetCapacity(ctx, req)
 		require.NoError(t, err, "GetCapacity should succeed when connected")
 		require.NotNil(t, resp, "Response should not be nil")
 		require.NotNil(t, resp.Capacity, "Capacity should not be nil")
 
-		printResourceInfo(t, resp.Capacity)
+		testutil.PrintResourceInfo(t, resp.Capacity)
 
 		// 验证容量信息的完整性
 		assert.NotNil(t, resp.Capacity.Total, "Total capacity should not be nil")
@@ -97,33 +98,33 @@ func TestK8sProvider_ResourceSituationAwareness(t *testing.T) {
 		assert.GreaterOrEqual(t, resp.Capacity.Available.Memory, int64(0),
 			"Available Memory should not be negative")
 
-		printSuccess(t, "资源容量信息验证通过")
+		testutil.PrintSuccess(t, "资源容量信息验证通过")
 	})
 
 	t.Run("GetAvailable - 获取可用资源信息", func(t *testing.T) {
-		printTestSection(t, "测试: GetAvailable - 获取可用资源信息")
+		testutil.PrintTestSection(t, "测试: GetAvailable - 获取可用资源信息")
 
 		// 测试连接状态下获取可用资源
 		req := &providerpb.GetAvailableRequest{
 			ProviderId: providerID,
 		}
 
-		printInfo(t, "正在获取可用资源信息...")
+		testutil.PrintInfo(t, "正在获取可用资源信息...")
 		resp, err := svc.GetAvailable(ctx, req)
 		require.NoError(t, err, "GetAvailable should succeed when connected")
 		require.NotNil(t, resp, "Response should not be nil")
 		require.NotNil(t, resp.Available, "Available resources should not be nil")
 
-		t.Log("\n" + colorize("可用资源信息:", colorYellow+colorBold))
+		t.Log("\n" + testutil.Colorize("可用资源信息:", testutil.ColorYellow+testutil.ColorBold))
 		t.Logf("  %s    %s",
-			colorize("CPU:", colorWhite+colorBold),
-			colorize(fmt.Sprintf("%d millicores", resp.Available.Cpu), colorGreen))
+			testutil.Colorize("CPU:", testutil.ColorWhite+testutil.ColorBold),
+			testutil.Colorize(fmt.Sprintf("%d millicores", resp.Available.Cpu), testutil.ColorGreen))
 		t.Logf("  %s   %s",
-			colorize("内存:", colorWhite+colorBold),
-			colorize(formatBytes(resp.Available.Memory), colorGreen))
+			testutil.Colorize("内存:", testutil.ColorWhite+testutil.ColorBold),
+			testutil.Colorize(testutil.FormatBytes(resp.Available.Memory), testutil.ColorGreen))
 		t.Logf("  %s    %s",
-			colorize("GPU:", colorWhite+colorBold),
-			colorize(fmt.Sprintf("%d", resp.Available.Gpu), colorGreen))
+			testutil.Colorize("GPU:", testutil.ColorWhite+testutil.ColorBold),
+			testutil.Colorize(fmt.Sprintf("%d", resp.Available.Gpu), testutil.ColorGreen))
 
 		// 验证可用资源不为负数
 		assert.GreaterOrEqual(t, resp.Available.Cpu, int64(0),
@@ -133,27 +134,27 @@ func TestK8sProvider_ResourceSituationAwareness(t *testing.T) {
 		assert.GreaterOrEqual(t, resp.Available.Gpu, int64(0),
 			"Available GPU should not be negative")
 
-		printSuccess(t, "可用资源信息验证通过")
+		testutil.PrintSuccess(t, "可用资源信息验证通过")
 	})
 
 	t.Run("GetAllocated - 获取已分配资源信息", func(t *testing.T) {
-		printTestSection(t, "测试: GetAllocated - 获取已分配资源信息")
+		testutil.PrintTestSection(t, "测试: GetAllocated - 获取已分配资源信息")
 
-		printInfo(t, "正在获取已分配资源信息...")
+		testutil.PrintInfo(t, "正在获取已分配资源信息...")
 		allocated, err := svc.GetAllocated(ctx)
 		require.NoError(t, err, "GetAllocated should succeed")
 		require.NotNil(t, allocated, "Allocated resources should not be nil")
 
-		t.Log("\n" + colorize("已分配资源信息:", colorYellow+colorBold))
+		t.Log("\n" + testutil.Colorize("已分配资源信息:", testutil.ColorYellow+testutil.ColorBold))
 		t.Logf("  %s    %s",
-			colorize("CPU:", colorWhite+colorBold),
-			colorize(fmt.Sprintf("%d millicores", allocated.Cpu), colorYellow))
+			testutil.Colorize("CPU:", testutil.ColorWhite+testutil.ColorBold),
+			testutil.Colorize(fmt.Sprintf("%d millicores", allocated.Cpu), testutil.ColorYellow))
 		t.Logf("  %s   %s",
-			colorize("内存:", colorWhite+colorBold),
-			colorize(formatBytes(allocated.Memory), colorYellow))
+			testutil.Colorize("内存:", testutil.ColorWhite+testutil.ColorBold),
+			testutil.Colorize(testutil.FormatBytes(allocated.Memory), testutil.ColorYellow))
 		t.Logf("  %s    %s",
-			colorize("GPU:", colorWhite+colorBold),
-			colorize(fmt.Sprintf("%d", allocated.Gpu), colorYellow))
+			testutil.Colorize("GPU:", testutil.ColorWhite+testutil.ColorBold),
+			testutil.Colorize(fmt.Sprintf("%d", allocated.Gpu), testutil.ColorYellow))
 
 		// 验证已分配资源不为负数
 		assert.GreaterOrEqual(t, allocated.Cpu, int64(0),
@@ -163,39 +164,39 @@ func TestK8sProvider_ResourceSituationAwareness(t *testing.T) {
 		assert.GreaterOrEqual(t, allocated.Gpu, int64(0),
 			"Allocated GPU should not be negative")
 
-		printSuccess(t, "已分配资源信息验证通过")
+		testutil.PrintSuccess(t, "已分配资源信息验证通过")
 	})
 
 	t.Run("HealthCheck - 健康检查包含资源态势信息", func(t *testing.T) {
-		printTestSection(t, "测试: HealthCheck - 健康检查包含资源态势信息")
+		testutil.PrintTestSection(t, "测试: HealthCheck - 健康检查包含资源态势信息")
 
 		// 测试健康检查（provider 已在测试开始时连接）
 		healthReq := &providerpb.HealthCheckRequest{
 			ProviderId: providerID,
 		}
 
-		printInfo(t, "正在执行健康检查...")
+		testutil.PrintInfo(t, "正在执行健康检查...")
 		healthResp, err := svc.HealthCheck(ctx, healthReq)
 		require.NoError(t, err, "HealthCheck should succeed")
 		require.NotNil(t, healthResp, "HealthCheck response should not be nil")
 		require.NotNil(t, healthResp.Capacity, "HealthCheck should include capacity information")
 		require.NotNil(t, healthResp.ResourceTags, "HealthCheck should include resource tags")
 
-		printResourceInfo(t, healthResp.Capacity)
+		testutil.PrintResourceInfo(t, healthResp.Capacity)
 
-		t.Log("\n" + colorize("资源标签信息:", colorYellow+colorBold))
+		t.Log("\n" + testutil.Colorize("资源标签信息:", testutil.ColorYellow+testutil.ColorBold))
 		t.Logf("  %s    %s",
-			colorize("CPU:", colorWhite+colorBold),
-			colorizeBool(healthResp.ResourceTags.Cpu))
+			testutil.Colorize("CPU:", testutil.ColorWhite+testutil.ColorBold),
+			testutil.ColorizeBool(healthResp.ResourceTags.Cpu))
 		t.Logf("  %s   %s",
-			colorize("内存:", colorWhite+colorBold),
-			colorizeBool(healthResp.ResourceTags.Memory))
+			testutil.Colorize("内存:", testutil.ColorWhite+testutil.ColorBold),
+			testutil.ColorizeBool(healthResp.ResourceTags.Memory))
 		t.Logf("  %s    %s",
-			colorize("GPU:", colorWhite+colorBold),
-			colorizeBool(healthResp.ResourceTags.Gpu))
+			testutil.Colorize("GPU:", testutil.ColorWhite+testutil.ColorBold),
+			testutil.ColorizeBool(healthResp.ResourceTags.Gpu))
 		t.Logf("  %s %s",
-			colorize("摄像头:", colorWhite+colorBold),
-			colorizeBool(healthResp.ResourceTags.Camera))
+			testutil.Colorize("摄像头:", testutil.ColorWhite+testutil.ColorBold),
+			testutil.ColorizeBool(healthResp.ResourceTags.Camera))
 
 		// 验证容量信息的完整性
 		assert.NotNil(t, healthResp.Capacity.Total, "Total capacity should not be nil")
@@ -220,7 +221,7 @@ func TestK8sProvider_ResourceSituationAwareness(t *testing.T) {
 		if healthResp.Capacity.Total.Gpu > 0 {
 			// GPU 标签应该与 GPU 容量一致
 			if !healthResp.ResourceTags.Gpu {
-				printInfo(t, "GPU 容量存在但标签为 false，可能 provider 未启用 GPU 资源类型")
+				testutil.PrintInfo(t, "GPU 容量存在但标签为 false，可能 provider 未启用 GPU 资源类型")
 			} else {
 				assert.True(t, healthResp.ResourceTags.Gpu,
 					"GPU tag should be true when GPU capacity is available")
@@ -235,21 +236,21 @@ func TestK8sProvider_ResourceSituationAwareness(t *testing.T) {
 			healthResp.Capacity.Used.Memory+healthResp.Capacity.Available.Memory,
 			"Total Memory should equal Used Memory + Available Memory")
 
-		printSuccess(t, "健康检查资源态势信息验证通过")
+		testutil.PrintSuccess(t, "健康检查资源态势信息验证通过")
 	})
 
 	t.Run("ResourceSituationConsistency - 资源态势一致性验证", func(t *testing.T) {
-		printTestSection(t, "测试: ResourceSituationConsistency - 资源态势一致性验证")
+		testutil.PrintTestSection(t, "测试: ResourceSituationConsistency - 资源态势一致性验证")
 
 		// 获取容量信息
-		printInfo(t, "正在获取容量信息...")
+		testutil.PrintInfo(t, "正在获取容量信息...")
 		capacityReq := &providerpb.GetCapacityRequest{
 			ProviderId: providerID,
 		}
 		capacityResp, err := svc.GetCapacity(ctx, capacityReq)
 		require.NoError(t, err)
 
-		printInfo(t, "正在获取可用资源信息...")
+		testutil.PrintInfo(t, "正在获取可用资源信息...")
 
 		// 获取可用资源信息
 		availableReq := &providerpb.GetAvailableRequest{
@@ -259,12 +260,12 @@ func TestK8sProvider_ResourceSituationAwareness(t *testing.T) {
 		require.NoError(t, err)
 
 		// 获取已分配资源信息
-		printInfo(t, "正在获取已分配资源信息...")
+		testutil.PrintInfo(t, "正在获取已分配资源信息...")
 		allocated, err := svc.GetAllocated(ctx)
 		require.NoError(t, err)
 
 		// 验证不同接口返回的资源信息一致性
-		printInfo(t, "正在验证资源信息一致性...")
+		testutil.PrintInfo(t, "正在验证资源信息一致性...")
 		assert.Equal(t, capacityResp.Capacity.Available.Cpu, availableResp.Available.Cpu,
 			"GetCapacity and GetAvailable should return the same available CPU")
 		assert.Equal(t, capacityResp.Capacity.Available.Memory, availableResp.Available.Memory,
@@ -275,13 +276,13 @@ func TestK8sProvider_ResourceSituationAwareness(t *testing.T) {
 		assert.Equal(t, capacityResp.Capacity.Used.Memory, allocated.Memory,
 			"GetCapacity and GetAllocated should return the same used Memory")
 
-		printSuccess(t, "资源态势一致性验证通过")
-		t.Logf("  %s %s", colorize("✓", colorGreen), colorize("GetCapacity 和 GetAvailable 返回的可用资源一致", colorGreen))
-		t.Logf("  %s %s", colorize("✓", colorGreen), colorize("GetCapacity 和 GetAllocated 返回的已用资源一致", colorGreen))
+		testutil.PrintSuccess(t, "资源态势一致性验证通过")
+		t.Logf("  %s %s", testutil.Colorize("✓", testutil.ColorGreen), testutil.Colorize("GetCapacity 和 GetAvailable 返回的可用资源一致", testutil.ColorGreen))
+		t.Logf("  %s %s", testutil.Colorize("✓", testutil.ColorGreen), testutil.Colorize("GetCapacity 和 GetAllocated 返回的已用资源一致", testutil.ColorGreen))
 	})
 
 	t.Run("ResourceSituationRealTime - 资源态势实时性验证", func(t *testing.T) {
-		printTestSection(t, "测试: ResourceSituationRealTime - 资源态势实时性验证")
+		testutil.PrintTestSection(t, "测试: ResourceSituationRealTime - 资源态势实时性验证")
 
 		// 创建 Kubernetes client 用于直接操作 Pod
 		k8sClient, err := createK8sClient()
@@ -295,7 +296,7 @@ func TestK8sProvider_ResourceSituationAwareness(t *testing.T) {
 		testMemory := int64(64 * 1024 * 1024) // 64MB
 
 		// 步骤 1: 获取初始资源状态
-		printInfo(t, "步骤 1: 获取初始资源状态...")
+		testutil.PrintInfo(t, "步骤 1: 获取初始资源状态...")
 		initialCapacity, err := svc.GetCapacity(ctx, &providerpb.GetCapacityRequest{
 			ProviderId: providerID,
 		})
@@ -303,24 +304,24 @@ func TestK8sProvider_ResourceSituationAwareness(t *testing.T) {
 		initialUsed := initialCapacity.Capacity.Used
 		initialAvailable := initialCapacity.Capacity.Available
 
-		t.Log("\n" + colorize("初始资源状态:", colorYellow+colorBold))
+		t.Log("\n" + testutil.Colorize("初始资源状态:", testutil.ColorYellow+testutil.ColorBold))
 		t.Logf("  %s    %s",
-			colorize("已用 CPU:", colorWhite+colorBold),
-			colorize(fmt.Sprintf("%d millicores", initialUsed.Cpu), colorYellow))
+			testutil.Colorize("已用 CPU:", testutil.ColorWhite+testutil.ColorBold),
+			testutil.Colorize(fmt.Sprintf("%d millicores", initialUsed.Cpu), testutil.ColorYellow))
 		t.Logf("  %s   %s",
-			colorize("已用内存:", colorWhite+colorBold),
-			colorize(formatBytes(initialUsed.Memory), colorYellow))
+			testutil.Colorize("已用内存:", testutil.ColorWhite+testutil.ColorBold),
+			testutil.Colorize(testutil.FormatBytes(initialUsed.Memory), testutil.ColorYellow))
 		t.Logf("  %s  %s",
-			colorize("可用 CPU:", colorWhite+colorBold),
-			colorize(fmt.Sprintf("%d millicores", initialAvailable.Cpu), colorGreen))
+			testutil.Colorize("可用 CPU:", testutil.ColorWhite+testutil.ColorBold),
+			testutil.Colorize(fmt.Sprintf("%d millicores", initialAvailable.Cpu), testutil.ColorGreen))
 		t.Logf("  %s %s",
-			colorize("可用内存:", colorWhite+colorBold),
-			colorize(formatBytes(initialAvailable.Memory), colorGreen))
+			testutil.Colorize("可用内存:", testutil.ColorWhite+testutil.ColorBold),
+			testutil.Colorize(testutil.FormatBytes(initialAvailable.Memory), testutil.ColorGreen))
 
 		// 步骤 2: 创建测试 Pod
-		printInfo(t, fmt.Sprintf("步骤 2: 创建测试 Pod (%s)...", testPodName))
-		printInfo(t, fmt.Sprintf("  镜像: %s", testImage))
-		printInfo(t, fmt.Sprintf("  CPU: %d millicores, 内存: %s", testCPU, formatBytes(testMemory)))
+		testutil.PrintInfo(t, fmt.Sprintf("步骤 2: 创建测试 Pod (%s)...", testPodName))
+		testutil.PrintInfo(t, fmt.Sprintf("  镜像: %s", testImage))
+		testutil.PrintInfo(t, fmt.Sprintf("  CPU: %d millicores, 内存: %s", testCPU, testutil.FormatBytes(testMemory)))
 
 		cpuQuantity := resource.NewMilliQuantity(testCPU, resource.DecimalSI)
 		memoryQuantity := resource.NewQuantity(testMemory, resource.BinarySI)
@@ -361,23 +362,23 @@ func TestK8sProvider_ResourceSituationAwareness(t *testing.T) {
 		createdPod, err := k8sClient.CoreV1().Pods(testNamespace).Create(ctx, pod, metav1.CreateOptions{})
 		require.NoError(t, err, "Failed to create test Pod")
 
-		printSuccess(t, fmt.Sprintf("测试 Pod 创建成功: %s/%s", testNamespace, createdPod.Name))
+		testutil.PrintSuccess(t, fmt.Sprintf("测试 Pod 创建成功: %s/%s", testNamespace, createdPod.Name))
 
 		// 等待 Pod 启动
-		printInfo(t, "等待 Pod 启动...")
+		testutil.PrintInfo(t, "等待 Pod 启动...")
 		err = waitForPodRunning(ctx, k8sClient, testNamespace, testPodName, 60*time.Second)
 		if err != nil {
 			// 如果等待超时，仍然继续测试（Pod 可能在 Pending 状态）
-			t.Logf("  %s Pod 未能进入 Running 状态: %v", colorize("⚠", colorYellow), err)
+			t.Logf("  %s Pod 未能进入 Running 状态: %v", testutil.Colorize("⚠", testutil.ColorYellow), err)
 		} else {
-			printSuccess(t, "Pod 已进入 Running 状态")
+			testutil.PrintSuccess(t, "Pod 已进入 Running 状态")
 		}
 
 		// 等待一段时间让资源分配生效
 		time.Sleep(2 * time.Second)
 
 		// 步骤 3: 获取创建 Pod 后的资源状态
-		printInfo(t, "步骤 3: 获取创建 Pod 后的资源状态...")
+		testutil.PrintInfo(t, "步骤 3: 获取创建 Pod 后的资源状态...")
 		afterCreateCapacity, err := svc.GetCapacity(ctx, &providerpb.GetCapacityRequest{
 			ProviderId: providerID,
 		})
@@ -385,30 +386,30 @@ func TestK8sProvider_ResourceSituationAwareness(t *testing.T) {
 		afterCreateUsed := afterCreateCapacity.Capacity.Used
 		afterCreateAvailable := afterCreateCapacity.Capacity.Available
 
-		t.Log("\n" + colorize("创建 Pod 后资源状态:", colorYellow+colorBold))
+		t.Log("\n" + testutil.Colorize("创建 Pod 后资源状态:", testutil.ColorYellow+testutil.ColorBold))
 		t.Logf("  %s    %s",
-			colorize("已用 CPU:", colorWhite+colorBold),
-			colorize(fmt.Sprintf("%d millicores", afterCreateUsed.Cpu), colorYellow))
+			testutil.Colorize("已用 CPU:", testutil.ColorWhite+testutil.ColorBold),
+			testutil.Colorize(fmt.Sprintf("%d millicores", afterCreateUsed.Cpu), testutil.ColorYellow))
 		t.Logf("  %s   %s",
-			colorize("已用内存:", colorWhite+colorBold),
-			colorize(formatBytes(afterCreateUsed.Memory), colorYellow))
+			testutil.Colorize("已用内存:", testutil.ColorWhite+testutil.ColorBold),
+			testutil.Colorize(testutil.FormatBytes(afterCreateUsed.Memory), testutil.ColorYellow))
 		t.Logf("  %s  %s",
-			colorize("可用 CPU:", colorWhite+colorBold),
-			colorize(fmt.Sprintf("%d millicores", afterCreateAvailable.Cpu), colorGreen))
+			testutil.Colorize("可用 CPU:", testutil.ColorWhite+testutil.ColorBold),
+			testutil.Colorize(fmt.Sprintf("%d millicores", afterCreateAvailable.Cpu), testutil.ColorGreen))
 		t.Logf("  %s %s",
-			colorize("可用内存:", colorWhite+colorBold),
-			colorize(formatBytes(afterCreateAvailable.Memory), colorGreen))
+			testutil.Colorize("可用内存:", testutil.ColorWhite+testutil.ColorBold),
+			testutil.Colorize(testutil.FormatBytes(afterCreateAvailable.Memory), testutil.ColorGreen))
 
 		// 验证资源使用增加
 		cpuIncrease := afterCreateUsed.Cpu - initialUsed.Cpu
 		memoryIncrease := afterCreateUsed.Memory - initialUsed.Memory
-		t.Log("\n" + colorize("资源变化分析:", colorCyan+colorBold))
+		t.Log("\n" + testutil.Colorize("资源变化分析:", testutil.ColorCyan+testutil.ColorBold))
 		t.Logf("  %s    %s",
-			colorize("CPU 增加:", colorWhite+colorBold),
-			colorize(fmt.Sprintf("%d millicores", cpuIncrease), colorYellow))
+			testutil.Colorize("CPU 增加:", testutil.ColorWhite+testutil.ColorBold),
+			testutil.Colorize(fmt.Sprintf("%d millicores", cpuIncrease), testutil.ColorYellow))
 		t.Logf("  %s   %s",
-			colorize("内存增加:", colorWhite+colorBold),
-			colorize(formatBytes(memoryIncrease), colorYellow))
+			testutil.Colorize("内存增加:", testutil.ColorWhite+testutil.ColorBold),
+			testutil.Colorize(testutil.FormatBytes(memoryIncrease), testutil.ColorYellow))
 
 		// 验证资源确实增加了
 		assert.GreaterOrEqual(t, afterCreateUsed.Cpu, initialUsed.Cpu,
@@ -417,25 +418,25 @@ func TestK8sProvider_ResourceSituationAwareness(t *testing.T) {
 			"Memory usage should increase after creating Pod")
 
 		// 步骤 4: 删除 Pod
-		printInfo(t, "步骤 4: 删除测试 Pod...")
+		testutil.PrintInfo(t, "步骤 4: 删除测试 Pod...")
 		err = k8sClient.CoreV1().Pods(testNamespace).Delete(ctx, testPodName, metav1.DeleteOptions{})
 		require.NoError(t, err, "Failed to delete test Pod")
-		printSuccess(t, "测试 Pod 已删除")
+		testutil.PrintSuccess(t, "测试 Pod 已删除")
 
 		// 等待 Pod 删除完成
-		printInfo(t, "等待 Pod 删除完成...")
+		testutil.PrintInfo(t, "等待 Pod 删除完成...")
 		err = waitForPodDeleted(ctx, k8sClient, testNamespace, testPodName, 60*time.Second)
 		if err != nil {
-			t.Logf("  %s Pod 删除等待超时: %v", colorize("⚠", colorYellow), err)
+			t.Logf("  %s Pod 删除等待超时: %v", testutil.Colorize("⚠", testutil.ColorYellow), err)
 		} else {
-			printSuccess(t, "Pod 已完全删除")
+			testutil.PrintSuccess(t, "Pod 已完全删除")
 		}
 
 		// 等待一段时间让资源释放生效
 		time.Sleep(2 * time.Second)
 
 		// 步骤 5: 获取删除 Pod 后的资源状态
-		printInfo(t, "步骤 5: 获取删除 Pod 后的资源状态...")
+		testutil.PrintInfo(t, "步骤 5: 获取删除 Pod 后的资源状态...")
 		afterDeleteCapacity, err := svc.GetCapacity(ctx, &providerpb.GetCapacityRequest{
 			ProviderId: providerID,
 		})
@@ -443,30 +444,30 @@ func TestK8sProvider_ResourceSituationAwareness(t *testing.T) {
 		afterDeleteUsed := afterDeleteCapacity.Capacity.Used
 		afterDeleteAvailable := afterDeleteCapacity.Capacity.Available
 
-		t.Log("\n" + colorize("删除 Pod 后资源状态:", colorYellow+colorBold))
+		t.Log("\n" + testutil.Colorize("删除 Pod 后资源状态:", testutil.ColorYellow+testutil.ColorBold))
 		t.Logf("  %s    %s",
-			colorize("已用 CPU:", colorWhite+colorBold),
-			colorize(fmt.Sprintf("%d millicores", afterDeleteUsed.Cpu), colorYellow))
+			testutil.Colorize("已用 CPU:", testutil.ColorWhite+testutil.ColorBold),
+			testutil.Colorize(fmt.Sprintf("%d millicores", afterDeleteUsed.Cpu), testutil.ColorYellow))
 		t.Logf("  %s   %s",
-			colorize("已用内存:", colorWhite+colorBold),
-			colorize(formatBytes(afterDeleteUsed.Memory), colorYellow))
+			testutil.Colorize("已用内存:", testutil.ColorWhite+testutil.ColorBold),
+			testutil.Colorize(testutil.FormatBytes(afterDeleteUsed.Memory), testutil.ColorYellow))
 		t.Logf("  %s  %s",
-			colorize("可用 CPU:", colorWhite+colorBold),
-			colorize(fmt.Sprintf("%d millicores", afterDeleteAvailable.Cpu), colorGreen))
+			testutil.Colorize("可用 CPU:", testutil.ColorWhite+testutil.ColorBold),
+			testutil.Colorize(fmt.Sprintf("%d millicores", afterDeleteAvailable.Cpu), testutil.ColorGreen))
 		t.Logf("  %s %s",
-			colorize("可用内存:", colorWhite+colorBold),
-			colorize(formatBytes(afterDeleteAvailable.Memory), colorGreen))
+			testutil.Colorize("可用内存:", testutil.ColorWhite+testutil.ColorBold),
+			testutil.Colorize(testutil.FormatBytes(afterDeleteAvailable.Memory), testutil.ColorGreen))
 
 		// 验证资源使用减少
 		cpuDecrease := afterCreateUsed.Cpu - afterDeleteUsed.Cpu
 		memoryDecrease := afterCreateUsed.Memory - afterDeleteUsed.Memory
-		t.Log("\n" + colorize("资源变化分析:", colorCyan+colorBold))
+		t.Log("\n" + testutil.Colorize("资源变化分析:", testutil.ColorCyan+testutil.ColorBold))
 		t.Logf("  %s    %s",
-			colorize("CPU 减少:", colorWhite+colorBold),
-			colorize(fmt.Sprintf("%d millicores", cpuDecrease), colorGreen))
+			testutil.Colorize("CPU 减少:", testutil.ColorWhite+testutil.ColorBold),
+			testutil.Colorize(fmt.Sprintf("%d millicores", cpuDecrease), testutil.ColorGreen))
 		t.Logf("  %s   %s",
-			colorize("内存减少:", colorWhite+colorBold),
-			colorize(formatBytes(memoryDecrease), colorGreen))
+			testutil.Colorize("内存减少:", testutil.ColorWhite+testutil.ColorBold),
+			testutil.Colorize(testutil.FormatBytes(memoryDecrease), testutil.ColorGreen))
 
 		// 验证资源确实减少了
 		assert.LessOrEqual(t, afterDeleteUsed.Cpu, afterCreateUsed.Cpu,
@@ -475,20 +476,20 @@ func TestK8sProvider_ResourceSituationAwareness(t *testing.T) {
 			"Memory usage should decrease after deleting Pod")
 
 		// 最终验证：资源状态能够实时更新
-		printSuccess(t, "资源态势实时性验证通过")
-		t.Logf("  %s %s", colorize("✓", colorGreen), colorize("创建 Pod 后资源使用增加", colorGreen))
-		t.Logf("  %s %s", colorize("✓", colorGreen), colorize("删除 Pod 后资源使用减少", colorGreen))
-		t.Logf("  %s %s", colorize("✓", colorGreen), colorize("接口能够实时反映资源状态变化", colorGreen))
+		testutil.PrintSuccess(t, "资源态势实时性验证通过")
+		t.Logf("  %s %s", testutil.Colorize("✓", testutil.ColorGreen), testutil.Colorize("创建 Pod 后资源使用增加", testutil.ColorGreen))
+		t.Logf("  %s %s", testutil.Colorize("✓", testutil.ColorGreen), testutil.Colorize("删除 Pod 后资源使用减少", testutil.ColorGreen))
+		t.Logf("  %s %s", testutil.Colorize("✓", testutil.ColorGreen), testutil.Colorize("接口能够实时反映资源状态变化", testutil.ColorGreen))
 	})
 
-	t.Log("\n" + colorize(strings.Repeat("=", 80), colorCyan+colorBold))
-	t.Log(colorize("✓ 所有 Kubernetes 资源态势感知测试通过", colorGreen+colorBold))
-	t.Log(colorize(strings.Repeat("=", 80), colorCyan+colorBold) + "\n")
+	t.Log("\n" + testutil.Colorize(strings.Repeat("=", 80), testutil.ColorCyan+testutil.ColorBold))
+	t.Log(testutil.Colorize("✓ 所有 Kubernetes 资源态势感知测试通过", testutil.ColorGreen+testutil.ColorBold))
+	t.Log(testutil.Colorize(strings.Repeat("=", 80), testutil.ColorCyan+testutil.ColorBold) + "\n")
 }
 
 // TestK8sProvider_ResourceSituationAwareness_WithConnection 测试连接状态下的资源态势感知
 func TestK8sProvider_ResourceSituationAwareness_WithConnection(t *testing.T) {
-	printTestHeader(t, "测试用例: Kubernetes 连接状态下的资源态势感知",
+	testutil.PrintTestHeader(t, "测试用例: Kubernetes 连接状态下的资源态势感知",
 		"验证连接状态下的资源态势感知和鉴权机制")
 
 	if !isK8sAvailable() {
@@ -503,8 +504,8 @@ func TestK8sProvider_ResourceSituationAwareness_WithConnection(t *testing.T) {
 	providerID := "test-k8s-provider-connected"
 
 	// 连接 provider
-	printTestSection(t, "步骤 1: 注册 Kubernetes Provider")
-	printInfo(t, fmt.Sprintf("正在注册 Provider ID: %s", providerID))
+	testutil.PrintTestSection(t, "步骤 1: 注册 Kubernetes Provider")
+	testutil.PrintInfo(t, fmt.Sprintf("正在注册 Provider ID: %s", providerID))
 
 	connectReq := &providerpb.ConnectRequest{
 		ProviderId: providerID,
@@ -513,16 +514,16 @@ func TestK8sProvider_ResourceSituationAwareness_WithConnection(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, connectResp.Success)
 
-	printSuccess(t, fmt.Sprintf("Provider 注册成功: %s", providerID))
+	testutil.PrintSuccess(t, fmt.Sprintf("Provider 注册成功: %s", providerID))
 
 	t.Run("GetCapacity with ProviderID", func(t *testing.T) {
-		printTestSection(t, "测试: GetCapacity with ProviderID")
+		testutil.PrintTestSection(t, "测试: GetCapacity with ProviderID")
 
 		req := &providerpb.GetCapacityRequest{
 			ProviderId: providerID,
 		}
 
-		printInfo(t, fmt.Sprintf("使用 ProviderID (%s) 获取容量...", providerID))
+		testutil.PrintInfo(t, fmt.Sprintf("使用 ProviderID (%s) 获取容量...", providerID))
 		resp, err := svc.GetCapacity(ctx, req)
 		require.NoError(t, err)
 		require.NotNil(t, resp)
@@ -532,17 +533,17 @@ func TestK8sProvider_ResourceSituationAwareness_WithConnection(t *testing.T) {
 		assert.Greater(t, resp.Capacity.Total.Cpu, int64(0))
 		assert.Greater(t, resp.Capacity.Total.Memory, int64(0))
 
-		printSuccess(t, "使用正确的 ProviderID 成功获取容量")
+		testutil.PrintSuccess(t, "使用正确的 ProviderID 成功获取容量")
 	})
 
 	t.Run("GetAvailable with ProviderID", func(t *testing.T) {
-		printTestSection(t, "测试: GetAvailable with ProviderID")
+		testutil.PrintTestSection(t, "测试: GetAvailable with ProviderID")
 
 		req := &providerpb.GetAvailableRequest{
 			ProviderId: providerID,
 		}
 
-		printInfo(t, fmt.Sprintf("使用 ProviderID (%s) 获取可用资源...", providerID))
+		testutil.PrintInfo(t, fmt.Sprintf("使用 ProviderID (%s) 获取可用资源...", providerID))
 		resp, err := svc.GetAvailable(ctx, req)
 		require.NoError(t, err)
 		require.NotNil(t, resp)
@@ -551,58 +552,58 @@ func TestK8sProvider_ResourceSituationAwareness_WithConnection(t *testing.T) {
 		assert.GreaterOrEqual(t, resp.Available.Cpu, int64(0))
 		assert.GreaterOrEqual(t, resp.Available.Memory, int64(0))
 
-		printSuccess(t, "使用正确的 ProviderID 成功获取可用资源")
+		testutil.PrintSuccess(t, "使用正确的 ProviderID 成功获取可用资源")
 	})
 
 	t.Run("GetCapacity with wrong ProviderID should fail", func(t *testing.T) {
-		printTestSection(t, "测试: GetCapacity with wrong ProviderID (应该失败)")
+		testutil.PrintTestSection(t, "测试: GetCapacity with wrong ProviderID (应该失败)")
 
 		req := &providerpb.GetCapacityRequest{
 			ProviderId: "wrong-provider-id",
 		}
 
-		printInfo(t, "使用错误的 ProviderID 尝试获取容量...")
+		testutil.PrintInfo(t, "使用错误的 ProviderID 尝试获取容量...")
 		_, err := svc.GetCapacity(ctx, req)
 		assert.Error(t, err, "Should fail with wrong provider ID")
 		assert.Contains(t, err.Error(), "unauthorized", "Error should indicate unauthorized")
 
-		printSuccess(t, "鉴权机制正常工作：错误的 ProviderID 被正确拒绝")
-		t.Logf("  %s %s", colorize("错误信息:", colorRed+colorBold), colorize(err.Error(), colorRed))
+		testutil.PrintSuccess(t, "鉴权机制正常工作：错误的 ProviderID 被正确拒绝")
+		t.Logf("  %s %s", testutil.Colorize("错误信息:", testutil.ColorRed+testutil.ColorBold), testutil.Colorize(err.Error(), testutil.ColorRed))
 	})
 
 	t.Run("GetCapacity with empty ProviderID should fail", func(t *testing.T) {
-		printTestSection(t, "测试: GetCapacity with empty ProviderID (应该失败)")
+		testutil.PrintTestSection(t, "测试: GetCapacity with empty ProviderID (应该失败)")
 
 		req := &providerpb.GetCapacityRequest{
 			ProviderId: "",
 		}
 
-		printInfo(t, "使用空的 ProviderID 尝试获取容量...")
+		testutil.PrintInfo(t, "使用空的 ProviderID 尝试获取容量...")
 		_, err := svc.GetCapacity(ctx, req)
 		assert.Error(t, err, "Should fail with empty provider ID")
 
-		printSuccess(t, "验证通过：空的 ProviderID 被正确拒绝")
-		t.Logf("  %s %s", colorize("错误信息:", colorRed+colorBold), colorize(err.Error(), colorRed))
+		testutil.PrintSuccess(t, "验证通过：空的 ProviderID 被正确拒绝")
+		t.Logf("  %s %s", testutil.Colorize("错误信息:", testutil.ColorRed+testutil.ColorBold), testutil.Colorize(err.Error(), testutil.ColorRed))
 	})
 
 	t.Run("GetAvailable with empty ProviderID should fail", func(t *testing.T) {
-		printTestSection(t, "测试: GetAvailable with empty ProviderID (应该失败)")
+		testutil.PrintTestSection(t, "测试: GetAvailable with empty ProviderID (应该失败)")
 
 		req := &providerpb.GetAvailableRequest{
 			ProviderId: "",
 		}
 
-		printInfo(t, "使用空的 ProviderID 尝试获取可用资源...")
+		testutil.PrintInfo(t, "使用空的 ProviderID 尝试获取可用资源...")
 		_, err := svc.GetAvailable(ctx, req)
 		assert.Error(t, err, "Should fail with empty provider ID")
 
-		printSuccess(t, "验证通过：空的 ProviderID 被正确拒绝")
-		t.Logf("  %s %s", colorize("错误信息:", colorRed+colorBold), colorize(err.Error(), colorRed))
+		testutil.PrintSuccess(t, "验证通过：空的 ProviderID 被正确拒绝")
+		t.Logf("  %s %s", testutil.Colorize("错误信息:", testutil.ColorRed+testutil.ColorBold), testutil.Colorize(err.Error(), testutil.ColorRed))
 	})
 
-	t.Log("\n" + colorize(strings.Repeat("=", 80), colorCyan+colorBold))
-	t.Log(colorize("✓ 所有 Kubernetes 连接状态下的资源态势感知测试通过", colorGreen+colorBold))
-	t.Log(colorize(strings.Repeat("=", 80), colorCyan+colorBold) + "\n")
+	t.Log("\n" + testutil.Colorize(strings.Repeat("=", 80), testutil.ColorCyan+testutil.ColorBold))
+	t.Log(testutil.Colorize("✓ 所有 Kubernetes 连接状态下的资源态势感知测试通过", testutil.ColorGreen+testutil.ColorBold))
+	t.Log(testutil.Colorize(strings.Repeat("=", 80), testutil.ColorCyan+testutil.ColorBold) + "\n")
 }
 
 // createK8sTestService 创建测试用的 Kubernetes Provider Service 实例
