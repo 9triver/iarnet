@@ -253,6 +253,11 @@ func TestCrossDomainScheduling_ExpiredNodeCleanup(t *testing.T) {
 	past := time.Now().Add(-20 * time.Minute)
 	fresh := time.Now()
 	testutil.PrintTestSection(t, "步骤 1: 构造新旧节点")
+
+	// 输出节点过期信息
+	testutil.PrintInfo(t, fmt.Sprintf("当前时间: %s", time.Now().Format("2006-01-02 15:04:05")))
+	testutil.PrintInfo(t, fmt.Sprintf("节点 TTL: 10 分钟"))
+
 	staleNode := &discovery.PeerNode{
 		NodeID:   "stale-node",
 		Status:   discovery.NodeStatusOnline,
@@ -269,6 +274,23 @@ func TestCrossDomainScheduling_ExpiredNodeCleanup(t *testing.T) {
 			Available: &types.Info{CPU: 2000},
 		},
 	}
+
+	// 计算节点年龄
+	staleAge := time.Since(staleNode.LastSeen)
+	freshAge := time.Since(freshNode.LastSeen)
+
+	testutil.PrintInfo(t, fmt.Sprintf("过期节点 (stale-node): LastSeen=%s, 年龄=%v (已过期)",
+		staleNode.LastSeen.Format("2006-01-02 15:04:05"), staleAge))
+	testutil.PrintInfo(t, fmt.Sprintf("新鲜节点 (fresh-node): LastSeen=%s, 年龄=%v (未过期)",
+		freshNode.LastSeen.Format("2006-01-02 15:04:05"), freshAge))
+
+	// 输出节点列表，并标记过期状态
+	testutil.PrintInfo(t, "节点列表:")
+	testutil.PrintInfo(t, fmt.Sprintf("  ✗ stale-node: LastSeen=%s, 年龄=%v (已过期，超过 TTL %v)",
+		staleNode.LastSeen.Format("2006-01-02 15:04:05"), staleAge, 10*time.Minute))
+	testutil.PrintInfo(t, fmt.Sprintf("  ✓ fresh-node: LastSeen=%s, 年龄=%v (新鲜，未超过 TTL %v)",
+		freshNode.LastSeen.Format("2006-01-02 15:04:05"), freshAge, 10*time.Minute))
+
 	testutil.PrintPeerNodeOverview(t, []*discovery.PeerNode{staleNode, freshNode})
 
 	scheduler := &crossDomainScheduler{
@@ -286,9 +308,19 @@ func TestCrossDomainScheduling_ExpiredNodeCleanup(t *testing.T) {
 	testutil.PrintTestSection(t, "步骤 2: 发起调度请求")
 	testutil.PrintResourceRequest(t, req)
 
+	testutil.PrintTestSection(t, "步骤 3: 节点过滤过程")
+	testutil.PrintInfo(t, "正在检查节点新鲜度...")
+	testutil.PrintInfo(t, fmt.Sprintf("  节点 stale-node: LastSeen=%s, 距离现在 %v (超过 TTL %v) -> 已过期，将被过滤",
+		staleNode.LastSeen.Format("2006-01-02 15:04:05"), staleAge, 10*time.Minute))
+	testutil.PrintInfo(t, fmt.Sprintf("  节点 fresh-node: LastSeen=%s, 距离现在 %v (未超过 TTL %v) -> 新鲜，保留",
+		freshNode.LastSeen.Format("2006-01-02 15:04:05"), freshAge, 10*time.Minute))
+
 	result, err := scheduler.schedule(req)
 	require.NoError(t, err)
 	assert.True(t, strings.Contains(result.NodeID, "fresh-node"))
-	testutil.PrintSchedulingDecision(t, result.Path, true, "成功过滤过期节点，命中新鲜节点")
+
+	testutil.PrintTestSection(t, "步骤 4: 调度结果")
+	testutil.PrintInfo(t, fmt.Sprintf("过滤后的可用节点: fresh-node (stale-node 已因过期被过滤)"))
+	testutil.PrintSchedulingDecision(t, result.Path, true, fmt.Sprintf("成功过滤过期节点 stale-node，命中新鲜节点 %s", result.NodeID))
 	testutil.PrintSuccess(t, "过期节点被过滤，调度落在最新的节点上")
 }

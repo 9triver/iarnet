@@ -97,6 +97,23 @@
   2. 目标节点：准备两个 Peer（一个含 SchedulerAddress），确保调度命中资源更优+可调度节点。
   3. 过期节点：构造 `LastSeen` 远古节点与新鲜节点，设置 TTL，验证只会命中新鲜节点。
 
+### 2.3 Actor 动态迁移和卸载
+- **文件**：`hierarchical-scheduling/actor_migration_test.go`
+- **覆盖子测试点**
+  - **Actor 初始部署**：在指定节点部署 Actor 及其 Component
+  - **Actor 动态迁移**：将运行中的 Actor 从一个节点迁移到另一个节点（先在新节点部署，再在源节点卸载）
+  - **Actor 卸载**：卸载不再需要的 Actor 及其 Component
+  - **多个 Actor 操作**：支持多个 Actor 的并发迁移和卸载
+  - **失败场景处理**：处理迁移失败的各种场景（Actor 不存在、目标节点不存在、已在目标节点等）
+- **前置条件**
+  - 使用 mock 实现 Actor 迁移管理器，无需真实依赖
+- **执行步骤**
+  1. Actor 初始部署：在 node-1 上部署 Actor，验证部署信息（Component ID、Provider ID、资源需求）。
+  2. Actor 动态迁移：将 Actor 从 node-1 迁移到 node-2，验证迁移过程（新节点部署 -> 源节点卸载）和迁移历史记录。
+  3. Actor 卸载：卸载 Actor，验证卸载后的状态（Actor 和 Component 已从节点移除）和卸载历史记录。
+  4. 多个 Actor 操作：部署多个 Actor，执行批量迁移和卸载，验证最终状态和历史记录。
+  5. 失败场景：测试迁移不存在的 Actor、迁移到不存在的节点、迁移到相同节点等失败场景。
+
 ---
 
 ## 3. 算力网络资源调度委托（两阶段提交机制）

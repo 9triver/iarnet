@@ -297,29 +297,67 @@ fi
             # 启动失败，但继续检查是否已有进程在运行
             self._print(f"{node_prefix}    ⚠ 启动命令执行异常（但可能已有进程在运行，继续检查...）")
         
-        # 等待一小段时间让进程启动
-        time.sleep(0.5)
+        # 等待进程启动（增加等待时间）
+        time.sleep(2)
         
-        # 快速检查进程是否运行（只检查一次，设置短超时）
-        check_cmd = ' '.join(ssh_cmd) + ' "pgrep -f docker-provider > /dev/null 2>&1 && echo RUNNING || echo NOT_RUNNING"'
-        try:
-            check_result = subprocess.run(check_cmd, shell=True, check=False, timeout=2, capture_output=True, text=True)
-            if 'RUNNING' in check_result.stdout:
-                # 进程已运行，直接返回成功（不等待端口，因为服务可能还在初始化）
-                self._print(f"{node_prefix}  ✓ docker provider 进程已启动")
-                return True
-            else:
-                # 即使进程未运行，也返回 True（避免阻塞，服务可能正在启动）
-                self._print(f"{node_prefix}  ⚠ 进程检查未发现（但可能正在启动，继续部署）")
-                return True
-        except subprocess.TimeoutExpired:
-            # 检查超时，假设已启动（避免阻塞）
-            self._print(f"{node_prefix}  ⚠ 进程检查超时（假设已启动，继续部署）")
-            return True
-        except Exception as e:
-            # 任何异常都返回 True，避免阻塞
-            self._print(f"{node_prefix}  ⚠ 进程检查异常（假设已启动，继续部署）")
-            return True
+        # 多次检查进程是否运行（最多检查3次，每次间隔1秒）
+        max_attempts = 3
+        for attempt in range(max_attempts):
+            check_cmd = ' '.join(ssh_cmd) + ' "pgrep -f docker-provider > /dev/null 2>&1 && echo RUNNING || echo NOT_RUNNING"'
+            try:
+                check_result = subprocess.run(check_cmd, shell=True, check=False, timeout=5, capture_output=True, text=True)
+                if 'RUNNING' in check_result.stdout:
+                    # 进程已运行，验证日志文件是否生成（确认服务真正启动）
+                    time.sleep(1)
+                    log_check_cmd = ' '.join(ssh_cmd) + ' "test -f ~/docker-provider/docker-provider.log && tail -5 ~/docker-provider/docker-provider.log | grep -q -v \"No such file\" && echo LOG_OK || echo LOG_NOT_OK"'
+                    try:
+                        log_result = subprocess.run(log_check_cmd, shell=True, check=False, timeout=5, capture_output=True, text=True)
+                        if 'LOG_OK' in log_result.stdout:
+                            self._print(f"{node_prefix}  ✓ docker provider 进程已启动并运行")
+                            return True
+                        else:
+                            # 日志文件不存在或有问题，但进程在运行，可能刚启动
+                            if attempt < max_attempts - 1:
+                                time.sleep(1)
+                                continue
+                            else:
+                                self._print(f"{node_prefix}  ⚠ 进程已启动但日志文件异常，请检查日志")
+                                return True
+                    except:
+                        # 日志检查失败，但进程在运行
+                        self._print(f"{node_prefix}  ✓ docker provider 进程已启动")
+                        return True
+                else:
+                    # 进程未运行，等待后重试
+                    if attempt < max_attempts - 1:
+                        time.sleep(1)
+                        continue
+                    else:
+                        # 最后一次检查仍然失败
+                        self._print(f"{node_prefix}  ✗ docker provider 进程未启动")
+                        # 检查日志文件获取错误信息
+                        log_cmd = ' '.join(ssh_cmd) + ' "tail -20 ~/docker-provider/docker-provider.log 2>&1 | tail -5"'
+                        try:
+                            log_result = subprocess.run(log_cmd, shell=True, check=False, timeout=5, capture_output=True, text=True)
+                            if log_result.stdout.strip():
+                                self._print(f"{node_prefix}    错误日志: {log_result.stdout.strip()}")
+                        except:
+                            pass
+                        return False
+            except subprocess.TimeoutExpired:
+                if attempt < max_attempts - 1:
+                    time.sleep(1)
+                    continue
+                else:
+                    self._print(f"{node_prefix}  ✗ 进程检查超时")
+                    return False
+            except Exception as e:
+                if attempt < max_attempts - 1:
+                    time.sleep(1)
+                    continue
+                else:
+                    self._print(f"{node_prefix}  ✗ 进程检查异常: {e}")
+                    return False
         
         # 如果所有尝试都失败，显示错误信息
         self._print(f"{node_prefix}  ⚠ docker provider 服务启动失败")
@@ -556,6 +594,34 @@ fi
         
         # 如果只指定 restart（没有 build），则只启动服务
         elif restart:
+            # 先检查二进制文件是否存在
+            self._print(f"[节点 {node_id}]     检查二进制文件...")
+            check_binary_cmd = ' '.join(ssh_cmd) + ' "test -f ~/docker-provider/docker-provider && echo EXISTS || echo NOT_EXISTS"'
+            try:
+                check_result = subprocess.run(check_binary_cmd, shell=True, check=False, timeout=10, capture_output=True, text=True)
+                if 'NOT_EXISTS' in check_result.stdout or 'EXISTS' not in check_result.stdout:
+                    self._print(f"[节点 {node_id}]   ✗ 错误: 二进制文件不存在: ~/docker-provider/docker-provider")
+                    self._print(f"[节点 {node_id}]   请先使用 --build 参数上传二进制文件:")
+                    self._print(f"[节点 {node_id}]     python3 deploy_docker_provider.py --build --restart --nodes {node_id}")
+                    return False
+                else:
+                    self._print(f"[节点 {node_id}]   ✓ 二进制文件存在")
+            except Exception as e:
+                self._print(f"[节点 {node_id}]   ⚠ 检查二进制文件时出错: {e}")
+                return False
+            
+            # 检查配置文件是否存在
+            self._print(f"[节点 {node_id}]     检查配置文件...")
+            check_config_cmd = ' '.join(ssh_cmd) + ' "test -f ~/docker-provider/config.yaml && echo EXISTS || echo NOT_EXISTS"'
+            try:
+                check_result = subprocess.run(check_config_cmd, shell=True, check=False, timeout=10, capture_output=True, text=True)
+                if 'NOT_EXISTS' in check_result.stdout or 'EXISTS' not in check_result.stdout:
+                    self._print(f"[节点 {node_id}]   ⚠ 警告: 配置文件不存在，但继续尝试启动...")
+                else:
+                    self._print(f"[节点 {node_id}]   ✓ 配置文件存在")
+            except Exception as e:
+                self._print(f"[节点 {node_id}]   ⚠ 检查配置文件时出错: {e}")
+            
             self._print(f"[节点 {node_id}]     启动 docker provider 服务...")
             provider_running = self._start_provider_service(ssh_cmd, node, node_id)
             if provider_running:

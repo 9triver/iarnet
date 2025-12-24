@@ -116,7 +116,30 @@ python3 create_vms.py --config /path/to/vm-config.yaml
 
 ## 故障排查
 
-1. **权限错误**: 
+1. **SSH连接错误（重新创建虚拟机后）**:
+   - **问题**: 重新创建虚拟机后，SSH报错 `WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!`
+   - **原因**: 虚拟机的SSH主机密钥改变了，但本地 `~/.ssh/known_hosts` 中还保存着旧的密钥
+   - **解决方案**:
+     ```bash
+     # 方法1: 使用清理脚本（推荐）
+     python3 cleanup_ssh_known_hosts.py
+     
+     # 方法2: 清理所有虚拟机的SSH密钥
+     python3 cleanup_ssh_known_hosts.py --type all
+     
+     # 方法3: 只清理特定类型的虚拟机
+     python3 cleanup_ssh_known_hosts.py --type iarnet
+     python3 cleanup_ssh_known_hosts.py --type docker
+     
+     # 方法4: 清理指定IP的SSH密钥
+     python3 cleanup_ssh_known_hosts.py --ip 192.168.100.11
+     
+     # 方法5: 手动删除（如果脚本不可用）
+     ssh-keygen -f ~/.ssh/known_hosts -R 192.168.100.11
+     ```
+   - **注意**: `recreate_all_vms.py` 脚本会自动清理SSH密钥，但如果手动重新创建虚拟机，需要手动清理
+
+2. **权限错误**: 
    - libvirt连接错误: 确保用户已加入libvirt组并重新登录
    - 磁盘创建权限错误: `/var/lib/libvirt/images` 目录需要写入权限
      ```bash
@@ -132,7 +155,7 @@ python3 create_vms.py --config /path/to/vm-config.yaml
      sudo chgrp libvirt /var/lib/libvirt/images
      ```
 
-2. **网络错误**: 
+3. **网络错误**: 
    - libvirt网络未启动: 检查 `virsh net-list`，确保网络已启动
    - 虚拟机无法访问（No route to host）:
      ```bash
@@ -210,6 +233,56 @@ python3 delete_vms.py --type iarnet --delete-disk
 # 跳过确认提示
 python3 delete_vms.py --yes --delete-disk
 ```
+
+## 重新创建虚拟机
+
+使用重新创建脚本批量重新创建虚拟机（先删除后创建）：
+
+```bash
+# 重新创建所有虚拟机（保留磁盘）
+python3 recreate_all_vms.py
+
+# 重新创建所有虚拟机（删除磁盘后重新创建）
+python3 recreate_all_vms.py --delete-disk
+
+# 只重新创建特定类型的虚拟机
+python3 recreate_all_vms.py --type iarnet_global  # 重新创建 iarnet-global 节点
+python3 recreate_all_vms.py --type iarnet         # 重新创建 iarnet 节点
+python3 recreate_all_vms.py --type docker --delete-disk  # 重新创建 docker 节点并删除磁盘
+python3 recreate_all_vms.py --type k8s           # 重新创建 K8s 集群
+
+# 跳过确认提示
+python3 recreate_all_vms.py --yes --delete-disk
+```
+
+**注意**：
+- 重新创建操作会先删除现有虚拟机，然后重新创建
+- 使用 `--delete-disk` 选项会同时删除磁盘镜像，释放磁盘空间
+- 如果不使用 `--delete-disk`，磁盘镜像会保留，重新创建时会跳过已存在的磁盘
+- 重新创建过程可能需要较长时间，请耐心等待
+- **重新创建完成后会自动清理SSH known_hosts中的旧密钥**，避免SSH连接错误
+
+## 清理SSH known_hosts
+
+重新创建虚拟机后，SSH主机密钥会改变，需要清理旧的密钥：
+
+```bash
+# 清理所有虚拟机的SSH密钥
+python3 cleanup_ssh_known_hosts.py
+
+# 只清理特定类型的虚拟机
+python3 cleanup_ssh_known_hosts.py --type iarnet
+python3 cleanup_ssh_known_hosts.py --type docker
+python3 cleanup_ssh_known_hosts.py --type k8s
+
+# 清理指定IP的SSH密钥
+python3 cleanup_ssh_known_hosts.py --ip 192.168.100.11
+
+# 静默模式（不显示详细信息）
+python3 cleanup_ssh_known_hosts.py --quiet
+```
+
+**注意**：`recreate_all_vms.py` 脚本会自动清理SSH密钥，但如果手动重新创建虚拟机或遇到SSH连接错误，可以手动运行此脚本。
 
 ## SSH连接到虚拟机
 

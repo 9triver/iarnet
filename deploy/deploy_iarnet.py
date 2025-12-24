@@ -122,12 +122,12 @@ class IarnetDeployer:
         # 停止容器
         self._print(f"{node_prefix}    停止现有容器: {container_name}")
         stop_cmd = ' '.join(ssh_cmd) + f' "docker stop {container_name} >/dev/null 2>&1 || true"'
-        subprocess.run(stop_cmd, shell=True, check=False, timeout=10, capture_output=True)
+        subprocess.run(stop_cmd, shell=True, check=False, timeout=60, capture_output=True)
         
         # 删除容器
         self._print(f"{node_prefix}    删除现有容器: {container_name}")
         rm_cmd = ' '.join(ssh_cmd) + f' "docker rm {container_name} >/dev/null 2>&1 || true"'
-        subprocess.run(rm_cmd, shell=True, check=False, timeout=10, capture_output=True)
+        subprocess.run(rm_cmd, shell=True, check=False, timeout=60, capture_output=True)
         
         return True
     
@@ -154,7 +154,7 @@ class IarnetDeployer:
         ]
         
         try:
-            subprocess.run(scp_cmd, check=True, capture_output=True, timeout=10)
+            subprocess.run(scp_cmd, check=True, capture_output=True, timeout=60)
             self._print(f"{node_prefix}    ✓ 配置文件上传成功")
             return True
         except subprocess.CalledProcessError as e:
@@ -291,7 +291,7 @@ class IarnetDeployer:
             
             # 检查容器状态
             status_cmd = ' '.join(ssh_cmd) + f' "docker ps --filter name=^{container_name}$ --format \'{{{{.Status}}}}\' | head -1"'
-            status_result = subprocess.run(status_cmd, shell=True, check=False, timeout=10, capture_output=True, text=True)
+            status_result = subprocess.run(status_cmd, shell=True, check=False, timeout=30, capture_output=True, text=True)
             
             if status_result.stdout.strip():
                 self._print(f"{node_prefix}    ✓ 容器运行中: {status_result.stdout.strip()}")
@@ -309,7 +309,7 @@ class IarnetDeployer:
                 
                 # 如果端口检查失败，查看日志
                 log_cmd = ' '.join(ssh_cmd) + f' "docker logs --tail 20 {container_name} 2>&1 | tail -10"'
-                log_result = subprocess.run(log_cmd, shell=True, check=False, timeout=10, capture_output=True, text=True)
+                log_result = subprocess.run(log_cmd, shell=True, check=False, timeout=30, capture_output=True, text=True)
                 if log_result.stdout:
                     self._print(f"{node_prefix}    容器日志: {log_result.stdout.strip()}")
                 
@@ -318,7 +318,7 @@ class IarnetDeployer:
             else:
                 # 容器可能已停止，查看日志
                 log_cmd = ' '.join(ssh_cmd) + f' "docker logs --tail 30 {container_name} 2>&1"'
-                log_result = subprocess.run(log_cmd, shell=True, check=False, timeout=10, capture_output=True, text=True)
+                log_result = subprocess.run(log_cmd, shell=True, check=False, timeout=30, capture_output=True, text=True)
                 if log_result.stdout:
                     self._print(f"{node_prefix}    容器日志: {log_result.stdout.strip()[:500]}")
                 
