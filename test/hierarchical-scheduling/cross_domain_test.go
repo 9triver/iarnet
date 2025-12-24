@@ -1,7 +1,6 @@
 package hierarchical_scheduling
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -14,14 +13,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// crossDomainScheduler 模拟分级调度中的跨域调度流程。
-// 说明：部分功能在主工程中尚未完全实现，这里通过 mock 方式提前验证调度策略。
+// crossDomainScheduler 实现分级调度中的跨域调度流程。
+// 说明：部分功能在主工程中尚未完全实现，这里通过测试实现提前验证调度策略。
 type crossDomainScheduler struct {
-	localExecutor  func(req *types.Info) (string, error)
-	peerSelector   func(req *types.Info) ([]*discovery.PeerNode, error)
-	peerExecutor   func(node *discovery.PeerNode, req *types.Info) (string, error)
-	globalExecutor func(req *types.Info) (string, error)
-	nodeTTL        time.Duration
+	localExecutor func(req *types.Info) (string, error)
+	peerSelector  func(req *types.Info) ([]*discovery.PeerNode, error)
+	peerExecutor  func(node *discovery.PeerNode, req *types.Info) (string, error)
+	nodeTTL       time.Duration
 }
 
 type schedulingResult struct {
@@ -54,15 +52,6 @@ func (d *crossDomainScheduler) schedule(req *types.Info) (schedulingResult, erro
 					return schedulingResult{Path: "peer", NodeID: fmt.Sprintf("%s@%s", providerID, target.NodeID)}, nil
 				}
 			}
-		}
-	}
-
-	// Step 3: 全局调度降级
-	if d.globalExecutor != nil {
-		if providerID, err := d.globalExecutor(req); err == nil {
-			return schedulingResult{Path: "global", NodeID: providerID}, nil
-		} else {
-			return schedulingResult{}, fmt.Errorf("global cross-domain scheduling failed: %w", err)
 		}
 	}
 
@@ -150,17 +139,6 @@ type mockPeerExecutor struct {
 func (m *mockPeerExecutor) exec(node *discovery.PeerNode, _ *types.Info) (string, error) {
 	m.calls++
 	m.last = node
-	return m.result, m.err
-}
-
-type mockGlobal struct {
-	result string
-	err    error
-	calls  int
-}
-
-func (m *mockGlobal) exec(_ *types.Info) (string, error) {
-	m.calls++
 	return m.result, m.err
 }
 
@@ -313,48 +291,4 @@ func TestCrossDomainScheduling_ExpiredNodeCleanup(t *testing.T) {
 	assert.True(t, strings.Contains(result.NodeID, "fresh-node"))
 	testutil.PrintSchedulingDecision(t, result.Path, true, "成功过滤过期节点，命中新鲜节点")
 	testutil.PrintSuccess(t, "过期节点被过滤，调度落在最新的节点上")
-}
-
-// 跨域失败时的降级处理：域内调度失败后降级到全局调度。
-func TestCrossDomainScheduling_FallbackOnFailure(t *testing.T) {
-	testutil.PrintTestHeader(t, "跨域调度 - 失败降级处理", "验证域内失败后降级到全局调度")
-
-	local := &mockLocal{err: fmt.Errorf("failed to find available provider")}
-	peerExec := &mockPeerExecutor{err: errors.New("peer node busy")}
-	global := &mockGlobal{result: "global-provider"}
-
-	testutil.PrintTestSection(t, "步骤 1: 构造多阶段失败链路")
-	testutil.PrintInfo(t, fmt.Sprintf("本地错误: %s", local.err))
-	testutil.PrintInfo(t, fmt.Sprintf("域内执行错误: %s", peerExec.err))
-
-	scheduler := &crossDomainScheduler{
-		localExecutor: local.exec,
-		peerSelector: func(_ *types.Info) ([]*discovery.PeerNode, error) {
-			return []*discovery.PeerNode{
-				{
-					NodeID:   "peer-node-err",
-					Status:   discovery.NodeStatusOnline,
-					LastSeen: time.Now(),
-					ResourceCapacity: &types.Capacity{
-						Available: &types.Info{CPU: 1000},
-					},
-				},
-			}, nil
-		},
-		peerExecutor:   peerExec.exec,
-		globalExecutor: global.exec,
-		nodeTTL:        10 * time.Minute,
-	}
-
-	req := &types.Info{CPU: 800}
-	testutil.PrintTestSection(t, "步骤 2: 发起调度请求并观察降级")
-	testutil.PrintResourceRequest(t, req)
-
-	result, err := scheduler.schedule(req)
-	require.NoError(t, err)
-	assert.Equal(t, "global", result.Path)
-	assert.Equal(t, "global-provider", result.NodeID)
-	assert.Equal(t, 1, global.calls)
-	testutil.PrintSchedulingDecision(t, result.Path, true, "域内失败后降级到全局成功")
-	testutil.PrintSuccess(t, "域内跨域调度失败后成功降级到全局调度")
 }

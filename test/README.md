@@ -10,23 +10,26 @@
 - **文件**：`situation-awareness/docker_provider_test.go`
 - **覆盖子测试点**
   - Provider 连接注册、鉴权与心跳
-  - 资源容量/可用量/标签读取
+  - 资源容量/可用量/标签读取（CPU/Memory/GPU）
+  - GPU 资源态势感知和使用验证
   - 资源监控任务（GetAllocated/HealthCheck）
   - 多次查询的实时性与一致性
 - **前置条件**
   - 本地已安装 Docker，`docker` CLI 可正常连接
   - 允许以 root/当前用户运行容器
+  - GPU 相关测试需要系统支持 GPU（如果无 GPU 会自动跳过）
 - **执行步骤概览**
   1. 初始化 Provider Service，调用 `Connect` 完成注册，检验返回的 `ProviderID`、Token。
   2. 通过 `HealthCheck`/`GetAllocated` 获取总量、已用、可用资源，打印 CPU/Memory/GPU 等指标并核对一致性。
   3. 创建受限资源的测试容器（如 1CPU/256MB），再次查询资源占用，确认指标随容器变化。
   4. 连续多次查询验证实时性；随后删除容器并确认释放效果。
-  5. 在“连接状态下”场景中追加鉴权（Token 校验）、异常链路测试。
+  5. 在"连接状态下"场景中追加鉴权（Token 校验）、异常链路测试。
+  6. GPU 资源验证：在资源一致性验证中包含 GPU 容量检测、可用性检查、资源标签和一致性验证（Total = Used + Available）。
 
 ### 1.2 远程资源发现（Gossip 资源发现）
 - **文件**：`situation-awareness/gossip_discovery_test.go`
 - **覆盖子测试点**
-  - 新增 peers：通过 `ProcessNodeInfo` 模拟 Gossip 接收并触发 `OnNodeDiscovered`
+  - 新增 peers：通过 `ProcessNodeInfo` 处理 Gossip 接收并触发 `OnNodeDiscovered`
   - 聚合视图：验证聚合算力总量、标签、可用节点查询
   - 过期治理：基于短 TTL 构造 `fresh` 与 `stale` 节点，验证过期清理与回调
 - **前置条件**
@@ -40,29 +43,30 @@
 ### 1.3 资源状态监控（资源实时使用查询 / 健康检查）
 - **文件**：`situation-awareness/resource_monitoring_test.go`
 - **覆盖子测试点**
-  - 实时使用查询：`GetAllocated` 在容器创建/销毁前后的变化
-  - 健康检查监控：`HealthCheck` 多次执行的一致性、标签正确性
+  - 实时使用查询：`GetAllocated` 在容器创建/销毁前后的变化（CPU/Memory/GPU）
+  - 健康检查监控：`HealthCheck` 多次执行的一致性、标签正确性（包括 GPU 标签）
   - 监控连续性：多次轮询、对比首尾数据保证一致
 - **前置条件**
   - 同 1.1，需可用 Docker 环境
 - **执行步骤概览**
-  1. 注册 Provider，记录初始资源。
+  1. 注册 Provider，记录初始资源（包括 GPU）。
   2. 创建受控容器改变占用，再次查询确保数值提升。
-  3. 进行多次 `GetAllocated`/`HealthCheck` 调用并打印结果。
-  4. 健康检查场景中同时验证容量计算（Total = Used + Available）、标签保持一致。
-  5. 清理容器后再次查询，确认资源下降。
+  3. 进行多次 `GetAllocated`/`HealthCheck` 调用并打印结果（包括 GPU 信息）。
+  4. 健康检查场景中同时验证容量计算（Total = Used + Available），包括 GPU 的计算验证，标签保持一致。
+  5. 清理容器后再次查询，确认资源下降（包括 GPU 资源释放）。
 
 ### 1.4 远程 Docker 感知 / 远程 k8s 感知
 - **文件**：`situation-awareness/remote_docker_perception_test.go`（以及其他远程感知测试）
 - **覆盖子测试点**
-  - 通过远程 API 拉取远端 Docker/K8s 集群资源
+  - 通过远程 API 拉取远端 Docker/K8s 集群资源（包括 GPU 资源）
   - 结合 Gossip/Discovery 获取跨域资源态势
+  - 验证远程节点的 GPU 资源信息聚合
 - **前置条件**
-  - 需在测试配置中提供远程端点或使用 mock client（文件内部包含模拟客户端）
+  - 需在测试配置中提供远程端点或使用测试客户端（文件内部包含测试客户端）
 - **执行步骤概览**
-  1. 构造远程 Provider/Cluster 客户端，伪造资源快照。
-  2. 将快照写入 Discovery Manager，验证跨域容量被聚合。
-  3. 断言资源标签、可用节点列表中包含远端节点。
+  1. 构造远程 Provider/Cluster 客户端，准备资源快照（包括 GPU 信息）。
+  2. 将快照写入 Discovery Manager，验证跨域容量被聚合（包括 GPU 聚合）。
+  3. 断言资源标签、可用节点列表中包含远端节点，验证 GPU 标签正确性。
 
 ---
 
@@ -80,20 +84,18 @@
   2. 场景一：发起低需求请求，断言 `scheduler.Service` 返回本地 Provider，`discovery` 未被调用。
   3. 场景二：本地 manager 返回 “无可用资源” 错误，确认返回体携带错误文本且未触发远程查询。
 
-### 2.2 跨域调度（触发条件 / 目标节点选择 / 过期节点清理 / 失败降级）
+### 2.2 跨域调度（触发条件 / 目标节点选择 / 过期节点清理）
 - **文件**：`hierarchical-scheduling/cross_domain_test.go`
 - **覆盖子测试点**
-  - **触发条件**：本地失败且错误包含 “failed to find available provider” 时自动升级
+  - **触发条件**：本地失败且错误包含 "failed to find available provider" 时自动升级
   - **目标节点选择**：优先选可调度地址、资源最多的节点
   - **过期节点清理**：根据 TTL 过滤掉久未更新节点
-  - **失败降级**：域内调度失败后降级至全局调度
 - **前置条件**
-  - 纯 mock（`mockLocal`、`mockPeerExecutor`、`mockGlobal`）即可
+  - 纯 mock（`mockLocal`、`mockPeerExecutor`）即可
 - **执行步骤**
   1. 触发条件：local 连续失败 -> peer selector 返回节点 -> peer executor 执行；校验路径为 `peer`。
   2. 目标节点：准备两个 Peer（一个含 SchedulerAddress），确保调度命中资源更优+可调度节点。
   3. 过期节点：构造 `LastSeen` 远古节点与新鲜节点，设置 TTL，验证只会命中新鲜节点。
-  4. 失败降级：本地失败，域内执行出错，最终走 `globalExecutor`。
 
 ---
 

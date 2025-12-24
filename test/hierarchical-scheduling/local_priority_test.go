@@ -88,7 +88,7 @@ func (f *fakeLocalResourceManager) GetNodeName() string {
 	return "local-node"
 }
 
-// fakeDiscoveryService 模拟发现到的远程节点
+// fakeDiscoveryService 实现远程节点发现服务
 type fakeDiscoveryService struct {
 	remoteNodes []*discovery.PeerNode
 	queryCalls  int

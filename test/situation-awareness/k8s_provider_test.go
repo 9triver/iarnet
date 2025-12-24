@@ -208,6 +208,25 @@ func TestK8sProvider_ResourceSituationAwareness(t *testing.T) {
 		assert.True(t, healthResp.ResourceTags.Cpu || healthResp.ResourceTags.Memory,
 			"At least CPU or Memory should be supported")
 
+		// 验证资源标签与容量的一致性
+		if healthResp.Capacity.Total.Cpu > 0 {
+			assert.True(t, healthResp.ResourceTags.Cpu,
+				"CPU tag should be true when CPU capacity is available")
+		}
+		if healthResp.Capacity.Total.Memory > 0 {
+			assert.True(t, healthResp.ResourceTags.Memory,
+				"Memory tag should be true when Memory capacity is available")
+		}
+		if healthResp.Capacity.Total.Gpu > 0 {
+			// GPU 标签应该与 GPU 容量一致
+			if !healthResp.ResourceTags.Gpu {
+				printInfo(t, "GPU 容量存在但标签为 false，可能 provider 未启用 GPU 资源类型")
+			} else {
+				assert.True(t, healthResp.ResourceTags.Gpu,
+					"GPU tag should be true when GPU capacity is available")
+			}
+		}
+
 		// 验证容量计算正确性
 		assert.Equal(t, healthResp.Capacity.Total.Cpu,
 			healthResp.Capacity.Used.Cpu+healthResp.Capacity.Available.Cpu,

@@ -208,7 +208,7 @@ func TestRemoteK8sResourcePerception(t *testing.T) {
 		printSuccess(t, fmt.Sprintf("远程节点发现回调触发: %s (%s)", node.NodeName, node.NodeID))
 	})
 
-	// 模拟 Gossip 消息：当前节点接收到远程节点的信息
+	// 通过 Gossip 消息：当前节点接收到远程节点的信息
 	currentManager.ProcessNodeInfo(remotePeerNode, currentAddress)
 	printSuccess(t, "远程节点信息已通过 Gossip 协议传播到当前节点")
 
@@ -328,5 +328,3 @@ func TestRemoteK8sResourcePerception(t *testing.T) {
 	t.Log(colorize("  - 聚合视图成功包含远程节点的 Kubernetes Provider 资源", colorGreen))
 	t.Log(colorize(strings.Repeat("=", 80), colorCyan+colorBold) + "\n")
 }
-
-

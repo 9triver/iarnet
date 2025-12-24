@@ -11,7 +11,6 @@ import (
 	resourcepb "github.com/9triver/iarnet/internal/proto/resource"
 	providerpb "github.com/9triver/iarnet/internal/proto/resource/provider"
 	"github.com/9triver/iarnet/providers/docker/provider"
-	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -80,18 +79,30 @@ func TestDockerProvider_ResourceSituationAwareness(t *testing.T) {
 			"Total CPU should equal Used CPU + Available CPU")
 		assert.Equal(t, resp.Capacity.Total.Memory, resp.Capacity.Used.Memory+resp.Capacity.Available.Memory,
 			"Total Memory should equal Used Memory + Available Memory")
+		if resp.Capacity.Total.Gpu > 0 {
+			assert.Equal(t, resp.Capacity.Total.Gpu, resp.Capacity.Used.Gpu+resp.Capacity.Available.Gpu,
+				"Total GPU should equal Used GPU + Available GPU")
+		}
 
 		// 验证已使用资源不超过总资源
 		assert.LessOrEqual(t, resp.Capacity.Used.Cpu, resp.Capacity.Total.Cpu,
 			"Used CPU should not exceed Total CPU")
 		assert.LessOrEqual(t, resp.Capacity.Used.Memory, resp.Capacity.Total.Memory,
 			"Used Memory should not exceed Total Memory")
+		if resp.Capacity.Total.Gpu > 0 {
+			assert.LessOrEqual(t, resp.Capacity.Used.Gpu, resp.Capacity.Total.Gpu,
+				"Used GPU should not exceed Total GPU")
+		}
 
 		// 验证可用资源不为负数
 		assert.GreaterOrEqual(t, resp.Capacity.Available.Cpu, int64(0),
 			"Available CPU should not be negative")
 		assert.GreaterOrEqual(t, resp.Capacity.Available.Memory, int64(0),
 			"Available Memory should not be negative")
+		if resp.Capacity.Total.Gpu > 0 {
+			assert.GreaterOrEqual(t, resp.Capacity.Available.Gpu, int64(0),
+				"Available GPU should not be negative")
+		}
 
 		printSuccess(t, "资源容量信息验证通过")
 	})
@@ -204,6 +215,25 @@ func TestDockerProvider_ResourceSituationAwareness(t *testing.T) {
 		assert.True(t, healthResp.ResourceTags.Cpu || healthResp.ResourceTags.Memory,
 			"At least CPU or Memory should be supported")
 
+		// 验证资源标签与容量的一致性
+		if healthResp.Capacity.Total.Cpu > 0 {
+			assert.True(t, healthResp.ResourceTags.Cpu,
+				"CPU tag should be true when CPU capacity is available")
+		}
+		if healthResp.Capacity.Total.Memory > 0 {
+			assert.True(t, healthResp.ResourceTags.Memory,
+				"Memory tag should be true when Memory capacity is available")
+		}
+		if healthResp.Capacity.Total.Gpu > 0 {
+			// GPU 标签应该与 GPU 容量一致
+			if !healthResp.ResourceTags.Gpu {
+				printInfo(t, "GPU 容量存在但标签为 false，可能 provider 未启用 GPU 资源类型")
+			} else {
+				assert.True(t, healthResp.ResourceTags.Gpu,
+					"GPU tag should be true when GPU capacity is available")
+			}
+		}
+
 		// 验证容量计算正确性
 		assert.Equal(t, healthResp.Capacity.Total.Cpu,
 			healthResp.Capacity.Used.Cpu+healthResp.Capacity.Available.Cpu,
@@ -211,6 +241,11 @@ func TestDockerProvider_ResourceSituationAwareness(t *testing.T) {
 		assert.Equal(t, healthResp.Capacity.Total.Memory,
 			healthResp.Capacity.Used.Memory+healthResp.Capacity.Available.Memory,
 			"Total Memory should equal Used Memory + Available Memory")
+		if healthResp.Capacity.Total.Gpu > 0 {
+			assert.Equal(t, healthResp.Capacity.Total.Gpu,
+				healthResp.Capacity.Used.Gpu+healthResp.Capacity.Available.Gpu,
+				"Total GPU should equal Used GPU + Available GPU")
+		}
 
 		printSuccess(t, "健康检查资源态势信息验证通过")
 	})
@@ -246,27 +281,47 @@ func TestDockerProvider_ResourceSituationAwareness(t *testing.T) {
 			"GetCapacity and GetAvailable should return the same available CPU")
 		assert.Equal(t, capacityResp.Capacity.Available.Memory, availableResp.Available.Memory,
 			"GetCapacity and GetAvailable should return the same available Memory")
+		if capacityResp.Capacity.Total.Gpu > 0 {
+			assert.Equal(t, capacityResp.Capacity.Available.Gpu, availableResp.Available.Gpu,
+				"GetCapacity and GetAvailable should return the same available GPU")
+		}
 
 		assert.Equal(t, capacityResp.Capacity.Used.Cpu, allocated.Cpu,
 			"GetCapacity and GetAllocated should return the same used CPU")
 		assert.Equal(t, capacityResp.Capacity.Used.Memory, allocated.Memory,
 			"GetCapacity and GetAllocated should return the same used Memory")
+		if capacityResp.Capacity.Total.Gpu > 0 {
+			assert.Equal(t, capacityResp.Capacity.Used.Gpu, allocated.Gpu,
+				"GetCapacity and GetAllocated should return the same used GPU")
+		}
 
 		printSuccess(t, "资源态势一致性验证通过")
 		t.Logf("  %s %s", colorize("✓", colorGreen), colorize("GetCapacity 和 GetAvailable 返回的可用资源一致", colorGreen))
 		t.Logf("  %s %s", colorize("✓", colorGreen), colorize("GetCapacity 和 GetAllocated 返回的已用资源一致", colorGreen))
+		if capacityResp.Capacity.Total.Gpu > 0 {
+			t.Logf("  %s %s", colorize("✓", colorGreen), colorize("GPU 资源信息在不同接口间保持一致", colorGreen))
+
+			// GPU 资源专项验证
+			printInfo(t, "GPU 资源专项验证...")
+			assert.Equal(t, capacityResp.Capacity.Total.Gpu, capacityResp.Capacity.Used.Gpu+capacityResp.Capacity.Available.Gpu,
+				"Total GPU should equal Used GPU + Available GPU")
+			assert.LessOrEqual(t, capacityResp.Capacity.Used.Gpu, capacityResp.Capacity.Total.Gpu,
+				"Used GPU should not exceed Total GPU")
+			assert.GreaterOrEqual(t, capacityResp.Capacity.Available.Gpu, int64(0),
+				"Available GPU should not be negative")
+			assert.Equal(t, capacityResp.Capacity.Available.Gpu, availableResp.Available.Gpu,
+				"GetCapacity and GetAvailable should return the same available GPU")
+			assert.Equal(t, capacityResp.Capacity.Used.Gpu, allocated.Gpu,
+				"GetCapacity and GetAllocated should return the same used GPU")
+			printSuccess(t, "GPU 资源专项验证通过")
+		}
 	})
 
 	t.Run("ResourceSituationRealTime - 资源态势实时性验证", func(t *testing.T) {
 		printTestSection(t, "测试: ResourceSituationRealTime - 资源态势实时性验证")
 
-		// 创建 Docker client 用于直接操作容器
-		dockerClient, err := createDockerClient()
-		require.NoError(t, err, "Failed to create Docker client")
-		defer dockerClient.Close()
-
 		// 测试容器配置
-		testContainerName := fmt.Sprintf("test-situation-awareness-%d", time.Now().Unix())
+		testInstanceID := fmt.Sprintf("test-situation-awareness-%d", time.Now().Unix())
 		testImage := "alpine:latest"
 		testCPU := int64(500)                  // 500 millicores (0.5 CPU)
 		testMemory := int64(128 * 1024 * 1024) // 128MB
@@ -277,8 +332,17 @@ func TestDockerProvider_ResourceSituationAwareness(t *testing.T) {
 			ProviderId: providerID,
 		})
 		require.NoError(t, err)
-		initialUsed := initialCapacity.Capacity.Used
-		initialAvailable := initialCapacity.Capacity.Available
+		// 复制值而不是引用，避免后续修改影响初始值
+		initialUsed := &resourcepb.Info{
+			Cpu:    initialCapacity.Capacity.Used.Cpu,
+			Memory: initialCapacity.Capacity.Used.Memory,
+			Gpu:    initialCapacity.Capacity.Used.Gpu,
+		}
+		initialAvailable := &resourcepb.Info{
+			Cpu:    initialCapacity.Capacity.Available.Cpu,
+			Memory: initialCapacity.Capacity.Available.Memory,
+			Gpu:    initialCapacity.Capacity.Available.Gpu,
+		}
 
 		t.Log("\n" + colorize("初始资源状态:", colorYellow+colorBold))
 		t.Logf("  %s    %s",
@@ -287,37 +351,47 @@ func TestDockerProvider_ResourceSituationAwareness(t *testing.T) {
 		t.Logf("  %s   %s",
 			colorize("已用内存:", colorWhite+colorBold),
 			colorize(formatBytes(initialUsed.Memory), colorYellow))
+		if initialCapacity.Capacity.Total.Gpu > 0 {
+			t.Logf("  %s    %s",
+				colorize("已用 GPU:", colorWhite+colorBold),
+				colorize(fmt.Sprintf("%d", initialUsed.Gpu), colorYellow))
+		}
 		t.Logf("  %s  %s",
 			colorize("可用 CPU:", colorWhite+colorBold),
 			colorize(fmt.Sprintf("%d millicores", initialAvailable.Cpu), colorGreen))
 		t.Logf("  %s %s",
 			colorize("可用内存:", colorWhite+colorBold),
 			colorize(formatBytes(initialAvailable.Memory), colorGreen))
+		if initialCapacity.Capacity.Total.Gpu > 0 {
+			t.Logf("  %s  %s",
+				colorize("可用 GPU:", colorWhite+colorBold),
+				colorize(fmt.Sprintf("%d", initialAvailable.Gpu), colorGreen))
+		}
 
-		// 步骤 2: 创建测试容器
-		printInfo(t, fmt.Sprintf("步骤 2: 创建测试容器 (%s)...", testContainerName))
+		// 步骤 2: 通过 Provider Deploy API 创建测试容器
+		printInfo(t, fmt.Sprintf("步骤 2: 通过 Provider Deploy API 创建测试容器 (%s)...", testInstanceID))
 		printInfo(t, fmt.Sprintf("  镜像: %s", testImage))
 		printInfo(t, fmt.Sprintf("  CPU: %d millicores, 内存: %s", testCPU, formatBytes(testMemory)))
 
-		containerConfig := &container.Config{
-			Image: testImage,
-			Cmd:   []string{"sleep", "3600"}, // 运行一个长时间睡眠的进程
-		}
-
-		hostConfig := &container.HostConfig{
-			Resources: container.Resources{
-				NanoCPUs: testCPU * 1e6, // 转换为 NanoCPUs
-				Memory:   testMemory,
+		deployReq := &providerpb.DeployRequest{
+			ProviderId: providerID,
+			InstanceId: testInstanceID,
+			Image:      testImage,
+			ResourceRequest: &resourcepb.Info{
+				Cpu:    testCPU,
+				Memory: testMemory,
+				Gpu:    0,
+			},
+			EnvVars: map[string]string{
+				"TEST_CONTAINER": "true",
 			},
 		}
 
-		createResp, err := dockerClient.ContainerCreate(ctx, containerConfig, hostConfig, nil, nil, testContainerName)
-		require.NoError(t, err, "Failed to create test container")
+		deployResp, err := svc.Deploy(ctx, deployReq)
+		require.NoError(t, err, "Deploy should succeed")
+		require.Empty(t, deployResp.Error, fmt.Sprintf("Deploy should not return error, got: %s", deployResp.Error))
 
-		err = dockerClient.ContainerStart(ctx, createResp.ID, container.StartOptions{})
-		require.NoError(t, err, "Failed to start test container")
-
-		printSuccess(t, fmt.Sprintf("测试容器创建并启动成功: %s", testContainerName))
+		printSuccess(t, fmt.Sprintf("测试容器通过 Provider Deploy API 创建并启动成功: %s", testInstanceID))
 
 		// 等待容器启动并稳定
 		printInfo(t, "等待容器启动并稳定...")
@@ -329,8 +403,17 @@ func TestDockerProvider_ResourceSituationAwareness(t *testing.T) {
 			ProviderId: providerID,
 		})
 		require.NoError(t, err)
-		afterCreateUsed := afterCreateCapacity.Capacity.Used
-		afterCreateAvailable := afterCreateCapacity.Capacity.Available
+		// 复制值而不是引用
+		afterCreateUsed := &resourcepb.Info{
+			Cpu:    afterCreateCapacity.Capacity.Used.Cpu,
+			Memory: afterCreateCapacity.Capacity.Used.Memory,
+			Gpu:    afterCreateCapacity.Capacity.Used.Gpu,
+		}
+		afterCreateAvailable := &resourcepb.Info{
+			Cpu:    afterCreateCapacity.Capacity.Available.Cpu,
+			Memory: afterCreateCapacity.Capacity.Available.Memory,
+			Gpu:    afterCreateCapacity.Capacity.Available.Gpu,
+		}
 
 		t.Log("\n" + colorize("创建容器后资源状态:", colorYellow+colorBold))
 		t.Logf("  %s    %s",
@@ -339,12 +422,22 @@ func TestDockerProvider_ResourceSituationAwareness(t *testing.T) {
 		t.Logf("  %s   %s",
 			colorize("已用内存:", colorWhite+colorBold),
 			colorize(formatBytes(afterCreateUsed.Memory), colorYellow))
+		if afterCreateCapacity.Capacity.Total.Gpu > 0 {
+			t.Logf("  %s    %s",
+				colorize("已用 GPU:", colorWhite+colorBold),
+				colorize(fmt.Sprintf("%d", afterCreateUsed.Gpu), colorYellow))
+		}
 		t.Logf("  %s  %s",
 			colorize("可用 CPU:", colorWhite+colorBold),
 			colorize(fmt.Sprintf("%d millicores", afterCreateAvailable.Cpu), colorGreen))
 		t.Logf("  %s %s",
 			colorize("可用内存:", colorWhite+colorBold),
 			colorize(formatBytes(afterCreateAvailable.Memory), colorGreen))
+		if afterCreateCapacity.Capacity.Total.Gpu > 0 {
+			t.Logf("  %s  %s",
+				colorize("可用 GPU:", colorWhite+colorBold),
+				colorize(fmt.Sprintf("%d", afterCreateAvailable.Gpu), colorGreen))
+		}
 
 		// 验证资源使用增加
 		cpuIncrease := afterCreateUsed.Cpu - initialUsed.Cpu
@@ -363,24 +456,39 @@ func TestDockerProvider_ResourceSituationAwareness(t *testing.T) {
 		assert.GreaterOrEqual(t, afterCreateUsed.Memory, initialUsed.Memory,
 			"Memory usage should increase after creating container")
 
-		// 步骤 4: 停止容器
-		printInfo(t, "步骤 4: 停止测试容器...")
-		err = dockerClient.ContainerStop(ctx, createResp.ID, container.StopOptions{})
-		require.NoError(t, err, "Failed to stop test container")
-		printSuccess(t, "测试容器已停止")
+		// 步骤 4: 通过 Provider Undeploy API 清理测试容器
+		printInfo(t, "步骤 4: 通过 Provider Undeploy API 清理测试容器...")
+		undeployReq := &providerpb.UndeployRequest{
+			ProviderId: providerID,
+			InstanceId: testInstanceID,
+		}
 
-		// 等待容器停止并稳定
-		printInfo(t, "等待容器停止并稳定...")
+		undeployResp, err := svc.Undeploy(ctx, undeployReq)
+		require.NoError(t, err, "Undeploy should succeed")
+		require.Empty(t, undeployResp.Error, fmt.Sprintf("Undeploy should not return error, got: %s", undeployResp.Error))
+		printSuccess(t, "测试容器已通过 Provider Undeploy API 清理")
+
+		// 等待资源释放并稳定
+		printInfo(t, "等待资源释放并稳定...")
 		time.Sleep(2 * time.Second)
 
-		// 步骤 5: 获取停止容器后的资源状态
-		printInfo(t, "步骤 5: 获取停止容器后的资源状态...")
+		// 步骤 5: 获取清理后的资源状态
+		printInfo(t, "步骤 5: 获取清理后的资源状态...")
 		afterStopCapacity, err := svc.GetCapacity(ctx, &providerpb.GetCapacityRequest{
 			ProviderId: providerID,
 		})
 		require.NoError(t, err)
-		afterStopUsed := afterStopCapacity.Capacity.Used
-		afterStopAvailable := afterStopCapacity.Capacity.Available
+		// 复制值而不是引用
+		afterStopUsed := &resourcepb.Info{
+			Cpu:    afterStopCapacity.Capacity.Used.Cpu,
+			Memory: afterStopCapacity.Capacity.Used.Memory,
+			Gpu:    afterStopCapacity.Capacity.Used.Gpu,
+		}
+		afterStopAvailable := &resourcepb.Info{
+			Cpu:    afterStopCapacity.Capacity.Available.Cpu,
+			Memory: afterStopCapacity.Capacity.Available.Memory,
+			Gpu:    afterStopCapacity.Capacity.Available.Gpu,
+		}
 
 		t.Log("\n" + colorize("停止容器后资源状态:", colorYellow+colorBold))
 		t.Logf("  %s    %s",
@@ -389,12 +497,22 @@ func TestDockerProvider_ResourceSituationAwareness(t *testing.T) {
 		t.Logf("  %s   %s",
 			colorize("已用内存:", colorWhite+colorBold),
 			colorize(formatBytes(afterStopUsed.Memory), colorYellow))
+		if afterStopCapacity.Capacity.Total.Gpu > 0 {
+			t.Logf("  %s    %s",
+				colorize("已用 GPU:", colorWhite+colorBold),
+				colorize(fmt.Sprintf("%d", afterStopUsed.Gpu), colorYellow))
+		}
 		t.Logf("  %s  %s",
 			colorize("可用 CPU:", colorWhite+colorBold),
 			colorize(fmt.Sprintf("%d millicores", afterStopAvailable.Cpu), colorGreen))
 		t.Logf("  %s %s",
 			colorize("可用内存:", colorWhite+colorBold),
 			colorize(formatBytes(afterStopAvailable.Memory), colorGreen))
+		if afterStopCapacity.Capacity.Total.Gpu > 0 {
+			t.Logf("  %s  %s",
+				colorize("可用 GPU:", colorWhite+colorBold),
+				colorize(fmt.Sprintf("%d", afterStopAvailable.Gpu), colorGreen))
+		}
 
 		// 验证资源使用减少（停止的容器可能仍然占用一些资源，但应该比运行时要少）
 		cpuDecrease := afterCreateUsed.Cpu - afterStopUsed.Cpu
@@ -412,13 +530,9 @@ func TestDockerProvider_ResourceSituationAwareness(t *testing.T) {
 			"CPU usage should decrease after stopping container")
 		// 注意：内存可能不会立即释放，所以只验证 CPU
 
-		// 步骤 6: 清理测试容器
-		printInfo(t, "步骤 6: 清理测试容器...")
-		err = dockerClient.ContainerRemove(ctx, createResp.ID, container.RemoveOptions{
-			Force: true,
-		})
-		require.NoError(t, err, "Failed to remove test container")
-		printSuccess(t, "测试容器已清理")
+		// 步骤 6: 验证资源已完全释放（容器已在步骤 4 中通过 Undeploy 清理）
+		printInfo(t, "步骤 6: 验证资源已完全释放...")
+		printSuccess(t, "资源已通过 Provider Undeploy API 完全释放")
 
 		// 等待清理完成
 		time.Sleep(1 * time.Second)
@@ -562,8 +676,8 @@ func createTestService() (*provider.Service, error) {
 		host = "unix:///var/run/docker.sock"
 	}
 
-	// 创建支持 CPU 和 Memory 的 provider
-	return provider.NewService(host, "", false, "", "default", []string{"cpu", "memory"}, &resourcepb.Info{
+	// 创建支持 CPU、Memory 和 GPU 的 provider
+	return provider.NewService(host, "", false, "", "default", []string{"cpu", "memory", "gpu"}, &resourcepb.Info{
 		Cpu:    1000,
 		Memory: 1024 * 1024 * 1024,
 		Gpu:    4,

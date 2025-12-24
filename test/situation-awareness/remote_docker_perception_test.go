@@ -207,7 +207,7 @@ func TestRemoteDockerResourcePerception(t *testing.T) {
 		printSuccess(t, fmt.Sprintf("远程节点发现回调触发: %s (%s)", node.NodeName, node.NodeID))
 	})
 
-	// 模拟 Gossip 消息：当前节点接收到远程节点的信息
+	// 通过 Gossip 消息：当前节点接收到远程节点的信息
 	currentManager.ProcessNodeInfo(remotePeerNode, currentAddress)
 	printSuccess(t, "远程节点信息已通过 Gossip 协议传播到当前节点")
 

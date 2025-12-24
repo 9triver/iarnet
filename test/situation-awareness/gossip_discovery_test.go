@@ -127,8 +127,8 @@ func TestGossipDiscovery_NewPeers(t *testing.T) {
 		formatBytes(newPeerNode.ResourceCapacity.Total.Memory),
 		newPeerNode.ResourceCapacity.Total.GPU)
 
-	// 处理新节点信息（模拟 Gossip 接收）
-	printTestSection(t, "步骤 4: 处理新节点信息（模拟 Gossip 接收）")
+	// 处理新节点信息（通过 Gossip 接收）
+	printTestSection(t, "步骤 4: 处理新节点信息（通过 Gossip 接收）")
 	discoveredNodes := make(chan string, 10) // 使用 channel 来接收异步回调
 	manager.SetOnNodeDiscovered(func(node *discovery.PeerNode) {
 		discoveredNodes <- node.NodeID
@@ -540,7 +540,7 @@ func TestGossipDiscovery_ExpirationManagement(t *testing.T) {
 		printInfo(t, fmt.Sprintf("节点丢失回调触发: %s", nodeID))
 	})
 
-	// 手动触发清理（模拟清理循环）
+	// 手动触发清理（执行清理循环）
 	// 注意：实际的清理循环在 manager 内部运行，这里我们直接调用清理逻辑
 	// 由于清理是内部的，我们需要等待清理循环执行，或者通过更新节点来触发
 	// 为了测试，我们等待一小段时间让清理循环有机会执行

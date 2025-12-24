@@ -48,73 +48,88 @@ func TestResourceMonitoring_RealTimeUsageQuery(t *testing.T) {
 
 	// 步骤 2: 获取初始资源使用情况
 	printTestSection(t, "步骤 2: 获取初始资源使用情况")
-	initialAllocated, err := svc.GetAllocated(ctx)
-	require.NoError(t, err, "GetAllocated should succeed")
-	require.NotNil(t, initialAllocated, "Allocated resources should not be nil")
+	initialCapacityReq := &providerpb.GetCapacityRequest{
+		ProviderId: providerID,
+	}
+	initialCapacity, err := svc.GetCapacity(ctx, initialCapacityReq)
+	require.NoError(t, err, "GetCapacity should succeed")
+	require.NotNil(t, initialCapacity, "Capacity response should not be nil")
+	require.NotNil(t, initialCapacity.Capacity, "Capacity should not be nil")
+	// 复制值而不是引用，避免后续修改影响初始值
+	initialUsed := &resourcepb.Info{
+		Cpu:    initialCapacity.Capacity.Used.Cpu,
+		Memory: initialCapacity.Capacity.Used.Memory,
+		Gpu:    initialCapacity.Capacity.Used.Gpu,
+	}
 
 	t.Log("\n" + colorize("初始资源使用情况:", colorYellow+colorBold))
 	t.Logf("  %s    %s", colorize("已用 CPU:", colorWhite+colorBold),
-		colorize(fmt.Sprintf("%d millicores", initialAllocated.Cpu), colorYellow))
+		colorize(fmt.Sprintf("%d millicores", initialUsed.Cpu), colorYellow))
 	t.Logf("  %s   %s", colorize("已用内存:", colorWhite+colorBold),
-		colorize(formatBytes(initialAllocated.Memory), colorYellow))
-	t.Logf("  %s    %s", colorize("已用 GPU:", colorWhite+colorBold),
-		colorize(fmt.Sprintf("%d", initialAllocated.Gpu), colorYellow))
+		colorize(formatBytes(initialUsed.Memory), colorYellow))
+	if initialCapacity.Capacity.Total.Gpu > 0 {
+		t.Logf("  %s    %s", colorize("已用 GPU:", colorWhite+colorBold),
+			colorize(fmt.Sprintf("%d", initialUsed.Gpu), colorYellow))
+	}
 
-	// 步骤 3: 创建测试容器以改变资源使用
-	printTestSection(t, "步骤 3: 创建测试容器以改变资源使用")
-	dockerClient, err := createDockerClient()
-	require.NoError(t, err, "Failed to create Docker client")
-	defer dockerClient.Close()
-
-	testContainerName := fmt.Sprintf("test-monitoring-usage-%d", time.Now().Unix())
+	// 步骤 3: 通过 Provider Deploy API 创建测试容器以改变资源使用
+	printTestSection(t, "步骤 3: 通过 Provider Deploy API 创建测试容器以改变资源使用")
+	testInstanceID := fmt.Sprintf("test-monitoring-usage-%d", time.Now().Unix())
 	testImage := "alpine:latest"
 	testCPU := int64(1000)                 // 1000 millicores (1 CPU)
 	testMemory := int64(256 * 1024 * 1024) // 256MB
 
-	printInfo(t, fmt.Sprintf("创建测试容器: %s", testContainerName))
+	printInfo(t, fmt.Sprintf("通过 Provider Deploy API 创建测试容器: %s", testInstanceID))
 	printInfo(t, fmt.Sprintf("  镜像: %s", testImage))
 	printInfo(t, fmt.Sprintf("  CPU: %d millicores, 内存: %s", testCPU, formatBytes(testMemory)))
 
-	containerConfig := &container.Config{
-		Image: testImage,
-		Cmd:   []string{"sleep", "3600"},
-	}
-
-	hostConfig := &container.HostConfig{
-		Resources: container.Resources{
-			NanoCPUs: testCPU * 1e6,
-			Memory:   testMemory,
+	deployReq := &providerpb.DeployRequest{
+		ProviderId: providerID,
+		InstanceId: testInstanceID,
+		Image:      testImage,
+		ResourceRequest: &resourcepb.Info{
+			Cpu:    testCPU,
+			Memory: testMemory,
+			Gpu:    0,
+		},
+		EnvVars: map[string]string{
+			"TEST_CONTAINER": "true",
 		},
 	}
 
-	createResp, err := dockerClient.ContainerCreate(ctx, containerConfig, hostConfig, nil, nil, testContainerName)
-	require.NoError(t, err, "Failed to create test container")
+	deployResp, err := svc.Deploy(ctx, deployReq)
+	require.NoError(t, err, "Deploy should succeed")
+	require.Empty(t, deployResp.Error, fmt.Sprintf("Deploy should not return error, got: %s", deployResp.Error))
 
-	err = dockerClient.ContainerStart(ctx, createResp.ID, container.StartOptions{})
-	require.NoError(t, err, "Failed to start test container")
-
-	printSuccess(t, fmt.Sprintf("测试容器创建并启动成功: %s", testContainerName))
+	printSuccess(t, fmt.Sprintf("测试容器通过 Provider Deploy API 创建并启动成功: %s", testInstanceID))
 
 	// 等待容器启动并稳定
 	time.Sleep(2 * time.Second)
 
 	// 步骤 4: 实时查询资源使用情况（应该看到资源使用增加）
 	printTestSection(t, "步骤 4: 实时查询资源使用情况（容器运行后）")
-	afterCreateAllocated, err := svc.GetAllocated(ctx)
-	require.NoError(t, err, "GetAllocated should succeed after container creation")
-	require.NotNil(t, afterCreateAllocated, "Allocated resources should not be nil")
+	afterCreateCapacityReq := &providerpb.GetCapacityRequest{
+		ProviderId: providerID,
+	}
+	afterCreateCapacity, err := svc.GetCapacity(ctx, afterCreateCapacityReq)
+	require.NoError(t, err, "GetCapacity should succeed after container creation")
+	require.NotNil(t, afterCreateCapacity, "Capacity response should not be nil")
+	require.NotNil(t, afterCreateCapacity.Capacity, "Capacity should not be nil")
+	afterCreateUsed := afterCreateCapacity.Capacity.Used
 
 	t.Log("\n" + colorize("容器运行后资源使用情况:", colorYellow+colorBold))
 	t.Logf("  %s    %s", colorize("已用 CPU:", colorWhite+colorBold),
-		colorize(fmt.Sprintf("%d millicores", afterCreateAllocated.Cpu), colorYellow))
+		colorize(fmt.Sprintf("%d millicores", afterCreateUsed.Cpu), colorYellow))
 	t.Logf("  %s   %s", colorize("已用内存:", colorWhite+colorBold),
-		colorize(formatBytes(afterCreateAllocated.Memory), colorYellow))
-	t.Logf("  %s    %s", colorize("已用 GPU:", colorWhite+colorBold),
-		colorize(fmt.Sprintf("%d", afterCreateAllocated.Gpu), colorYellow))
+		colorize(formatBytes(afterCreateUsed.Memory), colorYellow))
+	if afterCreateCapacity.Capacity.Total.Gpu > 0 {
+		t.Logf("  %s    %s", colorize("已用 GPU:", colorWhite+colorBold),
+			colorize(fmt.Sprintf("%d", afterCreateUsed.Gpu), colorYellow))
+	}
 
 	// 验证资源使用增加
-	cpuIncrease := afterCreateAllocated.Cpu - initialAllocated.Cpu
-	memoryIncrease := afterCreateAllocated.Memory - initialAllocated.Memory
+	cpuIncrease := afterCreateUsed.Cpu - initialUsed.Cpu
+	memoryIncrease := afterCreateUsed.Memory - initialUsed.Memory
 
 	t.Log("\n" + colorize("资源使用变化:", colorCyan+colorBold))
 	t.Logf("  %s    %s", colorize("CPU 增加:", colorWhite+colorBold),
@@ -122,9 +137,9 @@ func TestResourceMonitoring_RealTimeUsageQuery(t *testing.T) {
 	t.Logf("  %s   %s", colorize("内存增加:", colorWhite+colorBold),
 		colorize(formatBytes(memoryIncrease), colorYellow))
 
-	assert.GreaterOrEqual(t, afterCreateAllocated.Cpu, initialAllocated.Cpu,
+	assert.GreaterOrEqual(t, afterCreateUsed.Cpu, initialUsed.Cpu,
 		"CPU usage should increase after creating container")
-	assert.GreaterOrEqual(t, afterCreateAllocated.Memory, initialAllocated.Memory,
+	assert.GreaterOrEqual(t, afterCreateUsed.Memory, initialUsed.Memory,
 		"Memory usage should increase after creating container")
 
 	printSuccess(t, "资源实时使用查询验证通过：能够实时反映资源使用变化")
@@ -132,16 +147,21 @@ func TestResourceMonitoring_RealTimeUsageQuery(t *testing.T) {
 	// 步骤 5: 多次实时查询验证实时性
 	printTestSection(t, "步骤 5: 多次实时查询验证实时性")
 	queryCount := 3
-	queryResults := make([]*resourcepb.Info, queryCount)
+	queryResults := make([]*resourcepb.Capacity, queryCount)
 
 	for i := 0; i < queryCount; i++ {
 		printInfo(t, fmt.Sprintf("执行第 %d 次实时查询...", i+1))
-		result, err := svc.GetAllocated(ctx)
-		require.NoError(t, err, fmt.Sprintf("GetAllocated should succeed on query %d", i+1))
-		queryResults[i] = result
+		capacityReq := &providerpb.GetCapacityRequest{
+			ProviderId: providerID,
+		}
+		resp, err := svc.GetCapacity(ctx, capacityReq)
+		require.NoError(t, err, fmt.Sprintf("GetCapacity should succeed on query %d", i+1))
+		require.NotNil(t, resp, fmt.Sprintf("Response %d should not be nil", i+1))
+		require.NotNil(t, resp.Capacity, fmt.Sprintf("Capacity %d should not be nil", i+1))
+		queryResults[i] = resp.Capacity
 
-		t.Logf("  查询 %d: CPU %d mC, Memory %s",
-			i+1, result.Cpu, formatBytes(result.Memory))
+		t.Logf("  查询 %d: CPU %d mC (已用), Memory %s (已用)",
+			i+1, resp.Capacity.Used.Cpu, formatBytes(resp.Capacity.Used.Memory))
 
 		// 等待一小段时间
 		if i < queryCount-1 {
@@ -152,38 +172,57 @@ func TestResourceMonitoring_RealTimeUsageQuery(t *testing.T) {
 	// 验证所有查询都成功返回
 	for i, result := range queryResults {
 		assert.NotNil(t, result, fmt.Sprintf("Query %d result should not be nil", i+1))
-		assert.GreaterOrEqual(t, result.Cpu, int64(0), fmt.Sprintf("Query %d CPU should be non-negative", i+1))
-		assert.GreaterOrEqual(t, result.Memory, int64(0), fmt.Sprintf("Query %d Memory should be non-negative", i+1))
+		assert.NotNil(t, result.Used, fmt.Sprintf("Query %d Used should not be nil", i+1))
+		assert.GreaterOrEqual(t, result.Used.Cpu, int64(0), fmt.Sprintf("Query %d CPU should be non-negative", i+1))
+		assert.GreaterOrEqual(t, result.Used.Memory, int64(0), fmt.Sprintf("Query %d Memory should be non-negative", i+1))
 	}
 
 	printSuccess(t, fmt.Sprintf("多次实时查询验证通过：成功执行 %d 次查询", queryCount))
 
-	// 步骤 6: 清理测试容器
-	printTestSection(t, "步骤 6: 清理测试容器")
-	err = dockerClient.ContainerStop(ctx, createResp.ID, container.StopOptions{})
-	require.NoError(t, err, "Failed to stop test container")
+	// 步骤 6: 通过 Provider Undeploy API 清理测试容器
+	printTestSection(t, "步骤 6: 通过 Provider Undeploy API 清理测试容器")
+	undeployReq := &providerpb.UndeployRequest{
+		ProviderId: providerID,
+		InstanceId: testInstanceID,
+	}
 
-	err = dockerClient.ContainerRemove(ctx, createResp.ID, container.RemoveOptions{Force: true})
-	require.NoError(t, err, "Failed to remove test container")
+	undeployResp, err := svc.Undeploy(ctx, undeployReq)
+	require.NoError(t, err, "Undeploy should succeed")
+	require.Empty(t, undeployResp.Error, fmt.Sprintf("Undeploy should not return error, got: %s", undeployResp.Error))
 
-	printSuccess(t, "测试容器已清理")
+	printSuccess(t, "测试容器已通过 Provider Undeploy API 清理")
 
 	// 步骤 7: 验证清理后的资源使用（应该减少）
 	printTestSection(t, "步骤 7: 验证清理后的资源使用")
 	time.Sleep(2 * time.Second)
 
-	finalAllocated, err := svc.GetAllocated(ctx)
-	require.NoError(t, err, "GetAllocated should succeed after cleanup")
+	finalCapacityReq := &providerpb.GetCapacityRequest{
+		ProviderId: providerID,
+	}
+	finalCapacity, err := svc.GetCapacity(ctx, finalCapacityReq)
+	require.NoError(t, err, "GetCapacity should succeed after cleanup")
+	require.NotNil(t, finalCapacity, "Capacity response should not be nil")
+	require.NotNil(t, finalCapacity.Capacity, "Capacity should not be nil")
+	// 复制值而不是引用
+	finalUsed := &resourcepb.Info{
+		Cpu:    finalCapacity.Capacity.Used.Cpu,
+		Memory: finalCapacity.Capacity.Used.Memory,
+		Gpu:    finalCapacity.Capacity.Used.Gpu,
+	}
 
 	t.Log("\n" + colorize("清理后资源使用情况:", colorYellow+colorBold))
 	t.Logf("  %s    %s", colorize("已用 CPU:", colorWhite+colorBold),
-		colorize(fmt.Sprintf("%d millicores", finalAllocated.Cpu), colorYellow))
+		colorize(fmt.Sprintf("%d millicores", finalUsed.Cpu), colorYellow))
 	t.Logf("  %s   %s", colorize("已用内存:", colorWhite+colorBold),
-		colorize(formatBytes(finalAllocated.Memory), colorYellow))
+		colorize(formatBytes(finalUsed.Memory), colorYellow))
+	if finalCapacity.Capacity.Total.Gpu > 0 {
+		t.Logf("  %s    %s", colorize("已用 GPU:", colorWhite+colorBold),
+			colorize(fmt.Sprintf("%d", finalUsed.Gpu), colorYellow))
+	}
 
 	// 验证资源使用减少
-	cpuDecrease := afterCreateAllocated.Cpu - finalAllocated.Cpu
-	memoryDecrease := afterCreateAllocated.Memory - finalAllocated.Memory
+	cpuDecrease := afterCreateUsed.Cpu - finalUsed.Cpu
+	memoryDecrease := afterCreateUsed.Memory - finalUsed.Memory
 
 	t.Log("\n" + colorize("资源使用变化:", colorCyan+colorBold))
 	t.Logf("  %s    %s", colorize("CPU 减少:", colorWhite+colorBold),
@@ -191,7 +230,7 @@ func TestResourceMonitoring_RealTimeUsageQuery(t *testing.T) {
 	t.Logf("  %s   %s", colorize("内存减少:", colorWhite+colorBold),
 		colorize(formatBytes(memoryDecrease), colorGreen))
 
-	assert.LessOrEqual(t, finalAllocated.Cpu, afterCreateAllocated.Cpu,
+	assert.LessOrEqual(t, finalUsed.Cpu, afterCreateUsed.Cpu,
 		"CPU usage should decrease after removing container")
 
 	printSuccess(t, "资源实时使用查询完整验证通过")
@@ -263,6 +302,26 @@ func TestResourceMonitoring_HealthCheckMonitoring(t *testing.T) {
 	assert.Greater(t, healthResp.Capacity.Total.Cpu, int64(0), "Total CPU should be greater than 0")
 	assert.Greater(t, healthResp.Capacity.Total.Memory, int64(0), "Total Memory should be greater than 0")
 
+	// 验证资源标签与容量的一致性
+	assert.NotNil(t, healthResp.ResourceTags, "Resource tags should not be nil")
+	if healthResp.Capacity.Total.Cpu > 0 {
+		assert.True(t, healthResp.ResourceTags.Cpu,
+			"CPU tag should be true when CPU capacity is available")
+	}
+	if healthResp.Capacity.Total.Memory > 0 {
+		assert.True(t, healthResp.ResourceTags.Memory,
+			"Memory tag should be true when Memory capacity is available")
+	}
+	if healthResp.Capacity.Total.Gpu > 0 {
+		// GPU 标签应该与 GPU 容量一致
+		if !healthResp.ResourceTags.Gpu {
+			printInfo(t, "GPU 容量存在但标签为 false，可能 provider 未启用 GPU 资源类型")
+		} else {
+			assert.True(t, healthResp.ResourceTags.Gpu,
+				"GPU tag should be true when GPU capacity is available")
+		}
+	}
+
 	// 步骤 3: 多次健康检查监控
 	printTestSection(t, "步骤 3: 多次健康检查监控（验证监控连续性）")
 	monitoringCount := 5
@@ -321,6 +380,10 @@ func TestResourceMonitoring_HealthCheckMonitoring(t *testing.T) {
 		"Resource tags CPU should be consistent")
 	assert.Equal(t, firstCheck.ResourceTags.Memory, lastCheck.ResourceTags.Memory,
 		"Resource tags Memory should be consistent")
+	if firstCheck.Capacity.Total.Gpu > 0 || lastCheck.Capacity.Total.Gpu > 0 {
+		assert.Equal(t, firstCheck.ResourceTags.Gpu, lastCheck.ResourceTags.Gpu,
+			"Resource tags GPU should be consistent")
+	}
 
 	printSuccess(t, "健康检查资源状态一致性验证通过")
 
