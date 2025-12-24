@@ -205,9 +205,9 @@ func TestK8sProvider_ResourceSituationAwareness(t *testing.T) {
 
 		// 验证资源标签
 		assert.NotNil(t, healthResp.ResourceTags, "Resource tags should not be nil")
-		// Kubernetes provider 通常支持 CPU 和 Memory
-		assert.True(t, healthResp.ResourceTags.Cpu || healthResp.ResourceTags.Memory,
-			"At least CPU or Memory should be supported")
+		// Kubernetes provider 通常支持 CPU、Memory 和 GPU
+		assert.True(t, healthResp.ResourceTags.Cpu || healthResp.ResourceTags.Memory || healthResp.ResourceTags.Gpu,
+			"At least CPU, Memory or GPU should be supported")
 
 		// 验证资源标签与容量的一致性
 		if healthResp.Capacity.Total.Cpu > 0 {
@@ -219,13 +219,9 @@ func TestK8sProvider_ResourceSituationAwareness(t *testing.T) {
 				"Memory tag should be true when Memory capacity is available")
 		}
 		if healthResp.Capacity.Total.Gpu > 0 {
-			// GPU 标签应该与 GPU 容量一致
-			if !healthResp.ResourceTags.Gpu {
-				testutil.PrintInfo(t, "GPU 容量存在但标签为 false，可能 provider 未启用 GPU 资源类型")
-			} else {
-				assert.True(t, healthResp.ResourceTags.Gpu,
-					"GPU tag should be true when GPU capacity is available")
-			}
+			// GPU 标签应该与 GPU 容量一致（已启用 GPU 资源类型）
+			assert.True(t, healthResp.ResourceTags.Gpu,
+				"GPU tag should be true when GPU capacity is available and GPU resource type is enabled")
 		}
 
 		// 验证容量计算正确性
@@ -294,6 +290,7 @@ func TestK8sProvider_ResourceSituationAwareness(t *testing.T) {
 		testImage := "busybox:latest"
 		testCPU := int64(100)                 // 100 millicores (0.1 CPU)
 		testMemory := int64(64 * 1024 * 1024) // 64MB
+		testGPU := int64(1)                   // 1 GPU
 
 		// 步骤 1: 获取初始资源状态
 		testutil.PrintInfo(t, "步骤 1: 获取初始资源状态...")
@@ -311,20 +308,31 @@ func TestK8sProvider_ResourceSituationAwareness(t *testing.T) {
 		t.Logf("  %s   %s",
 			testutil.Colorize("已用内存:", testutil.ColorWhite+testutil.ColorBold),
 			testutil.Colorize(testutil.FormatBytes(initialUsed.Memory), testutil.ColorYellow))
+		if initialCapacity.Capacity.Total.Gpu > 0 {
+			t.Logf("  %s    %s",
+				testutil.Colorize("已用 GPU:", testutil.ColorWhite+testutil.ColorBold),
+				testutil.Colorize(fmt.Sprintf("%d", initialUsed.Gpu), testutil.ColorYellow))
+		}
 		t.Logf("  %s  %s",
 			testutil.Colorize("可用 CPU:", testutil.ColorWhite+testutil.ColorBold),
 			testutil.Colorize(fmt.Sprintf("%d millicores", initialAvailable.Cpu), testutil.ColorGreen))
 		t.Logf("  %s %s",
 			testutil.Colorize("可用内存:", testutil.ColorWhite+testutil.ColorBold),
 			testutil.Colorize(testutil.FormatBytes(initialAvailable.Memory), testutil.ColorGreen))
+		if initialCapacity.Capacity.Total.Gpu > 0 {
+			t.Logf("  %s  %s",
+				testutil.Colorize("可用 GPU:", testutil.ColorWhite+testutil.ColorBold),
+				testutil.Colorize(fmt.Sprintf("%d", initialAvailable.Gpu), testutil.ColorGreen))
+		}
 
 		// 步骤 2: 创建测试 Pod
 		testutil.PrintInfo(t, fmt.Sprintf("步骤 2: 创建测试 Pod (%s)...", testPodName))
 		testutil.PrintInfo(t, fmt.Sprintf("  镜像: %s", testImage))
-		testutil.PrintInfo(t, fmt.Sprintf("  CPU: %d millicores, 内存: %s", testCPU, testutil.FormatBytes(testMemory)))
+		testutil.PrintInfo(t, fmt.Sprintf("  CPU: %d millicores, 内存: %s, GPU: %d", testCPU, testutil.FormatBytes(testMemory), testGPU))
 
 		cpuQuantity := resource.NewMilliQuantity(testCPU, resource.DecimalSI)
 		memoryQuantity := resource.NewQuantity(testMemory, resource.BinarySI)
+		gpuQuantity := resource.NewQuantity(testGPU, resource.DecimalSI)
 
 		pod := &corev1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
@@ -345,12 +353,14 @@ func TestK8sProvider_ResourceSituationAwareness(t *testing.T) {
 						Command:         []string{"sleep", "3600"},
 						Resources: corev1.ResourceRequirements{
 							Requests: corev1.ResourceList{
-								corev1.ResourceCPU:    *cpuQuantity,
-								corev1.ResourceMemory: *memoryQuantity,
+								corev1.ResourceCPU:                    *cpuQuantity,
+								corev1.ResourceMemory:                 *memoryQuantity,
+								corev1.ResourceName("nvidia.com/gpu"): *gpuQuantity,
 							},
 							Limits: corev1.ResourceList{
-								corev1.ResourceCPU:    *cpuQuantity,
-								corev1.ResourceMemory: *memoryQuantity,
+								corev1.ResourceCPU:                    *cpuQuantity,
+								corev1.ResourceMemory:                 *memoryQuantity,
+								corev1.ResourceName("nvidia.com/gpu"): *gpuQuantity,
 							},
 						},
 					},
@@ -393,16 +403,27 @@ func TestK8sProvider_ResourceSituationAwareness(t *testing.T) {
 		t.Logf("  %s   %s",
 			testutil.Colorize("已用内存:", testutil.ColorWhite+testutil.ColorBold),
 			testutil.Colorize(testutil.FormatBytes(afterCreateUsed.Memory), testutil.ColorYellow))
+		if afterCreateCapacity.Capacity.Total.Gpu > 0 {
+			t.Logf("  %s    %s",
+				testutil.Colorize("已用 GPU:", testutil.ColorWhite+testutil.ColorBold),
+				testutil.Colorize(fmt.Sprintf("%d", afterCreateUsed.Gpu), testutil.ColorYellow))
+		}
 		t.Logf("  %s  %s",
 			testutil.Colorize("可用 CPU:", testutil.ColorWhite+testutil.ColorBold),
 			testutil.Colorize(fmt.Sprintf("%d millicores", afterCreateAvailable.Cpu), testutil.ColorGreen))
 		t.Logf("  %s %s",
 			testutil.Colorize("可用内存:", testutil.ColorWhite+testutil.ColorBold),
 			testutil.Colorize(testutil.FormatBytes(afterCreateAvailable.Memory), testutil.ColorGreen))
+		if afterCreateCapacity.Capacity.Total.Gpu > 0 {
+			t.Logf("  %s  %s",
+				testutil.Colorize("可用 GPU:", testutil.ColorWhite+testutil.ColorBold),
+				testutil.Colorize(fmt.Sprintf("%d", afterCreateAvailable.Gpu), testutil.ColorGreen))
+		}
 
 		// 验证资源使用增加
 		cpuIncrease := afterCreateUsed.Cpu - initialUsed.Cpu
 		memoryIncrease := afterCreateUsed.Memory - initialUsed.Memory
+		gpuIncrease := afterCreateUsed.Gpu - initialUsed.Gpu
 		t.Log("\n" + testutil.Colorize("资源变化分析:", testutil.ColorCyan+testutil.ColorBold))
 		t.Logf("  %s    %s",
 			testutil.Colorize("CPU 增加:", testutil.ColorWhite+testutil.ColorBold),
@@ -410,12 +431,21 @@ func TestK8sProvider_ResourceSituationAwareness(t *testing.T) {
 		t.Logf("  %s   %s",
 			testutil.Colorize("内存增加:", testutil.ColorWhite+testutil.ColorBold),
 			testutil.Colorize(testutil.FormatBytes(memoryIncrease), testutil.ColorYellow))
+		if afterCreateCapacity.Capacity.Total.Gpu > 0 {
+			t.Logf("  %s    %s",
+				testutil.Colorize("GPU 增加:", testutil.ColorWhite+testutil.ColorBold),
+				testutil.Colorize(fmt.Sprintf("%d", gpuIncrease), testutil.ColorYellow))
+		}
 
 		// 验证资源确实增加了
 		assert.GreaterOrEqual(t, afterCreateUsed.Cpu, initialUsed.Cpu,
 			"CPU usage should increase after creating Pod")
 		assert.GreaterOrEqual(t, afterCreateUsed.Memory, initialUsed.Memory,
 			"Memory usage should increase after creating Pod")
+		if afterCreateCapacity.Capacity.Total.Gpu > 0 {
+			assert.GreaterOrEqual(t, afterCreateUsed.Gpu, initialUsed.Gpu,
+				"GPU usage should increase after creating Pod")
+		}
 
 		// 步骤 4: 删除 Pod
 		testutil.PrintInfo(t, "步骤 4: 删除测试 Pod...")
@@ -451,16 +481,27 @@ func TestK8sProvider_ResourceSituationAwareness(t *testing.T) {
 		t.Logf("  %s   %s",
 			testutil.Colorize("已用内存:", testutil.ColorWhite+testutil.ColorBold),
 			testutil.Colorize(testutil.FormatBytes(afterDeleteUsed.Memory), testutil.ColorYellow))
+		if afterDeleteCapacity.Capacity.Total.Gpu > 0 {
+			t.Logf("  %s    %s",
+				testutil.Colorize("已用 GPU:", testutil.ColorWhite+testutil.ColorBold),
+				testutil.Colorize(fmt.Sprintf("%d", afterDeleteUsed.Gpu), testutil.ColorYellow))
+		}
 		t.Logf("  %s  %s",
 			testutil.Colorize("可用 CPU:", testutil.ColorWhite+testutil.ColorBold),
 			testutil.Colorize(fmt.Sprintf("%d millicores", afterDeleteAvailable.Cpu), testutil.ColorGreen))
 		t.Logf("  %s %s",
 			testutil.Colorize("可用内存:", testutil.ColorWhite+testutil.ColorBold),
 			testutil.Colorize(testutil.FormatBytes(afterDeleteAvailable.Memory), testutil.ColorGreen))
+		if afterDeleteCapacity.Capacity.Total.Gpu > 0 {
+			t.Logf("  %s  %s",
+				testutil.Colorize("可用 GPU:", testutil.ColorWhite+testutil.ColorBold),
+				testutil.Colorize(fmt.Sprintf("%d", afterDeleteAvailable.Gpu), testutil.ColorGreen))
+		}
 
 		// 验证资源使用减少
 		cpuDecrease := afterCreateUsed.Cpu - afterDeleteUsed.Cpu
 		memoryDecrease := afterCreateUsed.Memory - afterDeleteUsed.Memory
+		gpuDecrease := afterCreateUsed.Gpu - afterDeleteUsed.Gpu
 		t.Log("\n" + testutil.Colorize("资源变化分析:", testutil.ColorCyan+testutil.ColorBold))
 		t.Logf("  %s    %s",
 			testutil.Colorize("CPU 减少:", testutil.ColorWhite+testutil.ColorBold),
@@ -468,12 +509,21 @@ func TestK8sProvider_ResourceSituationAwareness(t *testing.T) {
 		t.Logf("  %s   %s",
 			testutil.Colorize("内存减少:", testutil.ColorWhite+testutil.ColorBold),
 			testutil.Colorize(testutil.FormatBytes(memoryDecrease), testutil.ColorGreen))
+		if afterDeleteCapacity.Capacity.Total.Gpu > 0 {
+			t.Logf("  %s    %s",
+				testutil.Colorize("GPU 减少:", testutil.ColorWhite+testutil.ColorBold),
+				testutil.Colorize(fmt.Sprintf("%d", gpuDecrease), testutil.ColorGreen))
+		}
 
 		// 验证资源确实减少了
 		assert.LessOrEqual(t, afterDeleteUsed.Cpu, afterCreateUsed.Cpu,
 			"CPU usage should decrease after deleting Pod")
 		assert.LessOrEqual(t, afterDeleteUsed.Memory, afterCreateUsed.Memory,
 			"Memory usage should decrease after deleting Pod")
+		if afterDeleteCapacity.Capacity.Total.Gpu > 0 {
+			assert.LessOrEqual(t, afterDeleteUsed.Gpu, afterCreateUsed.Gpu,
+				"GPU usage should decrease after deleting Pod")
+		}
 
 		// 最终验证：资源状态能够实时更新
 		testutil.PrintSuccess(t, "资源态势实时性验证通过")
@@ -614,10 +664,10 @@ func createK8sTestService() (*provider.Service, error) {
 	totalCapacity := &resourcepb.Info{
 		Cpu:    8000,                   // 8 cores
 		Memory: 8 * 1024 * 1024 * 1024, // 8Gi
-		Gpu:    0,
+		Gpu:    2,                      // 2 GPUs
 	}
 
-	return provider.NewService(kubeconfig, false, "default", "iarnet.managed=true", []string{"cpu", "memory"}, totalCapacity, false) // allowConnectionFailure: false
+	return provider.NewService(kubeconfig, false, "default", "iarnet.managed=true", []string{"cpu", "memory", "gpu"}, totalCapacity, false) // allowConnectionFailure: false
 }
 
 // getK8sKubeconfig 获取 kubeconfig 路径

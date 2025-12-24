@@ -271,6 +271,13 @@ func TestRemoteK8sResourcePerception(t *testing.T) {
 		testutil.Colorize(testutil.FormatBytes(discoveredRemoteNode.ResourceCapacity.Total.Memory), testutil.ColorWhite),
 		testutil.Colorize(testutil.FormatBytes(discoveredRemoteNode.ResourceCapacity.Used.Memory), testutil.ColorYellow),
 		testutil.Colorize(testutil.FormatBytes(discoveredRemoteNode.ResourceCapacity.Available.Memory), testutil.ColorGreen))
+	if discoveredRemoteNode.ResourceCapacity.Total != nil && discoveredRemoteNode.ResourceCapacity.Total.GPU > 0 {
+		t.Logf("  %s    总计: %s, 已用: %s, 可用: %s",
+			testutil.Colorize("GPU:", testutil.ColorWhite+testutil.ColorBold),
+			testutil.Colorize(fmt.Sprintf("%d", discoveredRemoteNode.ResourceCapacity.Total.GPU), testutil.ColorWhite),
+			testutil.Colorize(fmt.Sprintf("%d", discoveredRemoteNode.ResourceCapacity.Used.GPU), testutil.ColorYellow),
+			testutil.Colorize(fmt.Sprintf("%d", discoveredRemoteNode.ResourceCapacity.Available.GPU), testutil.ColorGreen))
+	}
 
 	// 验证资源标签感知
 	require.NotNil(t, discoveredRemoteNode.ResourceTags, "Remote node resource tags should not be nil")
@@ -295,15 +302,18 @@ func TestRemoteK8sResourcePerception(t *testing.T) {
 	require.NotNil(t, aggregatedCapacity, "Aggregated capacity should not be nil")
 
 	// 验证聚合资源包含远程节点的资源
-	// 当前节点: CPU 4000, Memory 4GB
-	// 远程节点: CPU (来自 Kubernetes Provider), Memory (来自 Kubernetes Provider)
+	// 当前节点: CPU 4000, Memory 4GB, GPU 0
+	// 远程节点: CPU (来自 Kubernetes Provider), Memory (来自 Kubernetes Provider), GPU (来自 Kubernetes Provider)
 	expectedTotalCPU := int64(4000) + remoteCapacity.Total.Cpu
 	expectedTotalMemory := int64(4*1024*1024*1024) + remoteCapacity.Total.Memory
+	expectedTotalGPU := int64(0) + remoteCapacity.Total.Gpu
 
 	assert.Equal(t, expectedTotalCPU, aggregatedCapacity.Total.CPU,
 		"Aggregated total CPU should include remote node Kubernetes provider capacity")
 	assert.Equal(t, expectedTotalMemory, aggregatedCapacity.Total.Memory,
 		"Aggregated total Memory should include remote node Kubernetes provider capacity")
+	assert.Equal(t, expectedTotalGPU, aggregatedCapacity.Total.GPU,
+		"Aggregated total GPU should include remote node Kubernetes provider capacity")
 
 	t.Log("\n" + testutil.Colorize("聚合资源容量（包含远程节点 Kubernetes Provider）:", testutil.ColorYellow+testutil.ColorBold))
 	t.Logf("  %s    总计: %s, 已用: %s, 可用: %s",
@@ -316,6 +326,13 @@ func TestRemoteK8sResourcePerception(t *testing.T) {
 		testutil.Colorize(testutil.FormatBytes(aggregatedCapacity.Total.Memory), testutil.ColorWhite),
 		testutil.Colorize(testutil.FormatBytes(aggregatedCapacity.Used.Memory), testutil.ColorYellow),
 		testutil.Colorize(testutil.FormatBytes(aggregatedCapacity.Available.Memory), testutil.ColorGreen))
+	if aggregatedCapacity.Total.GPU > 0 {
+		t.Logf("  %s    总计: %s, 已用: %s, 可用: %s",
+			testutil.Colorize("GPU:", testutil.ColorWhite+testutil.ColorBold),
+			testutil.Colorize(fmt.Sprintf("%d", aggregatedCapacity.Total.GPU), testutil.ColorWhite),
+			testutil.Colorize(fmt.Sprintf("%d", aggregatedCapacity.Used.GPU), testutil.ColorYellow),
+			testutil.Colorize(fmt.Sprintf("%d", aggregatedCapacity.Available.GPU), testutil.ColorGreen))
+	}
 
 	testutil.PrintSuccess(t, "聚合视图成功包含远程节点的 Kubernetes Provider 资源")
 
