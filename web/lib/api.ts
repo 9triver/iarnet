@@ -1,5 +1,20 @@
 import { Application, ApplicationStats, CreateDirectoryResponse, CreateFileResponse, DeleteDirectoryResponse, DeleteFileResponse, GetApplicationActorsResponse, GetApplicationLogsResponse, GetApplicationsResponse, GetComponentLogsResponse, GetDAGResponse, GetFileContentResponse, GetFileTreeResponse, GetRunnerEnvironmentsResponse, SaveFileResponse } from "./model"
 
+// 在客户端显示 toast 提示的辅助函数
+function showUnauthorizedToast() {
+  // 只在客户端环境显示 toast
+  if (typeof window !== "undefined") {
+    // 使用动态导入避免在服务端构建时出错
+    import("sonner").then(({ toast }) => {
+      toast.error("当前尚未登录或需要重新登录", {
+        description: "请重新登录以继续使用",
+      })
+    }).catch(() => {
+      // 静默忽略导入错误（可能在服务端环境）
+    })
+  }
+}
+
 // API 客户端工具函数
 const API_BASE = "/api"
 const TOKEN_KEY = "iarnet_auth_token"
@@ -105,9 +120,11 @@ export async function apiRequest<T>(endpoint: string, options: RequestInit = {})
   //   console.log("API Response:", response.status, data)
   // }
 
-  // 处理 401 未授权错误，清除 token
+  // 处理 401 未授权错误，清除 token 并显示提示
   if (response.status === 401) {
     tokenManager.removeToken()
+    // 在客户端显示 toast 提示
+    showUnauthorizedToast()
     throw new APIError(response.status, data.message || data.error || "认证失败，请重新登录")
   }
 
