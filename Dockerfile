@@ -76,22 +76,22 @@ RUN addgroup -S appuser && adduser -S -G appuser appuser
 # 设置工作目录
 WORKDIR /app
 
-# 从构建阶段复制后端二进制文件
-COPY --from=backend-builder /build/iarnet/iarnet /app/iarnet
+# 从构建阶段复制后端二进制文件（直接设置所有权）
+COPY --chown=appuser:appuser --from=backend-builder /build/iarnet/iarnet /app/iarnet
 
-# 从构建阶段复制前端构建产物
-COPY --from=frontend-builder /build/web/.next /app/web/.next
-COPY --from=frontend-builder /build/web/public /app/web/public
-COPY --from=frontend-builder /build/web/package.json /app/web/package.json
-COPY --from=frontend-builder /build/web/next.config.mjs /app/web/next.config.mjs
-COPY --from=frontend-builder /build/web/node_modules /app/web/node_modules
+# 从构建阶段复制前端构建产物（直接设置所有权）
+COPY --chown=appuser:appuser --from=frontend-builder /build/web/.next /app/web/.next
+COPY --chown=appuser:appuser --from=frontend-builder /build/web/public /app/web/public
+COPY --chown=appuser:appuser --from=frontend-builder /build/web/package.json /app/web/package.json
+COPY --chown=appuser:appuser --from=frontend-builder /build/web/next.config.mjs /app/web/next.config.mjs
+COPY --chown=appuser:appuser --from=frontend-builder /build/web/node_modules /app/web/node_modules
 
-# 复制配置文件
-COPY --from=backend-builder /build/iarnet/config.yaml /app/config.yaml
+# 复制配置文件（直接设置所有权）
+COPY --chown=appuser:appuser --from=backend-builder /build/iarnet/config.yaml /app/config.yaml
 
-# 创建数据目录
+# 创建数据目录（只对新建的目录设置所有权，避免递归整个 /app）
 RUN mkdir -p /app/data /app/workspaces && \
-    chown -R appuser:appuser /app
+    chown appuser:appuser /app/data /app/workspaces
 
 # 创建启动脚本
 RUN cat > /app/entrypoint.sh << 'EOF'
@@ -196,7 +196,8 @@ trap cleanup SIGTERM SIGINT
 wait $BACKEND_PID $FRONTEND_PID
 EOF
 
-RUN chmod +x /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh && \
+    chown appuser:appuser /app/entrypoint.sh
 
 # 暴露端口
 # 8083: 后端 HTTP API
