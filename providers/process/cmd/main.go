@@ -58,6 +58,7 @@ func main() {
 		cfg.Ignis.Address,
 		cfg.ResourceTags,
 		totalCapacity,
+		cfg.SupportedLanguages,
 		zmqSender,
 	)
 	if err != nil {

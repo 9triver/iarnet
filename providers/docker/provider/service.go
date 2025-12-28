@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	common "github.com/9triver/iarnet/internal/proto/common"
 	resourcepb "github.com/9triver/iarnet/internal/proto/resource"
 	providerpb "github.com/9triver/iarnet/internal/proto/resource/provider"
 	"github.com/moby/moby/api/types/container"
@@ -183,11 +184,18 @@ func (s *Service) Connect(ctx context.Context, req *providerpb.ConnectRequest) (
 	}
 	logrus.Infof("Provider ID assigned: %s", s.manager.GetProviderID())
 
+	// Docker provider 默认支持 Python，可以根据配置添加其他语言
+	supportedLanguages := []common.Language{
+		common.Language_LANG_PYTHON,
+		// 可以根据配置添加 common.Language_LANG_GO 等
+	}
+
 	return &providerpb.ConnectResponse{
 		Success: true,
 		ProviderType: &providerpb.ProviderType{
 			Name: providerType,
 		},
+		SupportedLanguages: supportedLanguages,
 	}, nil
 }
 
@@ -319,8 +327,34 @@ func (s *Service) Deploy(ctx context.Context, req *providerpb.DeployRequest) (*p
 		}, nil
 	}
 
+	// 根据语言选择镜像（如果提供了语言，优先使用语言；否则使用旧的 image 字段以保持向后兼容）
+	var image string
+	if req.Language != common.Language_LANG_UNKNOWN {
+		// 根据语言选择镜像
+		switch req.Language {
+		case common.Language_LANG_PYTHON:
+			image = "python:3.11-slim" // 默认 Python 镜像，可以根据配置修改
+		case common.Language_LANG_GO:
+			image = "golang:1.21-alpine" // 默认 Go 镜像，可以根据配置修改
+		default:
+			return &providerpb.DeployResponse{
+				Error: fmt.Sprintf("unsupported language: %v", req.Language),
+			}, nil
+		}
+		logrus.Infof("Selected image %s for language %v", image, req.Language)
+	} else if req.Image != "" {
+		// 向后兼容：如果提供了 image，使用它
+		image = req.Image
+		logrus.Warnf("Using deprecated image field: %s. Consider using language field instead.", image)
+	} else {
+		return &providerpb.DeployResponse{
+			Error: "either language or image must be provided",
+		}, nil
+	}
+
 	logrus.WithFields(logrus.Fields{
-		"image":            req.Image,
+		"image":            image,
+		"language":         req.Language,
 		"env_vars":         req.EnvVars,
 		"resource_request": req.ResourceRequest,
 	}).Info("docker provider deploy component")
@@ -330,7 +364,7 @@ func (s *Service) Deploy(ctx context.Context, req *providerpb.DeployRequest) (*p
 
 	// 创建容器配置
 	containerConfig := &container.Config{
-		Image: req.Image,
+		Image: image,
 		Env: func() []string {
 			var env []string
 			for k, v := range req.EnvVars {
@@ -699,9 +733,16 @@ func (s *Service) HealthCheck(ctx context.Context, req *providerpb.HealthCheckRe
 	// }
 	resourceTags := s.resourceTags
 
+	// Docker provider 默认支持 Python，可以根据配置添加其他语言
+	supportedLanguages := []common.Language{
+		common.Language_LANG_PYTHON,
+		// 可以根据配置添加 common.Language_LANG_GO 等
+	}
+
 	return &providerpb.HealthCheckResponse{
-		Capacity:     capacity,
-		ResourceTags: resourceTags,
+		Capacity:           capacity,
+		ResourceTags:       resourceTags,
+		SupportedLanguages: supportedLanguages,
 	}, nil
 }
 

@@ -34,6 +34,9 @@ type Service struct {
 	totalCapacity *resourcepb.Info // 配置的总容量
 	allocated     *resourcepb.Info // 当前已分配的容量（内存中动态维护）
 
+	// 支持的语言列表（从配置文件读取）
+	supportedLanguages []commonpb.Language
+
 	// 组件会话管理：componentID -> session
 	componentSessions map[string]*ComponentSession
 	sessionsMu        sync.RWMutex
@@ -53,8 +56,23 @@ type ComponentSession struct {
 	ignisClient ctrlpb.ServiceClient
 }
 
+// stringToLanguage 将字符串转换为 common.Language
+func stringToLanguage(s string) commonpb.Language {
+	switch s {
+	case "python":
+		return commonpb.Language_LANG_PYTHON
+	case "go":
+		return commonpb.Language_LANG_GO
+	case "unikernel":
+		// Unikernel 目前使用 Python 语言类型
+		return commonpb.Language_LANG_PYTHON
+	default:
+		return commonpb.Language_LANG_UNKNOWN
+	}
+}
+
 // NewService 创建新的 Process provider 服务
-func NewService(ignisAddress string, resourceTags []string, totalCapacity *resourcepb.Info, zmqSender func(componentID string, data []byte)) (*Service, error) {
+func NewService(ignisAddress string, resourceTags []string, totalCapacity *resourcepb.Info, supportedLanguages []string, zmqSender func(componentID string, data []byte)) (*Service, error) {
 	// 连接到 Ignis
 	conn, err := grpc.NewClient(ignisAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -72,6 +90,22 @@ func NewService(ignisAddress string, resourceTags []string, totalCapacity *resou
 		},
 	)
 
+	// 转换支持的语言列表
+	languages := make([]commonpb.Language, 0, len(supportedLanguages))
+	for _, langStr := range supportedLanguages {
+		lang := stringToLanguage(langStr)
+		if lang != commonpb.Language_LANG_UNKNOWN {
+			languages = append(languages, lang)
+		} else {
+			logrus.Warnf("Unknown language in config: %s, skipping", langStr)
+		}
+	}
+	// 如果没有配置任何语言，默认支持 Go
+	if len(languages) == 0 {
+		languages = []commonpb.Language{commonpb.Language_LANG_GO}
+		logrus.Info("No supported languages configured, defaulting to Go")
+	}
+
 	service := &Service{
 		ignisConn:   conn,
 		ignisClient: client,
@@ -82,7 +116,8 @@ func NewService(ignisAddress string, resourceTags []string, totalCapacity *resou
 			Gpu:    contains(resourceTags, "gpu"),
 			Camera: contains(resourceTags, "camera"),
 		},
-		totalCapacity: totalCapacity,
+		totalCapacity:      totalCapacity,
+		supportedLanguages: languages,
 		allocated: &resourcepb.Info{
 			Cpu:    0,
 			Memory: 0,
@@ -171,6 +206,7 @@ func (s *Service) Connect(ctx context.Context, req *providerpb.ConnectRequest) (
 		ProviderType: &providerpb.ProviderType{
 			Name: providerType,
 		},
+		SupportedLanguages: s.supportedLanguages,
 	}, nil
 }
 
@@ -230,8 +266,9 @@ func (s *Service) HealthCheck(ctx context.Context, req *providerpb.HealthCheckRe
 	}
 
 	return &providerpb.HealthCheckResponse{
-		Capacity:     capacity,
-		ResourceTags: s.resourceTags,
+		Capacity:           capacity,
+		ResourceTags:       s.resourceTags,
+		SupportedLanguages: s.supportedLanguages,
 	}, nil
 }
 
@@ -336,9 +373,29 @@ func (s *Service) Deploy(ctx context.Context, req *providerpb.DeployRequest) (*p
 		}, nil
 	}
 
+	// 检查语言支持
+	if req.Language != commonpb.Language_LANG_UNKNOWN {
+		s.mu.RLock()
+		supported := false
+		for _, lang := range s.supportedLanguages {
+			if lang == req.Language {
+				supported = true
+				break
+			}
+		}
+		s.mu.RUnlock()
+
+		if !supported {
+			return &providerpb.DeployResponse{
+				Error: fmt.Sprintf("unsupported language: %v, supported languages: %v", req.Language, s.supportedLanguages),
+			}, nil
+		}
+	}
+
 	logrus.WithFields(logrus.Fields{
 		"instance_id": req.InstanceId,
-		"image":       req.Image,
+		"language":    req.Language,
+		"image":       req.Image, // 已废弃，保留用于日志
 		"resources":   req.ResourceRequest,
 	}).Info("process provider deploy component")
 

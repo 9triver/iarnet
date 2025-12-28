@@ -1,5 +1,9 @@
 package types
 
+import (
+	common "github.com/9triver/iarnet/internal/proto/common"
+)
+
 // 资源领域类型
 // resource 是最底层领域，定义自己的类型
 
@@ -74,7 +78,26 @@ type RuntimeEnv = string
 const (
 	// RuntimeEnvPython Python 运行时环境
 	RuntimeEnvPython RuntimeEnv = "python"
+	// RuntimeEnvGo Go 运行时环境
+	RuntimeEnvGo RuntimeEnv = "go"
+	// RuntimeEnvUnikernel Unikernel 运行时环境
+	RuntimeEnvUnikernel RuntimeEnv = "unikernel"
 )
+
+// RuntimeEnvToLanguage 将 RuntimeEnv 转换为 common.Language
+func RuntimeEnvToLanguage(runtimeEnv RuntimeEnv) common.Language {
+	switch runtimeEnv {
+	case RuntimeEnvPython:
+		return common.Language_LANG_PYTHON
+	case RuntimeEnvGo:
+		return common.Language_LANG_GO
+	case RuntimeEnvUnikernel:
+		// Unikernel 目前使用 Python 语言类型，未来可能需要定义新的语言类型
+		return common.Language_LANG_PYTHON
+	default:
+		return common.Language_LANG_UNKNOWN
+	}
+}
 
 // ProviderType 提供者类型
 type ProviderType = string

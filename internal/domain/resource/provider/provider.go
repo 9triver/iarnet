@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/9triver/iarnet/internal/domain/resource/types"
+	common "github.com/9triver/iarnet/internal/proto/common"
 	resourcepb "github.com/9triver/iarnet/internal/proto/resource"
 	providerpb "github.com/9triver/iarnet/internal/proto/resource/provider"
 	"github.com/9triver/iarnet/internal/util"
@@ -44,6 +45,10 @@ type Provider struct {
 	cachedTags     *types.ResourceTags
 	cacheTimestamp time.Time
 	cacheMu        sync.RWMutex
+
+	// 支持的语言列表（从连接或健康检查响应中获取）
+	supportedLanguages []common.Language
+	languagesMu        sync.RWMutex
 }
 
 // NewProvider 创建新的 provider，如果未提供 ID，将通过 RPC 服务注册并获取分配的 ID
@@ -100,6 +105,16 @@ func (p *Provider) Connect(ctx context.Context) error {
 	}
 
 	p.providerType = types.ProviderType(resp.ProviderType.Name)
+
+	// 从响应中获取支持的语言列表（如果存在）
+	if resp.SupportedLanguages != nil {
+		p.languagesMu.Lock()
+		p.supportedLanguages = make([]common.Language, len(resp.SupportedLanguages))
+		copy(p.supportedLanguages, resp.SupportedLanguages)
+		p.languagesMu.Unlock()
+		logrus.Infof("Provider %s supports languages: %v", p.id, p.supportedLanguages)
+	}
+
 	p.client = client
 	p.conn = conn
 	p.status = types.ProviderStatusConnected
@@ -183,6 +198,15 @@ func (p *Provider) HealthCheck(ctx context.Context) error {
 	p.updateCacheFromHealthCheckResponse(resp)
 	newTags := p.GetResourceTags()
 
+	// 更新支持的语言列表（如果响应中包含）
+	if resp.SupportedLanguages != nil {
+		p.languagesMu.Lock()
+		p.supportedLanguages = make([]common.Language, len(resp.SupportedLanguages))
+		copy(p.supportedLanguages, resp.SupportedLanguages)
+		p.languagesMu.Unlock()
+		logrus.Debugf("Provider %s supported languages updated: %v", p.id, p.supportedLanguages)
+	}
+
 	// 记录资源标签更新
 	if oldTags == nil && newTags != nil {
 		logrus.Infof("Provider %s resource tags initialized: CPU=%v, GPU=%v, Memory=%v, Camera=%v",
@@ -261,6 +285,34 @@ func (p *Provider) GetResourceTags() *types.ResourceTags {
 		Memory: p.cachedTags.Memory,
 		Camera: p.cachedTags.Camera,
 	}
+}
+
+// GetSupportedLanguages 获取支持的语言列表（返回副本以避免并发问题）
+func (p *Provider) GetSupportedLanguages() []common.Language {
+	p.languagesMu.RLock()
+	defer p.languagesMu.RUnlock()
+
+	if p.supportedLanguages == nil {
+		return nil
+	}
+
+	// 返回副本以避免并发修改
+	languages := make([]common.Language, len(p.supportedLanguages))
+	copy(languages, p.supportedLanguages)
+	return languages
+}
+
+// SupportsLanguage 检查 provider 是否支持指定的语言
+func (p *Provider) SupportsLanguage(lang common.Language) bool {
+	p.languagesMu.RLock()
+	defer p.languagesMu.RUnlock()
+
+	for _, supportedLang := range p.supportedLanguages {
+		if supportedLang == lang {
+			return true
+		}
+	}
+	return false
 }
 
 // getCachedCapacity 获取缓存的资源容量（返回副本以避免并发问题）
@@ -407,13 +459,21 @@ func (p *Provider) GetLogs(d string, lines int) ([]string, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
-func (p *Provider) Deploy(ctx context.Context, id, image string, resourceRequest *types.Info) error {
+// Deploy 部署组件到 provider
+// language: 函数语言类型，如果提供则不再需要 image 参数
+func (p *Provider) Deploy(ctx context.Context, id string, language common.Language, resourceRequest *types.Info) error {
 	if p.client == nil {
 		return fmt.Errorf("provider not connected")
 	}
 	if p.id == "" {
 		return fmt.Errorf("provider not connected, please call Connect first")
 	}
+
+	// 检查 provider 是否支持该语言
+	if language != common.Language_LANG_UNKNOWN && !p.SupportsLanguage(language) {
+		return fmt.Errorf("provider %s does not support language %v", p.id, language)
+	}
+
 	zmqAddr := net.JoinHostPort(p.envVariables.IarnetHost, strconv.Itoa(p.envVariables.ZMQPort))
 	storeAddr := net.JoinHostPort(p.envVariables.IarnetHost, strconv.Itoa(p.envVariables.StorePort))
 	loggerAddr := net.JoinHostPort(p.envVariables.IarnetHost, strconv.Itoa(p.envVariables.LoggerPort))
@@ -431,7 +491,7 @@ func (p *Provider) Deploy(ctx context.Context, id, image string, resourceRequest
 
 	req := &providerpb.DeployRequest{
 		InstanceId: id,
-		Image:      image,
+		Language:   language, // 传递语言类型，由 provider 决定使用什么镜像
 		ResourceRequest: &resourcepb.Info{
 			Cpu:    resourceRequest.CPU,
 			Memory: resourceRequest.Memory,

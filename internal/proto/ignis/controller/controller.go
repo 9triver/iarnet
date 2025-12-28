@@ -113,9 +113,12 @@ func NewMessage(cmd pb.Message) *Message {
 	case *AppendData:
 		ret.Type = CommandType_FR_APPEND_DATA
 		ret.Command = &Message_AppendData{AppendData: cmd}
-	case *AppendActor:
-		ret.Type = CommandType_FR_APPEND_ACTOR
-		ret.Command = &Message_AppendActor{AppendActor: cmd}
+	case *AppendGo:
+		ret.Type = CommandType_FR_APPEND_GO
+		ret.Command = &Message_AppendGo{AppendGo: cmd}
+	case *AppendUnikernel:
+		ret.Type = CommandType_FR_APPEND_UNIKERNEL
+		ret.Command = &Message_AppendUnikernel{AppendUnikernel: cmd}
 	case *AppendPyFunc:
 		ret.Type = CommandType_FR_APPEND_PY_FUNC
 		ret.Command = &Message_AppendPyFunc{AppendPyFunc: cmd}

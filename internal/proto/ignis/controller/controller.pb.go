@@ -29,16 +29,17 @@ const (
 	CommandType_ACK                        CommandType = 1 // acknowledged
 	CommandType_FR_READY                   CommandType = 2
 	CommandType_FR_APPEND_DATA             CommandType = 3 // frontend: append data node
-	CommandType_FR_APPEND_ACTOR            CommandType = 4 // front: append actor (for debugging purpose)
+	CommandType_FR_APPEND_GO               CommandType = 4 // front: append actor (for debugging purpose)
 	CommandType_FR_APPEND_PY_FUNC          CommandType = 5 // frontend: append python function (control node definition)
 	CommandType_FR_APPEND_PY_CLASS         CommandType = 6 // frontend: append python class (control node definition)
-	CommandType_FR_APPEND_ARG              CommandType = 7 // frontend: append function arg to specified actor
-	CommandType_FR_APPEND_CLASS_METHOD_ARG CommandType = 8 // frontend: append class method arg to specified actor
-	CommandType_FR_INVOKE                  CommandType = 9
-	CommandType_BK_RETURN_RESULT           CommandType = 10 // backend: send back execution result
-	CommandType_FR_REQUEST_OBJECT          CommandType = 11 // frontend: request object from object store
-	CommandType_BK_RESPONSE_OBJECT         CommandType = 12 // backend: response object to request object
-	CommandType_FR_APPEND_DAG_NODE         CommandType = 13 // frontend: append DAG node
+	CommandType_FR_APPEND_UNIKERNEL        CommandType = 7
+	CommandType_FR_APPEND_ARG              CommandType = 8 // frontend: append function arg to specified actor
+	CommandType_FR_APPEND_CLASS_METHOD_ARG CommandType = 9 // frontend: append class method arg to specified actor
+	CommandType_FR_INVOKE                  CommandType = 10
+	CommandType_BK_RETURN_RESULT           CommandType = 11 // backend: send back execution result
+	CommandType_FR_REQUEST_OBJECT          CommandType = 12 // frontend: request object from object store
+	CommandType_BK_RESPONSE_OBJECT         CommandType = 13 // backend: response object to request object
+	CommandType_FR_APPEND_DAG_NODE         CommandType = 14 // frontend: append DAG node
 )
 
 // Enum value maps for CommandType.
@@ -48,32 +49,34 @@ var (
 		1:  "ACK",
 		2:  "FR_READY",
 		3:  "FR_APPEND_DATA",
-		4:  "FR_APPEND_ACTOR",
+		4:  "FR_APPEND_GO",
 		5:  "FR_APPEND_PY_FUNC",
 		6:  "FR_APPEND_PY_CLASS",
-		7:  "FR_APPEND_ARG",
-		8:  "FR_APPEND_CLASS_METHOD_ARG",
-		9:  "FR_INVOKE",
-		10: "BK_RETURN_RESULT",
-		11: "FR_REQUEST_OBJECT",
-		12: "BK_RESPONSE_OBJECT",
-		13: "FR_APPEND_DAG_NODE",
+		7:  "FR_APPEND_UNIKERNEL",
+		8:  "FR_APPEND_ARG",
+		9:  "FR_APPEND_CLASS_METHOD_ARG",
+		10: "FR_INVOKE",
+		11: "BK_RETURN_RESULT",
+		12: "FR_REQUEST_OBJECT",
+		13: "BK_RESPONSE_OBJECT",
+		14: "FR_APPEND_DAG_NODE",
 	}
 	CommandType_value = map[string]int32{
 		"UNSPECIFIED":                0,
 		"ACK":                        1,
 		"FR_READY":                   2,
 		"FR_APPEND_DATA":             3,
-		"FR_APPEND_ACTOR":            4,
+		"FR_APPEND_GO":               4,
 		"FR_APPEND_PY_FUNC":          5,
 		"FR_APPEND_PY_CLASS":         6,
-		"FR_APPEND_ARG":              7,
-		"FR_APPEND_CLASS_METHOD_ARG": 8,
-		"FR_INVOKE":                  9,
-		"BK_RETURN_RESULT":           10,
-		"FR_REQUEST_OBJECT":          11,
-		"BK_RESPONSE_OBJECT":         12,
-		"FR_APPEND_DAG_NODE":         13,
+		"FR_APPEND_UNIKERNEL":        7,
+		"FR_APPEND_ARG":              8,
+		"FR_APPEND_CLASS_METHOD_ARG": 9,
+		"FR_INVOKE":                  10,
+		"BK_RETURN_RESULT":           11,
+		"FR_REQUEST_OBJECT":          12,
+		"BK_RESPONSE_OBJECT":         13,
+		"FR_APPEND_DAG_NODE":         14,
 	}
 )
 
@@ -295,58 +298,6 @@ func (*Data_Ref) isData_Object() {}
 
 func (*Data_Encoded) isData_Object() {}
 
-type AppendActor struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Name          string                 `protobuf:"bytes,1,opt,name=Name,proto3" json:"Name,omitempty"`     // actor name
-	Params        []string               `protobuf:"bytes,2,rep,name=Params,proto3" json:"Params,omitempty"` // function params
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *AppendActor) Reset() {
-	*x = AppendActor{}
-	mi := &file_ignis_controller_controller_proto_msgTypes[1]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AppendActor) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AppendActor) ProtoMessage() {}
-
-func (x *AppendActor) ProtoReflect() protoreflect.Message {
-	mi := &file_ignis_controller_controller_proto_msgTypes[1]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AppendActor.ProtoReflect.Descriptor instead.
-func (*AppendActor) Descriptor() ([]byte, []int) {
-	return file_ignis_controller_controller_proto_rawDescGZIP(), []int{1}
-}
-
-func (x *AppendActor) GetName() string {
-	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
-func (x *AppendActor) GetParams() []string {
-	if x != nil {
-		return x.Params
-	}
-	return nil
-}
-
 type Resources struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	CPU           int64                  `protobuf:"varint,1,opt,name=CPU,proto3" json:"CPU,omitempty"`       // CPU cores
@@ -358,7 +309,7 @@ type Resources struct {
 
 func (x *Resources) Reset() {
 	*x = Resources{}
-	mi := &file_ignis_controller_controller_proto_msgTypes[2]
+	mi := &file_ignis_controller_controller_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -370,7 +321,7 @@ func (x *Resources) String() string {
 func (*Resources) ProtoMessage() {}
 
 func (x *Resources) ProtoReflect() protoreflect.Message {
-	mi := &file_ignis_controller_controller_proto_msgTypes[2]
+	mi := &file_ignis_controller_controller_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -383,7 +334,7 @@ func (x *Resources) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Resources.ProtoReflect.Descriptor instead.
 func (*Resources) Descriptor() ([]byte, []int) {
-	return file_ignis_controller_controller_proto_rawDescGZIP(), []int{2}
+	return file_ignis_controller_controller_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *Resources) GetCPU() int64 {
@@ -424,7 +375,7 @@ type AppendPyFunc struct {
 
 func (x *AppendPyFunc) Reset() {
 	*x = AppendPyFunc{}
-	mi := &file_ignis_controller_controller_proto_msgTypes[3]
+	mi := &file_ignis_controller_controller_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -436,7 +387,7 @@ func (x *AppendPyFunc) String() string {
 func (*AppendPyFunc) ProtoMessage() {}
 
 func (x *AppendPyFunc) ProtoReflect() protoreflect.Message {
-	mi := &file_ignis_controller_controller_proto_msgTypes[3]
+	mi := &file_ignis_controller_controller_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -449,7 +400,7 @@ func (x *AppendPyFunc) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AppendPyFunc.ProtoReflect.Descriptor instead.
 func (*AppendPyFunc) Descriptor() ([]byte, []int) {
-	return file_ignis_controller_controller_proto_rawDescGZIP(), []int{3}
+	return file_ignis_controller_controller_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *AppendPyFunc) GetName() string {
@@ -531,7 +482,7 @@ type AppendPyClass struct {
 
 func (x *AppendPyClass) Reset() {
 	*x = AppendPyClass{}
-	mi := &file_ignis_controller_controller_proto_msgTypes[4]
+	mi := &file_ignis_controller_controller_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -543,7 +494,7 @@ func (x *AppendPyClass) String() string {
 func (*AppendPyClass) ProtoMessage() {}
 
 func (x *AppendPyClass) ProtoReflect() protoreflect.Message {
-	mi := &file_ignis_controller_controller_proto_msgTypes[4]
+	mi := &file_ignis_controller_controller_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -556,7 +507,7 @@ func (x *AppendPyClass) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AppendPyClass.ProtoReflect.Descriptor instead.
 func (*AppendPyClass) Descriptor() ([]byte, []int) {
-	return file_ignis_controller_controller_proto_rawDescGZIP(), []int{4}
+	return file_ignis_controller_controller_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *AppendPyClass) GetName() string {
@@ -615,6 +566,174 @@ func (x *AppendPyClass) GetReplicas() int32 {
 	return 0
 }
 
+type AppendGo struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=Name,proto3" json:"Name,omitempty"`     // function name
+	Params        []string               `protobuf:"bytes,2,rep,name=Params,proto3" json:"Params,omitempty"` // function params
+	Code          string                 `protobuf:"bytes,3,opt,name=Code,proto3" json:"Code,omitempty"`
+	Language      common.Language        `protobuf:"varint,4,opt,name=Language,proto3,enum=common.Language" json:"Language,omitempty"` // return type of function
+	Resources     *Resources             `protobuf:"bytes,5,opt,name=Resources,proto3" json:"Resources,omitempty"`                     // resources required by class
+	Replicas      int32                  `protobuf:"varint,6,opt,name=Replicas,proto3" json:"Replicas,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AppendGo) Reset() {
+	*x = AppendGo{}
+	mi := &file_ignis_controller_controller_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AppendGo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AppendGo) ProtoMessage() {}
+
+func (x *AppendGo) ProtoReflect() protoreflect.Message {
+	mi := &file_ignis_controller_controller_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AppendGo.ProtoReflect.Descriptor instead.
+func (*AppendGo) Descriptor() ([]byte, []int) {
+	return file_ignis_controller_controller_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *AppendGo) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *AppendGo) GetParams() []string {
+	if x != nil {
+		return x.Params
+	}
+	return nil
+}
+
+func (x *AppendGo) GetCode() string {
+	if x != nil {
+		return x.Code
+	}
+	return ""
+}
+
+func (x *AppendGo) GetLanguage() common.Language {
+	if x != nil {
+		return x.Language
+	}
+	return common.Language(0)
+}
+
+func (x *AppendGo) GetResources() *Resources {
+	if x != nil {
+		return x.Resources
+	}
+	return nil
+}
+
+func (x *AppendGo) GetReplicas() int32 {
+	if x != nil {
+		return x.Replicas
+	}
+	return 0
+}
+
+type AppendUnikernel struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=Name,proto3" json:"Name,omitempty"`                               // function name
+	Params        []string               `protobuf:"bytes,2,rep,name=Params,proto3" json:"Params,omitempty"`                           // function params
+	Unikernel     string                 `protobuf:"bytes,3,opt,name=Unikernel,proto3" json:"Unikernel,omitempty"`                     // content of unikernel.ml
+	Language      common.Language        `protobuf:"varint,4,opt,name=Language,proto3,enum=common.Language" json:"Language,omitempty"` // return type of function
+	Resources     *Resources             `protobuf:"bytes,5,opt,name=Resources,proto3" json:"Resources,omitempty"`                     // resources required by class
+	Replicas      int32                  `protobuf:"varint,6,opt,name=Replicas,proto3" json:"Replicas,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AppendUnikernel) Reset() {
+	*x = AppendUnikernel{}
+	mi := &file_ignis_controller_controller_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AppendUnikernel) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AppendUnikernel) ProtoMessage() {}
+
+func (x *AppendUnikernel) ProtoReflect() protoreflect.Message {
+	mi := &file_ignis_controller_controller_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AppendUnikernel.ProtoReflect.Descriptor instead.
+func (*AppendUnikernel) Descriptor() ([]byte, []int) {
+	return file_ignis_controller_controller_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *AppendUnikernel) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *AppendUnikernel) GetParams() []string {
+	if x != nil {
+		return x.Params
+	}
+	return nil
+}
+
+func (x *AppendUnikernel) GetUnikernel() string {
+	if x != nil {
+		return x.Unikernel
+	}
+	return ""
+}
+
+func (x *AppendUnikernel) GetLanguage() common.Language {
+	if x != nil {
+		return x.Language
+	}
+	return common.Language(0)
+}
+
+func (x *AppendUnikernel) GetResources() *Resources {
+	if x != nil {
+		return x.Resources
+	}
+	return nil
+}
+
+func (x *AppendUnikernel) GetReplicas() int32 {
+	if x != nil {
+		return x.Replicas
+	}
+	return 0
+}
+
 type AppendData struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	SessionID     string                 `protobuf:"bytes,1,opt,name=SessionID,proto3" json:"SessionID,omitempty"`   // current execution session, empty if shared by all sessions
@@ -626,7 +745,7 @@ type AppendData struct {
 
 func (x *AppendData) Reset() {
 	*x = AppendData{}
-	mi := &file_ignis_controller_controller_proto_msgTypes[5]
+	mi := &file_ignis_controller_controller_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -638,7 +757,7 @@ func (x *AppendData) String() string {
 func (*AppendData) ProtoMessage() {}
 
 func (x *AppendData) ProtoReflect() protoreflect.Message {
-	mi := &file_ignis_controller_controller_proto_msgTypes[5]
+	mi := &file_ignis_controller_controller_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -651,7 +770,7 @@ func (x *AppendData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AppendData.ProtoReflect.Descriptor instead.
 func (*AppendData) Descriptor() ([]byte, []int) {
-	return file_ignis_controller_controller_proto_rawDescGZIP(), []int{5}
+	return file_ignis_controller_controller_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *AppendData) GetSessionID() string {
@@ -688,7 +807,7 @@ type AppendArg struct {
 
 func (x *AppendArg) Reset() {
 	*x = AppendArg{}
-	mi := &file_ignis_controller_controller_proto_msgTypes[6]
+	mi := &file_ignis_controller_controller_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -700,7 +819,7 @@ func (x *AppendArg) String() string {
 func (*AppendArg) ProtoMessage() {}
 
 func (x *AppendArg) ProtoReflect() protoreflect.Message {
-	mi := &file_ignis_controller_controller_proto_msgTypes[6]
+	mi := &file_ignis_controller_controller_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -713,7 +832,7 @@ func (x *AppendArg) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AppendArg.ProtoReflect.Descriptor instead.
 func (*AppendArg) Descriptor() ([]byte, []int) {
-	return file_ignis_controller_controller_proto_rawDescGZIP(), []int{6}
+	return file_ignis_controller_controller_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *AppendArg) GetSessionID() string {
@@ -764,7 +883,7 @@ type AppendClassMethodArg struct {
 
 func (x *AppendClassMethodArg) Reset() {
 	*x = AppendClassMethodArg{}
-	mi := &file_ignis_controller_controller_proto_msgTypes[7]
+	mi := &file_ignis_controller_controller_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -776,7 +895,7 @@ func (x *AppendClassMethodArg) String() string {
 func (*AppendClassMethodArg) ProtoMessage() {}
 
 func (x *AppendClassMethodArg) ProtoReflect() protoreflect.Message {
-	mi := &file_ignis_controller_controller_proto_msgTypes[7]
+	mi := &file_ignis_controller_controller_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -789,7 +908,7 @@ func (x *AppendClassMethodArg) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AppendClassMethodArg.ProtoReflect.Descriptor instead.
 func (*AppendClassMethodArg) Descriptor() ([]byte, []int) {
-	return file_ignis_controller_controller_proto_rawDescGZIP(), []int{7}
+	return file_ignis_controller_controller_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *AppendClassMethodArg) GetSessionID() string {
@@ -838,7 +957,7 @@ type Invoke struct {
 
 func (x *Invoke) Reset() {
 	*x = Invoke{}
-	mi := &file_ignis_controller_controller_proto_msgTypes[8]
+	mi := &file_ignis_controller_controller_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -850,7 +969,7 @@ func (x *Invoke) String() string {
 func (*Invoke) ProtoMessage() {}
 
 func (x *Invoke) ProtoReflect() protoreflect.Message {
-	mi := &file_ignis_controller_controller_proto_msgTypes[8]
+	mi := &file_ignis_controller_controller_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -863,7 +982,7 @@ func (x *Invoke) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Invoke.ProtoReflect.Descriptor instead.
 func (*Invoke) Descriptor() ([]byte, []int) {
-	return file_ignis_controller_controller_proto_rawDescGZIP(), []int{8}
+	return file_ignis_controller_controller_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *Invoke) GetSessionID() string {
@@ -903,7 +1022,7 @@ type ReturnResult struct {
 
 func (x *ReturnResult) Reset() {
 	*x = ReturnResult{}
-	mi := &file_ignis_controller_controller_proto_msgTypes[9]
+	mi := &file_ignis_controller_controller_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -915,7 +1034,7 @@ func (x *ReturnResult) String() string {
 func (*ReturnResult) ProtoMessage() {}
 
 func (x *ReturnResult) ProtoReflect() protoreflect.Message {
-	mi := &file_ignis_controller_controller_proto_msgTypes[9]
+	mi := &file_ignis_controller_controller_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -928,7 +1047,7 @@ func (x *ReturnResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReturnResult.ProtoReflect.Descriptor instead.
 func (*ReturnResult) Descriptor() ([]byte, []int) {
-	return file_ignis_controller_controller_proto_rawDescGZIP(), []int{9}
+	return file_ignis_controller_controller_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ReturnResult) GetSessionID() string {
@@ -1009,7 +1128,7 @@ type ControlNode struct {
 
 func (x *ControlNode) Reset() {
 	*x = ControlNode{}
-	mi := &file_ignis_controller_controller_proto_msgTypes[10]
+	mi := &file_ignis_controller_controller_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1021,7 +1140,7 @@ func (x *ControlNode) String() string {
 func (*ControlNode) ProtoMessage() {}
 
 func (x *ControlNode) ProtoReflect() protoreflect.Message {
-	mi := &file_ignis_controller_controller_proto_msgTypes[10]
+	mi := &file_ignis_controller_controller_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1034,7 +1153,7 @@ func (x *ControlNode) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ControlNode.ProtoReflect.Descriptor instead.
 func (*ControlNode) Descriptor() ([]byte, []int) {
-	return file_ignis_controller_controller_proto_rawDescGZIP(), []int{10}
+	return file_ignis_controller_controller_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *ControlNode) GetId() string {
@@ -1100,7 +1219,7 @@ type DataNode struct {
 
 func (x *DataNode) Reset() {
 	*x = DataNode{}
-	mi := &file_ignis_controller_controller_proto_msgTypes[11]
+	mi := &file_ignis_controller_controller_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1112,7 +1231,7 @@ func (x *DataNode) String() string {
 func (*DataNode) ProtoMessage() {}
 
 func (x *DataNode) ProtoReflect() protoreflect.Message {
-	mi := &file_ignis_controller_controller_proto_msgTypes[11]
+	mi := &file_ignis_controller_controller_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1125,7 +1244,7 @@ func (x *DataNode) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DataNode.ProtoReflect.Descriptor instead.
 func (*DataNode) Descriptor() ([]byte, []int) {
-	return file_ignis_controller_controller_proto_rawDescGZIP(), []int{11}
+	return file_ignis_controller_controller_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *DataNode) GetId() string {
@@ -1185,7 +1304,7 @@ type AppendDAGNode struct {
 
 func (x *AppendDAGNode) Reset() {
 	*x = AppendDAGNode{}
-	mi := &file_ignis_controller_controller_proto_msgTypes[12]
+	mi := &file_ignis_controller_controller_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1197,7 +1316,7 @@ func (x *AppendDAGNode) String() string {
 func (*AppendDAGNode) ProtoMessage() {}
 
 func (x *AppendDAGNode) ProtoReflect() protoreflect.Message {
-	mi := &file_ignis_controller_controller_proto_msgTypes[12]
+	mi := &file_ignis_controller_controller_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1210,7 +1329,7 @@ func (x *AppendDAGNode) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AppendDAGNode.ProtoReflect.Descriptor instead.
 func (*AppendDAGNode) Descriptor() ([]byte, []int) {
-	return file_ignis_controller_controller_proto_rawDescGZIP(), []int{12}
+	return file_ignis_controller_controller_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *AppendDAGNode) GetSessionID() string {
@@ -1278,7 +1397,7 @@ type RequestObject struct {
 
 func (x *RequestObject) Reset() {
 	*x = RequestObject{}
-	mi := &file_ignis_controller_controller_proto_msgTypes[13]
+	mi := &file_ignis_controller_controller_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1290,7 +1409,7 @@ func (x *RequestObject) String() string {
 func (*RequestObject) ProtoMessage() {}
 
 func (x *RequestObject) ProtoReflect() protoreflect.Message {
-	mi := &file_ignis_controller_controller_proto_msgTypes[13]
+	mi := &file_ignis_controller_controller_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1303,7 +1422,7 @@ func (x *RequestObject) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RequestObject.ProtoReflect.Descriptor instead.
 func (*RequestObject) Descriptor() ([]byte, []int) {
-	return file_ignis_controller_controller_proto_rawDescGZIP(), []int{13}
+	return file_ignis_controller_controller_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *RequestObject) GetID() string {
@@ -1331,7 +1450,7 @@ type ResponseObject struct {
 
 func (x *ResponseObject) Reset() {
 	*x = ResponseObject{}
-	mi := &file_ignis_controller_controller_proto_msgTypes[14]
+	mi := &file_ignis_controller_controller_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1343,7 +1462,7 @@ func (x *ResponseObject) String() string {
 func (*ResponseObject) ProtoMessage() {}
 
 func (x *ResponseObject) ProtoReflect() protoreflect.Message {
-	mi := &file_ignis_controller_controller_proto_msgTypes[14]
+	mi := &file_ignis_controller_controller_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1356,7 +1475,7 @@ func (x *ResponseObject) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResponseObject.ProtoReflect.Descriptor instead.
 func (*ResponseObject) Descriptor() ([]byte, []int) {
-	return file_ignis_controller_controller_proto_rawDescGZIP(), []int{14}
+	return file_ignis_controller_controller_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *ResponseObject) GetID() string {
@@ -1389,7 +1508,8 @@ type Message struct {
 	//	*Message_Ack
 	//	*Message_Ready
 	//	*Message_AppendData
-	//	*Message_AppendActor
+	//	*Message_AppendGo
+	//	*Message_AppendUnikernel
 	//	*Message_AppendPyFunc
 	//	*Message_AppendPyClass
 	//	*Message_AppendArg
@@ -1406,7 +1526,7 @@ type Message struct {
 
 func (x *Message) Reset() {
 	*x = Message{}
-	mi := &file_ignis_controller_controller_proto_msgTypes[15]
+	mi := &file_ignis_controller_controller_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1418,7 +1538,7 @@ func (x *Message) String() string {
 func (*Message) ProtoMessage() {}
 
 func (x *Message) ProtoReflect() protoreflect.Message {
-	mi := &file_ignis_controller_controller_proto_msgTypes[15]
+	mi := &file_ignis_controller_controller_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1431,7 +1551,7 @@ func (x *Message) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Message.ProtoReflect.Descriptor instead.
 func (*Message) Descriptor() ([]byte, []int) {
-	return file_ignis_controller_controller_proto_rawDescGZIP(), []int{15}
+	return file_ignis_controller_controller_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *Message) GetType() CommandType {
@@ -1482,10 +1602,19 @@ func (x *Message) GetAppendData() *AppendData {
 	return nil
 }
 
-func (x *Message) GetAppendActor() *AppendActor {
+func (x *Message) GetAppendGo() *AppendGo {
 	if x != nil {
-		if x, ok := x.Command.(*Message_AppendActor); ok {
-			return x.AppendActor
+		if x, ok := x.Command.(*Message_AppendGo); ok {
+			return x.AppendGo
+		}
+	}
+	return nil
+}
+
+func (x *Message) GetAppendUnikernel() *AppendUnikernel {
+	if x != nil {
+		if x, ok := x.Command.(*Message_AppendUnikernel); ok {
+			return x.AppendUnikernel
 		}
 	}
 	return nil
@@ -1588,44 +1717,48 @@ type Message_AppendData struct {
 	AppendData *AppendData `protobuf:"bytes,5,opt,name=AppendData,proto3,oneof"`
 }
 
-type Message_AppendActor struct {
-	AppendActor *AppendActor `protobuf:"bytes,6,opt,name=AppendActor,proto3,oneof"`
+type Message_AppendGo struct {
+	AppendGo *AppendGo `protobuf:"bytes,6,opt,name=AppendGo,proto3,oneof"`
+}
+
+type Message_AppendUnikernel struct {
+	AppendUnikernel *AppendUnikernel `protobuf:"bytes,7,opt,name=AppendUnikernel,proto3,oneof"`
 }
 
 type Message_AppendPyFunc struct {
-	AppendPyFunc *AppendPyFunc `protobuf:"bytes,7,opt,name=AppendPyFunc,proto3,oneof"`
+	AppendPyFunc *AppendPyFunc `protobuf:"bytes,8,opt,name=AppendPyFunc,proto3,oneof"`
 }
 
 type Message_AppendPyClass struct {
-	AppendPyClass *AppendPyClass `protobuf:"bytes,8,opt,name=AppendPyClass,proto3,oneof"`
+	AppendPyClass *AppendPyClass `protobuf:"bytes,9,opt,name=AppendPyClass,proto3,oneof"`
 }
 
 type Message_AppendArg struct {
-	AppendArg *AppendArg `protobuf:"bytes,9,opt,name=AppendArg,proto3,oneof"`
+	AppendArg *AppendArg `protobuf:"bytes,10,opt,name=AppendArg,proto3,oneof"`
 }
 
 type Message_AppendClassMethodArg struct {
-	AppendClassMethodArg *AppendClassMethodArg `protobuf:"bytes,10,opt,name=AppendClassMethodArg,proto3,oneof"`
+	AppendClassMethodArg *AppendClassMethodArg `protobuf:"bytes,11,opt,name=AppendClassMethodArg,proto3,oneof"`
 }
 
 type Message_Invoke struct {
-	Invoke *Invoke `protobuf:"bytes,11,opt,name=Invoke,proto3,oneof"`
+	Invoke *Invoke `protobuf:"bytes,12,opt,name=Invoke,proto3,oneof"`
 }
 
 type Message_ReturnResult struct {
-	ReturnResult *ReturnResult `protobuf:"bytes,12,opt,name=ReturnResult,proto3,oneof"`
+	ReturnResult *ReturnResult `protobuf:"bytes,13,opt,name=ReturnResult,proto3,oneof"`
 }
 
 type Message_AppendDAGNode struct {
-	AppendDAGNode *AppendDAGNode `protobuf:"bytes,13,opt,name=AppendDAGNode,proto3,oneof"`
+	AppendDAGNode *AppendDAGNode `protobuf:"bytes,14,opt,name=AppendDAGNode,proto3,oneof"`
 }
 
 type Message_RequestObject struct {
-	RequestObject *RequestObject `protobuf:"bytes,14,opt,name=RequestObject,proto3,oneof"`
+	RequestObject *RequestObject `protobuf:"bytes,15,opt,name=RequestObject,proto3,oneof"`
 }
 
 type Message_ResponseObject struct {
-	ResponseObject *ResponseObject `protobuf:"bytes,15,opt,name=ResponseObject,proto3,oneof"`
+	ResponseObject *ResponseObject `protobuf:"bytes,16,opt,name=ResponseObject,proto3,oneof"`
 }
 
 func (*Message_Ack) isMessage_Command() {}
@@ -1634,7 +1767,9 @@ func (*Message_Ready) isMessage_Command() {}
 
 func (*Message_AppendData) isMessage_Command() {}
 
-func (*Message_AppendActor) isMessage_Command() {}
+func (*Message_AppendGo) isMessage_Command() {}
+
+func (*Message_AppendUnikernel) isMessage_Command() {}
 
 func (*Message_AppendPyFunc) isMessage_Command() {}
 
@@ -1664,7 +1799,7 @@ type AppendPyClass_ClassMethod struct {
 
 func (x *AppendPyClass_ClassMethod) Reset() {
 	*x = AppendPyClass_ClassMethod{}
-	mi := &file_ignis_controller_controller_proto_msgTypes[16]
+	mi := &file_ignis_controller_controller_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1676,7 +1811,7 @@ func (x *AppendPyClass_ClassMethod) String() string {
 func (*AppendPyClass_ClassMethod) ProtoMessage() {}
 
 func (x *AppendPyClass_ClassMethod) ProtoReflect() protoreflect.Message {
-	mi := &file_ignis_controller_controller_proto_msgTypes[16]
+	mi := &file_ignis_controller_controller_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1689,7 +1824,7 @@ func (x *AppendPyClass_ClassMethod) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AppendPyClass_ClassMethod.ProtoReflect.Descriptor instead.
 func (*AppendPyClass_ClassMethod) Descriptor() ([]byte, []int) {
-	return file_ignis_controller_controller_proto_rawDescGZIP(), []int{4, 0}
+	return file_ignis_controller_controller_proto_rawDescGZIP(), []int{3, 0}
 }
 
 func (x *AppendPyClass_ClassMethod) GetName() string {
@@ -1722,10 +1857,7 @@ const file_ignis_controller_controller_proto_rawDesc = "" +
 	"\vOBJ_ENCODED\x10\x02\x12\x0e\n" +
 	"\n" +
 	"OBJ_STREAM\x10\x03B\b\n" +
-	"\x06Object\"9\n" +
-	"\vAppendActor\x12\x12\n" +
-	"\x04Name\x18\x01 \x01(\tR\x04Name\x12\x16\n" +
-	"\x06Params\x18\x02 \x03(\tR\x06Params\"G\n" +
+	"\x06Object\"G\n" +
 	"\tResources\x12\x10\n" +
 	"\x03CPU\x18\x01 \x01(\x03R\x03CPU\x12\x16\n" +
 	"\x06Memory\x18\x02 \x01(\x03R\x06Memory\x12\x10\n" +
@@ -1751,7 +1883,21 @@ const file_ignis_controller_controller_proto_rawDesc = "" +
 	"\bReplicas\x18\b \x01(\x05R\bReplicas\x1a9\n" +
 	"\vClassMethod\x12\x12\n" +
 	"\x04Name\x18\x01 \x01(\tR\x04Name\x12\x16\n" +
-	"\x06Params\x18\x02 \x03(\tR\x06Params\"y\n" +
+	"\x06Params\x18\x02 \x03(\tR\x06Params\"\xcf\x01\n" +
+	"\bAppendGo\x12\x12\n" +
+	"\x04Name\x18\x01 \x01(\tR\x04Name\x12\x16\n" +
+	"\x06Params\x18\x02 \x03(\tR\x06Params\x12\x12\n" +
+	"\x04Code\x18\x03 \x01(\tR\x04Code\x12,\n" +
+	"\bLanguage\x18\x04 \x01(\x0e2\x10.common.LanguageR\bLanguage\x129\n" +
+	"\tResources\x18\x05 \x01(\v2\x1b.ignis.controller.ResourcesR\tResources\x12\x1a\n" +
+	"\bReplicas\x18\x06 \x01(\x05R\bReplicas\"\xe0\x01\n" +
+	"\x0fAppendUnikernel\x12\x12\n" +
+	"\x04Name\x18\x01 \x01(\tR\x04Name\x12\x16\n" +
+	"\x06Params\x18\x02 \x03(\tR\x06Params\x12\x1c\n" +
+	"\tUnikernel\x18\x03 \x01(\tR\tUnikernel\x12,\n" +
+	"\bLanguage\x18\x04 \x01(\x0e2\x10.common.LanguageR\bLanguage\x129\n" +
+	"\tResources\x18\x05 \x01(\v2\x1b.ignis.controller.ResourcesR\tResources\x12\x1a\n" +
+	"\bReplicas\x18\x06 \x01(\x05R\bReplicas\"y\n" +
 	"\n" +
 	"AppendData\x12\x1c\n" +
 	"\tSessionID\x18\x01 \x01(\tR\tSessionID\x12\x1e\n" +
@@ -1826,7 +1972,7 @@ const file_ignis_controller_controller_proto_rawDesc = "" +
 	"\x0eResponseObject\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12+\n" +
 	"\x05Value\x18\x02 \x01(\v2\x15.common.EncodedObjectR\x05Value\x12\x14\n" +
-	"\x05Error\x18\x03 \x01(\tR\x05Error\"\xaa\a\n" +
+	"\x05Error\x18\x03 \x01(\tR\x05Error\"\xf0\a\n" +
 	"\aMessage\x121\n" +
 	"\x04Type\x18\x01 \x01(\x0e2\x1d.ignis.controller.CommandTypeR\x04Type\x12\x14\n" +
 	"\x05AppID\x18\x02 \x01(\tR\x05AppID\x12\x1f\n" +
@@ -1834,35 +1980,37 @@ const file_ignis_controller_controller_proto_rawDesc = "" +
 	"\x05Ready\x18\x04 \x01(\v2\r.common.ReadyH\x00R\x05Ready\x12>\n" +
 	"\n" +
 	"AppendData\x18\x05 \x01(\v2\x1c.ignis.controller.AppendDataH\x00R\n" +
-	"AppendData\x12A\n" +
-	"\vAppendActor\x18\x06 \x01(\v2\x1d.ignis.controller.AppendActorH\x00R\vAppendActor\x12D\n" +
-	"\fAppendPyFunc\x18\a \x01(\v2\x1e.ignis.controller.AppendPyFuncH\x00R\fAppendPyFunc\x12G\n" +
-	"\rAppendPyClass\x18\b \x01(\v2\x1f.ignis.controller.AppendPyClassH\x00R\rAppendPyClass\x12;\n" +
-	"\tAppendArg\x18\t \x01(\v2\x1b.ignis.controller.AppendArgH\x00R\tAppendArg\x12\\\n" +
-	"\x14AppendClassMethodArg\x18\n" +
-	" \x01(\v2&.ignis.controller.AppendClassMethodArgH\x00R\x14AppendClassMethodArg\x122\n" +
-	"\x06Invoke\x18\v \x01(\v2\x18.ignis.controller.InvokeH\x00R\x06Invoke\x12D\n" +
-	"\fReturnResult\x18\f \x01(\v2\x1e.ignis.controller.ReturnResultH\x00R\fReturnResult\x12G\n" +
-	"\rAppendDAGNode\x18\r \x01(\v2\x1f.ignis.controller.AppendDAGNodeH\x00R\rAppendDAGNode\x12G\n" +
-	"\rRequestObject\x18\x0e \x01(\v2\x1f.ignis.controller.RequestObjectH\x00R\rRequestObject\x12J\n" +
-	"\x0eResponseObject\x18\x0f \x01(\v2 .ignis.controller.ResponseObjectH\x00R\x0eResponseObjectB\t\n" +
-	"\aCommand*\xac\x02\n" +
+	"AppendData\x128\n" +
+	"\bAppendGo\x18\x06 \x01(\v2\x1a.ignis.controller.AppendGoH\x00R\bAppendGo\x12M\n" +
+	"\x0fAppendUnikernel\x18\a \x01(\v2!.ignis.controller.AppendUnikernelH\x00R\x0fAppendUnikernel\x12D\n" +
+	"\fAppendPyFunc\x18\b \x01(\v2\x1e.ignis.controller.AppendPyFuncH\x00R\fAppendPyFunc\x12G\n" +
+	"\rAppendPyClass\x18\t \x01(\v2\x1f.ignis.controller.AppendPyClassH\x00R\rAppendPyClass\x12;\n" +
+	"\tAppendArg\x18\n" +
+	" \x01(\v2\x1b.ignis.controller.AppendArgH\x00R\tAppendArg\x12\\\n" +
+	"\x14AppendClassMethodArg\x18\v \x01(\v2&.ignis.controller.AppendClassMethodArgH\x00R\x14AppendClassMethodArg\x122\n" +
+	"\x06Invoke\x18\f \x01(\v2\x18.ignis.controller.InvokeH\x00R\x06Invoke\x12D\n" +
+	"\fReturnResult\x18\r \x01(\v2\x1e.ignis.controller.ReturnResultH\x00R\fReturnResult\x12G\n" +
+	"\rAppendDAGNode\x18\x0e \x01(\v2\x1f.ignis.controller.AppendDAGNodeH\x00R\rAppendDAGNode\x12G\n" +
+	"\rRequestObject\x18\x0f \x01(\v2\x1f.ignis.controller.RequestObjectH\x00R\rRequestObject\x12J\n" +
+	"\x0eResponseObject\x18\x10 \x01(\v2 .ignis.controller.ResponseObjectH\x00R\x0eResponseObjectB\t\n" +
+	"\aCommand*\xc2\x02\n" +
 	"\vCommandType\x12\x0f\n" +
 	"\vUNSPECIFIED\x10\x00\x12\a\n" +
 	"\x03ACK\x10\x01\x12\f\n" +
 	"\bFR_READY\x10\x02\x12\x12\n" +
-	"\x0eFR_APPEND_DATA\x10\x03\x12\x13\n" +
-	"\x0fFR_APPEND_ACTOR\x10\x04\x12\x15\n" +
+	"\x0eFR_APPEND_DATA\x10\x03\x12\x10\n" +
+	"\fFR_APPEND_GO\x10\x04\x12\x15\n" +
 	"\x11FR_APPEND_PY_FUNC\x10\x05\x12\x16\n" +
-	"\x12FR_APPEND_PY_CLASS\x10\x06\x12\x11\n" +
-	"\rFR_APPEND_ARG\x10\a\x12\x1e\n" +
-	"\x1aFR_APPEND_CLASS_METHOD_ARG\x10\b\x12\r\n" +
-	"\tFR_INVOKE\x10\t\x12\x14\n" +
-	"\x10BK_RETURN_RESULT\x10\n" +
-	"\x12\x15\n" +
-	"\x11FR_REQUEST_OBJECT\x10\v\x12\x16\n" +
-	"\x12BK_RESPONSE_OBJECT\x10\f\x12\x16\n" +
-	"\x12FR_APPEND_DAG_NODE\x10\r*_\n" +
+	"\x12FR_APPEND_PY_CLASS\x10\x06\x12\x17\n" +
+	"\x13FR_APPEND_UNIKERNEL\x10\a\x12\x11\n" +
+	"\rFR_APPEND_ARG\x10\b\x12\x1e\n" +
+	"\x1aFR_APPEND_CLASS_METHOD_ARG\x10\t\x12\r\n" +
+	"\tFR_INVOKE\x10\n" +
+	"\x12\x14\n" +
+	"\x10BK_RETURN_RESULT\x10\v\x12\x15\n" +
+	"\x11FR_REQUEST_OBJECT\x10\f\x12\x16\n" +
+	"\x12BK_RESPONSE_OBJECT\x10\r\x12\x16\n" +
+	"\x12FR_APPEND_DAG_NODE\x10\x0e*_\n" +
 	"\vDAGNodeType\x12\x1d\n" +
 	"\x19DAG_NODE_TYPE_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15DAG_NODE_TYPE_CONTROL\x10\x01\x12\x16\n" +
@@ -1883,74 +2031,80 @@ func file_ignis_controller_controller_proto_rawDescGZIP() []byte {
 }
 
 var file_ignis_controller_controller_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_ignis_controller_controller_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
+var file_ignis_controller_controller_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
 var file_ignis_controller_controller_proto_goTypes = []any{
 	(CommandType)(0),                  // 0: ignis.controller.CommandType
 	(DAGNodeType)(0),                  // 1: ignis.controller.DAGNodeType
 	(Data_ObjectType)(0),              // 2: ignis.controller.Data.ObjectType
 	(*Data)(nil),                      // 3: ignis.controller.Data
-	(*AppendActor)(nil),               // 4: ignis.controller.AppendActor
-	(*Resources)(nil),                 // 5: ignis.controller.Resources
-	(*AppendPyFunc)(nil),              // 6: ignis.controller.AppendPyFunc
-	(*AppendPyClass)(nil),             // 7: ignis.controller.AppendPyClass
-	(*AppendData)(nil),                // 8: ignis.controller.AppendData
-	(*AppendArg)(nil),                 // 9: ignis.controller.AppendArg
-	(*AppendClassMethodArg)(nil),      // 10: ignis.controller.AppendClassMethodArg
-	(*Invoke)(nil),                    // 11: ignis.controller.Invoke
-	(*ReturnResult)(nil),              // 12: ignis.controller.ReturnResult
-	(*ControlNode)(nil),               // 13: ignis.controller.ControlNode
-	(*DataNode)(nil),                  // 14: ignis.controller.DataNode
-	(*AppendDAGNode)(nil),             // 15: ignis.controller.AppendDAGNode
-	(*RequestObject)(nil),             // 16: ignis.controller.RequestObject
-	(*ResponseObject)(nil),            // 17: ignis.controller.ResponseObject
-	(*Message)(nil),                   // 18: ignis.controller.Message
-	(*AppendPyClass_ClassMethod)(nil), // 19: ignis.controller.AppendPyClass.ClassMethod
-	nil,                               // 20: ignis.controller.ControlNode.ParamsEntry
-	(*common.ObjectRef)(nil),          // 21: common.ObjectRef
-	(*common.EncodedObject)(nil),      // 22: common.EncodedObject
-	(common.Language)(0),              // 23: common.Language
-	(*common.Ack)(nil),                // 24: common.Ack
-	(*common.Ready)(nil),              // 25: common.Ready
+	(*Resources)(nil),                 // 4: ignis.controller.Resources
+	(*AppendPyFunc)(nil),              // 5: ignis.controller.AppendPyFunc
+	(*AppendPyClass)(nil),             // 6: ignis.controller.AppendPyClass
+	(*AppendGo)(nil),                  // 7: ignis.controller.AppendGo
+	(*AppendUnikernel)(nil),           // 8: ignis.controller.AppendUnikernel
+	(*AppendData)(nil),                // 9: ignis.controller.AppendData
+	(*AppendArg)(nil),                 // 10: ignis.controller.AppendArg
+	(*AppendClassMethodArg)(nil),      // 11: ignis.controller.AppendClassMethodArg
+	(*Invoke)(nil),                    // 12: ignis.controller.Invoke
+	(*ReturnResult)(nil),              // 13: ignis.controller.ReturnResult
+	(*ControlNode)(nil),               // 14: ignis.controller.ControlNode
+	(*DataNode)(nil),                  // 15: ignis.controller.DataNode
+	(*AppendDAGNode)(nil),             // 16: ignis.controller.AppendDAGNode
+	(*RequestObject)(nil),             // 17: ignis.controller.RequestObject
+	(*ResponseObject)(nil),            // 18: ignis.controller.ResponseObject
+	(*Message)(nil),                   // 19: ignis.controller.Message
+	(*AppendPyClass_ClassMethod)(nil), // 20: ignis.controller.AppendPyClass.ClassMethod
+	nil,                               // 21: ignis.controller.ControlNode.ParamsEntry
+	(*common.ObjectRef)(nil),          // 22: common.ObjectRef
+	(*common.EncodedObject)(nil),      // 23: common.EncodedObject
+	(common.Language)(0),              // 24: common.Language
+	(*common.Ack)(nil),                // 25: common.Ack
+	(*common.Ready)(nil),              // 26: common.Ready
 }
 var file_ignis_controller_controller_proto_depIdxs = []int32{
 	2,  // 0: ignis.controller.Data.Type:type_name -> ignis.controller.Data.ObjectType
-	21, // 1: ignis.controller.Data.Ref:type_name -> common.ObjectRef
-	22, // 2: ignis.controller.Data.Encoded:type_name -> common.EncodedObject
-	23, // 3: ignis.controller.AppendPyFunc.Language:type_name -> common.Language
-	5,  // 4: ignis.controller.AppendPyFunc.Resources:type_name -> ignis.controller.Resources
-	19, // 5: ignis.controller.AppendPyClass.Methods:type_name -> ignis.controller.AppendPyClass.ClassMethod
-	23, // 6: ignis.controller.AppendPyClass.Language:type_name -> common.Language
-	5,  // 7: ignis.controller.AppendPyClass.Resources:type_name -> ignis.controller.Resources
-	22, // 8: ignis.controller.AppendData.Object:type_name -> common.EncodedObject
-	3,  // 9: ignis.controller.AppendArg.Value:type_name -> ignis.controller.Data
-	3,  // 10: ignis.controller.AppendClassMethodArg.Value:type_name -> ignis.controller.Data
-	3,  // 11: ignis.controller.ReturnResult.Value:type_name -> ignis.controller.Data
-	20, // 12: ignis.controller.ControlNode.Params:type_name -> ignis.controller.ControlNode.ParamsEntry
-	1,  // 13: ignis.controller.AppendDAGNode.Type:type_name -> ignis.controller.DAGNodeType
-	13, // 14: ignis.controller.AppendDAGNode.ControlNode:type_name -> ignis.controller.ControlNode
-	14, // 15: ignis.controller.AppendDAGNode.DataNode:type_name -> ignis.controller.DataNode
-	22, // 16: ignis.controller.ResponseObject.Value:type_name -> common.EncodedObject
-	0,  // 17: ignis.controller.Message.Type:type_name -> ignis.controller.CommandType
-	24, // 18: ignis.controller.Message.Ack:type_name -> common.Ack
-	25, // 19: ignis.controller.Message.Ready:type_name -> common.Ready
-	8,  // 20: ignis.controller.Message.AppendData:type_name -> ignis.controller.AppendData
-	4,  // 21: ignis.controller.Message.AppendActor:type_name -> ignis.controller.AppendActor
-	6,  // 22: ignis.controller.Message.AppendPyFunc:type_name -> ignis.controller.AppendPyFunc
-	7,  // 23: ignis.controller.Message.AppendPyClass:type_name -> ignis.controller.AppendPyClass
-	9,  // 24: ignis.controller.Message.AppendArg:type_name -> ignis.controller.AppendArg
-	10, // 25: ignis.controller.Message.AppendClassMethodArg:type_name -> ignis.controller.AppendClassMethodArg
-	11, // 26: ignis.controller.Message.Invoke:type_name -> ignis.controller.Invoke
-	12, // 27: ignis.controller.Message.ReturnResult:type_name -> ignis.controller.ReturnResult
-	15, // 28: ignis.controller.Message.AppendDAGNode:type_name -> ignis.controller.AppendDAGNode
-	16, // 29: ignis.controller.Message.RequestObject:type_name -> ignis.controller.RequestObject
-	17, // 30: ignis.controller.Message.ResponseObject:type_name -> ignis.controller.ResponseObject
-	18, // 31: ignis.controller.Service.Session:input_type -> ignis.controller.Message
-	18, // 32: ignis.controller.Service.Session:output_type -> ignis.controller.Message
-	32, // [32:33] is the sub-list for method output_type
-	31, // [31:32] is the sub-list for method input_type
-	31, // [31:31] is the sub-list for extension type_name
-	31, // [31:31] is the sub-list for extension extendee
-	0,  // [0:31] is the sub-list for field type_name
+	22, // 1: ignis.controller.Data.Ref:type_name -> common.ObjectRef
+	23, // 2: ignis.controller.Data.Encoded:type_name -> common.EncodedObject
+	24, // 3: ignis.controller.AppendPyFunc.Language:type_name -> common.Language
+	4,  // 4: ignis.controller.AppendPyFunc.Resources:type_name -> ignis.controller.Resources
+	20, // 5: ignis.controller.AppendPyClass.Methods:type_name -> ignis.controller.AppendPyClass.ClassMethod
+	24, // 6: ignis.controller.AppendPyClass.Language:type_name -> common.Language
+	4,  // 7: ignis.controller.AppendPyClass.Resources:type_name -> ignis.controller.Resources
+	24, // 8: ignis.controller.AppendGo.Language:type_name -> common.Language
+	4,  // 9: ignis.controller.AppendGo.Resources:type_name -> ignis.controller.Resources
+	24, // 10: ignis.controller.AppendUnikernel.Language:type_name -> common.Language
+	4,  // 11: ignis.controller.AppendUnikernel.Resources:type_name -> ignis.controller.Resources
+	23, // 12: ignis.controller.AppendData.Object:type_name -> common.EncodedObject
+	3,  // 13: ignis.controller.AppendArg.Value:type_name -> ignis.controller.Data
+	3,  // 14: ignis.controller.AppendClassMethodArg.Value:type_name -> ignis.controller.Data
+	3,  // 15: ignis.controller.ReturnResult.Value:type_name -> ignis.controller.Data
+	21, // 16: ignis.controller.ControlNode.Params:type_name -> ignis.controller.ControlNode.ParamsEntry
+	1,  // 17: ignis.controller.AppendDAGNode.Type:type_name -> ignis.controller.DAGNodeType
+	14, // 18: ignis.controller.AppendDAGNode.ControlNode:type_name -> ignis.controller.ControlNode
+	15, // 19: ignis.controller.AppendDAGNode.DataNode:type_name -> ignis.controller.DataNode
+	23, // 20: ignis.controller.ResponseObject.Value:type_name -> common.EncodedObject
+	0,  // 21: ignis.controller.Message.Type:type_name -> ignis.controller.CommandType
+	25, // 22: ignis.controller.Message.Ack:type_name -> common.Ack
+	26, // 23: ignis.controller.Message.Ready:type_name -> common.Ready
+	9,  // 24: ignis.controller.Message.AppendData:type_name -> ignis.controller.AppendData
+	7,  // 25: ignis.controller.Message.AppendGo:type_name -> ignis.controller.AppendGo
+	8,  // 26: ignis.controller.Message.AppendUnikernel:type_name -> ignis.controller.AppendUnikernel
+	5,  // 27: ignis.controller.Message.AppendPyFunc:type_name -> ignis.controller.AppendPyFunc
+	6,  // 28: ignis.controller.Message.AppendPyClass:type_name -> ignis.controller.AppendPyClass
+	10, // 29: ignis.controller.Message.AppendArg:type_name -> ignis.controller.AppendArg
+	11, // 30: ignis.controller.Message.AppendClassMethodArg:type_name -> ignis.controller.AppendClassMethodArg
+	12, // 31: ignis.controller.Message.Invoke:type_name -> ignis.controller.Invoke
+	13, // 32: ignis.controller.Message.ReturnResult:type_name -> ignis.controller.ReturnResult
+	16, // 33: ignis.controller.Message.AppendDAGNode:type_name -> ignis.controller.AppendDAGNode
+	17, // 34: ignis.controller.Message.RequestObject:type_name -> ignis.controller.RequestObject
+	18, // 35: ignis.controller.Message.ResponseObject:type_name -> ignis.controller.ResponseObject
+	19, // 36: ignis.controller.Service.Session:input_type -> ignis.controller.Message
+	19, // 37: ignis.controller.Service.Session:output_type -> ignis.controller.Message
+	37, // [37:38] is the sub-list for method output_type
+	36, // [36:37] is the sub-list for method input_type
+	36, // [36:36] is the sub-list for extension type_name
+	36, // [36:36] is the sub-list for extension extendee
+	0,  // [0:36] is the sub-list for field type_name
 }
 
 func init() { file_ignis_controller_controller_proto_init() }
@@ -1962,20 +2116,21 @@ func file_ignis_controller_controller_proto_init() {
 		(*Data_Ref)(nil),
 		(*Data_Encoded)(nil),
 	}
-	file_ignis_controller_controller_proto_msgTypes[9].OneofWrappers = []any{
+	file_ignis_controller_controller_proto_msgTypes[10].OneofWrappers = []any{
 		(*ReturnResult_Value)(nil),
 		(*ReturnResult_Error)(nil),
 	}
-	file_ignis_controller_controller_proto_msgTypes[11].OneofWrappers = []any{}
-	file_ignis_controller_controller_proto_msgTypes[12].OneofWrappers = []any{
+	file_ignis_controller_controller_proto_msgTypes[12].OneofWrappers = []any{}
+	file_ignis_controller_controller_proto_msgTypes[13].OneofWrappers = []any{
 		(*AppendDAGNode_ControlNode)(nil),
 		(*AppendDAGNode_DataNode)(nil),
 	}
-	file_ignis_controller_controller_proto_msgTypes[15].OneofWrappers = []any{
+	file_ignis_controller_controller_proto_msgTypes[16].OneofWrappers = []any{
 		(*Message_Ack)(nil),
 		(*Message_Ready)(nil),
 		(*Message_AppendData)(nil),
-		(*Message_AppendActor)(nil),
+		(*Message_AppendGo)(nil),
+		(*Message_AppendUnikernel)(nil),
 		(*Message_AppendPyFunc)(nil),
 		(*Message_AppendPyClass)(nil),
 		(*Message_AppendArg)(nil),
@@ -1992,7 +2147,7 @@ func file_ignis_controller_controller_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ignis_controller_controller_proto_rawDesc), len(file_ignis_controller_controller_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   18,
+			NumMessages:   19,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

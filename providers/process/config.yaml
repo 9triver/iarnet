@@ -13,3 +13,5 @@ resource_tags:
   - cpu
   - memory
 
+supported_languages:
+  - go

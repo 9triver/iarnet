@@ -12,10 +12,11 @@ import (
 
 // Config Process provider 配置
 type Config struct {
-	Server       ServerConfig   `yaml:"server"`
-	Ignis        IgnisConfig    `yaml:"ignis"`
-	Resource     ResourceConfig `yaml:"resource"`
-	ResourceTags []string       `yaml:"resource_tags"`
+	Server            ServerConfig   `yaml:"server"`
+	Ignis             IgnisConfig    `yaml:"ignis"`
+	Resource          ResourceConfig `yaml:"resource"`
+	ResourceTags      []string       `yaml:"resource_tags"`
+	SupportedLanguages []string       `yaml:"supported_languages"`
 }
 
 // ServerConfig gRPC 服务器配置
@@ -118,6 +119,7 @@ func getDefaultConfig() Config {
 			Memory: "",
 			GPU:    0,
 		},
-		ResourceTags: []string{"cpu", "memory"},
+		ResourceTags:      []string{"cpu", "memory"},
+		SupportedLanguages: []string{"go"}, // 默认支持 Go
 	}
 }

@@ -7,6 +7,7 @@
 package provider
 
 import (
+	common "github.com/9triver/iarnet/internal/proto/common"
 	resource "github.com/9triver/iarnet/internal/proto/resource"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
@@ -111,12 +112,13 @@ func (x *ConnectRequest) GetProviderId() string {
 }
 
 type ConnectResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
-	Error         string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
-	ProviderType  *ProviderType          `protobuf:"bytes,3,opt,name=provider_type,json=providerType,proto3" json:"provider_type,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	Success            bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Error              string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	ProviderType       *ProviderType          `protobuf:"bytes,3,opt,name=provider_type,json=providerType,proto3" json:"provider_type,omitempty"`
+	SupportedLanguages []common.Language      `protobuf:"varint,4,rep,packed,name=supported_languages,json=supportedLanguages,proto3,enum=common.Language" json:"supported_languages,omitempty"` // 支持的语言列表
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *ConnectResponse) Reset() {
@@ -166,6 +168,13 @@ func (x *ConnectResponse) GetError() string {
 func (x *ConnectResponse) GetProviderType() *ProviderType {
 	if x != nil {
 		return x.ProviderType
+	}
+	return nil
+}
+
+func (x *ConnectResponse) GetSupportedLanguages() []common.Language {
+	if x != nil {
+		return x.SupportedLanguages
 	}
 	return nil
 }
@@ -349,10 +358,11 @@ func (x *GetAvailableResponse) GetAvailable() *resource.Info {
 type DeployRequest struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	InstanceId      string                 `protobuf:"bytes,1,opt,name=instance_id,json=instanceId,proto3" json:"instance_id,omitempty"`
-	Image           string                 `protobuf:"bytes,2,opt,name=image,proto3" json:"image,omitempty"`
+	Image           string                 `protobuf:"bytes,2,opt,name=image,proto3" json:"image,omitempty"` // 已废弃：由 provider 根据语言决定镜像，保留用于向后兼容
 	ResourceRequest *resource.Info         `protobuf:"bytes,3,opt,name=resource_request,json=resourceRequest,proto3" json:"resource_request,omitempty"`
 	EnvVars         map[string]string      `protobuf:"bytes,4,rep,name=env_vars,json=envVars,proto3" json:"env_vars,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	ProviderId      string                 `protobuf:"bytes,5,opt,name=provider_id,json=providerId,proto3" json:"provider_id,omitempty"` // 可选的 provider_id，用于鉴权
+	Language        common.Language        `protobuf:"varint,6,opt,name=language,proto3,enum=common.Language" json:"language,omitempty"` // 函数语言类型，如果提供则不再需要 image 参数
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -420,6 +430,13 @@ func (x *DeployRequest) GetProviderId() string {
 		return x.ProviderId
 	}
 	return ""
+}
+
+func (x *DeployRequest) GetLanguage() common.Language {
+	if x != nil {
+		return x.Language
+	}
+	return common.Language(0)
 }
 
 type DeployResponse struct {
@@ -676,11 +693,12 @@ func (x *ResourceTags) GetCamera() bool {
 }
 
 type HealthCheckResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Capacity      *resource.Capacity     `protobuf:"bytes,1,opt,name=capacity,proto3" json:"capacity,omitempty"`                             // 当前资源使用情况（总容量、已使用、可用）
-	ResourceTags  *ResourceTags          `protobuf:"bytes,2,opt,name=resource_tags,json=resourceTags,proto3" json:"resource_tags,omitempty"` // 所具有的资源类型
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	Capacity           *resource.Capacity     `protobuf:"bytes,1,opt,name=capacity,proto3" json:"capacity,omitempty"`                                                                            // 当前资源使用情况（总容量、已使用、可用）
+	ResourceTags       *ResourceTags          `protobuf:"bytes,2,opt,name=resource_tags,json=resourceTags,proto3" json:"resource_tags,omitempty"`                                                // 所具有的资源类型
+	SupportedLanguages []common.Language      `protobuf:"varint,3,rep,packed,name=supported_languages,json=supportedLanguages,proto3,enum=common.Language" json:"supported_languages,omitempty"` // 支持的语言列表
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *HealthCheckResponse) Reset() {
@@ -723,6 +741,13 @@ func (x *HealthCheckResponse) GetCapacity() *resource.Capacity {
 func (x *HealthCheckResponse) GetResourceTags() *ResourceTags {
 	if x != nil {
 		return x.ResourceTags
+	}
+	return nil
+}
+
+func (x *HealthCheckResponse) GetSupportedLanguages() []common.Language {
+	if x != nil {
+		return x.SupportedLanguages
 	}
 	return nil
 }
@@ -899,16 +924,17 @@ var File_resource_provider_provider_proto protoreflect.FileDescriptor
 
 const file_resource_provider_provider_proto_rawDesc = "" +
 	"\n" +
-	" resource/provider/provider.proto\x12\x11resource.provider\x1a\x17resource/resource.proto\"\"\n" +
+	" resource/provider/provider.proto\x12\x11resource.provider\x1a\x17resource/resource.proto\x1a\x12common/types.proto\"\"\n" +
 	"\fProviderType\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"1\n" +
 	"\x0eConnectRequest\x12\x1f\n" +
 	"\vprovider_id\x18\x01 \x01(\tR\n" +
-	"providerId\"\x87\x01\n" +
+	"providerId\"\xca\x01\n" +
 	"\x0fConnectResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
 	"\x05error\x18\x02 \x01(\tR\x05error\x12D\n" +
-	"\rprovider_type\x18\x03 \x01(\v2\x1f.resource.provider.ProviderTypeR\fproviderType\"5\n" +
+	"\rprovider_type\x18\x03 \x01(\v2\x1f.resource.provider.ProviderTypeR\fproviderType\x12A\n" +
+	"\x13supported_languages\x18\x04 \x03(\x0e2\x10.common.LanguageR\x12supportedLanguages\"5\n" +
 	"\x12GetCapacityRequest\x12\x1f\n" +
 	"\vprovider_id\x18\x01 \x01(\tR\n" +
 	"providerId\"E\n" +
@@ -918,7 +944,7 @@ const file_resource_provider_provider_proto_rawDesc = "" +
 	"\vprovider_id\x18\x01 \x01(\tR\n" +
 	"providerId\"D\n" +
 	"\x14GetAvailableResponse\x12,\n" +
-	"\tavailable\x18\x01 \x01(\v2\x0e.resource.InfoR\tavailable\"\xa8\x02\n" +
+	"\tavailable\x18\x01 \x01(\v2\x0e.resource.InfoR\tavailable\"\xd6\x02\n" +
 	"\rDeployRequest\x12\x1f\n" +
 	"\vinstance_id\x18\x01 \x01(\tR\n" +
 	"instanceId\x12\x14\n" +
@@ -926,7 +952,8 @@ const file_resource_provider_provider_proto_rawDesc = "" +
 	"\x10resource_request\x18\x03 \x01(\v2\x0e.resource.InfoR\x0fresourceRequest\x12H\n" +
 	"\benv_vars\x18\x04 \x03(\v2-.resource.provider.DeployRequest.EnvVarsEntryR\aenvVars\x12\x1f\n" +
 	"\vprovider_id\x18\x05 \x01(\tR\n" +
-	"providerId\x1a:\n" +
+	"providerId\x12,\n" +
+	"\blanguage\x18\x06 \x01(\x0e2\x10.common.LanguageR\blanguage\x1a:\n" +
 	"\fEnvVarsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"&\n" +
@@ -946,10 +973,11 @@ const file_resource_provider_provider_proto_rawDesc = "" +
 	"\x03cpu\x18\x01 \x01(\bR\x03cpu\x12\x10\n" +
 	"\x03gpu\x18\x02 \x01(\bR\x03gpu\x12\x16\n" +
 	"\x06memory\x18\x03 \x01(\bR\x06memory\x12\x16\n" +
-	"\x06camera\x18\x04 \x01(\bR\x06camera\"\x8b\x01\n" +
+	"\x06camera\x18\x04 \x01(\bR\x06camera\"\xce\x01\n" +
 	"\x13HealthCheckResponse\x12.\n" +
 	"\bcapacity\x18\x01 \x01(\v2\x12.resource.CapacityR\bcapacity\x12D\n" +
-	"\rresource_tags\x18\x02 \x01(\v2\x1f.resource.provider.ResourceTagsR\fresourceTags\"4\n" +
+	"\rresource_tags\x18\x02 \x01(\v2\x1f.resource.provider.ResourceTagsR\fresourceTags\x12A\n" +
+	"\x13supported_languages\x18\x03 \x03(\x0e2\x10.common.LanguageR\x12supportedLanguages\"4\n" +
 	"\x11DisconnectRequest\x12\x1f\n" +
 	"\vprovider_id\x18\x01 \x01(\tR\n" +
 	"providerId\"\x14\n" +
@@ -1003,39 +1031,43 @@ var file_resource_provider_provider_proto_goTypes = []any{
 	(*GetRealTimeUsageRequest)(nil),  // 16: resource.provider.GetRealTimeUsageRequest
 	(*GetRealTimeUsageResponse)(nil), // 17: resource.provider.GetRealTimeUsageResponse
 	nil,                              // 18: resource.provider.DeployRequest.EnvVarsEntry
-	(*resource.Capacity)(nil),        // 19: resource.Capacity
-	(*resource.Info)(nil),            // 20: resource.Info
+	(common.Language)(0),             // 19: common.Language
+	(*resource.Capacity)(nil),        // 20: resource.Capacity
+	(*resource.Info)(nil),            // 21: resource.Info
 }
 var file_resource_provider_provider_proto_depIdxs = []int32{
 	0,  // 0: resource.provider.ConnectResponse.provider_type:type_name -> resource.provider.ProviderType
-	19, // 1: resource.provider.GetCapacityResponse.capacity:type_name -> resource.Capacity
-	20, // 2: resource.provider.GetAvailableResponse.available:type_name -> resource.Info
-	20, // 3: resource.provider.DeployRequest.resource_request:type_name -> resource.Info
-	18, // 4: resource.provider.DeployRequest.env_vars:type_name -> resource.provider.DeployRequest.EnvVarsEntry
-	19, // 5: resource.provider.HealthCheckResponse.capacity:type_name -> resource.Capacity
-	12, // 6: resource.provider.HealthCheckResponse.resource_tags:type_name -> resource.provider.ResourceTags
-	20, // 7: resource.provider.GetRealTimeUsageResponse.usage:type_name -> resource.Info
-	1,  // 8: resource.provider.Service.Connect:input_type -> resource.provider.ConnectRequest
-	14, // 9: resource.provider.Service.Disconnect:input_type -> resource.provider.DisconnectRequest
-	3,  // 10: resource.provider.Service.GetCapacity:input_type -> resource.provider.GetCapacityRequest
-	5,  // 11: resource.provider.Service.GetAvailable:input_type -> resource.provider.GetAvailableRequest
-	7,  // 12: resource.provider.Service.Deploy:input_type -> resource.provider.DeployRequest
-	9,  // 13: resource.provider.Service.Undeploy:input_type -> resource.provider.UndeployRequest
-	11, // 14: resource.provider.Service.HealthCheck:input_type -> resource.provider.HealthCheckRequest
-	16, // 15: resource.provider.Service.GetRealTimeUsage:input_type -> resource.provider.GetRealTimeUsageRequest
-	2,  // 16: resource.provider.Service.Connect:output_type -> resource.provider.ConnectResponse
-	15, // 17: resource.provider.Service.Disconnect:output_type -> resource.provider.DisconnectResponse
-	4,  // 18: resource.provider.Service.GetCapacity:output_type -> resource.provider.GetCapacityResponse
-	6,  // 19: resource.provider.Service.GetAvailable:output_type -> resource.provider.GetAvailableResponse
-	8,  // 20: resource.provider.Service.Deploy:output_type -> resource.provider.DeployResponse
-	10, // 21: resource.provider.Service.Undeploy:output_type -> resource.provider.UndeployResponse
-	13, // 22: resource.provider.Service.HealthCheck:output_type -> resource.provider.HealthCheckResponse
-	17, // 23: resource.provider.Service.GetRealTimeUsage:output_type -> resource.provider.GetRealTimeUsageResponse
-	16, // [16:24] is the sub-list for method output_type
-	8,  // [8:16] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	19, // 1: resource.provider.ConnectResponse.supported_languages:type_name -> common.Language
+	20, // 2: resource.provider.GetCapacityResponse.capacity:type_name -> resource.Capacity
+	21, // 3: resource.provider.GetAvailableResponse.available:type_name -> resource.Info
+	21, // 4: resource.provider.DeployRequest.resource_request:type_name -> resource.Info
+	18, // 5: resource.provider.DeployRequest.env_vars:type_name -> resource.provider.DeployRequest.EnvVarsEntry
+	19, // 6: resource.provider.DeployRequest.language:type_name -> common.Language
+	20, // 7: resource.provider.HealthCheckResponse.capacity:type_name -> resource.Capacity
+	12, // 8: resource.provider.HealthCheckResponse.resource_tags:type_name -> resource.provider.ResourceTags
+	19, // 9: resource.provider.HealthCheckResponse.supported_languages:type_name -> common.Language
+	21, // 10: resource.provider.GetRealTimeUsageResponse.usage:type_name -> resource.Info
+	1,  // 11: resource.provider.Service.Connect:input_type -> resource.provider.ConnectRequest
+	14, // 12: resource.provider.Service.Disconnect:input_type -> resource.provider.DisconnectRequest
+	3,  // 13: resource.provider.Service.GetCapacity:input_type -> resource.provider.GetCapacityRequest
+	5,  // 14: resource.provider.Service.GetAvailable:input_type -> resource.provider.GetAvailableRequest
+	7,  // 15: resource.provider.Service.Deploy:input_type -> resource.provider.DeployRequest
+	9,  // 16: resource.provider.Service.Undeploy:input_type -> resource.provider.UndeployRequest
+	11, // 17: resource.provider.Service.HealthCheck:input_type -> resource.provider.HealthCheckRequest
+	16, // 18: resource.provider.Service.GetRealTimeUsage:input_type -> resource.provider.GetRealTimeUsageRequest
+	2,  // 19: resource.provider.Service.Connect:output_type -> resource.provider.ConnectResponse
+	15, // 20: resource.provider.Service.Disconnect:output_type -> resource.provider.DisconnectResponse
+	4,  // 21: resource.provider.Service.GetCapacity:output_type -> resource.provider.GetCapacityResponse
+	6,  // 22: resource.provider.Service.GetAvailable:output_type -> resource.provider.GetAvailableResponse
+	8,  // 23: resource.provider.Service.Deploy:output_type -> resource.provider.DeployResponse
+	10, // 24: resource.provider.Service.Undeploy:output_type -> resource.provider.UndeployResponse
+	13, // 25: resource.provider.Service.HealthCheck:output_type -> resource.provider.HealthCheckResponse
+	17, // 26: resource.provider.Service.GetRealTimeUsage:output_type -> resource.provider.GetRealTimeUsageResponse
+	19, // [19:27] is the sub-list for method output_type
+	11, // [11:19] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_resource_provider_provider_proto_init() }

@@ -8,6 +8,7 @@ import (
 
 	"github.com/9triver/iarnet/internal/domain/resource/types"
 	providerrepo "github.com/9triver/iarnet/internal/infra/repository/resource"
+	common "github.com/9triver/iarnet/internal/proto/common"
 	"github.com/sirupsen/logrus"
 )
 
@@ -23,8 +24,8 @@ type Service interface {
 	// UnregisterProvider 注销 Provider 并断开连接
 	UnregisterProvider(ctx context.Context, id string) error
 
-	// FindAvailableProvider 查找满足资源要求的可用 Provider
-	FindAvailableProvider(ctx context.Context, resourceRequest *types.Info) (*Provider, error)
+	// FindAvailableProvider 查找满足资源要求和语言支持的可用 Provider
+	FindAvailableProvider(ctx context.Context, resourceRequest *types.Info, language common.Language) (*Provider, error)
 
 	// GetProvider 获取指定 ID 的 Provider
 	GetProvider(id string) *Provider
@@ -168,9 +169,9 @@ func (s *service) UnregisterProvider(ctx context.Context, id string) error {
 	return nil
 }
 
-// FindAvailableProvider 查找满足资源要求的可用 Provider
+// FindAvailableProvider 查找满足资源要求和语言支持的可用 Provider
 // 优先使用缓存数据，如果找不到合适的 provider，会尝试强制刷新后重试
-func (s *service) FindAvailableProvider(ctx context.Context, resourceRequest *types.Info) (*Provider, error) {
+func (s *service) FindAvailableProvider(ctx context.Context, resourceRequest *types.Info, language common.Language) (*Provider, error) {
 	if resourceRequest == nil {
 		return nil, fmt.Errorf("resource request is required")
 	}
@@ -183,6 +184,12 @@ func (s *service) FindAvailableProvider(ctx context.Context, resourceRequest *ty
 		// 检查 Provider 状态
 		if provider.GetStatus() != types.ProviderStatusConnected {
 			logrus.Debugf("Skipping provider %s: status is not connected", provider.GetID())
+			continue
+		}
+
+		// 检查语言支持（如果指定了语言）
+		if language != common.Language_LANG_UNKNOWN && !provider.SupportsLanguage(language) {
+			logrus.Debugf("Provider %s does not support language %v", provider.GetID(), language)
 			continue
 		}
 
@@ -212,6 +219,12 @@ func (s *service) FindAvailableProvider(ctx context.Context, resourceRequest *ty
 	logrus.Debugf("No provider found with cached data, trying with fresh data...")
 	for _, provider := range connectedProviders {
 		if provider.GetStatus() != types.ProviderStatusConnected {
+			continue
+		}
+
+		// 检查语言支持（如果指定了语言）
+		if language != common.Language_LANG_UNKNOWN && !provider.SupportsLanguage(language) {
+			logrus.Debugf("Provider %s does not support language %v (fresh)", provider.GetID(), language)
 			continue
 		}
 

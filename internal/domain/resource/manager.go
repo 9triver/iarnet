@@ -45,7 +45,7 @@ type Manager struct {
 	providerManager     *provider.Manager
 	loggerService       logger.Service
 	envVariables        *provider.EnvVariables
-	componentImages     map[string]string // 存储 component 镜像映射，用于 DeployComponentOnProvider
+	componentImages     map[string]string // 已废弃：不再在 iarnet 侧选择镜像，由 provider 根据语言决定，保留用于向后兼容
 	nodeID              string
 	name                string
 	description         string
@@ -983,6 +983,7 @@ func calculateAvailableResourceScore(capacity *types.Capacity) int64 {
 // ScheduleLocalProvider 在当前 iarnet 节点内执行一次"只调度不部署"的本地调度。
 // 它会复用 providerService.FindAvailableProvider 的逻辑返回一个合适的 Provider，
 // 同时查询该 Provider 当前的可用资源，打包成 scheduler.LocalScheduleResult 返回给调用方。
+// 注意：此方法需要语言信息，但当前接口没有语言参数，需要从 context 或修改方法签名获取
 func (m *Manager) ScheduleLocalProvider(ctx context.Context, resourceRequest *types.Info) (*scheduler.LocalScheduleResult, error) {
 	if resourceRequest == nil {
 		return nil, fmt.Errorf("resource request is nil")
@@ -991,8 +992,14 @@ func (m *Manager) ScheduleLocalProvider(ctx context.Context, resourceRequest *ty
 		return nil, fmt.Errorf("provider service is not configured")
 	}
 
+	// 从 context 中获取语言信息（如果存在）
+	language := commonpb.Language_LANG_UNKNOWN
+	if lang, ok := provider.GetLanguageFromContext(ctx); ok {
+		language = lang
+	}
+
 	// 仅做调度决策，不做任何部署操作
-	p, err := m.providerService.FindAvailableProvider(ctx, resourceRequest)
+	p, err := m.providerService.FindAvailableProvider(ctx, resourceRequest, language)
 	if err != nil {
 		return nil, fmt.Errorf("failed to schedule local provider: %w", err)
 	}
@@ -1009,6 +1016,7 @@ func (m *Manager) ScheduleLocalProvider(ctx context.Context, resourceRequest *ty
 	return &scheduler.LocalScheduleResult{
 		ProviderID: p.GetID(),
 		Available:  available,
+		Language:   language,
 	}, nil
 }
 
@@ -1029,8 +1037,11 @@ func (m *Manager) DeployComponentOnProvider(ctx context.Context, runtimeEnv type
 	if m.providerService == nil {
 		return nil, fmt.Errorf("provider service is not configured")
 	}
-	if m.componentImages == nil {
-		return nil, fmt.Errorf("component images not configured")
+
+	// 将 RuntimeEnv 转换为 Language
+	language := types.RuntimeEnvToLanguage(runtimeEnv)
+	if language == commonpb.Language_LANG_UNKNOWN {
+		return nil, fmt.Errorf("unsupported runtime environment: %s", runtimeEnv)
 	}
 
 	// 获取指定的 provider
@@ -1044,14 +1055,15 @@ func (m *Manager) DeployComponentOnProvider(ctx context.Context, runtimeEnv type
 		return nil, fmt.Errorf("provider %s is not connected", providerID)
 	}
 
-	// 获取镜像
-	image, ok := m.componentImages[string(runtimeEnv)]
-	if !ok {
-		return nil, fmt.Errorf("image for runtime environment %s not found", runtimeEnv)
+	// 检查 provider 是否支持该语言
+	if !p.SupportsLanguage(language) {
+		return nil, fmt.Errorf("provider %s does not support language %v", providerID, language)
 	}
 
 	// 创建 component
 	id := util.GenIDWith("comp.")
+	// 不再在 iarnet 侧选择镜像，image 字段保留用于向后兼容
+	image := "" // 不再使用，由 provider 根据语言决定
 	comp := component.NewComponent(id, image, resourceRequest)
 
 	// 添加到 manager
@@ -1059,13 +1071,13 @@ func (m *Manager) DeployComponentOnProvider(ctx context.Context, runtimeEnv type
 		return nil, fmt.Errorf("failed to add component to manager: %w", err)
 	}
 
-	// 在指定 provider 上部署
-	if err := p.Deploy(ctx, id, image, resourceRequest); err != nil {
+	// 在指定 provider 上部署，传递语言而不是镜像
+	if err := p.Deploy(ctx, id, language, resourceRequest); err != nil {
 		return nil, fmt.Errorf("failed to deploy component on provider %s: %w", providerID, err)
 	}
 
 	comp.SetProviderID("local." + providerID)
-	logrus.Infof("Deployed component %s on provider %s", id, providerID)
+	logrus.Infof("Deployed component %s (language: %v) on provider %s", id, language, providerID)
 
 	return comp, nil
 }
@@ -1174,7 +1186,8 @@ func (m *Manager) CommitDelegatedDeployment(ctx context.Context, runtimeEnv type
 	}
 
 	// 第一阶段：调用远端 ProposeLocalSchedule 获取调度结果
-	scheduleResult, err := m.schedulerService.ProposeRemoteSchedule(ctx, proposal.NodeID, targetAddr, resourceRequest)
+	// 传递 runtimeEnv 以便远程节点可以根据语言筛选 provider
+	scheduleResult, err := m.schedulerService.ProposeRemoteSchedule(ctx, proposal.NodeID, targetAddr, runtimeEnv, resourceRequest)
 	if err != nil {
 		return nil, fmt.Errorf("failed to propose schedule on remote node %s: %w", proposal.NodeID, err)
 	}

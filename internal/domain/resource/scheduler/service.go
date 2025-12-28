@@ -8,6 +8,7 @@ import (
 	"github.com/9triver/iarnet/internal/domain/resource/discovery"
 	"github.com/9triver/iarnet/internal/domain/resource/provider"
 	"github.com/9triver/iarnet/internal/domain/resource/types"
+	"github.com/9triver/iarnet/internal/proto/common"
 	resourcepb "github.com/9triver/iarnet/internal/proto/resource"
 	schedulerpb "github.com/9triver/iarnet/internal/proto/resource/scheduler"
 	"google.golang.org/grpc"
@@ -32,7 +33,7 @@ type Service interface {
 
 	// ProposeRemoteSchedule 在远程节点执行一次“只调度不部署”的调度
 	// 返回远程节点选中的 provider 及其可用资源信息
-	ProposeRemoteSchedule(ctx context.Context, targetNodeID string, targetAddress string, req *types.Info) (*LocalScheduleResult, error)
+	ProposeRemoteSchedule(ctx context.Context, targetNodeID string, targetAddress string, runtimeEnv types.RuntimeEnv, req *types.Info) (*LocalScheduleResult, error)
 
 	// CommitRemoteSchedule 在远程节点上确认部署（两阶段提交的第二阶段）
 	CommitRemoteSchedule(ctx context.Context, targetNodeID string, targetAddress string, req *CommitLocalScheduleRequest) (*DeployResponse, error)
@@ -85,6 +86,9 @@ type LocalScheduleResult struct {
 
 	// Provider 当前可用资源视图
 	Available *types.Info
+
+	// 语言信息（用于后续部署时验证 provider 支持）
+	Language common.Language
 }
 
 // CommitLocalScheduleRequest 确认部署请求
@@ -322,13 +326,16 @@ func (s *service) deployRemotely(ctx context.Context, req *DeployRequest) (*Depl
 	}, nil
 }
 
-// ProposeLocalSchedule 在当前节点执行一次“只调度不部署”的本地调度
+// ProposeLocalSchedule 在当前节点执行一次"只调度不部署"的本地调度
+// 注意：此方法需要语言信息，但当前接口没有语言参数
+// 如果需要根据语言筛选，需要在请求中添加语言字段或从 context 获取
 func (s *service) ProposeLocalSchedule(ctx context.Context, req *types.Info) (*LocalScheduleResult, error) {
 	if req == nil {
 		return nil, fmt.Errorf("resource request is required")
 	}
 
 	// 直接复用本地资源管理器中的调度逻辑（不触发部署）
+	// 语言信息会从 context 中获取（如果存在）
 	result, err := s.localResourceManager.ScheduleLocalProvider(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to schedule local provider: %w", err)
@@ -342,6 +349,7 @@ func (s *service) ProposeLocalSchedule(ctx context.Context, req *types.Info) (*L
 		NodeName:   s.localResourceManager.GetNodeName(),
 		ProviderID: result.ProviderID,
 		Available:  result.Available,
+		Language:   result.Language,
 	}, nil
 }
 
@@ -379,6 +387,12 @@ func (s *service) CommitLocalSchedule(ctx context.Context, req *CommitLocalSched
 		localCtx = provider.WithDeploymentEnvOverride(ctx, override)
 	}
 
+	// 将 RuntimeEnv 转换为 Language 并添加到 context（虽然 DeployComponentOnProvider 会再次转换，但保持一致性）
+	language := types.RuntimeEnvToLanguage(req.RuntimeEnv)
+	if language != common.Language_LANG_UNKNOWN {
+		localCtx = provider.WithLanguage(localCtx, language)
+	}
+
 	// 在指定的 provider 上部署
 	comp, err := s.localResourceManager.DeployComponentOnProvider(localCtx, req.RuntimeEnv, req.ResourceRequest, req.ProviderID)
 	if err != nil {
@@ -398,9 +412,15 @@ func (s *service) CommitLocalSchedule(ctx context.Context, req *CommitLocalSched
 }
 
 // ProposeRemoteSchedule 在远程节点执行一次“只调度不部署”的调度
-func (s *service) ProposeRemoteSchedule(ctx context.Context, targetNodeID string, targetAddress string, req *types.Info) (*LocalScheduleResult, error) {
+func (s *service) ProposeRemoteSchedule(ctx context.Context, targetNodeID string, targetAddress string, runtimeEnv types.RuntimeEnv, req *types.Info) (*LocalScheduleResult, error) {
 	if req == nil {
 		return nil, fmt.Errorf("resource request is required")
+	}
+
+	// 将 RuntimeEnv 转换为 Language 并添加到 context，以便远程节点可以根据语言筛选 provider
+	language := types.RuntimeEnvToLanguage(runtimeEnv)
+	if language != common.Language_LANG_UNKNOWN {
+		ctx = provider.WithLanguage(ctx, language)
 	}
 
 	// 获取目标节点地址
@@ -461,6 +481,11 @@ func (s *service) ProposeRemoteSchedule(ctx context.Context, targetNodeID string
 		return nil, fmt.Errorf("remote schedule proposal rejected: %s", protoResp.Error)
 	}
 
+	// 从 context 中获取语言信息（如果存在）
+	if lang, ok := provider.GetLanguageFromContext(ctx); ok {
+		language = lang
+	}
+
 	return &LocalScheduleResult{
 		NodeID:     protoResp.NodeId,
 		NodeName:   protoResp.NodeName,
@@ -476,6 +501,7 @@ func (s *service) ProposeRemoteSchedule(ctx context.Context, targetNodeID string
 			}
 			return nil
 		}(),
+		Language: language,
 	}, nil
 }
 
