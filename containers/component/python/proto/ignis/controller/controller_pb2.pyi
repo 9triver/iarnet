@@ -15,9 +15,10 @@ class CommandType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     ACK: _ClassVar[CommandType]
     FR_READY: _ClassVar[CommandType]
     FR_APPEND_DATA: _ClassVar[CommandType]
-    FR_APPEND_ACTOR: _ClassVar[CommandType]
+    FR_APPEND_GO: _ClassVar[CommandType]
     FR_APPEND_PY_FUNC: _ClassVar[CommandType]
     FR_APPEND_PY_CLASS: _ClassVar[CommandType]
+    FR_APPEND_UNIKERNEL: _ClassVar[CommandType]
     FR_APPEND_ARG: _ClassVar[CommandType]
     FR_APPEND_CLASS_METHOD_ARG: _ClassVar[CommandType]
     FR_INVOKE: _ClassVar[CommandType]
@@ -35,9 +36,10 @@ UNSPECIFIED: CommandType
 ACK: CommandType
 FR_READY: CommandType
 FR_APPEND_DATA: CommandType
-FR_APPEND_ACTOR: CommandType
+FR_APPEND_GO: CommandType
 FR_APPEND_PY_FUNC: CommandType
 FR_APPEND_PY_CLASS: CommandType
+FR_APPEND_UNIKERNEL: CommandType
 FR_APPEND_ARG: CommandType
 FR_APPEND_CLASS_METHOD_ARG: CommandType
 FR_INVOKE: CommandType
@@ -68,14 +70,6 @@ class Data(_message.Message):
     Ref: _types_pb2.ObjectRef
     Encoded: _types_pb2.EncodedObject
     def __init__(self, Type: _Optional[_Union[Data.ObjectType, str]] = ..., Ref: _Optional[_Union[_types_pb2.ObjectRef, _Mapping]] = ..., Encoded: _Optional[_Union[_types_pb2.EncodedObject, _Mapping]] = ...) -> None: ...
-
-class AppendActor(_message.Message):
-    __slots__ = ("Name", "Params")
-    NAME_FIELD_NUMBER: _ClassVar[int]
-    PARAMS_FIELD_NUMBER: _ClassVar[int]
-    Name: str
-    Params: _containers.RepeatedScalarFieldContainer[str]
-    def __init__(self, Name: _Optional[str] = ..., Params: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class Resources(_message.Message):
     __slots__ = ("CPU", "Memory", "GPU")
@@ -135,6 +129,38 @@ class AppendPyClass(_message.Message):
     Resources: Resources
     Replicas: int
     def __init__(self, Name: _Optional[str] = ..., Methods: _Optional[_Iterable[_Union[AppendPyClass.ClassMethod, _Mapping]]] = ..., Venv: _Optional[str] = ..., Requirements: _Optional[_Iterable[str]] = ..., PickledObject: _Optional[bytes] = ..., Language: _Optional[_Union[_types_pb2.Language, str]] = ..., Resources: _Optional[_Union[Resources, _Mapping]] = ..., Replicas: _Optional[int] = ...) -> None: ...
+
+class AppendGo(_message.Message):
+    __slots__ = ("Name", "Params", "Code", "Language", "Resources", "Replicas")
+    NAME_FIELD_NUMBER: _ClassVar[int]
+    PARAMS_FIELD_NUMBER: _ClassVar[int]
+    CODE_FIELD_NUMBER: _ClassVar[int]
+    LANGUAGE_FIELD_NUMBER: _ClassVar[int]
+    RESOURCES_FIELD_NUMBER: _ClassVar[int]
+    REPLICAS_FIELD_NUMBER: _ClassVar[int]
+    Name: str
+    Params: _containers.RepeatedScalarFieldContainer[str]
+    Code: str
+    Language: _types_pb2.Language
+    Resources: Resources
+    Replicas: int
+    def __init__(self, Name: _Optional[str] = ..., Params: _Optional[_Iterable[str]] = ..., Code: _Optional[str] = ..., Language: _Optional[_Union[_types_pb2.Language, str]] = ..., Resources: _Optional[_Union[Resources, _Mapping]] = ..., Replicas: _Optional[int] = ...) -> None: ...
+
+class AppendUnikernel(_message.Message):
+    __slots__ = ("Name", "Params", "Unikernel", "Language", "Resources", "Replicas")
+    NAME_FIELD_NUMBER: _ClassVar[int]
+    PARAMS_FIELD_NUMBER: _ClassVar[int]
+    UNIKERNEL_FIELD_NUMBER: _ClassVar[int]
+    LANGUAGE_FIELD_NUMBER: _ClassVar[int]
+    RESOURCES_FIELD_NUMBER: _ClassVar[int]
+    REPLICAS_FIELD_NUMBER: _ClassVar[int]
+    Name: str
+    Params: _containers.RepeatedScalarFieldContainer[str]
+    Unikernel: str
+    Language: _types_pb2.Language
+    Resources: Resources
+    Replicas: int
+    def __init__(self, Name: _Optional[str] = ..., Params: _Optional[_Iterable[str]] = ..., Unikernel: _Optional[str] = ..., Language: _Optional[_Union[_types_pb2.Language, str]] = ..., Resources: _Optional[_Union[Resources, _Mapping]] = ..., Replicas: _Optional[int] = ...) -> None: ...
 
 class AppendData(_message.Message):
     __slots__ = ("SessionID", "InstanceID", "Object")
@@ -270,13 +296,14 @@ class ResponseObject(_message.Message):
     def __init__(self, ID: _Optional[str] = ..., Value: _Optional[_Union[_types_pb2.EncodedObject, _Mapping]] = ..., Error: _Optional[str] = ...) -> None: ...
 
 class Message(_message.Message):
-    __slots__ = ("Type", "AppID", "Ack", "Ready", "AppendData", "AppendActor", "AppendPyFunc", "AppendPyClass", "AppendArg", "AppendClassMethodArg", "Invoke", "ReturnResult", "AppendDAGNode", "RequestObject", "ResponseObject")
+    __slots__ = ("Type", "AppID", "Ack", "Ready", "AppendData", "AppendGo", "AppendUnikernel", "AppendPyFunc", "AppendPyClass", "AppendArg", "AppendClassMethodArg", "Invoke", "ReturnResult", "AppendDAGNode", "RequestObject", "ResponseObject")
     TYPE_FIELD_NUMBER: _ClassVar[int]
     APPID_FIELD_NUMBER: _ClassVar[int]
     ACK_FIELD_NUMBER: _ClassVar[int]
     READY_FIELD_NUMBER: _ClassVar[int]
     APPENDDATA_FIELD_NUMBER: _ClassVar[int]
-    APPENDACTOR_FIELD_NUMBER: _ClassVar[int]
+    APPENDGO_FIELD_NUMBER: _ClassVar[int]
+    APPENDUNIKERNEL_FIELD_NUMBER: _ClassVar[int]
     APPENDPYFUNC_FIELD_NUMBER: _ClassVar[int]
     APPENDPYCLASS_FIELD_NUMBER: _ClassVar[int]
     APPENDARG_FIELD_NUMBER: _ClassVar[int]
@@ -291,7 +318,8 @@ class Message(_message.Message):
     Ack: _messages_pb2.Ack
     Ready: _messages_pb2.Ready
     AppendData: AppendData
-    AppendActor: AppendActor
+    AppendGo: AppendGo
+    AppendUnikernel: AppendUnikernel
     AppendPyFunc: AppendPyFunc
     AppendPyClass: AppendPyClass
     AppendArg: AppendArg
@@ -301,4 +329,4 @@ class Message(_message.Message):
     AppendDAGNode: AppendDAGNode
     RequestObject: RequestObject
     ResponseObject: ResponseObject
-    def __init__(self, Type: _Optional[_Union[CommandType, str]] = ..., AppID: _Optional[str] = ..., Ack: _Optional[_Union[_messages_pb2.Ack, _Mapping]] = ..., Ready: _Optional[_Union[_messages_pb2.Ready, _Mapping]] = ..., AppendData: _Optional[_Union[AppendData, _Mapping]] = ..., AppendActor: _Optional[_Union[AppendActor, _Mapping]] = ..., AppendPyFunc: _Optional[_Union[AppendPyFunc, _Mapping]] = ..., AppendPyClass: _Optional[_Union[AppendPyClass, _Mapping]] = ..., AppendArg: _Optional[_Union[AppendArg, _Mapping]] = ..., AppendClassMethodArg: _Optional[_Union[AppendClassMethodArg, _Mapping]] = ..., Invoke: _Optional[_Union[Invoke, _Mapping]] = ..., ReturnResult: _Optional[_Union[ReturnResult, _Mapping]] = ..., AppendDAGNode: _Optional[_Union[AppendDAGNode, _Mapping]] = ..., RequestObject: _Optional[_Union[RequestObject, _Mapping]] = ..., ResponseObject: _Optional[_Union[ResponseObject, _Mapping]] = ...) -> None: ...
+    def __init__(self, Type: _Optional[_Union[CommandType, str]] = ..., AppID: _Optional[str] = ..., Ack: _Optional[_Union[_messages_pb2.Ack, _Mapping]] = ..., Ready: _Optional[_Union[_messages_pb2.Ready, _Mapping]] = ..., AppendData: _Optional[_Union[AppendData, _Mapping]] = ..., AppendGo: _Optional[_Union[AppendGo, _Mapping]] = ..., AppendUnikernel: _Optional[_Union[AppendUnikernel, _Mapping]] = ..., AppendPyFunc: _Optional[_Union[AppendPyFunc, _Mapping]] = ..., AppendPyClass: _Optional[_Union[AppendPyClass, _Mapping]] = ..., AppendArg: _Optional[_Union[AppendArg, _Mapping]] = ..., AppendClassMethodArg: _Optional[_Union[AppendClassMethodArg, _Mapping]] = ..., Invoke: _Optional[_Union[Invoke, _Mapping]] = ..., ReturnResult: _Optional[_Union[ReturnResult, _Mapping]] = ..., AppendDAGNode: _Optional[_Union[AppendDAGNode, _Mapping]] = ..., RequestObject: _Optional[_Union[RequestObject, _Mapping]] = ..., ResponseObject: _Optional[_Union[ResponseObject, _Mapping]] = ...) -> None: ...

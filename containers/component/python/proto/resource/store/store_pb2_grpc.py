@@ -54,6 +54,11 @@ class ServiceStub(object):
                 request_serializer=resource_dot_store_dot_store__pb2.GetStreamChunkRequest.SerializeToString,
                 response_deserializer=resource_dot_store_dot_store__pb2.GetStreamChunkResponse.FromString,
                 _registered_method=True)
+        self.GetID = channel.unary_unary(
+                '/resource.store.Service/GetID',
+                request_serializer=resource_dot_store_dot_store__pb2.GetIDRequest.SerializeToString,
+                response_deserializer=resource_dot_store_dot_store__pb2.GetIDResponse.FromString,
+                _registered_method=True)
 
 
 class ServiceServicer(object):
@@ -83,6 +88,12 @@ class ServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def GetID(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_ServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -105,6 +116,11 @@ def add_ServiceServicer_to_server(servicer, server):
                     servicer.GetStreamChunk,
                     request_deserializer=resource_dot_store_dot_store__pb2.GetStreamChunkRequest.FromString,
                     response_serializer=resource_dot_store_dot_store__pb2.GetStreamChunkResponse.SerializeToString,
+            ),
+            'GetID': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetID,
+                    request_deserializer=resource_dot_store_dot_store__pb2.GetIDRequest.FromString,
+                    response_serializer=resource_dot_store_dot_store__pb2.GetIDResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -215,6 +231,33 @@ class Service(object):
             '/resource.store.Service/GetStreamChunk',
             resource_dot_store_dot_store__pb2.GetStreamChunkRequest.SerializeToString,
             resource_dot_store_dot_store__pb2.GetStreamChunkResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetID(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/resource.store.Service/GetID',
+            resource_dot_store_dot_store__pb2.GetIDRequest.SerializeToString,
+            resource_dot_store_dot_store__pb2.GetIDResponse.FromString,
             options,
             channel_credentials,
             insecure,

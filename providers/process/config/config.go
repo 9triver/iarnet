@@ -12,11 +12,12 @@ import (
 
 // Config Process provider 配置
 type Config struct {
-	Server            ServerConfig   `yaml:"server"`
-	Ignis             IgnisConfig    `yaml:"ignis"`
-	Resource          ResourceConfig `yaml:"resource"`
-	ResourceTags      []string       `yaml:"resource_tags"`
+	Server             ServerConfig   `yaml:"server"`
+	Ignis              IgnisConfig    `yaml:"ignis"`
+	Resource           ResourceConfig `yaml:"resource"`
+	ResourceTags       []string       `yaml:"resource_tags"`
 	SupportedLanguages []string       `yaml:"supported_languages"`
+	DNS                DNSConfig      `yaml:"dns"` // DNS 配置
 }
 
 // ServerConfig gRPC 服务器配置
@@ -34,6 +35,11 @@ type ResourceConfig struct {
 	CPU    int64  `yaml:"cpu"`    // CPU 容量，单位：millicores (1000 millicores = 1 core)
 	Memory string `yaml:"memory"` // 内存容量，支持格式：8Gi, 8GB, 8192Mi, 8192MB 等
 	GPU    int64  `yaml:"gpu"`    // GPU 数量
+}
+
+// DNSConfig DNS 配置
+type DNSConfig struct {
+	Hosts map[string]string `yaml:"hosts"` // 主机名到 IP 地址的映射，例如：{"host.internal": "localhost"}
 }
 
 // ParseMemory 解析内存字符串为字节数
@@ -119,7 +125,7 @@ func getDefaultConfig() Config {
 			Memory: "",
 			GPU:    0,
 		},
-		ResourceTags:      []string{"cpu", "memory"},
+		ResourceTags:       []string{"cpu", "memory"},
 		SupportedLanguages: []string{"go"}, // 默认支持 Go
 	}
 }

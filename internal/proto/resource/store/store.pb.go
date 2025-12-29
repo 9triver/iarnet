@@ -390,6 +390,86 @@ func (*SaveStreamChunkResponse) Descriptor() ([]byte, []int) {
 	return file_resource_store_store_proto_rawDescGZIP(), []int{7}
 }
 
+type GetIDRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetIDRequest) Reset() {
+	*x = GetIDRequest{}
+	mi := &file_resource_store_store_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetIDRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetIDRequest) ProtoMessage() {}
+
+func (x *GetIDRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_resource_store_store_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetIDRequest.ProtoReflect.Descriptor instead.
+func (*GetIDRequest) Descriptor() ([]byte, []int) {
+	return file_resource_store_store_proto_rawDescGZIP(), []int{8}
+}
+
+type GetIDResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ID            string                 `protobuf:"bytes,1,opt,name=ID,proto3" json:"ID,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetIDResponse) Reset() {
+	*x = GetIDResponse{}
+	mi := &file_resource_store_store_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetIDResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetIDResponse) ProtoMessage() {}
+
+func (x *GetIDResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_resource_store_store_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetIDResponse.ProtoReflect.Descriptor instead.
+func (*GetIDResponse) Descriptor() ([]byte, []int) {
+	return file_resource_store_store_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *GetIDResponse) GetID() string {
+	if x != nil {
+		return x.ID
+	}
+	return ""
+}
+
 var File_resource_store_store_proto protoreflect.FileDescriptor
 
 const file_resource_store_store_proto_rawDesc = "" +
@@ -412,13 +492,17 @@ const file_resource_store_store_proto_rawDesc = "" +
 	"\x05Chunk\x18\x01 \x01(\v2\x13.common.StreamChunkR\x05Chunk\"C\n" +
 	"\x16SaveStreamChunkRequest\x12)\n" +
 	"\x05Chunk\x18\x01 \x01(\v2\x13.common.StreamChunkR\x05Chunk\"\x19\n" +
-	"\x17SaveStreamChunkResponse2\xf5\x02\n" +
+	"\x17SaveStreamChunkResponse\"\x0e\n" +
+	"\fGetIDRequest\"\x1f\n" +
+	"\rGetIDResponse\x12\x0e\n" +
+	"\x02ID\x18\x01 \x01(\tR\x02ID2\xbb\x03\n" +
 	"\aService\x12S\n" +
 	"\n" +
 	"SaveObject\x12!.resource.store.SaveObjectRequest\x1a\".resource.store.SaveObjectResponse\x12b\n" +
 	"\x0fSaveStreamChunk\x12&.resource.store.SaveStreamChunkRequest\x1a'.resource.store.SaveStreamChunkResponse\x12P\n" +
 	"\tGetObject\x12 .resource.store.GetObjectRequest\x1a!.resource.store.GetObjectResponse\x12_\n" +
-	"\x0eGetStreamChunk\x12%.resource.store.GetStreamChunkRequest\x1a&.resource.store.GetStreamChunkResponseB9Z7github.com/9triver/iarnet/internal/proto/resource/storeb\x06proto3"
+	"\x0eGetStreamChunk\x12%.resource.store.GetStreamChunkRequest\x1a&.resource.store.GetStreamChunkResponse\x12D\n" +
+	"\x05GetID\x12\x1c.resource.store.GetIDRequest\x1a\x1d.resource.store.GetIDResponseB9Z7github.com/9triver/iarnet/internal/proto/resource/storeb\x06proto3"
 
 var (
 	file_resource_store_store_proto_rawDescOnce sync.Once
@@ -432,7 +516,7 @@ func file_resource_store_store_proto_rawDescGZIP() []byte {
 	return file_resource_store_store_proto_rawDescData
 }
 
-var file_resource_store_store_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_resource_store_store_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_resource_store_store_proto_goTypes = []any{
 	(*SaveObjectRequest)(nil),       // 0: resource.store.SaveObjectRequest
 	(*SaveObjectResponse)(nil),      // 1: resource.store.SaveObjectResponse
@@ -442,27 +526,31 @@ var file_resource_store_store_proto_goTypes = []any{
 	(*GetStreamChunkResponse)(nil),  // 5: resource.store.GetStreamChunkResponse
 	(*SaveStreamChunkRequest)(nil),  // 6: resource.store.SaveStreamChunkRequest
 	(*SaveStreamChunkResponse)(nil), // 7: resource.store.SaveStreamChunkResponse
-	(*common.EncodedObject)(nil),    // 8: common.EncodedObject
-	(*common.ObjectRef)(nil),        // 9: common.ObjectRef
-	(*common.StreamChunk)(nil),      // 10: common.StreamChunk
+	(*GetIDRequest)(nil),            // 8: resource.store.GetIDRequest
+	(*GetIDResponse)(nil),           // 9: resource.store.GetIDResponse
+	(*common.EncodedObject)(nil),    // 10: common.EncodedObject
+	(*common.ObjectRef)(nil),        // 11: common.ObjectRef
+	(*common.StreamChunk)(nil),      // 12: common.StreamChunk
 }
 var file_resource_store_store_proto_depIdxs = []int32{
-	8,  // 0: resource.store.SaveObjectRequest.Object:type_name -> common.EncodedObject
-	9,  // 1: resource.store.SaveObjectResponse.ObjectRef:type_name -> common.ObjectRef
-	9,  // 2: resource.store.GetObjectRequest.ObjectRef:type_name -> common.ObjectRef
-	8,  // 3: resource.store.GetObjectResponse.Object:type_name -> common.EncodedObject
-	10, // 4: resource.store.GetStreamChunkResponse.Chunk:type_name -> common.StreamChunk
-	10, // 5: resource.store.SaveStreamChunkRequest.Chunk:type_name -> common.StreamChunk
+	10, // 0: resource.store.SaveObjectRequest.Object:type_name -> common.EncodedObject
+	11, // 1: resource.store.SaveObjectResponse.ObjectRef:type_name -> common.ObjectRef
+	11, // 2: resource.store.GetObjectRequest.ObjectRef:type_name -> common.ObjectRef
+	10, // 3: resource.store.GetObjectResponse.Object:type_name -> common.EncodedObject
+	12, // 4: resource.store.GetStreamChunkResponse.Chunk:type_name -> common.StreamChunk
+	12, // 5: resource.store.SaveStreamChunkRequest.Chunk:type_name -> common.StreamChunk
 	0,  // 6: resource.store.Service.SaveObject:input_type -> resource.store.SaveObjectRequest
 	6,  // 7: resource.store.Service.SaveStreamChunk:input_type -> resource.store.SaveStreamChunkRequest
 	2,  // 8: resource.store.Service.GetObject:input_type -> resource.store.GetObjectRequest
 	4,  // 9: resource.store.Service.GetStreamChunk:input_type -> resource.store.GetStreamChunkRequest
-	1,  // 10: resource.store.Service.SaveObject:output_type -> resource.store.SaveObjectResponse
-	7,  // 11: resource.store.Service.SaveStreamChunk:output_type -> resource.store.SaveStreamChunkResponse
-	3,  // 12: resource.store.Service.GetObject:output_type -> resource.store.GetObjectResponse
-	5,  // 13: resource.store.Service.GetStreamChunk:output_type -> resource.store.GetStreamChunkResponse
-	10, // [10:14] is the sub-list for method output_type
-	6,  // [6:10] is the sub-list for method input_type
+	8,  // 10: resource.store.Service.GetID:input_type -> resource.store.GetIDRequest
+	1,  // 11: resource.store.Service.SaveObject:output_type -> resource.store.SaveObjectResponse
+	7,  // 12: resource.store.Service.SaveStreamChunk:output_type -> resource.store.SaveStreamChunkResponse
+	3,  // 13: resource.store.Service.GetObject:output_type -> resource.store.GetObjectResponse
+	5,  // 14: resource.store.Service.GetStreamChunk:output_type -> resource.store.GetStreamChunkResponse
+	9,  // 15: resource.store.Service.GetID:output_type -> resource.store.GetIDResponse
+	11, // [11:16] is the sub-list for method output_type
+	6,  // [6:11] is the sub-list for method input_type
 	6,  // [6:6] is the sub-list for extension type_name
 	6,  // [6:6] is the sub-list for extension extendee
 	0,  // [0:6] is the sub-list for field type_name
@@ -479,7 +567,7 @@ func file_resource_store_store_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_resource_store_store_proto_rawDesc), len(file_resource_store_store_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   8,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -45,6 +45,21 @@ class SchedulerServiceStub(object):
                 request_serializer=resource_dot_scheduler_dot_scheduler__pb2.GetDeploymentStatusRequest.SerializeToString,
                 response_deserializer=resource_dot_scheduler_dot_scheduler__pb2.GetDeploymentStatusResponse.FromString,
                 _registered_method=True)
+        self.ProposeLocalSchedule = channel.unary_unary(
+                '/resource.scheduler.SchedulerService/ProposeLocalSchedule',
+                request_serializer=resource_dot_scheduler_dot_scheduler__pb2.ProposeLocalScheduleRequest.SerializeToString,
+                response_deserializer=resource_dot_scheduler_dot_scheduler__pb2.ProposeLocalScheduleResponse.FromString,
+                _registered_method=True)
+        self.CommitLocalSchedule = channel.unary_unary(
+                '/resource.scheduler.SchedulerService/CommitLocalSchedule',
+                request_serializer=resource_dot_scheduler_dot_scheduler__pb2.CommitLocalScheduleRequest.SerializeToString,
+                response_deserializer=resource_dot_scheduler_dot_scheduler__pb2.DeployComponentResponse.FromString,
+                _registered_method=True)
+        self.ListProviders = channel.unary_unary(
+                '/resource.scheduler.SchedulerService/ListProviders',
+                request_serializer=resource_dot_scheduler_dot_scheduler__pb2.ListProvidersRequest.SerializeToString,
+                response_deserializer=resource_dot_scheduler_dot_scheduler__pb2.ListProvidersResponse.FromString,
+                _registered_method=True)
 
 
 class SchedulerServiceServicer(object):
@@ -66,6 +81,30 @@ class SchedulerServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def ProposeLocalSchedule(self, request, context):
+        """ProposeLocalSchedule 在当前节点上执行一次“只调度不部署”的本地调度
+        调用方传入资源需求，当前节点返回其选中的本地 provider 及其可用资源信息
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CommitLocalSchedule(self, request, context):
+        """CommitLocalSchedule 根据之前 ProposeLocalSchedule 返回的调度结果，在当前节点上确认部署
+        这是一个两阶段提交的第二阶段：第一阶段只做调度，第二阶段真正执行部署
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListProviders(self, request, context):
+        """ListProviders 获取当前节点的所有 Provider 列表及其资源信息
+        用于无自主调度能力的场景：调用方可以根据 Provider 列表在本地进行调度决策
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_SchedulerServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -78,6 +117,21 @@ def add_SchedulerServiceServicer_to_server(servicer, server):
                     servicer.GetDeploymentStatus,
                     request_deserializer=resource_dot_scheduler_dot_scheduler__pb2.GetDeploymentStatusRequest.FromString,
                     response_serializer=resource_dot_scheduler_dot_scheduler__pb2.GetDeploymentStatusResponse.SerializeToString,
+            ),
+            'ProposeLocalSchedule': grpc.unary_unary_rpc_method_handler(
+                    servicer.ProposeLocalSchedule,
+                    request_deserializer=resource_dot_scheduler_dot_scheduler__pb2.ProposeLocalScheduleRequest.FromString,
+                    response_serializer=resource_dot_scheduler_dot_scheduler__pb2.ProposeLocalScheduleResponse.SerializeToString,
+            ),
+            'CommitLocalSchedule': grpc.unary_unary_rpc_method_handler(
+                    servicer.CommitLocalSchedule,
+                    request_deserializer=resource_dot_scheduler_dot_scheduler__pb2.CommitLocalScheduleRequest.FromString,
+                    response_serializer=resource_dot_scheduler_dot_scheduler__pb2.DeployComponentResponse.SerializeToString,
+            ),
+            'ListProviders': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListProviders,
+                    request_deserializer=resource_dot_scheduler_dot_scheduler__pb2.ListProvidersRequest.FromString,
+                    response_serializer=resource_dot_scheduler_dot_scheduler__pb2.ListProvidersResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -135,6 +189,87 @@ class SchedulerService(object):
             '/resource.scheduler.SchedulerService/GetDeploymentStatus',
             resource_dot_scheduler_dot_scheduler__pb2.GetDeploymentStatusRequest.SerializeToString,
             resource_dot_scheduler_dot_scheduler__pb2.GetDeploymentStatusResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ProposeLocalSchedule(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/resource.scheduler.SchedulerService/ProposeLocalSchedule',
+            resource_dot_scheduler_dot_scheduler__pb2.ProposeLocalScheduleRequest.SerializeToString,
+            resource_dot_scheduler_dot_scheduler__pb2.ProposeLocalScheduleResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CommitLocalSchedule(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/resource.scheduler.SchedulerService/CommitLocalSchedule',
+            resource_dot_scheduler_dot_scheduler__pb2.CommitLocalScheduleRequest.SerializeToString,
+            resource_dot_scheduler_dot_scheduler__pb2.DeployComponentResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListProviders(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/resource.scheduler.SchedulerService/ListProviders',
+            resource_dot_scheduler_dot_scheduler__pb2.ListProvidersRequest.SerializeToString,
+            resource_dot_scheduler_dot_scheduler__pb2.ListProvidersResponse.FromString,
             options,
             channel_credentials,
             insecure,

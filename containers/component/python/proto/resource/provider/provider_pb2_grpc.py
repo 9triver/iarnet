@@ -59,6 +59,11 @@ class ServiceStub(object):
                 request_serializer=resource_dot_provider_dot_provider__pb2.DeployRequest.SerializeToString,
                 response_deserializer=resource_dot_provider_dot_provider__pb2.DeployResponse.FromString,
                 _registered_method=True)
+        self.Undeploy = channel.unary_unary(
+                '/resource.provider.Service/Undeploy',
+                request_serializer=resource_dot_provider_dot_provider__pb2.UndeployRequest.SerializeToString,
+                response_deserializer=resource_dot_provider_dot_provider__pb2.UndeployResponse.FromString,
+                _registered_method=True)
         self.HealthCheck = channel.unary_unary(
                 '/resource.provider.Service/HealthCheck',
                 request_serializer=resource_dot_provider_dot_provider__pb2.HealthCheckRequest.SerializeToString,
@@ -104,6 +109,12 @@ class ServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def Undeploy(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def HealthCheck(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -143,6 +154,11 @@ def add_ServiceServicer_to_server(servicer, server):
                     servicer.Deploy,
                     request_deserializer=resource_dot_provider_dot_provider__pb2.DeployRequest.FromString,
                     response_serializer=resource_dot_provider_dot_provider__pb2.DeployResponse.SerializeToString,
+            ),
+            'Undeploy': grpc.unary_unary_rpc_method_handler(
+                    servicer.Undeploy,
+                    request_deserializer=resource_dot_provider_dot_provider__pb2.UndeployRequest.FromString,
+                    response_serializer=resource_dot_provider_dot_provider__pb2.UndeployResponse.SerializeToString,
             ),
             'HealthCheck': grpc.unary_unary_rpc_method_handler(
                     servicer.HealthCheck,
@@ -290,6 +306,33 @@ class Service(object):
             '/resource.provider.Service/Deploy',
             resource_dot_provider_dot_provider__pb2.DeployRequest.SerializeToString,
             resource_dot_provider_dot_provider__pb2.DeployResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Undeploy(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/resource.provider.Service/Undeploy',
+            resource_dot_provider_dot_provider__pb2.UndeployRequest.SerializeToString,
+            resource_dot_provider_dot_provider__pb2.UndeployResponse.FromString,
             options,
             channel_credentials,
             insecure,

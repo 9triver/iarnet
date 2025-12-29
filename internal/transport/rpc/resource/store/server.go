@@ -37,6 +37,16 @@ func (s *Server) GetObject(ctx context.Context, req *storepb.GetObjectRequest) (
 	return &storepb.GetObjectResponse{Object: obj}, nil
 }
 
+func (s *Server) GetID(ctx context.Context, req *storepb.GetIDRequest) (*storepb.GetIDResponse, error) {
+	id, err := s.svc.GetID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &storepb.GetIDResponse{
+		ID: id,
+	}, nil
+}
+
 func (s *Server) GetStreamChunk(ctx context.Context, req *storepb.GetStreamChunkRequest) (*storepb.GetStreamChunkResponse, error) {
 	chunk, err := s.svc.GetStreamChunk(ctx, req.ObjectID, req.Offset)
 	if err != nil {

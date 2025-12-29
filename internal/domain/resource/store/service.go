@@ -12,6 +12,7 @@ type Service interface {
 	SaveStreamChunk(ctx context.Context, chunk *commonpb.StreamChunk) error
 	GetObject(ctx context.Context, ref *commonpb.ObjectRef) (*commonpb.EncodedObject, error)
 	GetStreamChunk(ctx context.Context, id string, offset int64) (*commonpb.StreamChunk, error)
+	GetID(ctx context.Context) (string, error)
 }
 
 type service struct {
@@ -50,4 +51,8 @@ func (s *service) GetObject(ctx context.Context, ref *commonpb.ObjectRef) (*comm
 
 func (s *service) GetStreamChunk(ctx context.Context, id string, offset int64) (*commonpb.StreamChunk, error) {
 	return s.store.GetStreamChunk(id, offset)
+}
+
+func (s *service) GetID(ctx context.Context) (string, error) {
+	return string(s.store.GetID()), nil
 }

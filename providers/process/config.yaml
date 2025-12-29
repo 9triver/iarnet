@@ -15,3 +15,8 @@ resource_tags:
 
 supported_languages:
   - go
+
+# DNS 配置：将主机名映射到 IP 地址
+dns:
+  hosts:
+    "host.internal": "localhost"

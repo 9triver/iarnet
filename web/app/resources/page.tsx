@@ -44,7 +44,7 @@ import { toast } from "sonner"
 interface Resource {
   id: string
   name: string
-  type: "kubernetes" | "docker" | "vm"
+  type: "kubernetes" | "docker" | "vm" | "process"
   host: string
   port: number
   category?: "local_providers" | "remote_providers" // 资源分类：本地、远程
@@ -64,7 +64,7 @@ interface Resource {
 
 interface ResourceFormData {
   name: string
-  type: "kubernetes" | "docker" | "vm"
+  type: "kubernetes" | "docker" | "vm" | "process"
   url: string  // 格式: host:port，例如: localhost:50051
   token: string
   description?: string
@@ -236,7 +236,7 @@ export default function ResourcesPage() {
         return {
           id: provider.id,
           name: provider.name,
-          type: provider.type.toLowerCase() as "kubernetes" | "docker" | "vm",
+          type: provider.type.toLowerCase() as "kubernetes" | "docker" | "vm" | "process",
           host: provider.host,
           port: provider.port,
           category: "local_providers", // 全部作为本地资源处理
@@ -603,7 +603,7 @@ export default function ResourcesPage() {
       const updatedResource: Resource = {
         id: providerInfo.id,
         name: providerInfo.name,
-        type: providerInfo.type.toLowerCase() as "kubernetes" | "docker" | "vm",
+        type: providerInfo.type.toLowerCase() as "kubernetes" | "docker" | "vm" | "process",
         host: providerInfo.host,
         port: providerInfo.port,
         category: "local_providers",
@@ -702,6 +702,8 @@ export default function ResourcesPage() {
         return <Cpu className="h-4 w-4" />
       case "vm":
         return <HardDrive className="h-4 w-4" />
+      case "process":
+        return <Activity className="h-4 w-4" />
     }
   }
 
@@ -1440,7 +1442,7 @@ export default function ResourcesPage() {
                         </TableCell>
                         <TableCell className="w-20">
                           <Badge variant="outline">
-                            {resource.type === "kubernetes" ? "K8s" : resource.type === "docker" ? "Docker" : "VM"}
+                            {resource.type === "kubernetes" ? "K8s" : resource.type === "docker" ? "Docker" : resource.type === "process" ? "进程" : "VM"}
                           </Badge>
                         </TableCell>
                         <TableCell className="w-20">{getStatusBadge(resource.status)}</TableCell>

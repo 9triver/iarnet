@@ -122,7 +122,8 @@ func InitLoggerWithFile(logDir string) (string, error) {
 		formatter: fileFormatter,
 	}
 	logrus.AddHook(fileHook)
-	logrus.SetLevel(logrus.DebugLevel)
+	// 设置控制台输出级别为 Info，文件输出会通过 Hook 记录所有级别（包括 Debug）
+	logrus.SetLevel(logrus.InfoLevel)
 
 	// 使用 fmt.Printf 输出到标准错误，避免触发 logrus（可能导致循环）
 	fmt.Fprintf(os.Stderr, "Logging to file: %s\n", logFilePath)

@@ -46,20 +46,12 @@ func main() {
 	logrus.Infof("Using configured resource capacity: CPU=%d millicores, Memory=%d bytes (%s), GPU=%d",
 		totalCapacity.Cpu, totalCapacity.Memory, cfg.Resource.Memory, totalCapacity.Gpu)
 
-	// ZMQ 发送器（暂时为 nil，需要从外部注入）
-	// 在实际使用中，这个函数应该由 iarnet 的 ComponentChanneler 提供
-	var zmqSender func(componentID string, data []byte)
-	zmqSender = func(componentID string, data []byte) {
-		// TODO: 集成 iarnet 的 ComponentChanneler
-		logrus.Debugf("Would send ZMQ message to component %s (size: %d bytes)", componentID, len(data))
-	}
-
 	service, err := provider.NewService(
 		cfg.Ignis.Address,
 		cfg.ResourceTags,
 		totalCapacity,
 		cfg.SupportedLanguages,
-		zmqSender,
+		cfg.DNS.Hosts,
 	)
 	if err != nil {
 		logrus.Fatalf("Failed to create service: %v", err)

@@ -11,6 +11,7 @@ import (
 	"github.com/9triver/iarnet/internal/domain/execution/types"
 	"github.com/9triver/iarnet/internal/domain/resource/component"
 	"github.com/9triver/iarnet/internal/domain/resource/store"
+	resourcetypes "github.com/9triver/iarnet/internal/domain/resource/types"
 	commonpb "github.com/9triver/iarnet/internal/proto/common"
 	actorpb "github.com/9triver/iarnet/internal/proto/ignis/actor"
 	ctrlpb "github.com/9triver/iarnet/internal/proto/ignis/controller"
@@ -120,9 +121,133 @@ func (c *Controller) HandleClientMessage(ctx context.Context, msg *ctrlpb.Messag
 		return c.handleAppendDAGNode(ctx, m.AppendDAGNode)
 	case *ctrlpb.Message_RequestObject:
 		return c.handleRequestObject(ctx, m.RequestObject)
+	case *ctrlpb.Message_AppendGo:
+		return c.handleAppendGo(ctx, m.AppendGo)
+	case *ctrlpb.Message_AppendUnikernel:
+		return c.handleAppendUnikernel(ctx, m.AppendUnikernel)
 	default:
 		return nil
 	}
+}
+
+func (c *Controller) handleAppendGo(ctx context.Context, m *ctrlpb.AppendGo) error {
+	actorGroup := task.NewGroup(m.GetName())
+	replicas := int(m.GetReplicas())
+	resourceReq := &types.Info{
+		CPU:    int64(m.GetResources().GetCPU()),
+		Memory: int64(m.GetResources().GetMemory()),
+		GPU:    int64(m.GetResources().GetGPU()),
+		Tags:   []string{}, // Go functions don't have tags in the current proto definition
+	}
+
+	for i := 0; i < replicas; i++ {
+		actorName := fmt.Sprintf("%s-%d", m.GetName(), i)
+		logrus.Infof("Deploying component for Go actor %s", actorName)
+		component, err := c.componentService.DeployComponent(
+			ctx, resourcetypes.RuntimeEnvGo,
+			resourceReq,
+		)
+		if err != nil {
+			logrus.Errorf("Failed to deploy component: %v", err)
+			return err
+		}
+		logrus.Infof("Component deployed successfully: %s", component.GetID())
+
+		actor := task.NewActor(actorName, component)
+		// Convert Go code to bytes for PickledObject field
+		codeBytes := []byte(m.GetCode())
+		actor.Send(&actorpb.Function{
+			Name:          m.GetName(),
+			Params:        m.GetParams(),
+			Requirements:  []string{}, // Go functions don't have requirements
+			PickledObject: codeBytes,  // Store Go code as bytes
+			Language:      m.GetLanguage(),
+		})
+		logrus.Infof("Go function sent to actor: %s", actor.GetID())
+
+		go func() {
+			for {
+				msg := actor.Receive(ctx)
+				if msg == nil {
+					if ctx.Err() == context.Canceled {
+						logrus.Info("actor receive canceled by context")
+					} else {
+						logrus.Error("actor receive returned nil message")
+					}
+					return
+				}
+				if err := c.HandleActorMessage(ctx, msg); err != nil {
+					logrus.Errorf("Failed to handle actor message: %v", err)
+					return
+				}
+			}
+		}()
+		actorGroup.Push(actor)
+	}
+
+	c.functions[m.GetName()] = task.NewFunction(m.GetName(), m.GetParams(), actorGroup)
+
+	return nil
+}
+
+func (c *Controller) handleAppendUnikernel(ctx context.Context, m *ctrlpb.AppendUnikernel) error {
+	actorGroup := task.NewGroup(m.GetName())
+	replicas := int(m.GetReplicas())
+	resourceReq := &types.Info{
+		CPU:    int64(m.GetResources().GetCPU()),
+		Memory: int64(m.GetResources().GetMemory()),
+		GPU:    int64(m.GetResources().GetGPU()),
+		Tags:   []string{}, // Unikernel functions don't have tags in the current proto definition
+	}
+
+	for i := 0; i < replicas; i++ {
+		actorName := fmt.Sprintf("%s-%d", m.GetName(), i)
+		logrus.Infof("Deploying component for Unikernel actor %s", actorName)
+		component, err := c.componentService.DeployComponent(
+			ctx, resourcetypes.RuntimeEnvUnikernel,
+			resourceReq,
+		)
+		if err != nil {
+			logrus.Errorf("Failed to deploy component: %v", err)
+			return err
+		}
+		logrus.Infof("Component deployed successfully: %s", component.GetID())
+
+		actor := task.NewActor(actorName, component)
+		// Convert Unikernel code to bytes for PickledObject field
+		unikernelBytes := []byte(m.GetUnikernel())
+		actor.Send(&actorpb.Function{
+			Name:          m.GetName(),
+			Params:        m.GetParams(),
+			Requirements:  []string{},     // Unikernel functions don't have requirements
+			PickledObject: unikernelBytes, // Store Unikernel code as bytes
+			Language:      m.GetLanguage(),
+		})
+		logrus.Infof("Unikernel function sent to actor: %s", actor.GetID())
+
+		go func() {
+			for {
+				msg := actor.Receive(ctx)
+				if msg == nil {
+					if ctx.Err() == context.Canceled {
+						logrus.Info("actor receive canceled by context")
+					} else {
+						logrus.Error("actor receive returned nil message")
+					}
+					return
+				}
+				if err := c.HandleActorMessage(ctx, msg); err != nil {
+					logrus.Errorf("Failed to handle actor message: %v", err)
+					return
+				}
+			}
+		}()
+		actorGroup.Push(actor)
+	}
+
+	c.functions[m.GetName()] = task.NewFunction(m.GetName(), m.GetParams(), actorGroup)
+
+	return nil
 }
 
 func (c *Controller) handleAppendData(ctx context.Context, m *ctrlpb.AppendData) error {
@@ -195,7 +320,7 @@ func (c *Controller) handleAppendPyFunc(ctx context.Context, m *ctrlpb.AppendPyF
 		actorName := fmt.Sprintf("%s-%d", m.GetName(), i)
 		logrus.Infof("Deploying component for actor %s", actorName)
 		component, err := c.componentService.DeployComponent(
-			ctx, types.RuntimeEnvPython,
+			ctx, resourcetypes.RuntimeEnvPython,
 			resourceReq,
 		)
 		if err != nil {

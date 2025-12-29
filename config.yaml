@@ -1,4 +1,4 @@
-host: "172.19.0.1" # Host for external connection. TODO: 通信问题待解决
+host: "host.internal" # Host for external connection. TODO: 通信问题待解决
 
 users:
   - name: "admin"

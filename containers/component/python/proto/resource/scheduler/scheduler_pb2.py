@@ -25,7 +25,7 @@ _sym_db = _symbol_database.Default()
 from resource import resource_pb2 as resource_dot_resource__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\"resource/scheduler/scheduler.proto\x12\x12resource.scheduler\x1a\x17resource/resource.proto\"\xeb\x01\n\x16\x44\x65ployComponentRequest\x12\x13\n\x0bruntime_env\x18\x01 \x01(\t\x12(\n\x10resource_request\x18\x02 \x01(\x0b\x32\x0e.resource.Info\x12\x16\n\x0etarget_node_id\x18\x03 \x01(\t\x12\x1b\n\x13target_node_address\x18\x04 \x01(\t\x12\x1c\n\x14upstream_zmq_address\x18\x05 \x01(\t\x12\x1e\n\x16upstream_store_address\x18\x06 \x01(\t\x12\x1f\n\x17upstream_logger_address\x18\x07 \x01(\t\"\xa8\x01\n\x17\x44\x65ployComponentResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\r\n\x05\x65rror\x18\x02 \x01(\t\x12\x34\n\tcomponent\x18\x03 \x01(\x0b\x32!.resource.scheduler.ComponentInfo\x12\x0f\n\x07node_id\x18\x04 \x01(\t\x12\x11\n\tnode_name\x18\x05 \x01(\t\x12\x13\n\x0bprovider_id\x18\x06 \x01(\t\"q\n\rComponentInfo\x12\x14\n\x0c\x63omponent_id\x18\x01 \x01(\t\x12\r\n\x05image\x18\x02 \x01(\t\x12&\n\x0eresource_usage\x18\x03 \x01(\x0b\x32\x0e.resource.Info\x12\x13\n\x0bprovider_id\x18\x04 \x01(\t\"C\n\x1aGetDeploymentStatusRequest\x12\x14\n\x0c\x63omponent_id\x18\x01 \x01(\t\x12\x0f\n\x07node_id\x18\x02 \x01(\t\"\xa8\x01\n\x1bGetDeploymentStatusResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\r\n\x05\x65rror\x18\x02 \x01(\t\x12\x33\n\x06status\x18\x03 \x01(\x0e\x32#.resource.scheduler.ComponentStatus\x12\x34\n\tcomponent\x18\x04 \x01(\x0b\x32!.resource.scheduler.ComponentInfo*\xa7\x01\n\x0f\x43omponentStatus\x12\x1c\n\x18\x43OMPONENT_STATUS_UNKNOWN\x10\x00\x12\x1e\n\x1a\x43OMPONENT_STATUS_DEPLOYING\x10\x01\x12\x1c\n\x18\x43OMPONENT_STATUS_RUNNING\x10\x02\x12\x1c\n\x18\x43OMPONENT_STATUS_STOPPED\x10\x03\x12\x1a\n\x16\x43OMPONENT_STATUS_ERROR\x10\x04\x32\xf6\x01\n\x10SchedulerService\x12j\n\x0f\x44\x65ployComponent\x12*.resource.scheduler.DeployComponentRequest\x1a+.resource.scheduler.DeployComponentResponse\x12v\n\x13GetDeploymentStatus\x12..resource.scheduler.GetDeploymentStatusRequest\x1a/.resource.scheduler.GetDeploymentStatusResponseB=Z;github.com/9triver/iarnet/internal/proto/resource/schedulerb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\"resource/scheduler/scheduler.proto\x12\x12resource.scheduler\x1a\x17resource/resource.proto\"\xeb\x01\n\x16\x44\x65ployComponentRequest\x12\x13\n\x0bruntime_env\x18\x01 \x01(\t\x12(\n\x10resource_request\x18\x02 \x01(\x0b\x32\x0e.resource.Info\x12\x16\n\x0etarget_node_id\x18\x03 \x01(\t\x12\x1b\n\x13target_node_address\x18\x04 \x01(\t\x12\x1c\n\x14upstream_zmq_address\x18\x05 \x01(\t\x12\x1e\n\x16upstream_store_address\x18\x06 \x01(\t\x12\x1f\n\x17upstream_logger_address\x18\x07 \x01(\t\"\xa8\x01\n\x17\x44\x65ployComponentResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\r\n\x05\x65rror\x18\x02 \x01(\t\x12\x34\n\tcomponent\x18\x03 \x01(\x0b\x32!.resource.scheduler.ComponentInfo\x12\x0f\n\x07node_id\x18\x04 \x01(\t\x12\x11\n\tnode_name\x18\x05 \x01(\t\x12\x13\n\x0bprovider_id\x18\x06 \x01(\t\"q\n\rComponentInfo\x12\x14\n\x0c\x63omponent_id\x18\x01 \x01(\t\x12\r\n\x05image\x18\x02 \x01(\t\x12&\n\x0eresource_usage\x18\x03 \x01(\x0b\x32\x0e.resource.Info\x12\x13\n\x0bprovider_id\x18\x04 \x01(\t\"C\n\x1aGetDeploymentStatusRequest\x12\x14\n\x0c\x63omponent_id\x18\x01 \x01(\t\x12\x0f\n\x07node_id\x18\x02 \x01(\t\"\xa8\x01\n\x1bGetDeploymentStatusResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\r\n\x05\x65rror\x18\x02 \x01(\t\x12\x33\n\x06status\x18\x03 \x01(\x0e\x32#.resource.scheduler.ComponentStatus\x12\x34\n\tcomponent\x18\x04 \x01(\x0b\x32!.resource.scheduler.ComponentInfo\"G\n\x1bProposeLocalScheduleRequest\x12(\n\x10resource_request\x18\x01 \x01(\x0b\x32\x0e.resource.Info\"\x9a\x01\n\x1cProposeLocalScheduleResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\r\n\x05\x65rror\x18\x02 \x01(\t\x12\x0f\n\x07node_id\x18\x03 \x01(\t\x12\x11\n\tnode_name\x18\x04 \x01(\t\x12\x13\n\x0bprovider_id\x18\x05 \x01(\t\x12!\n\tavailable\x18\x06 \x01(\x0b\x32\x0e.resource.Info\"\xcf\x01\n\x1a\x43ommitLocalScheduleRequest\x12\x13\n\x0bruntime_env\x18\x01 \x01(\t\x12(\n\x10resource_request\x18\x02 \x01(\x0b\x32\x0e.resource.Info\x12\x13\n\x0bprovider_id\x18\x03 \x01(\t\x12\x1c\n\x14upstream_zmq_address\x18\x04 \x01(\t\x12\x1e\n\x16upstream_store_address\x18\x05 \x01(\t\x12\x1f\n\x17upstream_logger_address\x18\x06 \x01(\t\"1\n\x14ListProvidersRequest\x12\x19\n\x11include_resources\x18\x01 \x01(\x08\"\x90\x01\n\x15ListProvidersResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\r\n\x05\x65rror\x18\x02 \x01(\t\x12\x0f\n\x07node_id\x18\x03 \x01(\t\x12\x11\n\tnode_name\x18\x04 \x01(\t\x12\x33\n\tproviders\x18\x05 \x03(\x0b\x32 .resource.scheduler.ProviderInfo\"\x83\x02\n\x0cProviderInfo\x12\x13\n\x0bprovider_id\x18\x01 \x01(\t\x12\x15\n\rprovider_name\x18\x02 \x01(\t\x12\x15\n\rprovider_type\x18\x03 \x01(\t\x12\x0e\n\x06status\x18\x04 \x01(\t\x12!\n\tavailable\x18\x05 \x01(\x0b\x32\x0e.resource.Info\x12&\n\x0etotal_capacity\x18\x06 \x01(\x0b\x32\x0e.resource.Info\x12\x1c\n\x04used\x18\x07 \x01(\x0b\x32\x0e.resource.Info\x12\x37\n\rresource_tags\x18\x08 \x01(\x0b\x32 .resource.scheduler.ResourceTags\"H\n\x0cResourceTags\x12\x0b\n\x03\x63pu\x18\x01 \x01(\x08\x12\x0b\n\x03gpu\x18\x02 \x01(\x08\x12\x0e\n\x06memory\x18\x03 \x01(\x08\x12\x0e\n\x06\x63\x61mera\x18\x04 \x01(\x08*\xa7\x01\n\x0f\x43omponentStatus\x12\x1c\n\x18\x43OMPONENT_STATUS_UNKNOWN\x10\x00\x12\x1e\n\x1a\x43OMPONENT_STATUS_DEPLOYING\x10\x01\x12\x1c\n\x18\x43OMPONENT_STATUS_RUNNING\x10\x02\x12\x1c\n\x18\x43OMPONENT_STATUS_STOPPED\x10\x03\x12\x1a\n\x16\x43OMPONENT_STATUS_ERROR\x10\x04\x32\xcb\x04\n\x10SchedulerService\x12j\n\x0f\x44\x65ployComponent\x12*.resource.scheduler.DeployComponentRequest\x1a+.resource.scheduler.DeployComponentResponse\x12v\n\x13GetDeploymentStatus\x12..resource.scheduler.GetDeploymentStatusRequest\x1a/.resource.scheduler.GetDeploymentStatusResponse\x12y\n\x14ProposeLocalSchedule\x12/.resource.scheduler.ProposeLocalScheduleRequest\x1a\x30.resource.scheduler.ProposeLocalScheduleResponse\x12r\n\x13\x43ommitLocalSchedule\x12..resource.scheduler.CommitLocalScheduleRequest\x1a+.resource.scheduler.DeployComponentResponse\x12\x64\n\rListProviders\x12(.resource.scheduler.ListProvidersRequest\x1a).resource.scheduler.ListProvidersResponseB=Z;github.com/9triver/iarnet/internal/proto/resource/schedulerb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -33,8 +33,8 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'resource.scheduler.schedule
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'Z;github.com/9triver/iarnet/internal/proto/resource/scheduler'
-  _globals['_COMPONENTSTATUS']._serialized_start=848
-  _globals['_COMPONENTSTATUS']._serialized_end=1015
+  _globals['_COMPONENTSTATUS']._serialized_start=1822
+  _globals['_COMPONENTSTATUS']._serialized_end=1989
   _globals['_DEPLOYCOMPONENTREQUEST']._serialized_start=84
   _globals['_DEPLOYCOMPONENTREQUEST']._serialized_end=319
   _globals['_DEPLOYCOMPONENTRESPONSE']._serialized_start=322
@@ -45,6 +45,20 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_GETDEPLOYMENTSTATUSREQUEST']._serialized_end=674
   _globals['_GETDEPLOYMENTSTATUSRESPONSE']._serialized_start=677
   _globals['_GETDEPLOYMENTSTATUSRESPONSE']._serialized_end=845
-  _globals['_SCHEDULERSERVICE']._serialized_start=1018
-  _globals['_SCHEDULERSERVICE']._serialized_end=1264
+  _globals['_PROPOSELOCALSCHEDULEREQUEST']._serialized_start=847
+  _globals['_PROPOSELOCALSCHEDULEREQUEST']._serialized_end=918
+  _globals['_PROPOSELOCALSCHEDULERESPONSE']._serialized_start=921
+  _globals['_PROPOSELOCALSCHEDULERESPONSE']._serialized_end=1075
+  _globals['_COMMITLOCALSCHEDULEREQUEST']._serialized_start=1078
+  _globals['_COMMITLOCALSCHEDULEREQUEST']._serialized_end=1285
+  _globals['_LISTPROVIDERSREQUEST']._serialized_start=1287
+  _globals['_LISTPROVIDERSREQUEST']._serialized_end=1336
+  _globals['_LISTPROVIDERSRESPONSE']._serialized_start=1339
+  _globals['_LISTPROVIDERSRESPONSE']._serialized_end=1483
+  _globals['_PROVIDERINFO']._serialized_start=1486
+  _globals['_PROVIDERINFO']._serialized_end=1745
+  _globals['_RESOURCETAGS']._serialized_start=1747
+  _globals['_RESOURCETAGS']._serialized_end=1819
+  _globals['_SCHEDULERSERVICE']._serialized_start=1992
+  _globals['_SCHEDULERSERVICE']._serialized_end=2579
 # @@protoc_insertion_point(module_scope)

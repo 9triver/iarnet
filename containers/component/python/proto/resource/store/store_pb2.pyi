@@ -57,3 +57,13 @@ class SaveStreamChunkRequest(_message.Message):
 class SaveStreamChunkResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
+
+class GetIDRequest(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class GetIDResponse(_message.Message):
+    __slots__ = ("ID",)
+    ID_FIELD_NUMBER: _ClassVar[int]
+    ID: str
+    def __init__(self, ID: _Optional[str] = ...) -> None: ...

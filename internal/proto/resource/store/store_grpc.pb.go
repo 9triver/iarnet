@@ -23,6 +23,7 @@ const (
 	Service_SaveStreamChunk_FullMethodName = "/resource.store.Service/SaveStreamChunk"
 	Service_GetObject_FullMethodName       = "/resource.store.Service/GetObject"
 	Service_GetStreamChunk_FullMethodName  = "/resource.store.Service/GetStreamChunk"
+	Service_GetID_FullMethodName           = "/resource.store.Service/GetID"
 )
 
 // ServiceClient is the client API for Service service.
@@ -33,6 +34,7 @@ type ServiceClient interface {
 	SaveStreamChunk(ctx context.Context, in *SaveStreamChunkRequest, opts ...grpc.CallOption) (*SaveStreamChunkResponse, error)
 	GetObject(ctx context.Context, in *GetObjectRequest, opts ...grpc.CallOption) (*GetObjectResponse, error)
 	GetStreamChunk(ctx context.Context, in *GetStreamChunkRequest, opts ...grpc.CallOption) (*GetStreamChunkResponse, error)
+	GetID(ctx context.Context, in *GetIDRequest, opts ...grpc.CallOption) (*GetIDResponse, error)
 }
 
 type serviceClient struct {
@@ -83,6 +85,16 @@ func (c *serviceClient) GetStreamChunk(ctx context.Context, in *GetStreamChunkRe
 	return out, nil
 }
 
+func (c *serviceClient) GetID(ctx context.Context, in *GetIDRequest, opts ...grpc.CallOption) (*GetIDResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetIDResponse)
+	err := c.cc.Invoke(ctx, Service_GetID_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ServiceServer is the server API for Service service.
 // All implementations must embed UnimplementedServiceServer
 // for forward compatibility.
@@ -91,6 +103,7 @@ type ServiceServer interface {
 	SaveStreamChunk(context.Context, *SaveStreamChunkRequest) (*SaveStreamChunkResponse, error)
 	GetObject(context.Context, *GetObjectRequest) (*GetObjectResponse, error)
 	GetStreamChunk(context.Context, *GetStreamChunkRequest) (*GetStreamChunkResponse, error)
+	GetID(context.Context, *GetIDRequest) (*GetIDResponse, error)
 	mustEmbedUnimplementedServiceServer()
 }
 
@@ -112,6 +125,9 @@ func (UnimplementedServiceServer) GetObject(context.Context, *GetObjectRequest) 
 }
 func (UnimplementedServiceServer) GetStreamChunk(context.Context, *GetStreamChunkRequest) (*GetStreamChunkResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetStreamChunk not implemented")
+}
+func (UnimplementedServiceServer) GetID(context.Context, *GetIDRequest) (*GetIDResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetID not implemented")
 }
 func (UnimplementedServiceServer) mustEmbedUnimplementedServiceServer() {}
 func (UnimplementedServiceServer) testEmbeddedByValue()                 {}
@@ -206,6 +222,24 @@ func _Service_GetStreamChunk_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Service_GetID_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetIDRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ServiceServer).GetID(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Service_GetID_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ServiceServer).GetID(ctx, req.(*GetIDRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Service_ServiceDesc is the grpc.ServiceDesc for Service service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -228,6 +262,10 @@ var Service_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetStreamChunk",
 			Handler:    _Service_GetStreamChunk_Handler,
+		},
+		{
+			MethodName: "GetID",
+			Handler:    _Service_GetID_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

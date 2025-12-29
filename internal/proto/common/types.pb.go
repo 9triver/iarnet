@@ -25,10 +25,11 @@ const (
 type Language int32
 
 const (
-	Language_LANG_UNKNOWN Language = 0
-	Language_LANG_JSON    Language = 1 // Values that can be represented as JSON string, can be encoded/decoded
-	Language_LANG_GO      Language = 2 // Values that are only compatible with Go actors.
-	Language_LANG_PYTHON  Language = 3 // Values that are only compatible with Python actors.
+	Language_LANG_UNKNOWN   Language = 0
+	Language_LANG_JSON      Language = 1 // Values that can be represented as JSON string, can be encoded/decoded
+	Language_LANG_GO        Language = 2 // Values that are only compatible with Go actors.
+	Language_LANG_PYTHON    Language = 3 // Values that are only compatible with Python actors.
+	Language_LANG_UNIKERNEL Language = 4 // Values that are only compatible with Unikernel actors.
 )
 
 // Enum value maps for Language.
@@ -38,12 +39,14 @@ var (
 		1: "LANG_JSON",
 		2: "LANG_GO",
 		3: "LANG_PYTHON",
+		4: "LANG_UNIKERNEL",
 	}
 	Language_value = map[string]int32{
-		"LANG_UNKNOWN": 0,
-		"LANG_JSON":    1,
-		"LANG_GO":      2,
-		"LANG_PYTHON":  3,
+		"LANG_UNKNOWN":   0,
+		"LANG_JSON":      1,
+		"LANG_GO":        2,
+		"LANG_PYTHON":    3,
+		"LANG_UNIKERNEL": 4,
 	}
 )
 
@@ -300,12 +303,13 @@ const file_common_types_proto_rawDesc = "" +
 	"\x06Offset\x18\x02 \x01(\x03R\x06Offset\x12\x10\n" +
 	"\x03EoS\x18\x03 \x01(\bR\x03EoS\x12+\n" +
 	"\x05Value\x18\x04 \x01(\v2\x15.common.EncodedObjectR\x05Value\x12\x14\n" +
-	"\x05Error\x18\x05 \x01(\tR\x05Error*I\n" +
+	"\x05Error\x18\x05 \x01(\tR\x05Error*]\n" +
 	"\bLanguage\x12\x10\n" +
 	"\fLANG_UNKNOWN\x10\x00\x12\r\n" +
 	"\tLANG_JSON\x10\x01\x12\v\n" +
 	"\aLANG_GO\x10\x02\x12\x0f\n" +
-	"\vLANG_PYTHON\x10\x03B1Z/github.com/9triver/iarnet/internal/proto/commonb\x06proto3"
+	"\vLANG_PYTHON\x10\x03\x12\x12\n" +
+	"\x0eLANG_UNIKERNEL\x10\x04B1Z/github.com/9triver/iarnet/internal/proto/commonb\x06proto3"
 
 var (
 	file_common_types_proto_rawDescOnce sync.Once

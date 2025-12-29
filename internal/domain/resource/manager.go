@@ -1346,6 +1346,10 @@ func (m *Manager) GetStreamChunk(ctx context.Context, id string, offset int64) (
 	return m.storeService.GetStreamChunk(ctx, id, offset)
 }
 
+func (m *Manager) GetID(ctx context.Context) (string, error) {
+	return m.storeService.GetID(ctx)
+}
+
 // TODO: implement resource manager
 // old version
 // // String returns the string representation of providerType
