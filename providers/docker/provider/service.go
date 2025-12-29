@@ -333,7 +333,7 @@ func (s *Service) Deploy(ctx context.Context, req *providerpb.DeployRequest) (*p
 		// 根据语言选择镜像
 		switch req.Language {
 		case common.Language_LANG_PYTHON:
-			image = "python:3.11-slim" // 默认 Python 镜像，可以根据配置修改
+			image = "iarnet/component:python_3.11-latest"
 		case common.Language_LANG_GO:
 			image = "golang:1.21-alpine" // 默认 Go 镜像，可以根据配置修改
 		default:

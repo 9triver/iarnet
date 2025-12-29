@@ -38,7 +38,8 @@ func (s *service) SaveStreamChunk(ctx context.Context, chunk *commonpb.StreamChu
 }
 
 func (s *service) GetObject(ctx context.Context, ref *commonpb.ObjectRef) (*commonpb.EncodedObject, error) {
-	obj, err := s.store.GetObject(ref.ID)
+	// 使用 GetObjectWithContext 以支持等待和超时机制
+	obj, err := s.store.GetObjectWithContext(ctx, ref.ID)
 	if err != nil {
 		return nil, err
 	}

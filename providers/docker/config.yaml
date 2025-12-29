@@ -25,3 +25,6 @@ resource_tags:
  - cpu
  - memory
  - camera
+
+supported_languages:
+  - python
