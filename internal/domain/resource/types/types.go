@@ -92,8 +92,7 @@ func RuntimeEnvToLanguage(runtimeEnv RuntimeEnv) common.Language {
 	case RuntimeEnvGo:
 		return common.Language_LANG_GO
 	case RuntimeEnvUnikernel:
-		// Unikernel 目前使用 Python 语言类型，未来可能需要定义新的语言类型
-		return common.Language_LANG_PYTHON
+		return common.Language_LANG_UNIKERNEL
 	default:
 		return common.Language_LANG_UNKNOWN
 	}

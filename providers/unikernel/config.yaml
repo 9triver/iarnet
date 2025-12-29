@@ -1,0 +1,28 @@
+server:
+  port: 50051
+
+resource:
+  cpu: 8000      # CPU 容量，单位：millicores (8000 = 8 cores)
+  memory: "16Gi" # 内存容量
+  gpu: 0         # GPU 数量
+
+resource_tags:
+  - cpu
+  - memory
+
+supported_languages:
+  - unikernel
+
+# WebSocket 服务器配置
+websocket:
+  port: 8088  # WebSocket 服务器端口
+
+# Unikernel 配置
+unikernel:
+  base_dir: ""       # unikernel 代码基础目录（mirage-websocket submodule 所在目录），为空则使用默认路径
+  solo5_hvt_path: "" # solo5-hvt 可执行文件路径，为空则从 PATH 中查找（例如：/usr/local/bin/solo5-hvt）
+
+# DNS 配置：将主机名映射到 IP 地址
+dns:
+  hosts:
+    "host.internal": "localhost"
