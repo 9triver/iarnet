@@ -212,8 +212,11 @@ func (s *Service) startWebSocketServer() error {
 	// 使用 0.0.0.0 明确指定 IPv4，避免只监听 IPv6
 	addr := fmt.Sprintf("0.0.0.0:%d", s.wsPort)
 	s.wsServer = &http.Server{
-		Addr:    addr,
-		Handler: mux,
+		Addr:         addr,
+		Handler:      mux,
+		ReadTimeout:  0, // 不设置读取超时，保持连接打开
+		WriteTimeout: 0, // 不设置写入超时，保持连接打开
+		IdleTimeout:  0, // 不设置空闲超时，保持连接打开
 	}
 
 	go func() {
@@ -1139,22 +1142,14 @@ func (cs *ComponentSession) sendToUnikernel(corrID, topic string, value json.Raw
 		Value:  value,
 	}
 
-	// 设置写入超时，避免写入操作阻塞
-	if err := conn.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
-		logrus.Warnf("Failed to set write deadline for component %s: %v", cs.componentID, err)
-	}
-
+	// 不设置写入超时，保持连接打开
+	// WebSocket 连接应该保持长连接，不需要超时
 	if err := conn.WriteJSON(msg); err != nil {
 		// 写入失败，标记连接为 nil
 		cs.wsConnMu.Lock()
 		cs.wsConn = nil
 		cs.wsConnMu.Unlock()
 		return fmt.Errorf("failed to write to WebSocket: %w", err)
-	}
-
-	// 清除写入超时
-	if err := conn.SetWriteDeadline(time.Time{}); err != nil {
-		logrus.Warnf("Failed to clear write deadline for component %s: %v", cs.componentID, err)
 	}
 
 	return nil
