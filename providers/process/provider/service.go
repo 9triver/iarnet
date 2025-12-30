@@ -15,6 +15,7 @@ import (
 	actorpb "github.com/9triver/iarnet/internal/proto/ignis/actor"
 	resourcepb "github.com/9triver/iarnet/internal/proto/resource"
 	componentpb "github.com/9triver/iarnet/internal/proto/resource/component"
+	reslogger "github.com/9triver/iarnet/internal/proto/resource/logger"
 	providerpb "github.com/9triver/iarnet/internal/proto/resource/provider"
 	storepb "github.com/9triver/iarnet/internal/proto/resource/store"
 	ignisprotopb "github.com/9triver/ignis/proto"
@@ -97,6 +98,7 @@ type ComponentSession struct {
 	deployedFunctionName     string            // 已部署的函数名称（每个 component 只有一个函数）
 	deployedFunctionLanguage commonpb.Language // 已部署函数的语言类型
 	deployedFunctionMu       sync.RWMutex      // 保护 deployedFunction 字段的锁
+	loggerCollector          *LoggerCollector  // 日志收集器
 }
 
 // stringToLanguage 将字符串转换为 common.Language
@@ -704,7 +706,7 @@ func (s *Service) Deploy(ctx context.Context, req *providerpb.DeployRequest) (*p
 		"resources":   req.ResourceRequest,
 	}).Info("process provider deploy component")
 
-	// 从环境变量中提取 ZMQ_ADDR 和 STORE_ADDR
+	// 从环境变量中提取 ZMQ_ADDR、STORE_ADDR 和 LOGGER_ADDR
 	zmqAddr := req.EnvVars["ZMQ_ADDR"]
 	if zmqAddr == "" {
 		return &providerpb.DeployResponse{
@@ -712,9 +714,10 @@ func (s *Service) Deploy(ctx context.Context, req *providerpb.DeployRequest) (*p
 		}, nil
 	}
 	storeAddr := req.EnvVars["STORE_ADDR"]
+	loggerAddr := req.EnvVars["LOGGER_ADDR"]
 
 	// 创建组件会话，建立到 Ignis 的 gRPC stream
-	session, err := s.createComponentSession(ctx, req.InstanceId, zmqAddr, storeAddr)
+	session, err := s.createComponentSession(ctx, req.InstanceId, zmqAddr, storeAddr, loggerAddr)
 	if err != nil {
 		return &providerpb.DeployResponse{
 			Error: fmt.Sprintf("failed to create component session: %v", err),
@@ -740,7 +743,7 @@ func (s *Service) Deploy(ctx context.Context, req *providerpb.DeployRequest) (*p
 }
 
 // createComponentSession 为组件创建会话（不再创建独立的 stream，使用共享的 stream）
-func (s *Service) createComponentSession(ctx context.Context, componentID string, zmqAddr string, storeAddr string) (*ComponentSession, error) {
+func (s *Service) createComponentSession(ctx context.Context, componentID string, zmqAddr string, storeAddr string, loggerAddr string) (*ComponentSession, error) {
 	// 解析地址，如果命中 DNS 配置则替换
 	if storeAddr != "" {
 		storeAddr = s.resolveAddress(storeAddr)
@@ -777,6 +780,18 @@ func (s *Service) createComponentSession(ctx context.Context, componentID string
 	// 创建 component 的 context
 	streamCtx, cancel := context.WithCancel(context.Background())
 
+	// 解析 logger 地址，如果命中 DNS 配置则替换
+	if loggerAddr != "" {
+		loggerAddr = s.resolveAddress(loggerAddr)
+	}
+
+	// 创建日志收集器
+	loggerCollector, err := NewLoggerCollector(componentID, loggerAddr)
+	if err != nil {
+		logrus.Warnf("Failed to create logger collector for component %s: %v, continuing without log collection", componentID, err)
+		// 不阻止创建 session，继续执行
+	}
+
 	session := &ComponentSession{
 		componentID:              componentID,
 		service:                  s,
@@ -788,6 +803,7 @@ func (s *Service) createComponentSession(ctx context.Context, componentID string
 		functionSent:             false,
 		deployedFunctionName:     "",
 		deployedFunctionLanguage: commonpb.Language_LANG_UNKNOWN,
+		loggerCollector:          loggerCollector,
 	}
 
 	s.componentSessions[componentID] = session
@@ -988,6 +1004,17 @@ func (cs *ComponentSession) handleIgnisMessage(msg *ignisctrlpb.Message) {
 		data, err := proto.Marshal(componentMsg)
 		if err != nil {
 			logrus.Errorf("Failed to marshal component message for component %s: %v", cs.componentID, err)
+			// 收集错误日志
+			if cs.loggerCollector != nil {
+				cs.loggerCollector.CollectLog(
+					commonpb.LogLevel_LOG_LEVEL_ERROR,
+					fmt.Sprintf("Failed to marshal component message: %v", err),
+					[]*commonpb.LogField{
+						{Key: "error", Value: err.Error()},
+						{Key: "component_id", Value: cs.componentID},
+					},
+				)
+			}
 			return
 		}
 
@@ -1745,4 +1772,294 @@ func (cs *ComponentSession) Stop() {
 		cs.zmqSocket.Destroy()
 		cs.zmqSocket = nil
 	}
+	// 停止日志收集器
+	if cs.loggerCollector != nil {
+		cs.loggerCollector.Stop()
+		cs.loggerCollector = nil
+	}
+}
+
+// LoggerCollector 日志收集器，用于收集 component 的日志并上传到 iarnet logger 服务
+type LoggerCollector struct {
+	componentID  string
+	loggerAddr   string
+	loggerClient reslogger.LoggerServiceClient
+	loggerConn   *grpc.ClientConn
+	stream       grpc.BidiStreamingClient[reslogger.LogStreamMessage, reslogger.LogStreamResponse]
+	ctx          context.Context
+	cancel       context.CancelFunc
+	logQueue     chan *commonpb.LogEntry
+	wg           sync.WaitGroup
+	mu           sync.RWMutex
+}
+
+// NewLoggerCollector 创建新的日志收集器
+func NewLoggerCollector(componentID string, loggerAddr string) (*LoggerCollector, error) {
+	if loggerAddr == "" {
+		// 如果没有配置 logger 地址，返回 nil（不收集日志）
+		return nil, nil
+	}
+
+	// 连接到 logger 服务
+	conn, err := grpc.NewClient(loggerAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to logger service: %w", err)
+	}
+
+	client := reslogger.NewLoggerServiceClient(conn)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	collector := &LoggerCollector{
+		componentID:  componentID,
+		loggerAddr:   loggerAddr,
+		loggerClient: client,
+		loggerConn:   conn,
+		ctx:          ctx,
+		cancel:       cancel,
+		logQueue:     make(chan *commonpb.LogEntry, 1000), // 缓冲队列
+	}
+
+	// 初始化 stream
+	stream, err := client.StreamLogs(ctx)
+	if err != nil {
+		cancel()
+		conn.Close()
+		return nil, fmt.Errorf("failed to create log stream: %w", err)
+	}
+	collector.stream = stream
+
+	// 启动日志发送 goroutine
+	collector.wg.Add(1)
+	go collector.sendLogLoop()
+
+	// 启动接收响应 goroutine
+	collector.wg.Add(1)
+	go collector.receiveResponseLoop()
+
+	logrus.Infof("Created logger collector for component %s, logger_addr=%s", componentID, loggerAddr)
+	return collector, nil
+}
+
+// sendLogLoop 日志发送循环
+func (lc *LoggerCollector) sendLogLoop() {
+	defer lc.wg.Done()
+	logrus.Debugf("Started log send loop for component %s", lc.componentID)
+
+	for {
+		select {
+		case <-lc.ctx.Done():
+			logrus.Debugf("Log send loop stopped for component %s", lc.componentID)
+			return
+		case entry := <-lc.logQueue:
+			if entry == nil {
+				continue
+			}
+
+			msg := &reslogger.LogStreamMessage{
+				ComponentId: lc.componentID,
+				Message: &reslogger.LogStreamMessage_Entry{
+					Entry: entry,
+				},
+			}
+
+			lc.mu.RLock()
+			stream := lc.stream
+			lc.mu.RUnlock()
+
+			if stream == nil {
+				logrus.Warnf("Log stream is nil for component %s, dropping log entry", lc.componentID)
+				continue
+			}
+
+			if err := stream.Send(msg); err != nil {
+				logrus.Errorf("Failed to send log entry for component %s: %v", lc.componentID, err)
+				// 如果发送失败，尝试重新连接
+				lc.reconnect()
+			}
+		}
+	}
+}
+
+// receiveResponseLoop 接收响应循环
+func (lc *LoggerCollector) receiveResponseLoop() {
+	defer lc.wg.Done()
+	logrus.Debugf("Started log response loop for component %s", lc.componentID)
+
+	for {
+		select {
+		case <-lc.ctx.Done():
+			logrus.Debugf("Log response loop stopped for component %s", lc.componentID)
+			return
+		default:
+			lc.mu.RLock()
+			stream := lc.stream
+			lc.mu.RUnlock()
+
+			if stream == nil {
+				select {
+				case <-lc.ctx.Done():
+					return
+				case <-time.After(1 * time.Second):
+					continue
+				}
+			}
+
+			// 使用 goroutine 和 channel 来非阻塞地接收消息
+			type recvResult struct {
+				resp *reslogger.LogStreamResponse
+				err  error
+			}
+			recvCh := make(chan recvResult, 1)
+
+			go func() {
+				resp, err := stream.Recv()
+				recvCh <- recvResult{resp: resp, err: err}
+			}()
+
+			select {
+			case <-lc.ctx.Done():
+				return
+			case result := <-recvCh:
+				if result.err == io.EOF {
+					logrus.Infof("Log stream closed for component %s", lc.componentID)
+					return
+				}
+				if result.err != nil {
+					logrus.Errorf("Failed to receive log response for component %s: %v", lc.componentID, result.err)
+					lc.reconnect()
+					continue
+				}
+				if result.resp != nil && !result.resp.GetSuccess() && result.resp.GetError() != "" {
+					logrus.Warnf("Log service error for component %s: %s", lc.componentID, result.resp.GetError())
+				}
+			}
+		}
+	}
+}
+
+// reconnect 重新连接 logger 服务
+func (lc *LoggerCollector) reconnect() {
+	lc.mu.Lock()
+	defer lc.mu.Unlock()
+
+	// 关闭旧连接
+	if lc.stream != nil {
+		// stream 会在 context 取消时自动关闭
+		lc.stream = nil
+	}
+
+	// 重新连接
+	conn, err := grpc.NewClient(lc.loggerAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		logrus.Errorf("Failed to reconnect to logger service for component %s: %v", lc.componentID, err)
+		return
+	}
+
+	client := reslogger.NewLoggerServiceClient(conn)
+	stream, err := client.StreamLogs(lc.ctx)
+	if err != nil {
+		logrus.Errorf("Failed to create log stream for component %s: %v", lc.componentID, err)
+		conn.Close()
+		return
+	}
+
+	// 关闭旧连接
+	if lc.loggerConn != nil {
+		lc.loggerConn.Close()
+	}
+
+	lc.loggerConn = conn
+	lc.loggerClient = client
+	lc.stream = stream
+	logrus.Infof("Reconnected to logger service for component %s", lc.componentID)
+}
+
+// CollectLog 收集日志条目
+func (lc *LoggerCollector) CollectLog(level commonpb.LogLevel, message string, fields []*commonpb.LogField) {
+	if lc == nil {
+		return
+	}
+
+	entry := &commonpb.LogEntry{
+		Timestamp: time.Now().UnixNano(),
+		Level:     level,
+		Message:   message,
+		Fields:    fields,
+	}
+
+	select {
+	case lc.logQueue <- entry:
+		// 成功入队
+	default:
+		// 队列已满，丢弃日志
+		logrus.Warnf("Log queue is full for component %s, dropping log entry", lc.componentID)
+	}
+}
+
+// CollectLogFromString 从字符串收集日志（解析日志级别）
+func (lc *LoggerCollector) CollectLogFromString(logLine string) {
+	if lc == nil {
+		return
+	}
+
+	// 尝试解析日志级别
+	level := commonpb.LogLevel_LOG_LEVEL_INFO
+	message := logLine
+
+	// 简单的日志级别解析（可以根据实际格式调整）
+	logLineLower := strings.ToLower(logLine)
+	if strings.Contains(logLineLower, "error") || strings.Contains(logLineLower, "err") {
+		level = commonpb.LogLevel_LOG_LEVEL_ERROR
+	} else if strings.Contains(logLineLower, "warn") || strings.Contains(logLineLower, "warning") {
+		level = commonpb.LogLevel_LOG_LEVEL_WARN
+	} else if strings.Contains(logLineLower, "debug") {
+		level = commonpb.LogLevel_LOG_LEVEL_DEBUG
+	} else if strings.Contains(logLineLower, "fatal") || strings.Contains(logLineLower, "panic") {
+		level = commonpb.LogLevel_LOG_LEVEL_FATAL
+	}
+
+	lc.CollectLog(level, message, nil)
+}
+
+// Stop 停止日志收集器
+func (lc *LoggerCollector) Stop() {
+	if lc == nil {
+		return
+	}
+
+	logrus.Infof("Stopping logger collector for component %s", lc.componentID)
+
+	// 发送关闭控制消息
+	lc.mu.RLock()
+	stream := lc.stream
+	lc.mu.RUnlock()
+
+	if stream != nil {
+		controlMsg := &reslogger.LogStreamMessage{
+			ComponentId: lc.componentID,
+			Message: &reslogger.LogStreamMessage_Control{
+				Control: &commonpb.StreamControl{
+					Type: commonpb.StreamControl_CONTROL_CLOSE,
+				},
+			},
+		}
+		stream.Send(controlMsg)
+	}
+
+	// 取消 context
+	lc.cancel()
+
+	// 关闭队列
+	close(lc.logQueue)
+
+	// 等待 goroutine 完成
+	lc.wg.Wait()
+
+	// 关闭连接
+	if lc.loggerConn != nil {
+		lc.loggerConn.Close()
+		lc.loggerConn = nil
+	}
+
+	logrus.Infof("Logger collector stopped for component %s", lc.componentID)
 }

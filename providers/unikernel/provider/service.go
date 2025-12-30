@@ -1,11 +1,12 @@
 package provider
 
 import (
-	"bytes"
+	"bufio"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -20,6 +21,7 @@ import (
 	actorpb "github.com/9triver/iarnet/internal/proto/ignis/actor"
 	resourcepb "github.com/9triver/iarnet/internal/proto/resource"
 	componentpb "github.com/9triver/iarnet/internal/proto/resource/component"
+	reslogger "github.com/9triver/iarnet/internal/proto/resource/logger"
 	providerpb "github.com/9triver/iarnet/internal/proto/resource/provider"
 	storepb "github.com/9triver/iarnet/internal/proto/resource/store"
 	"github.com/gorilla/websocket"
@@ -100,6 +102,7 @@ type ComponentSession struct {
 	workDir                  string                            // 工作目录（用于构建和运行 unikernel）
 	pendingInvokes           map[string]chan *UnikernelMessage // corr_id -> response channel
 	pendingInvokesMu         sync.RWMutex
+	loggerCollector          *LoggerCollector // 日志收集器
 }
 
 // NewService 创建新的 Unikernel provider 服务
@@ -534,7 +537,7 @@ func (s *Service) Deploy(ctx context.Context, req *providerpb.DeployRequest) (*p
 		"resources":   req.ResourceRequest,
 	}).Info("unikernel provider deploy component")
 
-	// 从环境变量中提取 ZMQ_ADDR 和 STORE_ADDR
+	// 从环境变量中提取 ZMQ_ADDR、STORE_ADDR 和 LOGGER_ADDR
 	zmqAddr := req.EnvVars["ZMQ_ADDR"]
 	if zmqAddr == "" {
 		return &providerpb.DeployResponse{
@@ -542,9 +545,10 @@ func (s *Service) Deploy(ctx context.Context, req *providerpb.DeployRequest) (*p
 		}, nil
 	}
 	storeAddr := req.EnvVars["STORE_ADDR"]
+	loggerAddr := req.EnvVars["LOGGER_ADDR"]
 
 	// 创建组件会话
-	session, err := s.createComponentSession(ctx, req.InstanceId, zmqAddr, storeAddr)
+	session, err := s.createComponentSession(ctx, req.InstanceId, zmqAddr, storeAddr, loggerAddr)
 	if err != nil {
 		return &providerpb.DeployResponse{
 			Error: fmt.Sprintf("failed to create component session: %v", err),
@@ -568,7 +572,7 @@ func (s *Service) Deploy(ctx context.Context, req *providerpb.DeployRequest) (*p
 }
 
 // createComponentSession 为组件创建会话
-func (s *Service) createComponentSession(ctx context.Context, componentID string, zmqAddr string, storeAddr string) (*ComponentSession, error) {
+func (s *Service) createComponentSession(ctx context.Context, componentID string, zmqAddr string, storeAddr string, loggerAddr string) (*ComponentSession, error) {
 	if storeAddr != "" {
 		storeAddr = s.resolveAddress(storeAddr)
 	}
@@ -605,6 +609,18 @@ func (s *Service) createComponentSession(ctx context.Context, componentID string
 
 	streamCtx, cancel := context.WithCancel(context.Background())
 
+	// 解析 logger 地址，如果命中 DNS 配置则替换
+	if loggerAddr != "" {
+		loggerAddr = s.resolveAddress(loggerAddr)
+	}
+
+	// 创建日志收集器
+	loggerCollector, err := NewLoggerCollector(componentID, loggerAddr)
+	if err != nil {
+		logrus.Warnf("Failed to create logger collector for component %s: %v, continuing without log collection", componentID, err)
+		// 不阻止创建 session，继续执行
+	}
+
 	session := &ComponentSession{
 		componentID:              componentID,
 		service:                  s,
@@ -618,6 +634,7 @@ func (s *Service) createComponentSession(ctx context.Context, componentID string
 		deployedFunctionLanguage: commonpb.Language_LANG_UNKNOWN,
 		workDir:                  workDir,
 		pendingInvokes:           make(map[string]chan *UnikernelMessage),
+		loggerCollector:          loggerCollector,
 	}
 
 	s.componentSessions[componentID] = session
@@ -1027,10 +1044,15 @@ func (cs *ComponentSession) runUnikernel() error {
 	)
 	cmd.Dir = cs.workDir
 
-	// 捕获 unikernel 的 stdout 和 stderr 以便诊断问题
-	var stdoutBuf, stderrBuf bytes.Buffer
-	cmd.Stdout = &stdoutBuf
-	cmd.Stderr = &stderrBuf
+	// 创建管道来实时读取 unikernel 的 stdout 和 stderr
+	stdoutPipe, err := cmd.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("failed to create stdout pipe: %w", err)
+	}
+	stderrPipe, err := cmd.StderrPipe()
+	if err != nil {
+		return fmt.Errorf("failed to create stderr pipe: %w", err)
+	}
 
 	cs.unikernelProcessMu.Lock()
 	cs.unikernelProcess = cmd
@@ -1042,28 +1064,75 @@ func (cs *ComponentSession) runUnikernel() error {
 
 	logrus.Infof("Started unikernel process for component %s (tap=%s, uri=%s, pid=%d)", cs.componentID, tapName, wsURI, cmd.Process.Pid)
 
-	// 监控进程并输出日志
+	// 实时读取 stdout 并发送到日志收集器
+	cs.wg.Add(1)
+	go func() {
+		defer cs.wg.Done()
+		scanner := bufio.NewScanner(stdoutPipe)
+		for scanner.Scan() {
+			line := scanner.Text()
+			// 发送到日志收集器
+			if cs.loggerCollector != nil {
+				cs.loggerCollector.CollectLogFromString(line)
+			}
+			// 同时输出到 logrus（用于本地调试）
+			logrus.Debugf("Unikernel stdout for component %s: %s", cs.componentID, line)
+		}
+		if err := scanner.Err(); err != nil {
+			logrus.Errorf("Error reading unikernel stdout for component %s: %v", cs.componentID, err)
+		}
+	}()
+
+	// 实时读取 stderr 并发送到日志收集器
+	cs.wg.Add(1)
+	go func() {
+		defer cs.wg.Done()
+		scanner := bufio.NewScanner(stderrPipe)
+		for scanner.Scan() {
+			line := scanner.Text()
+			// 发送到日志收集器（stderr 通常包含错误信息）
+			if cs.loggerCollector != nil {
+				cs.loggerCollector.CollectLog(
+					commonpb.LogLevel_LOG_LEVEL_ERROR,
+					line,
+					[]*commonpb.LogField{
+						{Key: "stream", Value: "stderr"},
+						{Key: "component_id", Value: cs.componentID},
+					},
+				)
+			}
+			// 同时输出到 logrus（用于本地调试）
+			logrus.Debugf("Unikernel stderr for component %s: %s", cs.componentID, line)
+		}
+		if err := scanner.Err(); err != nil {
+			logrus.Errorf("Error reading unikernel stderr for component %s: %v", cs.componentID, err)
+		}
+	}()
+
+	// 监控进程退出
 	go func() {
 		if err := cmd.Wait(); err != nil {
-			stdout := stdoutBuf.String()
-			stderr := stderrBuf.String()
 			logrus.Errorf("Unikernel process exited for component %s: %v", cs.componentID, err)
-			if stdout != "" {
-				logrus.Errorf("Unikernel stdout for component %s: %s", cs.componentID, stdout)
-			}
-			if stderr != "" {
-				logrus.Errorf("Unikernel stderr for component %s: %s", cs.componentID, stderr)
+			if cs.loggerCollector != nil {
+				cs.loggerCollector.CollectLog(
+					commonpb.LogLevel_LOG_LEVEL_ERROR,
+					fmt.Sprintf("Unikernel process exited with error: %v", err),
+					[]*commonpb.LogField{
+						{Key: "component_id", Value: cs.componentID},
+						{Key: "error", Value: err.Error()},
+					},
+				)
 			}
 		} else {
-			// 正常退出也记录日志
-			stdout := stdoutBuf.String()
-			stderr := stderrBuf.String()
 			logrus.Warnf("Unikernel process exited normally for component %s", cs.componentID)
-			if stdout != "" {
-				logrus.Infof("Unikernel stdout for component %s: %s", cs.componentID, stdout)
-			}
-			if stderr != "" {
-				logrus.Infof("Unikernel stderr for component %s: %s", cs.componentID, stderr)
+			if cs.loggerCollector != nil {
+				cs.loggerCollector.CollectLog(
+					commonpb.LogLevel_LOG_LEVEL_INFO,
+					"Unikernel process exited normally",
+					[]*commonpb.LogField{
+						{Key: "component_id", Value: cs.componentID},
+					},
+				)
 			}
 		}
 	}()
@@ -1549,6 +1618,298 @@ func (cs *ComponentSession) Stop() {
 	cs.cancel()
 	cs.wg.Wait()
 
+	// 停止日志收集器
+	if cs.loggerCollector != nil {
+		cs.loggerCollector.Stop()
+		cs.loggerCollector = nil
+	}
+
 	// 清理工作目录
 	os.RemoveAll(cs.workDir)
+}
+
+// LoggerCollector 日志收集器，用于收集 unikernel 的日志并上传到 iarnet logger 服务
+// 复用 process provider 中的实现
+type LoggerCollector struct {
+	componentID  string
+	loggerAddr   string
+	loggerClient reslogger.LoggerServiceClient
+	loggerConn   *grpc.ClientConn
+	stream       grpc.BidiStreamingClient[reslogger.LogStreamMessage, reslogger.LogStreamResponse]
+	ctx          context.Context
+	cancel       context.CancelFunc
+	logQueue     chan *commonpb.LogEntry
+	wg           sync.WaitGroup
+	mu           sync.RWMutex
+}
+
+// NewLoggerCollector 创建新的日志收集器
+func NewLoggerCollector(componentID string, loggerAddr string) (*LoggerCollector, error) {
+	if loggerAddr == "" {
+		// 如果没有配置 logger 地址，返回 nil（不收集日志）
+		return nil, nil
+	}
+
+	// 连接到 logger 服务
+	conn, err := grpc.NewClient(loggerAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to logger service: %w", err)
+	}
+
+	client := reslogger.NewLoggerServiceClient(conn)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	collector := &LoggerCollector{
+		componentID:  componentID,
+		loggerAddr:   loggerAddr,
+		loggerClient: client,
+		loggerConn:   conn,
+		ctx:          ctx,
+		cancel:       cancel,
+		logQueue:     make(chan *commonpb.LogEntry, 1000), // 缓冲队列
+	}
+
+	// 初始化 stream
+	stream, err := client.StreamLogs(ctx)
+	if err != nil {
+		cancel()
+		conn.Close()
+		return nil, fmt.Errorf("failed to create log stream: %w", err)
+	}
+	collector.stream = stream
+
+	// 启动日志发送 goroutine
+	collector.wg.Add(1)
+	go collector.sendLogLoop()
+
+	// 启动接收响应 goroutine
+	collector.wg.Add(1)
+	go collector.receiveResponseLoop()
+
+	logrus.Infof("Created logger collector for component %s, logger_addr=%s", componentID, loggerAddr)
+	return collector, nil
+}
+
+// sendLogLoop 日志发送循环
+func (lc *LoggerCollector) sendLogLoop() {
+	defer lc.wg.Done()
+	logrus.Debugf("Started log send loop for component %s", lc.componentID)
+
+	for {
+		select {
+		case <-lc.ctx.Done():
+			logrus.Debugf("Log send loop stopped for component %s", lc.componentID)
+			return
+		case entry := <-lc.logQueue:
+			if entry == nil {
+				continue
+			}
+
+			msg := &reslogger.LogStreamMessage{
+				ComponentId: lc.componentID,
+				Message: &reslogger.LogStreamMessage_Entry{
+					Entry: entry,
+				},
+			}
+
+			lc.mu.RLock()
+			stream := lc.stream
+			lc.mu.RUnlock()
+
+			if stream == nil {
+				logrus.Warnf("Log stream is nil for component %s, dropping log entry", lc.componentID)
+				continue
+			}
+
+			if err := stream.Send(msg); err != nil {
+				logrus.Errorf("Failed to send log entry for component %s: %v", lc.componentID, err)
+				// 如果发送失败，尝试重新连接
+				lc.reconnect()
+			}
+		}
+	}
+}
+
+// receiveResponseLoop 接收响应循环
+func (lc *LoggerCollector) receiveResponseLoop() {
+	defer lc.wg.Done()
+	logrus.Debugf("Started log response loop for component %s", lc.componentID)
+
+	for {
+		select {
+		case <-lc.ctx.Done():
+			logrus.Debugf("Log response loop stopped for component %s", lc.componentID)
+			return
+		default:
+			lc.mu.RLock()
+			stream := lc.stream
+			lc.mu.RUnlock()
+
+			if stream == nil {
+				select {
+				case <-lc.ctx.Done():
+					return
+				case <-time.After(1 * time.Second):
+					continue
+				}
+			}
+
+			// 使用 goroutine 和 channel 来非阻塞地接收消息
+			type recvResult struct {
+				resp *reslogger.LogStreamResponse
+				err  error
+			}
+			recvCh := make(chan recvResult, 1)
+
+			go func() {
+				resp, err := stream.Recv()
+				recvCh <- recvResult{resp: resp, err: err}
+			}()
+
+			select {
+			case <-lc.ctx.Done():
+				return
+			case result := <-recvCh:
+				if result.err == io.EOF {
+					logrus.Infof("Log stream closed for component %s", lc.componentID)
+					return
+				}
+				if result.err != nil {
+					logrus.Errorf("Failed to receive log response for component %s: %v", lc.componentID, result.err)
+					lc.reconnect()
+					continue
+				}
+				if result.resp != nil && !result.resp.GetSuccess() && result.resp.GetError() != "" {
+					logrus.Warnf("Log service error for component %s: %s", lc.componentID, result.resp.GetError())
+				}
+			}
+		}
+	}
+}
+
+// reconnect 重新连接 logger 服务
+func (lc *LoggerCollector) reconnect() {
+	lc.mu.Lock()
+	defer lc.mu.Unlock()
+
+	// 关闭旧连接
+	if lc.stream != nil {
+		// stream 会在 context 取消时自动关闭
+		lc.stream = nil
+	}
+
+	// 重新连接
+	conn, err := grpc.NewClient(lc.loggerAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		logrus.Errorf("Failed to reconnect to logger service for component %s: %v", lc.componentID, err)
+		return
+	}
+
+	client := reslogger.NewLoggerServiceClient(conn)
+	stream, err := client.StreamLogs(lc.ctx)
+	if err != nil {
+		logrus.Errorf("Failed to create log stream for component %s: %v", lc.componentID, err)
+		conn.Close()
+		return
+	}
+
+	// 关闭旧连接
+	if lc.loggerConn != nil {
+		lc.loggerConn.Close()
+	}
+
+	lc.loggerConn = conn
+	lc.loggerClient = client
+	lc.stream = stream
+	logrus.Infof("Reconnected to logger service for component %s", lc.componentID)
+}
+
+// CollectLog 收集日志条目
+func (lc *LoggerCollector) CollectLog(level commonpb.LogLevel, message string, fields []*commonpb.LogField) {
+	if lc == nil {
+		return
+	}
+
+	entry := &commonpb.LogEntry{
+		Timestamp: time.Now().UnixNano(),
+		Level:     level,
+		Message:   message,
+		Fields:    fields,
+	}
+
+	select {
+	case lc.logQueue <- entry:
+		// 成功入队
+	default:
+		// 队列已满，丢弃日志
+		logrus.Warnf("Log queue is full for component %s, dropping log entry", lc.componentID)
+	}
+}
+
+// CollectLogFromString 从字符串收集日志（解析日志级别）
+func (lc *LoggerCollector) CollectLogFromString(logLine string) {
+	if lc == nil {
+		return
+	}
+
+	// 尝试解析日志级别
+	level := commonpb.LogLevel_LOG_LEVEL_INFO
+	message := logLine
+
+	// 简单的日志级别解析（可以根据实际格式调整）
+	logLineLower := strings.ToLower(logLine)
+	if strings.Contains(logLineLower, "error") || strings.Contains(logLineLower, "err") {
+		level = commonpb.LogLevel_LOG_LEVEL_ERROR
+	} else if strings.Contains(logLineLower, "warn") || strings.Contains(logLineLower, "warning") {
+		level = commonpb.LogLevel_LOG_LEVEL_WARN
+	} else if strings.Contains(logLineLower, "debug") {
+		level = commonpb.LogLevel_LOG_LEVEL_DEBUG
+	} else if strings.Contains(logLineLower, "fatal") || strings.Contains(logLineLower, "panic") {
+		level = commonpb.LogLevel_LOG_LEVEL_FATAL
+	}
+
+	lc.CollectLog(level, message, nil)
+}
+
+// Stop 停止日志收集器
+func (lc *LoggerCollector) Stop() {
+	if lc == nil {
+		return
+	}
+
+	logrus.Infof("Stopping logger collector for component %s", lc.componentID)
+
+	// 发送关闭控制消息
+	lc.mu.RLock()
+	stream := lc.stream
+	lc.mu.RUnlock()
+
+	if stream != nil {
+		controlMsg := &reslogger.LogStreamMessage{
+			ComponentId: lc.componentID,
+			Message: &reslogger.LogStreamMessage_Control{
+				Control: &commonpb.StreamControl{
+					Type: commonpb.StreamControl_CONTROL_CLOSE,
+				},
+			},
+		}
+		stream.Send(controlMsg)
+	}
+
+	// 取消 context
+	lc.cancel()
+
+	// 关闭队列
+	close(lc.logQueue)
+
+	// 等待 goroutine 完成
+	lc.wg.Wait()
+
+	// 关闭连接
+	if lc.loggerConn != nil {
+		lc.loggerConn.Close()
+		lc.loggerConn = nil
+	}
+
+	logrus.Infof("Logger collector stopped for component %s", lc.componentID)
 }
