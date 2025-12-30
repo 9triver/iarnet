@@ -84,7 +84,7 @@ func (m *actorMigrationManager) migrateActor(ctx context.Context, t *testing.T, 
 	// 输出迁移时机和原因
 	migrationStartTime := time.Now()
 	testutil.PrintTestSection(t, fmt.Sprintf("Actor 迁移: %s", actorID))
-	testutil.PrintInfo(t, fmt.Sprintf("迁移时机: %s", migrationStartTime.Format("2006-01-02 15:04:05.000")))
+	testutil.PrintInfo(t, fmt.Sprintf("迁移时机: %s", testutil.AdjustTimeForDisplay(migrationStartTime).Format("2006-01-02 15:04:05.000")))
 	testutil.PrintInfo(t, fmt.Sprintf("迁移原因: %s", reason))
 	testutil.PrintInfo(t, fmt.Sprintf("源节点: %s -> 目标节点: %s", sourceNodeID, targetNodeID))
 	testutil.PrintInfo(t, fmt.Sprintf("Actor 资源需求: CPU=%d mC, Memory=%s",
@@ -152,7 +152,7 @@ func (m *actorMigrationManager) migrateActor(ctx context.Context, t *testing.T, 
 	})
 
 	testutil.PrintSuccess(t, fmt.Sprintf("Actor %s 成功从节点 %s 迁移到节点 %s", actorID, sourceNodeID, targetNodeID))
-	testutil.PrintInfo(t, fmt.Sprintf("迁移完成时间: %s", migrationEndTime.Format("2006-01-02 15:04:05.000")))
+	testutil.PrintInfo(t, fmt.Sprintf("迁移完成时间: %s", testutil.AdjustTimeForDisplay(migrationEndTime).Format("2006-01-02 15:04:05.000")))
 	testutil.PrintInfo(t, fmt.Sprintf("迁移耗时: %v", migrationDuration))
 	return nil
 }
@@ -171,7 +171,7 @@ func (m *actorMigrationManager) unloadActor(ctx context.Context, t *testing.T, a
 	// 输出卸载时机和原因
 	unloadStartTime := time.Now()
 	testutil.PrintTestSection(t, fmt.Sprintf("Actor 卸载: %s", actorID))
-	testutil.PrintInfo(t, fmt.Sprintf("卸载时机: %s", unloadStartTime.Format("2006-01-02 15:04:05.000")))
+	testutil.PrintInfo(t, fmt.Sprintf("卸载时机: %s", testutil.AdjustTimeForDisplay(unloadStartTime).Format("2006-01-02 15:04:05.000")))
 	testutil.PrintInfo(t, fmt.Sprintf("卸载原因: %s", reason))
 	testutil.PrintInfo(t, fmt.Sprintf("节点: %s, Component: %s", nodeID, componentID))
 
@@ -198,7 +198,7 @@ func (m *actorMigrationManager) unloadActor(ctx context.Context, t *testing.T, a
 	})
 
 	testutil.PrintSuccess(t, fmt.Sprintf("Actor %s 已从节点 %s 卸载", actorID, nodeID))
-	testutil.PrintInfo(t, fmt.Sprintf("卸载完成时间: %s", unloadEndTime.Format("2006-01-02 15:04:05.000")))
+	testutil.PrintInfo(t, fmt.Sprintf("卸载完成时间: %s", testutil.AdjustTimeForDisplay(unloadEndTime).Format("2006-01-02 15:04:05.000")))
 	testutil.PrintInfo(t, fmt.Sprintf("卸载耗时: %v", unloadDuration))
 	return nil
 }
@@ -252,7 +252,7 @@ func TestActorMigrationAndUnload(t *testing.T) {
 		// 在 node-1 上部署 Actor
 		deployStartTime := time.Now()
 		testutil.PrintInfo(t, fmt.Sprintf("在节点 node-1 部署 Actor %s", actorID))
-		testutil.PrintInfo(t, fmt.Sprintf("部署时机: %s", deployStartTime.Format("2006-01-02 15:04:05.000")))
+		testutil.PrintInfo(t, fmt.Sprintf("部署时机: %s", testutil.AdjustTimeForDisplay(deployStartTime).Format("2006-01-02 15:04:05.000")))
 		testutil.PrintInfo(t, "正在创建 Component...")
 		time.Sleep(200 * time.Millisecond) // 模拟创建延迟
 
@@ -289,7 +289,7 @@ func TestActorMigrationAndUnload(t *testing.T) {
 		testutil.PrintInfo(t, fmt.Sprintf("  Provider ID: %s", comp.GetProviderID()))
 		testutil.PrintInfo(t, fmt.Sprintf("  资源需求: CPU=%d mC, Memory=%s",
 			resourceReq.CPU, formatBytes(resourceReq.Memory)))
-		testutil.PrintInfo(t, fmt.Sprintf("部署完成时间: %s", deployEndTime.Format("2006-01-02 15:04:05.000")))
+		testutil.PrintInfo(t, fmt.Sprintf("部署完成时间: %s", testutil.AdjustTimeForDisplay(deployEndTime).Format("2006-01-02 15:04:05.000")))
 		testutil.PrintInfo(t, fmt.Sprintf("部署耗时: %v", deployDuration))
 	})
 
@@ -309,7 +309,7 @@ func TestActorMigrationAndUnload(t *testing.T) {
 
 		deployStartTime := time.Now()
 		testutil.PrintInfo(t, fmt.Sprintf("准备迁移测试：在节点 node-1 部署 Actor %s", actorID))
-		testutil.PrintInfo(t, fmt.Sprintf("部署时机: %s", deployStartTime.Format("2006-01-02 15:04:05.000")))
+		testutil.PrintInfo(t, fmt.Sprintf("部署时机: %s", testutil.AdjustTimeForDisplay(deployStartTime).Format("2006-01-02 15:04:05.000")))
 		testutil.PrintInfo(t, "正在创建 Component...")
 		time.Sleep(200 * time.Millisecond)
 
@@ -339,7 +339,7 @@ func TestActorMigrationAndUnload(t *testing.T) {
 
 		testutil.PrintInfo(t, fmt.Sprintf("迁移前状态: Actor %s 在节点 %s (Component: %s)",
 			actorID, sourceNodeID, oldComponentID))
-		testutil.PrintInfo(t, fmt.Sprintf("当前时间: %s", time.Now().Format("2006-01-02 15:04:05.000")))
+		testutil.PrintInfo(t, fmt.Sprintf("当前时间: %s", testutil.GetTestTime().Format("2006-01-02 15:04:05.000")))
 
 		// 执行迁移（模拟资源负载均衡场景）
 		migrationReason := fmt.Sprintf("源节点 %s 资源负载过高，迁移到资源更充足的节点 %s", sourceNodeID, targetNodeID)

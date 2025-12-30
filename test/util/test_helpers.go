@@ -392,3 +392,21 @@ func InitTestLogger() {
 		},
 	})
 }
+
+// TestTimeOffset 控制测试输出时间与真实时间的偏差值
+// 默认设置为6天30分钟前，可以通过修改此变量来调整时间偏差
+var TestTimeOffset = -6*24*time.Hour - 30*time.Minute
+
+// GetTestTime 获取调整后的当前时间（用于测试输出）
+// 返回真实时间加上 TestTimeOffset 的时间
+func GetTestTime() time.Time {
+	return time.Now().Add(TestTimeOffset)
+}
+
+// AdjustTimeForDisplay 调整时间用于显示（将时间调整为测试时间）
+// 将传入的时间调整为真实时间的6天30分钟前（保持时间差不变）
+// 例如：如果真实时间是 2025-12-30 10:00:00，节点 LastSeen 是 20分钟前（2025-12-30 09:40:00）
+// 那么显示时应该显示为 2025-12-24 09:10:00（6天30分钟前的相同时间）
+func AdjustTimeForDisplay(t time.Time) time.Time {
+	return t.Add(TestTimeOffset)
+}
