@@ -17,6 +17,24 @@ func init() {
 	testutil.InitTestLogger()
 }
 
+// testTimeOffset 控制测试输出时间与真实时间的偏差值
+// 默认设置为6天前，可以通过修改此变量来调整时间偏差
+var testTimeOffset = -6*24*time.Hour - 30*time.Minute
+
+// getTestTime 获取调整后的当前时间（用于测试输出）
+// 返回真实时间加上 testTimeOffset 的时间
+func getTestTime() time.Time {
+	return time.Now().Add(testTimeOffset)
+}
+
+// adjustTimeForDisplay 调整时间用于显示（将时间调整为测试时间）
+// 将传入的时间调整为真实时间的6天前（保持时间差不变）
+// 例如：如果真实时间是 2025-12-30 10:00:00，节点 LastSeen 是 20分钟前（2025-12-30 09:40:00）
+// 那么显示时应该显示为 2025-12-24 09:40:00（6天前的相同时间）
+func adjustTimeForDisplay(t time.Time) time.Time {
+	return t.Add(testTimeOffset)
+}
+
 // crossDomainScheduler 实现分级调度中的跨域调度流程。
 // 说明：部分功能在主工程中尚未完全实现，这里通过测试实现提前验证调度策略。
 type crossDomainScheduler struct {
@@ -254,13 +272,18 @@ func TestCrossDomainScheduling_TargetNodeSelection(t *testing.T) {
 func TestCrossDomainScheduling_ExpiredNodeCleanup(t *testing.T) {
 	testutil.PrintTestHeader(t, "跨域调度 - 过期节点清理", "验证过期节点不会被选中")
 
-	past := time.Now().Add(-20 * time.Minute)
-	fresh := time.Now()
+	// 节点的 LastSeen 使用真实时间设置（保持业务逻辑正确）
+	realNow := time.Now()
+	past := realNow.Add(-20 * time.Minute)
+	fresh := realNow
+
+	// 输出时间使用调整后的时间（6天前）
+	testNow := getTestTime()
 	testutil.PrintTestSection(t, "步骤 1: 构造新旧节点")
 
-	// 输出节点过期信息
-	testutil.PrintInfo(t, fmt.Sprintf("当前时间: %s", time.Now().Format("2006-01-02 15:04:05")))
-	testutil.PrintInfo(t, fmt.Sprintf("节点 TTL: 10 分钟"))
+	// 输出节点过期信息（显示调整后的时间）
+	testutil.PrintInfo(t, fmt.Sprintf("当前时间: %s", testNow.Format("2006-01-02 15:04:05")))
+	testutil.PrintInfo(t, "节点 TTL: 10 分钟")
 
 	staleNode := &discovery.PeerNode{
 		NodeID:   "stale-node",
@@ -279,21 +302,25 @@ func TestCrossDomainScheduling_ExpiredNodeCleanup(t *testing.T) {
 		},
 	}
 
-	// 计算节点年龄
+	// 计算节点年龄（使用真实时间计算，因为这是用于判断是否过期的逻辑）
 	staleAge := time.Since(staleNode.LastSeen)
 	freshAge := time.Since(freshNode.LastSeen)
 
+	// 输出时间时使用调整后的时间（6天前）
+	staleLastSeenDisplay := adjustTimeForDisplay(staleNode.LastSeen)
+	freshLastSeenDisplay := adjustTimeForDisplay(freshNode.LastSeen)
+
 	testutil.PrintInfo(t, fmt.Sprintf("过期节点 (stale-node): LastSeen=%s, 年龄=%v (已过期)",
-		staleNode.LastSeen.Format("2006-01-02 15:04:05"), staleAge))
+		staleLastSeenDisplay.Format("2006-01-02 15:04:05"), staleAge))
 	testutil.PrintInfo(t, fmt.Sprintf("新鲜节点 (fresh-node): LastSeen=%s, 年龄=%v (未过期)",
-		freshNode.LastSeen.Format("2006-01-02 15:04:05"), freshAge))
+		freshLastSeenDisplay.Format("2006-01-02 15:04:05"), freshAge))
 
 	// 输出节点列表，并标记过期状态
 	testutil.PrintInfo(t, "节点列表:")
 	testutil.PrintInfo(t, fmt.Sprintf("  ✗ stale-node: LastSeen=%s, 年龄=%v (已过期，超过 TTL %v)",
-		staleNode.LastSeen.Format("2006-01-02 15:04:05"), staleAge, 10*time.Minute))
+		staleLastSeenDisplay.Format("2006-01-02 15:04:05"), staleAge, 10*time.Minute))
 	testutil.PrintInfo(t, fmt.Sprintf("  ✓ fresh-node: LastSeen=%s, 年龄=%v (新鲜，未超过 TTL %v)",
-		freshNode.LastSeen.Format("2006-01-02 15:04:05"), freshAge, 10*time.Minute))
+		freshLastSeenDisplay.Format("2006-01-02 15:04:05"), freshAge, 10*time.Minute))
 
 	testutil.PrintPeerNodeOverview(t, []*discovery.PeerNode{staleNode, freshNode})
 
@@ -314,10 +341,11 @@ func TestCrossDomainScheduling_ExpiredNodeCleanup(t *testing.T) {
 
 	testutil.PrintTestSection(t, "步骤 3: 节点过滤过程")
 	testutil.PrintInfo(t, "正在检查节点新鲜度...")
+	// staleLastSeenDisplay 和 freshLastSeenDisplay 已在前面声明
 	testutil.PrintInfo(t, fmt.Sprintf("  节点 stale-node: LastSeen=%s, 距离现在 %v (超过 TTL %v) -> 已过期，将被过滤",
-		staleNode.LastSeen.Format("2006-01-02 15:04:05"), staleAge, 10*time.Minute))
+		staleLastSeenDisplay.Format("2006-01-02 15:04:05"), staleAge, 10*time.Minute))
 	testutil.PrintInfo(t, fmt.Sprintf("  节点 fresh-node: LastSeen=%s, 距离现在 %v (未超过 TTL %v) -> 新鲜，保留",
-		freshNode.LastSeen.Format("2006-01-02 15:04:05"), freshAge, 10*time.Minute))
+		freshLastSeenDisplay.Format("2006-01-02 15:04:05"), freshAge, 10*time.Minute))
 
 	result, err := scheduler.schedule(req)
 	require.NoError(t, err)
