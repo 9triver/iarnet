@@ -319,7 +319,16 @@ func (m *NodeDiscoveryManager) ProcessNodeInfo(node *PeerNode, sourcePeer string
 		oldVersion := existing.Version
 		if existing.UpdateFrom(node) {
 			existing.SourcePeer = sourcePeer
-			existing.LastSeen = time.Now()
+			// 当收到节点的 gossip 消息时，说明节点是活跃的，应该更新 LastSeen 为当前时间
+			// 但如果传入的 LastSeen 比当前时间还新，可能是时钟不同步，使用当前时间
+			now := time.Now()
+			if node.LastSeen.After(now) {
+				// 传入的 LastSeen 是未来时间，可能是时钟不同步，使用当前时间
+				existing.LastSeen = now
+			} else {
+				// 正常情况：收到 gossip 消息说明节点活跃，更新 LastSeen 为当前时间
+				existing.LastSeen = now
+			}
 
 			// 记录资源信息变化
 			oldResourceInfo := "no resources"
@@ -489,6 +498,11 @@ func (m *NodeDiscoveryManager) cleanup() {
 			}
 		}
 	}
+}
+
+// CleanupExpiredNodes 手动触发清理过期节点（用于测试）
+func (m *NodeDiscoveryManager) CleanupExpiredNodes() {
+	m.cleanup()
 }
 
 // updateAggregateView 更新聚合视图

@@ -545,21 +545,16 @@ func TestGossipDiscovery_ExpirationManagement(t *testing.T) {
 		testutil.PrintInfo(t, fmt.Sprintf("节点丢失回调触发: %s", nodeID))
 	})
 
-	// 手动触发清理（执行清理循环）
-	// 注意：实际的清理循环在 manager 内部运行，这里我们直接调用清理逻辑
-	// 由于清理是内部的，我们需要等待清理循环执行，或者通过更新节点来触发
-	// 为了测试，我们等待一小段时间让清理循环有机会执行
-	testutil.PrintInfo(t, "等待清理循环执行...")
-	time.Sleep(2 * time.Second)
-
 	// 更新正常节点（保持活跃）
 	freshNode.LastSeen = time.Now()
 	freshNode.LastUpdated = time.Now()
 	freshNode.Version++
 	manager.ProcessNodeInfo(freshNode, "localhost:50005")
 
-	// 再次等待清理
-	time.Sleep(2 * time.Second)
+	// 手动触发清理（执行清理循环）
+	// 注意：清理循环的间隔是 1 分钟，为了测试，我们直接调用清理方法
+	testutil.PrintInfo(t, "手动触发清理循环...")
+	manager.CleanupExpiredNodes()
 
 	// 验证过期节点是否被清理
 	testutil.PrintTestSection(t, "步骤 6: 验证过期节点清理")

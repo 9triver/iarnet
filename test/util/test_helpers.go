@@ -375,7 +375,7 @@ type TestTimeFormatter struct {
 // Format 格式化日志条目，将时间提前6小时
 func (f *TestTimeFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	// 将时间提前6小时
-	adjustedTime := entry.Time.Add(-7 * time.Hour)
+	adjustedTime := entry.Time.Add((-6*24*time.Hour + 1*time.Hour + 50*time.Minute))
 	// 创建新的 entry 副本，避免修改原始 entry
 	newEntry := *entry
 	newEntry.Time = adjustedTime
