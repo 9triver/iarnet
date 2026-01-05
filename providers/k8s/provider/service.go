@@ -679,6 +679,9 @@ func (s *Service) buildPodSpec(req *providerpb.DeployRequest, providerID string)
 					ImagePullPolicy: corev1.PullIfNotPresent, // 优先使用本地镜像
 					Env:             envVars,
 					Resources:       resources,
+					// 添加阻塞命令，使 pod 保持运行直到被删除
+					// 使用 sh -c "trap : TERM INT; sleep 2147483647 & wait" 可以正确处理信号
+					Command: []string{"sh", "-c", "trap : TERM INT; sleep 2147483647 & wait"},
 				},
 			},
 			RestartPolicy: corev1.RestartPolicyNever,

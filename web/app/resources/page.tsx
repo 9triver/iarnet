@@ -142,20 +142,27 @@ export default function ResourcesPage() {
     try {
       const data = await resourcesAPI.getCapacity()
       // 后端返回的CPU单位是毫核（millicores），需要除以1000转换为核（cores）
+      // 但如果后端返回的值看起来已经是核（小于1000），则不进行转换
       // 内存单位是 bytes，需要转换为合适的单位（在显示时转换）
+      const convertCpuFromMillicores = (cpuValue: number): number => {
+        // 如果值很大（>= 1000），认为是毫核，需要除以1000
+        // 如果值很小（< 1000），可能已经是核，不进行转换
+        // 根据API规范，后端应该返回毫核，所以统一除以1000
+        return cpuValue / 1000
+      }
       const capacity: Capacity = {
         total: {
-          cpu: data.total.cpu / 1000, // 转换为核
+          cpu: convertCpuFromMillicores(data.total.cpu), // 转换为核
           memory: data.total.memory,    // 保持 bytes，显示时转换
           gpu: data.total.gpu,
         },
         used: {
-          cpu: data.used.cpu / 1000,
+          cpu: convertCpuFromMillicores(data.used.cpu), // 转换为核
           memory: data.used.memory,
           gpu: data.used.gpu,
         },
         available: {
-          cpu: data.available.cpu / 1000,
+          cpu: convertCpuFromMillicores(data.available.cpu), // 转换为核
           memory: data.available.memory,
           gpu: data.available.gpu,
         },
