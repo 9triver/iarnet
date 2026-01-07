@@ -1,0 +1,23 @@
+# Mock Provider 配置
+server:
+  port: 50051  # gRPC 服务端口
+
+resource:
+  cpu: 8000 # 1000 millicores = 1 core
+  memory: "8Gi"
+  gpu: 4 # 4 GPUs
+
+resource_tags:
+  - cpu
+  - memory
+  - gpu
+
+# 任务执行时间配置（毫秒）
+task_duration:
+  small_min_ms: 500   # 小任务最小执行时间
+  small_max_ms: 2000  # 小任务最大执行时间
+  medium_min_ms: 2000 # 中任务最小执行时间
+  medium_max_ms: 8000 # 中任务最大执行时间
+  large_min_ms: 8000  # 大任务最小执行时间
+  large_max_ms: 20000 # 大任务最大执行时间
+
