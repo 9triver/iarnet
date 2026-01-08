@@ -1,0 +1,3 @@
+deployment/global/data/
+deployment/iarnet/**/data/
+deployment/iarnet/**/workspaces/
