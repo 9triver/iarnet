@@ -69,7 +69,7 @@ func (s *service) PerformGossip(ctx context.Context) error {
 		logrus.Debug("No peers to gossip with (initial_peers is empty or not configured)")
 		return nil
 	}
-	
+
 	logrus.Infof("Starting gossip with %d peer(s): %v", len(peerAddresses), peerAddresses)
 
 	// 限制每次 gossip 的 peer 数量
@@ -91,7 +91,7 @@ func (s *service) PerformGossip(ctx context.Context) error {
 			successCount++
 		}
 	}
-	
+
 	if successCount > 0 {
 		logrus.Infof("Gossip completed: %d/%d peers succeeded", successCount, len(peerAddresses))
 	} else {
@@ -154,7 +154,7 @@ func (s *service) gossipWithPeer(ctx context.Context, peerAddr string, nodesToSe
 	if err != nil {
 		return fmt.Errorf("failed to gossip with peer %s: %w", peerAddr, err)
 	}
-	
+
 	logrus.Debugf("Received gossip response from peer %s (nodes: %d)", peerAddr, len(resp.Nodes))
 
 	// 处理响应中的节点信息

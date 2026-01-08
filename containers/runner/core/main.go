@@ -4,13 +4,12 @@ import (
 	"context"
 	"os"
 	"os/exec"
-	"path/filepath"
 
 	logrus "github.com/sirupsen/logrus"
 )
 
 const APP_CODE_PATH = "/iarnet/app/"
-const ENV_INSTALLED_MARKER = ".env_installed"
+const ENV_INSTALLED_MARKER = "/tmp/.env_installed" // 存储在容器内部文件系统，避免跨容器误判
 
 func main() {
 	appID := os.Getenv("APP_ID")
@@ -49,7 +48,9 @@ func main() {
 
 	logrus.Infof("Registering app %s to Ignis platform at port %s", appID, ignisPort)
 
-	markerPath := filepath.Join(APP_CODE_PATH, ENV_INSTALLED_MARKER)
+	// 标记文件存储在容器内部文件系统（/tmp），而不是挂载的代码目录
+	// 这样每次创建新容器时都会重新安装依赖，避免跨容器误判
+	markerPath := ENV_INSTALLED_MARKER
 
 	// 检查是否已经执行过环境安装命令
 	_, err = os.Stat(markerPath)

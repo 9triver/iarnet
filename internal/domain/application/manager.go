@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/9triver/iarnet/internal/domain/application/logger"
@@ -13,7 +14,9 @@ import (
 	"github.com/9triver/iarnet/internal/domain/execution"
 	"github.com/9triver/iarnet/internal/domain/execution/task"
 	"github.com/9triver/iarnet/internal/domain/resource/component"
+	"github.com/9triver/iarnet/internal/domain/resource/discovery"
 	"github.com/9triver/iarnet/internal/domain/resource/provider"
+	"github.com/9triver/iarnet/internal/domain/resource/scheduler"
 	logrus "github.com/sirupsen/logrus"
 )
 
@@ -34,6 +37,9 @@ type Manager struct {
 	resourceManager interface {
 		GetComponentManager() component.Manager
 		GetProviderService() provider.Service
+		GetDiscoveryService() discovery.Service
+		GetSchedulerService() scheduler.Service
+		GetNodeID() string
 	}
 }
 
@@ -71,6 +77,9 @@ func (m *Manager) SetApplicationLoggerService(loggerSvc logger.Service) *Manager
 func (m *Manager) SetResourceManager(resourceManager interface {
 	GetComponentManager() component.Manager
 	GetProviderService() provider.Service
+	GetDiscoveryService() discovery.Service
+	GetSchedulerService() scheduler.Service
+	GetNodeID() string
 }) *Manager {
 	m.resourceManager = resourceManager
 	return m
@@ -136,16 +145,82 @@ func (m *Manager) CleanupApplicationResources(ctx context.Context, appID string)
 	for componentID, comp := range componentsToCleanup {
 		providerID := comp.GetProviderID()
 		if providerID != "" {
-			p := providerService.GetProvider(providerID)
-			if p != nil {
-				if err := p.Undeploy(ctx, componentID); err != nil {
-					logrus.Warnf("Failed to undeploy component %s from provider %s: %v", componentID, providerID, err)
+			// 检查是否为跨域部署（providerID 格式为 "providerID@nodeID"）
+			if strings.Contains(providerID, "@") {
+				// 跨域场景：解析 nodeID 和实际的 providerID
+				parts := strings.SplitN(providerID, "@", 2)
+				if len(parts) != 2 {
+					logrus.Warnf("Invalid cross-node provider ID format: %s for component %s", providerID, componentID)
+					continue
+				}
+				actualProviderID := parts[0]
+				remoteNodeID := parts[1]
+
+				// 获取 discovery service 以查找远程节点
+				discoverySvc := m.resourceManager.GetDiscoveryService()
+				if discoverySvc == nil {
+					logrus.Warnf("Discovery service not available, cannot undeploy cross-node component %s from node %s", componentID, remoteNodeID)
+					continue
+				}
+
+				// 从已知节点中查找远程节点
+				knownNodes := discoverySvc.GetKnownNodes()
+				var remoteNodeAddress string
+				found := false
+				for _, node := range knownNodes {
+					if node.NodeID == remoteNodeID {
+						remoteNodeAddress = node.Address
+						found = true
+						break
+					}
+				}
+
+				if !found {
+					logrus.Warnf("Remote node %s not found for component %s, cannot undeploy", remoteNodeID, componentID)
+					continue
+				}
+
+				// 通过远程 iarnet 节点的 scheduler RPC 调用 UndeployComponent
+				schedulerSvc := m.resourceManager.GetSchedulerService()
+				if schedulerSvc == nil {
+					logrus.Warnf("Scheduler service not available, cannot undeploy cross-node component %s from node %s", componentID, remoteNodeID)
+					continue
+				}
+
+				// 使用远程节点的 SchedulerAddress（如果可用），否则使用 Address
+				schedulerAddress := remoteNodeAddress
+				for _, node := range knownNodes {
+					if node.NodeID == remoteNodeID && node.SchedulerAddress != "" {
+						schedulerAddress = node.SchedulerAddress
+						break
+					}
+				}
+
+				if err := schedulerSvc.UndeployRemoteComponent(ctx, remoteNodeID, schedulerAddress, componentID, actualProviderID); err != nil {
+					logrus.Warnf("Failed to undeploy component %s from remote provider %s@%s: %v", componentID, actualProviderID, remoteNodeID, err)
 				} else {
-					logrus.Infof("Undeployed component %s from provider %s", componentID, providerID)
+					logrus.Infof("Undeployed component %s from remote provider %s@%s", componentID, actualProviderID, remoteNodeID)
 				}
 			} else {
-				logrus.Warnf("Provider %s not found for component %s", providerID, componentID)
+				// 本地部署：使用本地 provider
+				// 去掉 "local." 前缀（如果存在），因为 provider manager 中存储的 ID 没有这个前缀
+				actualProviderID := providerID
+				if strings.HasPrefix(providerID, "local.") {
+					actualProviderID = strings.TrimPrefix(providerID, "local.")
+				}
+				p := providerService.GetProvider(actualProviderID)
+				if p != nil {
+					if err := p.Undeploy(ctx, componentID); err != nil {
+						logrus.Warnf("Failed to undeploy component %s from provider %s: %v", componentID, actualProviderID, err)
+					} else {
+						logrus.Infof("Undeployed component %s from provider %s", componentID, actualProviderID)
+					}
+				} else {
+					logrus.Warnf("Provider %s not found for component %s", actualProviderID, componentID)
+				}
 			}
+		} else {
+			logrus.Errorf("Provider id can not be empty. component %s", comp.GetID())
 		}
 	}
 

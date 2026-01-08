@@ -31,6 +31,7 @@ go.work
 iarnet
 iarnet-*
 !iarnet-configs
+!experiment/setup/iarnet
 
 # Logs
 logs
@@ -210,6 +211,9 @@ config.prod.yaml
 data/
 workspaces/
 ../workspaces/
+
+# Exported Docker images
+images/
 
 # Generated protobuf files (uncomment if you want to ignore generated files)
 # *.pb.go

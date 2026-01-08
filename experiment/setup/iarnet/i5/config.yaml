@@ -1,0 +1,89 @@
+host: "172.30.0.14" # Host for external connection. TODO: 通信问题待解决
+peer_listen_addr: ":50051"
+
+users:
+  - name: "admin"
+    password: "123456"
+
+initial_peers:
+  # # 配置 iarnet-2 的 discovery 地址（使用容器名，在同一网络中）
+  # - "iarnet-2:50005"
+  - "iarnet-1:50005"
+  - "iarnet-2:50005"
+  - "iarnet-3:50005"
+  - "iarnet-4:50005"
+  - "iarnet-6:50005"
+  - "iarnet-7:50005"
+
+data_dir: "./data"  # Directory for SQLite databases
+
+application:
+  workspace_dir: "./workspaces"
+  runner_images:
+    "python:3.11-latest": "iarnet/runner:python_3.11-latest"
+
+resource:
+  # global_registry_addr: "iarnet-global:50010"  # 使用容器名连接到 global
+  global_registry_addr: "iarnet-global:50010"
+  name: "node.5"
+  description: "node.5 description"
+  domain_id: "domain.hP2PMW4mTrd2XCYqH9T6qF"
+  component_images:
+    "python": "iarnet/component:python_3.11-latest"
+  # Gossip 节点发现配置
+  discovery:
+    enabled: true                    # 启用 gossip 发现
+    gossip_interval_seconds: 10     # Gossip 间隔（秒）
+    node_ttl_seconds: 180           # 节点信息过期时间（秒）
+    max_gossip_peers: 10             # 每次 gossip 的最大 peer 数量
+    max_hops: 5                      # 最大跳数
+    query_timeout_seconds: 5         # 资源查询超时时间（秒）
+    fanout: 3                        # 每次传播的节点数（fanout）
+    use_anti_entropy: true           # 是否使用反熵机制
+    anti_entropy_interval_seconds: 300  # 反熵间隔（秒）
+
+enable_local_docker: true
+
+database:
+  application_db_path: "./data/application.db"
+  resource_provider_db_path: "./data/resource_provider.db"
+  resource_logger_db_path: "./data/resource_logger.db"
+  max_open_conns: 10
+  max_idle_conns: 5
+  conn_max_lifetime_seconds: 300  # 5 minutes
+
+transport:
+  http:
+    port: 8083
+  zmq:
+    port: 5555
+  rpc:
+    resource:
+      port: 50051
+    ignis:
+      port: 50001
+    store:
+      port: 50002
+    logger:
+      port: 50003
+    resource_logger:
+      port: 50004
+    discovery:
+      port: 50005  # 节点发现 RPC 端口
+    scheduler:
+      port: 50006  # 供全局调度器访问的调度 RPC 端口
+
+logging:
+  enabled: true
+  data_dir: "./data/logs"
+  db_path: "./data/logs.db"
+  chunk_duration_minutes: 5
+  chunk_max_lines: 10000
+  chunk_max_size_mb: 10
+  compression_level: 6
+  retention_days: 7
+  cleanup_interval_hours: 1
+  max_disk_usage_gb: 10
+  buffer_size: 10000
+  flush_interval_seconds: 5
+  batch_size: 1000

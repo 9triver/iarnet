@@ -999,6 +999,116 @@ func (x *ResourceTags) GetCamera() bool {
 	return false
 }
 
+// UndeployComponentRequest 移除 component 请求
+type UndeployComponentRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Component ID
+	ComponentId string `protobuf:"bytes,1,opt,name=component_id,json=componentId,proto3" json:"component_id,omitempty"`
+	// Provider ID（可选，如果提供则直接使用，否则从 component 信息中查找）
+	ProviderId    string `protobuf:"bytes,2,opt,name=provider_id,json=providerId,proto3" json:"provider_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UndeployComponentRequest) Reset() {
+	*x = UndeployComponentRequest{}
+	mi := &file_resource_scheduler_scheduler_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UndeployComponentRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UndeployComponentRequest) ProtoMessage() {}
+
+func (x *UndeployComponentRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_resource_scheduler_scheduler_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UndeployComponentRequest.ProtoReflect.Descriptor instead.
+func (*UndeployComponentRequest) Descriptor() ([]byte, []int) {
+	return file_resource_scheduler_scheduler_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *UndeployComponentRequest) GetComponentId() string {
+	if x != nil {
+		return x.ComponentId
+	}
+	return ""
+}
+
+func (x *UndeployComponentRequest) GetProviderId() string {
+	if x != nil {
+		return x.ProviderId
+	}
+	return ""
+}
+
+// UndeployComponentResponse 移除 component 响应
+type UndeployComponentResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// 是否成功
+	Success bool `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	// 错误信息（如果失败）
+	Error         string `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UndeployComponentResponse) Reset() {
+	*x = UndeployComponentResponse{}
+	mi := &file_resource_scheduler_scheduler_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UndeployComponentResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UndeployComponentResponse) ProtoMessage() {}
+
+func (x *UndeployComponentResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_resource_scheduler_scheduler_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UndeployComponentResponse.ProtoReflect.Descriptor instead.
+func (*UndeployComponentResponse) Descriptor() ([]byte, []int) {
+	return file_resource_scheduler_scheduler_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *UndeployComponentResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *UndeployComponentResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
 var File_resource_scheduler_scheduler_proto protoreflect.FileDescriptor
 
 const file_resource_scheduler_scheduler_proto_rawDesc = "" +
@@ -1076,19 +1186,27 @@ const file_resource_scheduler_scheduler_proto_rawDesc = "" +
 	"\x03cpu\x18\x01 \x01(\bR\x03cpu\x12\x10\n" +
 	"\x03gpu\x18\x02 \x01(\bR\x03gpu\x12\x16\n" +
 	"\x06memory\x18\x03 \x01(\bR\x06memory\x12\x16\n" +
-	"\x06camera\x18\x04 \x01(\bR\x06camera*\xa7\x01\n" +
+	"\x06camera\x18\x04 \x01(\bR\x06camera\"^\n" +
+	"\x18UndeployComponentRequest\x12!\n" +
+	"\fcomponent_id\x18\x01 \x01(\tR\vcomponentId\x12\x1f\n" +
+	"\vprovider_id\x18\x02 \x01(\tR\n" +
+	"providerId\"K\n" +
+	"\x19UndeployComponentResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error*\xa7\x01\n" +
 	"\x0fComponentStatus\x12\x1c\n" +
 	"\x18COMPONENT_STATUS_UNKNOWN\x10\x00\x12\x1e\n" +
 	"\x1aCOMPONENT_STATUS_DEPLOYING\x10\x01\x12\x1c\n" +
 	"\x18COMPONENT_STATUS_RUNNING\x10\x02\x12\x1c\n" +
 	"\x18COMPONENT_STATUS_STOPPED\x10\x03\x12\x1a\n" +
-	"\x16COMPONENT_STATUS_ERROR\x10\x042\xcb\x04\n" +
+	"\x16COMPONENT_STATUS_ERROR\x10\x042\xbd\x05\n" +
 	"\x10SchedulerService\x12j\n" +
 	"\x0fDeployComponent\x12*.resource.scheduler.DeployComponentRequest\x1a+.resource.scheduler.DeployComponentResponse\x12v\n" +
 	"\x13GetDeploymentStatus\x12..resource.scheduler.GetDeploymentStatusRequest\x1a/.resource.scheduler.GetDeploymentStatusResponse\x12y\n" +
 	"\x14ProposeLocalSchedule\x12/.resource.scheduler.ProposeLocalScheduleRequest\x1a0.resource.scheduler.ProposeLocalScheduleResponse\x12r\n" +
 	"\x13CommitLocalSchedule\x12..resource.scheduler.CommitLocalScheduleRequest\x1a+.resource.scheduler.DeployComponentResponse\x12d\n" +
-	"\rListProviders\x12(.resource.scheduler.ListProvidersRequest\x1a).resource.scheduler.ListProvidersResponseB=Z;github.com/9triver/iarnet/internal/proto/resource/schedulerb\x06proto3"
+	"\rListProviders\x12(.resource.scheduler.ListProvidersRequest\x1a).resource.scheduler.ListProvidersResponse\x12p\n" +
+	"\x11UndeployComponent\x12,.resource.scheduler.UndeployComponentRequest\x1a-.resource.scheduler.UndeployComponentResponseB=Z;github.com/9triver/iarnet/internal/proto/resource/schedulerb\x06proto3"
 
 var (
 	file_resource_scheduler_scheduler_proto_rawDescOnce sync.Once
@@ -1103,7 +1221,7 @@ func file_resource_scheduler_scheduler_proto_rawDescGZIP() []byte {
 }
 
 var file_resource_scheduler_scheduler_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_resource_scheduler_scheduler_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_resource_scheduler_scheduler_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_resource_scheduler_scheduler_proto_goTypes = []any{
 	(ComponentStatus)(0),                 // 0: resource.scheduler.ComponentStatus
 	(*DeployComponentRequest)(nil),       // 1: resource.scheduler.DeployComponentRequest
@@ -1118,34 +1236,38 @@ var file_resource_scheduler_scheduler_proto_goTypes = []any{
 	(*ListProvidersResponse)(nil),        // 10: resource.scheduler.ListProvidersResponse
 	(*ProviderInfo)(nil),                 // 11: resource.scheduler.ProviderInfo
 	(*ResourceTags)(nil),                 // 12: resource.scheduler.ResourceTags
-	(*resource.Info)(nil),                // 13: resource.Info
+	(*UndeployComponentRequest)(nil),     // 13: resource.scheduler.UndeployComponentRequest
+	(*UndeployComponentResponse)(nil),    // 14: resource.scheduler.UndeployComponentResponse
+	(*resource.Info)(nil),                // 15: resource.Info
 }
 var file_resource_scheduler_scheduler_proto_depIdxs = []int32{
-	13, // 0: resource.scheduler.DeployComponentRequest.resource_request:type_name -> resource.Info
+	15, // 0: resource.scheduler.DeployComponentRequest.resource_request:type_name -> resource.Info
 	3,  // 1: resource.scheduler.DeployComponentResponse.component:type_name -> resource.scheduler.ComponentInfo
-	13, // 2: resource.scheduler.ComponentInfo.resource_usage:type_name -> resource.Info
+	15, // 2: resource.scheduler.ComponentInfo.resource_usage:type_name -> resource.Info
 	0,  // 3: resource.scheduler.GetDeploymentStatusResponse.status:type_name -> resource.scheduler.ComponentStatus
 	3,  // 4: resource.scheduler.GetDeploymentStatusResponse.component:type_name -> resource.scheduler.ComponentInfo
-	13, // 5: resource.scheduler.ProposeLocalScheduleRequest.resource_request:type_name -> resource.Info
-	13, // 6: resource.scheduler.ProposeLocalScheduleResponse.available:type_name -> resource.Info
-	13, // 7: resource.scheduler.CommitLocalScheduleRequest.resource_request:type_name -> resource.Info
+	15, // 5: resource.scheduler.ProposeLocalScheduleRequest.resource_request:type_name -> resource.Info
+	15, // 6: resource.scheduler.ProposeLocalScheduleResponse.available:type_name -> resource.Info
+	15, // 7: resource.scheduler.CommitLocalScheduleRequest.resource_request:type_name -> resource.Info
 	11, // 8: resource.scheduler.ListProvidersResponse.providers:type_name -> resource.scheduler.ProviderInfo
-	13, // 9: resource.scheduler.ProviderInfo.available:type_name -> resource.Info
-	13, // 10: resource.scheduler.ProviderInfo.total_capacity:type_name -> resource.Info
-	13, // 11: resource.scheduler.ProviderInfo.used:type_name -> resource.Info
+	15, // 9: resource.scheduler.ProviderInfo.available:type_name -> resource.Info
+	15, // 10: resource.scheduler.ProviderInfo.total_capacity:type_name -> resource.Info
+	15, // 11: resource.scheduler.ProviderInfo.used:type_name -> resource.Info
 	12, // 12: resource.scheduler.ProviderInfo.resource_tags:type_name -> resource.scheduler.ResourceTags
 	1,  // 13: resource.scheduler.SchedulerService.DeployComponent:input_type -> resource.scheduler.DeployComponentRequest
 	4,  // 14: resource.scheduler.SchedulerService.GetDeploymentStatus:input_type -> resource.scheduler.GetDeploymentStatusRequest
 	6,  // 15: resource.scheduler.SchedulerService.ProposeLocalSchedule:input_type -> resource.scheduler.ProposeLocalScheduleRequest
 	8,  // 16: resource.scheduler.SchedulerService.CommitLocalSchedule:input_type -> resource.scheduler.CommitLocalScheduleRequest
 	9,  // 17: resource.scheduler.SchedulerService.ListProviders:input_type -> resource.scheduler.ListProvidersRequest
-	2,  // 18: resource.scheduler.SchedulerService.DeployComponent:output_type -> resource.scheduler.DeployComponentResponse
-	5,  // 19: resource.scheduler.SchedulerService.GetDeploymentStatus:output_type -> resource.scheduler.GetDeploymentStatusResponse
-	7,  // 20: resource.scheduler.SchedulerService.ProposeLocalSchedule:output_type -> resource.scheduler.ProposeLocalScheduleResponse
-	2,  // 21: resource.scheduler.SchedulerService.CommitLocalSchedule:output_type -> resource.scheduler.DeployComponentResponse
-	10, // 22: resource.scheduler.SchedulerService.ListProviders:output_type -> resource.scheduler.ListProvidersResponse
-	18, // [18:23] is the sub-list for method output_type
-	13, // [13:18] is the sub-list for method input_type
+	13, // 18: resource.scheduler.SchedulerService.UndeployComponent:input_type -> resource.scheduler.UndeployComponentRequest
+	2,  // 19: resource.scheduler.SchedulerService.DeployComponent:output_type -> resource.scheduler.DeployComponentResponse
+	5,  // 20: resource.scheduler.SchedulerService.GetDeploymentStatus:output_type -> resource.scheduler.GetDeploymentStatusResponse
+	7,  // 21: resource.scheduler.SchedulerService.ProposeLocalSchedule:output_type -> resource.scheduler.ProposeLocalScheduleResponse
+	2,  // 22: resource.scheduler.SchedulerService.CommitLocalSchedule:output_type -> resource.scheduler.DeployComponentResponse
+	10, // 23: resource.scheduler.SchedulerService.ListProviders:output_type -> resource.scheduler.ListProvidersResponse
+	14, // 24: resource.scheduler.SchedulerService.UndeployComponent:output_type -> resource.scheduler.UndeployComponentResponse
+	19, // [19:25] is the sub-list for method output_type
+	13, // [13:19] is the sub-list for method input_type
 	13, // [13:13] is the sub-list for extension type_name
 	13, // [13:13] is the sub-list for extension extendee
 	0,  // [0:13] is the sub-list for field type_name
@@ -1162,7 +1284,7 @@ func file_resource_scheduler_scheduler_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_resource_scheduler_scheduler_proto_rawDesc), len(file_resource_scheduler_scheduler_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   12,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

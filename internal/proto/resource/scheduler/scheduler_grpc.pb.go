@@ -24,6 +24,7 @@ const (
 	SchedulerService_ProposeLocalSchedule_FullMethodName = "/resource.scheduler.SchedulerService/ProposeLocalSchedule"
 	SchedulerService_CommitLocalSchedule_FullMethodName  = "/resource.scheduler.SchedulerService/CommitLocalSchedule"
 	SchedulerService_ListProviders_FullMethodName        = "/resource.scheduler.SchedulerService/ListProviders"
+	SchedulerService_UndeployComponent_FullMethodName    = "/resource.scheduler.SchedulerService/UndeployComponent"
 )
 
 // SchedulerServiceClient is the client API for SchedulerService service.
@@ -46,6 +47,9 @@ type SchedulerServiceClient interface {
 	// ListProviders 获取当前节点的所有 Provider 列表及其资源信息
 	// 用于无自主调度能力的场景：调用方可以根据 Provider 列表在本地进行调度决策
 	ListProviders(ctx context.Context, in *ListProvidersRequest, opts ...grpc.CallOption) (*ListProvidersResponse, error)
+	// UndeployComponent 移除 component
+	// 用于跨节点场景：由远程 iarnet 节点调用，移除其管理的 component
+	UndeployComponent(ctx context.Context, in *UndeployComponentRequest, opts ...grpc.CallOption) (*UndeployComponentResponse, error)
 }
 
 type schedulerServiceClient struct {
@@ -106,6 +110,16 @@ func (c *schedulerServiceClient) ListProviders(ctx context.Context, in *ListProv
 	return out, nil
 }
 
+func (c *schedulerServiceClient) UndeployComponent(ctx context.Context, in *UndeployComponentRequest, opts ...grpc.CallOption) (*UndeployComponentResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UndeployComponentResponse)
+	err := c.cc.Invoke(ctx, SchedulerService_UndeployComponent_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SchedulerServiceServer is the server API for SchedulerService service.
 // All implementations must embed UnimplementedSchedulerServiceServer
 // for forward compatibility.
@@ -126,6 +140,9 @@ type SchedulerServiceServer interface {
 	// ListProviders 获取当前节点的所有 Provider 列表及其资源信息
 	// 用于无自主调度能力的场景：调用方可以根据 Provider 列表在本地进行调度决策
 	ListProviders(context.Context, *ListProvidersRequest) (*ListProvidersResponse, error)
+	// UndeployComponent 移除 component
+	// 用于跨节点场景：由远程 iarnet 节点调用，移除其管理的 component
+	UndeployComponent(context.Context, *UndeployComponentRequest) (*UndeployComponentResponse, error)
 	mustEmbedUnimplementedSchedulerServiceServer()
 }
 
@@ -150,6 +167,9 @@ func (UnimplementedSchedulerServiceServer) CommitLocalSchedule(context.Context, 
 }
 func (UnimplementedSchedulerServiceServer) ListProviders(context.Context, *ListProvidersRequest) (*ListProvidersResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListProviders not implemented")
+}
+func (UnimplementedSchedulerServiceServer) UndeployComponent(context.Context, *UndeployComponentRequest) (*UndeployComponentResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UndeployComponent not implemented")
 }
 func (UnimplementedSchedulerServiceServer) mustEmbedUnimplementedSchedulerServiceServer() {}
 func (UnimplementedSchedulerServiceServer) testEmbeddedByValue()                          {}
@@ -262,6 +282,24 @@ func _SchedulerService_ListProviders_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SchedulerService_UndeployComponent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UndeployComponentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SchedulerServiceServer).UndeployComponent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SchedulerService_UndeployComponent_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SchedulerServiceServer).UndeployComponent(ctx, req.(*UndeployComponentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SchedulerService_ServiceDesc is the grpc.ServiceDesc for SchedulerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -288,6 +326,10 @@ var SchedulerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListProviders",
 			Handler:    _SchedulerService_ListProviders_Handler,
+		},
+		{
+			MethodName: "UndeployComponent",
+			Handler:    _SchedulerService_UndeployComponent_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

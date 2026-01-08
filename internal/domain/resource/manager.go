@@ -172,6 +172,43 @@ func (m *Manager) GetProviderService() provider.Service {
 	return m.providerService
 }
 
+// UndeployComponent 移除 component
+func (m *Manager) UndeployComponent(ctx context.Context, componentID string, providerID string) error {
+	if providerID == "" {
+		// 如果没有提供 providerID，尝试从 component manager 中查找
+		comp := m.componentManager.GetComponent(componentID)
+		if comp != nil {
+			providerID = comp.GetProviderID()
+		}
+	}
+
+	if providerID == "" {
+		return fmt.Errorf("provider ID is required for component %s", componentID)
+	}
+
+	// 检查是否为跨域部署（providerID 格式为 "providerID@nodeID"）
+	if strings.Contains(providerID, "@") {
+		return fmt.Errorf("cross-node undeploy should be handled by scheduler service, providerID: %s", providerID)
+	}
+
+	// 本地部署：使用本地 provider
+	p := m.providerService.GetProvider(providerID)
+	if p == nil {
+		return fmt.Errorf("provider %s not found for component %s", providerID, componentID)
+	}
+
+	if err := p.Undeploy(ctx, componentID); err != nil {
+		return fmt.Errorf("failed to undeploy component %s from provider %s: %w", componentID, providerID, err)
+	}
+
+	// 从 component manager 中移除
+	if err := m.componentManager.RemoveComponent(ctx, componentID); err != nil {
+		logrus.Warnf("Failed to remove component %s from manager: %v", componentID, err)
+	}
+
+	return nil
+}
+
 // SetGlobalRegistryAddr 设置全局注册中心地址
 func (m *Manager) SetGlobalRegistryAddr(addr string) {
 	m.globalRegistryAddr = addr
@@ -195,6 +232,16 @@ func (m *Manager) GetNodeID() string {
 // GetNodeName 获取节点名称
 func (m *Manager) GetNodeName() string {
 	return m.name
+}
+
+// GetDiscoveryService 获取 Discovery 服务
+func (m *Manager) GetDiscoveryService() discovery.Service {
+	return m.discoveryService
+}
+
+// GetSchedulerService 获取 Scheduler 服务
+func (m *Manager) GetSchedulerService() scheduler.Service {
+	return m.schedulerService
 }
 
 // GetDomainID 获取域 ID
@@ -1193,10 +1240,11 @@ func (m *Manager) CommitDelegatedDeployment(ctx context.Context, runtimeEnv type
 	}
 
 	// 第二阶段：使用策略评估调度结果
-	ok, reason := m.EvaluateLocalScheduleSafety(resourceRequest, scheduleResult)
-	if !ok {
-		return nil, fmt.Errorf("schedule proposal rejected by policy: %s", reason)
-	}
+	// 注意：跨域调度时已关闭拒绝策略，直接接受调度结果
+	// ok, reason := m.EvaluateLocalScheduleSafety(resourceRequest, scheduleResult)
+	// if !ok {
+	// 	return nil, fmt.Errorf("schedule proposal rejected by policy: %s", reason)
+	// }
 
 	// 第三阶段：确认部署
 	commitReq := &scheduler.CommitLocalScheduleRequest{

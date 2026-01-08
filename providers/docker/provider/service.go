@@ -36,6 +36,9 @@ type Service struct {
 	totalCapacity *resourcepb.Info // 配置的总容量
 	allocated     *resourcepb.Info // 当前已分配的容量（内存中动态维护）
 
+	// 实例资源信息存储（instance_id -> 资源信息）
+	instanceResources map[string]*resourcepb.Info // 存储每个实例的资源信息，用于卸载时恢复资源
+
 	// GPU 管理
 	gpuIDs       []int       // 配置的可用 GPU ID 列表
 	gpuAllocated map[int]int // GPU ID -> 分配次数（支持多个容器共享同一 GPU）
@@ -117,6 +120,9 @@ func NewService(host, tlsCertPath string, tlsVerify bool, apiVersion string, net
 		gpuAllocated[gpuID] = 0
 	}
 
+	// 初始化实例资源信息存储
+	instanceResources := make(map[string]*resourcepb.Info)
+
 	service := &Service{
 		client:  cli,
 		manager: manager,
@@ -127,10 +133,11 @@ func NewService(host, tlsCertPath string, tlsVerify bool, apiVersion string, net
 			Gpu:    slices.Contains(resourceTags, "gpu"),
 			Camera: slices.Contains(resourceTags, "camera"),
 		},
-		totalCapacity: totalCapacity,
-		allocated:     allocated,
-		gpuIDs:        gpuIDs,
-		gpuAllocated:  gpuAllocated,
+		totalCapacity:     totalCapacity,
+		allocated:         allocated,
+		instanceResources: instanceResources,
+		gpuIDs:            gpuIDs,
+		gpuAllocated:      gpuAllocated,
 	}
 
 	// 启动健康检测超时监控
@@ -511,10 +518,17 @@ func (s *Service) Deploy(ctx context.Context, req *providerpb.DeployRequest) (*p
 	}
 
 	// 更新已分配的资源容量（在内存中维护）
+	// 同时保存该实例的资源信息，用于卸载时恢复资源
 	s.mu.Lock()
 	s.allocated.Cpu += req.ResourceRequest.Cpu
 	s.allocated.Memory += req.ResourceRequest.Memory
 	s.allocated.Gpu += req.ResourceRequest.Gpu
+	// 保存实例资源信息到内存map中
+	s.instanceResources[req.InstanceId] = &resourcepb.Info{
+		Cpu:    req.ResourceRequest.Cpu,
+		Memory: req.ResourceRequest.Memory,
+		Gpu:    req.ResourceRequest.Gpu,
+	}
 	s.mu.Unlock()
 
 	logrus.Infof("Container deployed successfully with ID: %s, allocated resources: CPU=%d, Memory=%d, GPU=%d",
@@ -612,50 +626,114 @@ func (s *Service) Undeploy(ctx context.Context, req *providerpb.UndeployRequest)
 
 	if targetContainer == nil {
 		logrus.Warnf("Container not found for instance_id: %s", containerID)
+		// 容器不存在，尝试从内存中清理资源信息（幂等性）
+		s.mu.Lock()
+		if resources, exists := s.instanceResources[containerID]; exists {
+			// 如果内存中有该实例的资源信息，释放资源
+			s.allocated.Cpu -= resources.Cpu
+			if s.allocated.Cpu < 0 {
+				s.allocated.Cpu = 0
+			}
+			s.allocated.Memory -= resources.Memory
+			if s.allocated.Memory < 0 {
+				s.allocated.Memory = 0
+			}
+			s.allocated.Gpu -= resources.Gpu
+			if s.allocated.Gpu < 0 {
+				s.allocated.Gpu = 0
+			}
+			// 释放 GPU ID 分配
+			s.releaseGPUs(int(resources.Gpu))
+			// 删除内存中的资源信息
+			delete(s.instanceResources, containerID)
+			logrus.Infof("Cleaned up resources from memory for instance_id: %s", containerID)
+		}
+		s.mu.Unlock()
 		// 容器不存在，返回成功（幂等性）
 		return &providerpb.UndeployResponse{
 			Error: "",
 		}, nil
 	}
 
-	// 获取容器信息以获取资源使用情况
-	containerInfo, err := s.client.ContainerInspect(ctx, targetContainer.ID)
-	if err != nil {
-		logrus.Warnf("Failed to inspect container %s: %v, continuing with undeploy", targetContainer.ID, err)
-	} else {
-		// 从容器信息中获取资源使用情况
-		var cpu int64
-		var memory int64
-		var gpu int64
+	// 从内存中获取该实例的资源信息（部署时保存的）
+	var cpu int64
+	var memory int64
+	var gpu int64
+	foundInMemory := false
 
-		if containerInfo.HostConfig != nil {
-			// CPU: NanoCPUs -> millicores
-			// 1 CPU core = 1e9 NanoCPUs, 1 millicore = 1e6 NanoCPUs
-			if containerInfo.HostConfig.Resources.NanoCPUs > 0 {
-				cpu = containerInfo.HostConfig.Resources.NanoCPUs / 1e6
-			}
-			// Memory: bytes
-			if containerInfo.HostConfig.Resources.Memory > 0 {
-				memory = containerInfo.HostConfig.Resources.Memory
-			}
-			// GPU: 从 DeviceRequests 中获取
-			if len(containerInfo.HostConfig.Resources.DeviceRequests) > 0 {
-				for _, dr := range containerInfo.HostConfig.Resources.DeviceRequests {
-					if dr.Driver != "" && strings.Contains(strings.ToLower(dr.Driver), "nvidia") {
-						if len(dr.DeviceIDs) > 0 {
-							gpu += int64(len(dr.DeviceIDs))
-						} else if dr.Count > 0 {
-							gpu += int64(dr.Count)
+	// 先尝试从内存中读取资源信息（读锁）
+	s.mu.RLock()
+	if resources, exists := s.instanceResources[containerID]; exists {
+		// 使用内存中保存的资源信息
+		cpu = resources.Cpu
+		memory = resources.Memory
+		gpu = resources.Gpu
+		foundInMemory = true
+		logrus.Infof("Retrieved resources from memory for instance_id: %s, CPU=%d, Memory=%d, GPU=%d",
+			containerID, cpu, memory, gpu)
+	}
+	s.mu.RUnlock()
+
+	// 如果内存中没有资源信息（可能是旧版本部署的容器），尝试从容器信息中获取
+	if !foundInMemory {
+		logrus.Warnf("Resource info not found in memory for instance_id: %s, trying to get from container", containerID)
+		// 获取容器信息以获取资源使用情况
+		containerInfo, err := s.client.ContainerInspect(ctx, targetContainer.ID)
+		if err != nil {
+			logrus.Warnf("Failed to inspect container %s: %v, continuing with undeploy", targetContainer.ID, err)
+		} else {
+			if containerInfo.HostConfig != nil {
+				// CPU: NanoCPUs -> millicores
+				// 1 CPU core = 1e9 NanoCPUs, 1 millicore = 1e6 NanoCPUs
+				if containerInfo.HostConfig.Resources.NanoCPUs > 0 {
+					cpu = containerInfo.HostConfig.Resources.NanoCPUs / 1e6
+				}
+				// Memory: bytes
+				if containerInfo.HostConfig.Resources.Memory > 0 {
+					memory = containerInfo.HostConfig.Resources.Memory
+				}
+				// GPU: 从 DeviceRequests 中获取
+				if len(containerInfo.HostConfig.Resources.DeviceRequests) > 0 {
+					for _, dr := range containerInfo.HostConfig.Resources.DeviceRequests {
+						if dr.Driver != "" && strings.Contains(strings.ToLower(dr.Driver), "nvidia") {
+							if len(dr.DeviceIDs) > 0 {
+								gpu += int64(len(dr.DeviceIDs))
+							} else if dr.Count > 0 {
+								gpu += int64(dr.Count)
+							}
 						}
 					}
 				}
 			}
 		}
+	}
 
-		// 释放资源
-		if cpu > 0 || memory > 0 || gpu > 0 {
-			s.ReleaseResources(cpu, memory, gpu)
+	// 释放资源（使用内存中保存的数据或从容器信息中获取的数据）
+	if cpu > 0 || memory > 0 || gpu > 0 {
+		s.mu.Lock()
+		s.allocated.Cpu -= cpu
+		if s.allocated.Cpu < 0 {
+			s.allocated.Cpu = 0
 		}
+		s.allocated.Memory -= memory
+		if s.allocated.Memory < 0 {
+			s.allocated.Memory = 0
+		}
+		s.allocated.Gpu -= gpu
+		if s.allocated.Gpu < 0 {
+			s.allocated.Gpu = 0
+		}
+		// 释放 GPU ID 分配
+		s.releaseGPUs(int(gpu))
+		// 删除内存中的资源信息（如果存在）
+		delete(s.instanceResources, containerID)
+		// 在锁内读取剩余资源值用于日志
+		remainingCpu := s.allocated.Cpu
+		remainingMemory := s.allocated.Memory
+		remainingGpu := s.allocated.Gpu
+		s.mu.Unlock()
+		logrus.Infof("Released resources: CPU=%d, Memory=%d, GPU=%d, remaining allocated: CPU=%d, Memory=%d, GPU=%d",
+			cpu, memory, gpu, remainingCpu, remainingMemory, remainingGpu)
 	}
 
 	// 停止容器（如果正在运行）

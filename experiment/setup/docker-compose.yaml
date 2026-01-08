@@ -1,0 +1,583 @@
+services:
+  iarnet-1:
+    image: iarnet:latest
+    container_name: iarnet-1
+    privileged: true
+    volumes:
+      # 挂载数据目录（持久化）
+      - ./iarnet/i1/data:/app/data
+      # 挂载工作空间目录
+      - ./iarnet/i1/workspaces:/app/workspaces
+      # 挂载配置文件
+      - ./iarnet/i1/config.yaml:/app/config.yaml:ro
+      # 挂载 testrepo 目录（用于预留仓库功能）
+      - ../../testrepo:/app/testrepo:ro
+      # Iarnet 内部 dind 的 Docker 数据
+      - iarnet-1-docker:/var/lib/docker
+    ports:
+      - "3001:3000"  # 前端 Next.js 端口
+      - "23761:2375" # Iarnet-1 dind
+    networks:
+      iarnet-testing-network:
+        ipv4_address: 172.30.0.10
+    extra_hosts:
+      # 允许容器通过 host.docker.internal 访问宿主机（Linux 需要显式配置）
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    environment:
+      # 后端 URL（前端使用）
+      - BACKEND_URL=http://localhost:8083
+      # 在 dind 中运行，允许 docker CLI 通过 unix socket 通信
+      - DOCKER_TLS_CERTDIR=""
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    labels:
+      - "app.name=iarnet"
+      - "app.instance=iarnet-1"
+
+  iarnet-2:
+    image: iarnet:latest
+    container_name: iarnet-2
+    privileged: true
+    volumes:
+      # 挂载数据目录（持久化）
+      - ./iarnet/i2/data:/app/data
+      # 挂载工作空间目录
+      - ./iarnet/i2/workspaces:/app/workspaces
+      # 挂载配置文件
+      - ./iarnet/i2/config.yaml:/app/config.yaml:ro
+      # 挂载 testrepo 目录（用于预留仓库功能）
+      - ../../testrepo:/app/testrepo:ro
+      # Iarnet 内部 dind 的 Docker 数据
+      - iarnet-2-docker:/var/lib/docker
+    ports:
+      - "3002:3000"  # 前端 Next.js 端口
+      - "23762:2375" # Iarnet-2 dind
+    networks:
+      iarnet-testing-network:
+        ipv4_address: 172.30.0.11
+    extra_hosts:
+      # 允许容器通过 host.docker.internal 访问宿主机（Linux 需要显式配置）
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    environment:
+      # 后端 URL（前端使用）
+      - BACKEND_URL=http://localhost:8083
+      # 在 dind 中运行，允许 docker CLI 通过 unix socket 通信
+      - DOCKER_TLS_CERTDIR=""
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    labels:
+      - "app.name=iarnet"
+      - "app.instance=iarnet-2"
+
+  iarnet-3:
+    image: iarnet:latest
+    container_name: iarnet-3
+    privileged: true
+    volumes:
+      # 挂载数据目录（持久化）
+      - ./iarnet/i3/data:/app/data
+      # 挂载工作空间目录
+      - ./iarnet/i3/workspaces:/app/workspaces
+      # 挂载配置文件
+      - ./iarnet/i3/config.yaml:/app/config.yaml:ro
+      # 挂载 testrepo 目录（用于预留仓库功能）
+      - ../../testrepo:/app/testrepo:ro
+      # Iarnet 内部 dind 的 Docker 数据
+      - iarnet-3-docker:/var/lib/docker
+    ports:
+      - "3003:3000"  # 前端 Next.js 端口
+      - "23763:2375" # Iarnet-3 dind
+    networks:
+      iarnet-testing-network:
+        ipv4_address: 172.30.0.12
+    extra_hosts:
+      # 允许容器通过 host.docker.internal 访问宿主机（Linux 需要显式配置）
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    environment:
+      # 后端 URL（前端使用）
+      - BACKEND_URL=http://localhost:8083
+      # 在 dind 中运行，允许 docker CLI 通过 unix socket 通信
+      - DOCKER_TLS_CERTDIR=""
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    labels:
+      - "app.name=iarnet"
+      - "app.instance=iarnet-3"
+
+  iarnet-4:
+    image: iarnet:latest
+    container_name: iarnet-4
+    privileged: true
+    volumes:
+      # 挂载数据目录（持久化）
+      - ./iarnet/i4/data:/app/data
+      # 挂载工作空间目录
+      - ./iarnet/i4/workspaces:/app/workspaces
+      # 挂载配置文件
+      - ./iarnet/i4/config.yaml:/app/config.yaml:ro
+      # 挂载 testrepo 目录（用于预留仓库功能）
+      - ../../testrepo:/app/testrepo:ro
+      # Iarnet 内部 dind 的 Docker 数据
+      - iarnet-4-docker:/var/lib/docker
+    ports:
+      - "3004:3000"  # 前端 Next.js 端口
+      - "23764:2375" # Iarnet-4 dind
+    networks:
+      iarnet-testing-network:
+        ipv4_address: 172.30.0.13
+    extra_hosts:
+      # 允许容器通过 host.docker.internal 访问宿主机（Linux 需要显式配置）
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    environment:
+      # 后端 URL（前端使用）
+      - BACKEND_URL=http://localhost:8083
+      # 在 dind 中运行，允许 docker CLI 通过 unix socket 通信
+      - DOCKER_TLS_CERTDIR=""
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    labels:
+      - "app.name=iarnet"
+      - "app.instance=iarnet-4"
+
+  iarnet-5:
+    image: iarnet:latest
+    container_name: iarnet-5
+    privileged: true
+    volumes:
+      # 挂载数据目录（持久化）
+      - ./iarnet/i5/data:/app/data
+      # 挂载工作空间目录
+      - ./iarnet/i5/workspaces:/app/workspaces
+      # 挂载配置文件
+      - ./iarnet/i5/config.yaml:/app/config.yaml:ro
+      # 挂载 testrepo 目录（用于预留仓库功能）
+      - ../../testrepo:/app/testrepo:ro
+      # Iarnet 内部 dind 的 Docker 数据
+      - iarnet-5-docker:/var/lib/docker
+    ports:
+      - "3005:3000"  # 前端 Next.js 端口
+      - "23765:2375" # Iarnet-5 dind
+    networks:
+      iarnet-testing-network:
+        ipv4_address: 172.30.0.14
+    extra_hosts:
+      # 允许容器通过 host.docker.internal 访问宿主机（Linux 需要显式配置）
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    environment:
+      # 后端 URL（前端使用）
+      - BACKEND_URL=http://localhost:8083
+      # 在 dind 中运行，允许 docker CLI 通过 unix socket 通信
+      - DOCKER_TLS_CERTDIR=""
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    labels:
+      - "app.name=iarnet"
+      - "app.instance=iarnet-5"
+
+  iarnet-6:
+    image: iarnet:latest
+    container_name: iarnet-6
+    privileged: true
+    volumes:
+      # 挂载数据目录（持久化）
+      - ./iarnet/i6/data:/app/data
+      # 挂载工作空间目录
+      - ./iarnet/i6/workspaces:/app/workspaces
+      # 挂载配置文件
+      - ./iarnet/i6/config.yaml:/app/config.yaml:ro
+      # 挂载 testrepo 目录（用于预留仓库功能）
+      - ../../testrepo:/app/testrepo:ro
+      # Iarnet 内部 dind 的 Docker 数据
+      - iarnet-6-docker:/var/lib/docker
+    ports:
+      - "3006:3000"  # 前端 Next.js 端口
+      - "23766:2375" # Iarnet-6 dind
+    networks:
+      iarnet-testing-network:
+        ipv4_address: 172.30.0.15
+    extra_hosts:
+      # 允许容器通过 host.docker.internal 访问宿主机（Linux 需要显式配置）
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    environment:
+      # 后端 URL（前端使用）
+      - BACKEND_URL=http://localhost:8083
+      # 在 dind 中运行，允许 docker CLI 通过 unix socket 通信
+      - DOCKER_TLS_CERTDIR=""
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    labels:
+      - "app.name=iarnet"
+      - "app.instance=iarnet-6"
+
+  iarnet-7:
+    image: iarnet:latest
+    container_name: iarnet-7
+    privileged: true
+    volumes:
+      # 挂载数据目录（持久化）
+      - ./iarnet/i7/data:/app/data
+      # 挂载工作空间目录
+      - ./iarnet/i7/workspaces:/app/workspaces
+      # 挂载配置文件
+      - ./iarnet/i7/config.yaml:/app/config.yaml:ro
+      # 挂载 testrepo 目录（用于预留仓库功能）
+      - ../../testrepo:/app/testrepo:ro
+      # Iarnet 内部 dind 的 Docker 数据
+      - iarnet-7-docker:/var/lib/docker
+    ports:
+      - "3007:3000"  # 前端 Next.js 端口
+      - "23767:2375" # Iarnet-7 dind
+    networks:
+      iarnet-testing-network:
+        ipv4_address: 172.30.0.16
+    extra_hosts:
+      # 允许容器通过 host.docker.internal 访问宿主机（Linux 需要显式配置）
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    environment:
+      # 后端 URL（前端使用）
+      - BACKEND_URL=http://localhost:8083
+      # 在 dind 中运行，允许 docker CLI 通过 unix socket 通信
+      - DOCKER_TLS_CERTDIR=""
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    labels:
+      - "app.name=iarnet"
+      - "app.instance=iarnet-7"
+
+  # ========== Providers for iarnet-1 ==========
+  provider-i1-p1:
+    image: iarnet-mock-provider:latest
+    container_name: provider-i1-p1
+    volumes:
+      - ./provider/i1/p1/config.yaml:/app/config.yaml:ro
+    networks:
+      - iarnet-testing-network
+    restart: unless-stopped
+    labels:
+      - "provider.name=provider-i1-p1"
+      - "provider.id=i1-p1"
+      - "provider.node=iarnet-1"
+
+  provider-i1-p2:
+    image: iarnet-mock-provider:latest
+    container_name: provider-i1-p2
+    volumes:
+      - ./provider/i1/p2/config.yaml:/app/config.yaml:ro
+    networks:
+      - iarnet-testing-network
+    restart: unless-stopped
+    labels:
+      - "provider.name=provider-i1-p2"
+      - "provider.id=i1-p2"
+      - "provider.node=iarnet-1"
+
+  provider-i1-p3:
+    image: iarnet-mock-provider:latest
+    container_name: provider-i1-p3
+    volumes:
+      - ./provider/i1/p3/config.yaml:/app/config.yaml:ro
+    networks:
+      - iarnet-testing-network
+    restart: unless-stopped
+    labels:
+      - "provider.name=provider-i1-p3"
+      - "provider.id=i1-p3"
+      - "provider.node=iarnet-1"
+
+  # ========== Providers for iarnet-2 ==========
+  provider-i2-p1:
+    image: iarnet-mock-provider:latest
+    container_name: provider-i2-p1
+    volumes:
+      - ./provider/i2/p1/config.yaml:/app/config.yaml:ro
+    networks:
+      - iarnet-testing-network
+    restart: unless-stopped
+    labels:
+      - "provider.name=provider-i2-p1"
+      - "provider.id=i2-p1"
+      - "provider.node=iarnet-2"
+
+  provider-i2-p2:
+    image: iarnet-mock-provider:latest
+    container_name: provider-i2-p2
+    volumes:
+      - ./provider/i2/p2/config.yaml:/app/config.yaml:ro
+    networks:
+      - iarnet-testing-network
+    restart: unless-stopped
+    labels:
+      - "provider.name=provider-i2-p2"
+      - "provider.id=i2-p2"
+      - "provider.node=iarnet-2"
+
+  provider-i2-p3:
+    image: iarnet-mock-provider:latest
+    container_name: provider-i2-p3
+    volumes:
+      - ./provider/i2/p3/config.yaml:/app/config.yaml:ro
+    networks:
+      - iarnet-testing-network
+    restart: unless-stopped
+    labels:
+      - "provider.name=provider-i2-p3"
+      - "provider.id=i2-p3"
+      - "provider.node=iarnet-2"
+
+  # ========== Providers for iarnet-3 ==========
+  provider-i3-p1:
+    image: iarnet-mock-provider:latest
+    container_name: provider-i3-p1
+    volumes:
+      - ./provider/i3/p1/config.yaml:/app/config.yaml:ro
+    networks:
+      - iarnet-testing-network
+    restart: unless-stopped
+    labels:
+      - "provider.name=provider-i3-p1"
+      - "provider.id=i3-p1"
+      - "provider.node=iarnet-3"
+
+  provider-i3-p2:
+    image: iarnet-mock-provider:latest
+    container_name: provider-i3-p2
+    volumes:
+      - ./provider/i3/p2/config.yaml:/app/config.yaml:ro
+    networks:
+      - iarnet-testing-network
+    restart: unless-stopped
+    labels:
+      - "provider.name=provider-i3-p2"
+      - "provider.id=i3-p2"
+      - "provider.node=iarnet-3"
+
+  provider-i3-p3:
+    image: iarnet-mock-provider:latest
+    container_name: provider-i3-p3
+    volumes:
+      - ./provider/i3/p3/config.yaml:/app/config.yaml:ro
+    networks:
+      - iarnet-testing-network
+    restart: unless-stopped
+    labels:
+      - "provider.name=provider-i3-p3"
+      - "provider.id=i3-p3"
+      - "provider.node=iarnet-3"
+
+  # ========== Providers for iarnet-4 ==========
+  provider-i4-p1:
+    image: iarnet-mock-provider:latest
+    container_name: provider-i4-p1
+    volumes:
+      - ./provider/i4/p1/config.yaml:/app/config.yaml:ro
+    networks:
+      - iarnet-testing-network
+    restart: unless-stopped
+    labels:
+      - "provider.name=provider-i4-p1"
+      - "provider.id=i4-p1"
+      - "provider.node=iarnet-4"
+
+  provider-i4-p2:
+    image: iarnet-mock-provider:latest
+    container_name: provider-i4-p2
+    volumes:
+      - ./provider/i4/p2/config.yaml:/app/config.yaml:ro
+    networks:
+      - iarnet-testing-network
+    restart: unless-stopped
+    labels:
+      - "provider.name=provider-i4-p2"
+      - "provider.id=i4-p2"
+      - "provider.node=iarnet-4"
+
+  provider-i4-p3:
+    image: iarnet-mock-provider:latest
+    container_name: provider-i4-p3
+    volumes:
+      - ./provider/i4/p3/config.yaml:/app/config.yaml:ro
+    networks:
+      - iarnet-testing-network
+    restart: unless-stopped
+    labels:
+      - "provider.name=provider-i4-p3"
+      - "provider.id=i4-p3"
+      - "provider.node=iarnet-4"
+
+  # ========== Providers for iarnet-5 ==========
+  provider-i5-p1:
+    image: iarnet-mock-provider:latest
+    container_name: provider-i5-p1
+    volumes:
+      - ./provider/i5/p1/config.yaml:/app/config.yaml:ro
+    networks:
+      - iarnet-testing-network
+    restart: unless-stopped
+    labels:
+      - "provider.name=provider-i5-p1"
+      - "provider.id=i5-p1"
+      - "provider.node=iarnet-5"
+
+  provider-i5-p2:
+    image: iarnet-mock-provider:latest
+    container_name: provider-i5-p2
+    volumes:
+      - ./provider/i5/p2/config.yaml:/app/config.yaml:ro
+    networks:
+      - iarnet-testing-network
+    restart: unless-stopped
+    labels:
+      - "provider.name=provider-i5-p2"
+      - "provider.id=i5-p2"
+      - "provider.node=iarnet-5"
+
+  provider-i5-p3:
+    image: iarnet-mock-provider:latest
+    container_name: provider-i5-p3
+    volumes:
+      - ./provider/i5/p3/config.yaml:/app/config.yaml:ro
+    networks:
+      - iarnet-testing-network
+    restart: unless-stopped
+    labels:
+      - "provider.name=provider-i5-p3"
+      - "provider.id=i5-p3"
+      - "provider.node=iarnet-5"
+
+  # ========== Providers for iarnet-6 ==========
+  provider-i6-p1:
+    image: iarnet-mock-provider:latest
+    container_name: provider-i6-p1
+    volumes:
+      - ./provider/i6/p1/config.yaml:/app/config.yaml:ro
+    networks:
+      - iarnet-testing-network
+    restart: unless-stopped
+    labels:
+      - "provider.name=provider-i6-p1"
+      - "provider.id=i6-p1"
+      - "provider.node=iarnet-6"
+
+  provider-i6-p2:
+    image: iarnet-mock-provider:latest
+    container_name: provider-i6-p2
+    volumes:
+      - ./provider/i6/p2/config.yaml:/app/config.yaml:ro
+    networks:
+      - iarnet-testing-network
+    restart: unless-stopped
+    labels:
+      - "provider.name=provider-i6-p2"
+      - "provider.id=i6-p2"
+      - "provider.node=iarnet-6"
+
+  provider-i6-p3:
+    image: iarnet-mock-provider:latest
+    container_name: provider-i6-p3
+    volumes:
+      - ./provider/i6/p3/config.yaml:/app/config.yaml:ro
+    networks:
+      - iarnet-testing-network
+    restart: unless-stopped
+    labels:
+      - "provider.name=provider-i6-p3"
+      - "provider.id=i6-p3"
+      - "provider.node=iarnet-6"
+
+  # ========== Providers for iarnet-7 ==========
+  provider-i7-p1:
+    image: iarnet-mock-provider:latest
+    container_name: provider-i7-p1
+    volumes:
+      - ./provider/i7/p1/config.yaml:/app/config.yaml:ro
+    networks:
+      - iarnet-testing-network
+    restart: unless-stopped
+    labels:
+      - "provider.name=provider-i7-p1"
+      - "provider.id=i7-p1"
+      - "provider.node=iarnet-7"
+
+  provider-i7-p2:
+    image: iarnet-mock-provider:latest
+    container_name: provider-i7-p2
+    volumes:
+      - ./provider/i7/p2/config.yaml:/app/config.yaml:ro
+    networks:
+      - iarnet-testing-network
+    restart: unless-stopped
+    labels:
+      - "provider.name=provider-i7-p2"
+      - "provider.id=i7-p2"
+      - "provider.node=iarnet-7"
+
+  provider-i7-p3:
+    image: iarnet-mock-provider:latest
+    container_name: provider-i7-p3
+    volumes:
+      - ./provider/i7/p3/config.yaml:/app/config.yaml:ro
+    networks:
+      - iarnet-testing-network
+    restart: unless-stopped
+    labels:
+      - "provider.name=provider-i7-p3"
+      - "provider.id=i7-p3"
+      - "provider.node=iarnet-7"
+
+  # ========== Additional Providers (to reach 24 total) ==========
+  # 额外添加 3 个 provider 以凑齐 24 个（可以分配给任意节点）
+  provider-i8-p1:
+    image: iarnet-mock-provider:latest
+    container_name: provider-i8-p1
+    volumes:
+      - ./provider/i8/p1/config.yaml:/app/config.yaml:ro
+    networks:
+      - iarnet-testing-network
+    restart: unless-stopped
+    labels:
+      - "provider.name=provider-i8-p1"
+      - "provider.id=i8-p1"
+      - "provider.node=iarnet-8"
+
+  provider-i8-p2:
+    image: iarnet-mock-provider:latest
+    container_name: provider-i8-p2
+    volumes:
+      - ./provider/i8/p2/config.yaml:/app/config.yaml:ro
+    networks:
+      - iarnet-testing-network
+    restart: unless-stopped
+    labels:
+      - "provider.name=provider-i8-p2"
+      - "provider.id=i8-p2"
+      - "provider.node=iarnet-8"
+
+  provider-i8-p3:
+    image: iarnet-mock-provider:latest
+    container_name: provider-i8-p3
+    volumes:
+      - ./provider/i8/p3/config.yaml:/app/config.yaml:ro
+    networks:
+      - iarnet-testing-network
+    restart: unless-stopped
+    labels:
+      - "provider.name=provider-i8-p3"
+      - "provider.id=i8-p3"
+      - "provider.node=iarnet-8"
+
+networks:
+  iarnet-testing-network:
+    name: iarnet-testing-network
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/16
+
+volumes:
+  iarnet-1-docker:
+  iarnet-2-docker:
+  iarnet-3-docker:
+  iarnet-4-docker:
+  iarnet-5-docker:
+  iarnet-6-docker:
+  iarnet-7-docker:

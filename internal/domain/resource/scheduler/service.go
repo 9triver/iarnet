@@ -44,6 +44,12 @@ type Service interface {
 
 	// ListRemoteProviders 获取远程节点的所有 Provider 列表
 	ListRemoteProviders(ctx context.Context, targetNodeID string, targetAddress string, includeResources bool) (*ProviderListResponse, error)
+
+	// UndeployComponent 移除 component（本地调用）
+	UndeployComponent(ctx context.Context, componentID string, providerID string) error
+
+	// UndeployRemoteComponent 在远程节点上移除 component
+	UndeployRemoteComponent(ctx context.Context, targetNodeID string, targetAddress string, componentID string, providerID string) error
 }
 
 // DeployRequest 部署请求
@@ -149,6 +155,9 @@ type service struct {
 
 		// 获取所有 Provider 列表（用于无自主调度能力场景）
 		ListAllProviders(ctx context.Context, includeResources bool) ([]*ProviderInfo, error)
+
+		// 移除 component（用于 Undeploy）
+		UndeployComponent(ctx context.Context, componentID string, providerID string) error
 	}
 
 	// Discovery 服务（用于查找远程节点）
@@ -170,6 +179,9 @@ func NewService(
 
 		// 获取所有 Provider 列表（用于无自主调度能力场景）
 		ListAllProviders(ctx context.Context, includeResources bool) ([]*ProviderInfo, error)
+
+		// 移除 component（用于 Undeploy）
+		UndeployComponent(ctx context.Context, componentID string, providerID string) error
 	},
 	discoveryService discovery.Service,
 ) Service {
@@ -785,4 +797,40 @@ func convertComponentInfoFromProto(info *schedulerpb.ComponentInfo) *component.C
 
 	comp := component.NewComponent(info.ComponentId, info.Image, usage)
 	return comp
+}
+
+// UndeployComponent 移除 component（本地调用）
+func (s *service) UndeployComponent(ctx context.Context, componentID string, providerID string) error {
+	return s.localResourceManager.UndeployComponent(ctx, componentID, providerID)
+}
+
+// UndeployRemoteComponent 在远程节点上移除 component
+func (s *service) UndeployRemoteComponent(ctx context.Context, targetNodeID string, targetAddress string, componentID string, providerID string) error {
+	if targetAddress == "" {
+		return fmt.Errorf("target address is required for remote undeploy")
+	}
+
+	// 连接到远程节点的 scheduler 服务
+	conn, err := grpc.NewClient(targetAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return fmt.Errorf("failed to connect to remote scheduler at %s: %w", targetAddress, err)
+	}
+	defer conn.Close()
+
+	client := schedulerpb.NewSchedulerServiceClient(conn)
+	req := &schedulerpb.UndeployComponentRequest{
+		ComponentId: componentID,
+		ProviderId:  providerID,
+	}
+
+	resp, err := client.UndeployComponent(ctx, req)
+	if err != nil {
+		return fmt.Errorf("failed to call remote scheduler UndeployComponent: %w", err)
+	}
+
+	if !resp.Success {
+		return fmt.Errorf("remote scheduler UndeployComponent failed: %s", resp.Error)
+	}
+
+	return nil
 }

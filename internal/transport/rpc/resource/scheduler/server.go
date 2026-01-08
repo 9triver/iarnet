@@ -337,6 +337,37 @@ func (s *Server) ListProviders(ctx context.Context, req *schedulerpb.ListProvide
 	return protoResp, nil
 }
 
+// UndeployComponent 移除 component
+func (s *Server) UndeployComponent(ctx context.Context, req *schedulerpb.UndeployComponentRequest) (*schedulerpb.UndeployComponentResponse, error) {
+	if req == nil {
+		return &schedulerpb.UndeployComponentResponse{
+			Success: false,
+			Error:   "request is required",
+		}, nil
+	}
+
+	if req.ComponentId == "" {
+		return &schedulerpb.UndeployComponentResponse{
+			Success: false,
+			Error:   "component_id is required",
+		}, nil
+	}
+
+	// 调用服务
+	err := s.service.UndeployComponent(ctx, req.ComponentId, req.ProviderId)
+	if err != nil {
+		logrus.Errorf("Failed to undeploy component %s: %v", req.ComponentId, err)
+		return &schedulerpb.UndeployComponentResponse{
+			Success: false,
+			Error:   err.Error(),
+		}, nil
+	}
+
+	return &schedulerpb.UndeployComponentResponse{
+		Success: true,
+	}, nil
+}
+
 // convertComponentStatusToProto 转换 Component 状态到 proto
 func convertComponentStatusToProto(status scheduler.ComponentStatus) schedulerpb.ComponentStatus {
 	switch status {
