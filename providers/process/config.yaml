@@ -1,5 +1,5 @@
 server:
-  port: 50051
+  port: 50151
 
 ignis:
   address: "localhost:50052"  # Ignis 平台地址

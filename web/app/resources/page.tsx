@@ -32,7 +32,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { useForm } from "react-hook-form"
-import { Plus, Server, Cpu, HardDrive, Activity, Trash2, Edit, RefreshCw, MemoryStick, Network, Upload, Download, FileSpreadsheet } from "lucide-react"
+import { Plus, Server, Cpu, HardDrive, Activity, Trash2, Edit, RefreshCw, MemoryStick, Network, Upload, Download, FileSpreadsheet, Box } from "lucide-react"
 import { formatMemory, formatNumber, formatDateTime } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AuthGuard } from "@/components/auth-guard"
@@ -44,7 +44,7 @@ import { toast } from "sonner"
 interface Resource {
   id: string
   name: string
-  type: "kubernetes" | "docker" | "vm" | "process"
+  type: "kubernetes" | "docker" | "vm" | "process" | "unikernel"
   host: string
   port: number
   category?: "local_providers" | "remote_providers" // 资源分类：本地、远程
@@ -243,7 +243,7 @@ export default function ResourcesPage() {
         return {
           id: provider.id,
           name: provider.name,
-          type: provider.type.toLowerCase() as "kubernetes" | "docker" | "vm" | "process",
+          type: provider.type.toLowerCase() as "kubernetes" | "docker" | "vm" | "process" | "unikernel",
           host: provider.host,
           port: provider.port,
           category: "local_providers", // 全部作为本地资源处理
@@ -610,7 +610,7 @@ export default function ResourcesPage() {
       const updatedResource: Resource = {
         id: providerInfo.id,
         name: providerInfo.name,
-        type: providerInfo.type.toLowerCase() as "kubernetes" | "docker" | "vm" | "process",
+        type: providerInfo.type.toLowerCase() as "kubernetes" | "docker" | "vm" | "process" | "unikernel",
         host: providerInfo.host,
         port: providerInfo.port,
         category: "local_providers",
@@ -711,6 +711,10 @@ export default function ResourcesPage() {
         return <HardDrive className="h-4 w-4" />
       case "process":
         return <Activity className="h-4 w-4" />
+      case "unikernel":
+        return <Box className="h-4 w-4" />
+      default:
+        return <Server className="h-4 w-4" />
     }
   }
 
@@ -1449,7 +1453,7 @@ export default function ResourcesPage() {
                         </TableCell>
                         <TableCell className="w-20">
                           <Badge variant="outline">
-                            {resource.type === "kubernetes" ? "K8s" : resource.type === "docker" ? "Docker" : resource.type === "process" ? "进程" : "VM"}
+                            {resource.type === "kubernetes" ? "K8s" : resource.type === "docker" ? "Docker" : resource.type === "process" ? "进程" : resource.type === "unikernel" ? "Unikernel" : "VM"}
                           </Badge>
                         </TableCell>
                         <TableCell className="w-20">{getStatusBadge(resource.status)}</TableCell>

@@ -2,8 +2,10 @@ package provider
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/gob"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -387,7 +389,34 @@ func (s *Service) HealthCheck(ctx context.Context, req *providerpb.HealthCheckRe
 		s.manager.UpdateHealthCheck()
 	}
 
-	return &providerpb.HealthCheckResponse{}, nil
+	s.mu.RLock()
+	total := s.totalCapacity
+	allocated := s.allocated
+	resourceTags := s.resourceTags
+	supportedLanguages := s.supportedLanguages
+	s.mu.RUnlock()
+
+	if total == nil {
+		return nil, fmt.Errorf("resource capacity not configured")
+	}
+
+	available := &resourcepb.Info{
+		Cpu:    total.Cpu - allocated.Cpu,
+		Memory: total.Memory - allocated.Memory,
+		Gpu:    total.Gpu - allocated.Gpu,
+	}
+
+	capacity := &resourcepb.Capacity{
+		Total:     total,
+		Used:      allocated,
+		Available: available,
+	}
+
+	return &providerpb.HealthCheckResponse{
+		Capacity:           capacity,
+		ResourceTags:       resourceTags,
+		SupportedLanguages: supportedLanguages,
+	}, nil
 }
 
 // GetCapacity 获取资源容量
@@ -793,6 +822,8 @@ func (cs *ComponentSession) receiveFromZMQ() {
 				logrus.Errorf("Failed to unmarshal component message from ZMQ for component %s: %v", cs.componentID, err)
 				continue
 			}
+
+			logrus.Infof("Received message from ZMQ for component %s: type=%v, size=%d bytes", cs.componentID, componentMsg.GetType(), len(data))
 
 			// 处理消息
 			if err := cs.handleIarnetMessage(&componentMsg); err != nil {
@@ -1272,6 +1303,19 @@ func (cs *ComponentSession) handleInvokeRequest(invokeReq *actorpb.InvokeRequest
 				logrus.Infof("Successfully converted object %s from Python to JSON for component %s", value.GetID(), cs.componentID)
 			}
 
+			// 如果对象是 Go (gob) 编码，先转换为 JSON
+			if objLanguage == commonpb.Language_LANG_GO {
+				logrus.Infof("Object %s is Go (gob)-encoded, converting to JSON for unikernel provider", value.GetID())
+				jsonData, err := convertGoToJSON(objData)
+				if err != nil {
+					logrus.Errorf("Failed to convert Go object %s to JSON for component %s: %v", value.GetID(), cs.componentID, err)
+					return fmt.Errorf("failed to convert Go object %s to JSON: %w", value.GetID(), err)
+				}
+				objData = jsonData
+				objLanguage = commonpb.Language_LANG_JSON
+				logrus.Infof("Successfully converted object %s from Go (gob) to JSON for component %s", value.GetID(), cs.componentID)
+			}
+
 			// 检查对象语言类型，只支持 JSON
 			if objLanguage != commonpb.Language_LANG_JSON {
 				logrus.Errorf("Object %s has unsupported language %v for unikernel provider (only JSON is supported)", value.GetID(), objLanguage)
@@ -1297,6 +1341,28 @@ func (cs *ComponentSession) handleInvokeRequest(invokeReq *actorpb.InvokeRequest
 		return fmt.Errorf("failed to marshal params: %w", err)
 	}
 
+	// 确保 WebSocket 连接已建立（最多等待 5 秒）
+	logrus.Infof("Checking WebSocket connection for component %s before sending invoke request", cs.componentID)
+	wsTimeout := time.After(5 * time.Second)
+	wsTicker := time.NewTicker(100 * time.Millisecond)
+	defer wsTicker.Stop()
+
+	wsReady := false
+	for !wsReady {
+		select {
+		case <-wsTimeout:
+			return fmt.Errorf("timeout waiting for WebSocket connection for component %s (invoke request cannot be sent)", cs.componentID)
+		case <-wsTicker.C:
+			cs.wsConnMu.RLock()
+			conn := cs.wsConn
+			cs.wsConnMu.RUnlock()
+			if conn != nil {
+				wsReady = true
+				logrus.Infof("WebSocket connection ready for component %s, proceeding with invoke request", cs.componentID)
+			}
+		}
+	}
+
 	// 生成 corr_id
 	corrID := fmt.Sprintf("%s-%d", cs.componentID, time.Now().UnixNano())
 
@@ -1311,8 +1377,11 @@ func (cs *ComponentSession) handleInvokeRequest(invokeReq *actorpb.InvokeRequest
 		cs.pendingInvokesMu.Lock()
 		delete(cs.pendingInvokes, corrID)
 		cs.pendingInvokesMu.Unlock()
+		logrus.Errorf("Failed to send invoke request to unikernel for component %s: %v", cs.componentID, err)
 		return fmt.Errorf("failed to send to unikernel: %w", err)
 	}
+
+	logrus.Infof("Successfully sent invoke request to unikernel for component %s: corrID=%s, function=%s", cs.componentID, corrID, functionName)
 
 	// 等待响应
 	select {
@@ -1405,6 +1474,8 @@ func (cs *ComponentSession) handleIarnetMessage(componentMsg *componentpb.Messag
 			return fmt.Errorf("failed to unmarshal actor message: %w", err)
 		}
 
+		logrus.Infof("Received actor message for component %s: type=%v", cs.componentID, actorMsg.GetType())
+
 		// 处理不同类型的 actor 消息
 		switch actorMsgType := actorMsg.GetType(); actorMsgType {
 		case actorpb.MessageType_FUNCTION:
@@ -1412,6 +1483,8 @@ func (cs *ComponentSession) handleIarnetMessage(componentMsg *componentpb.Messag
 			if function == nil {
 				return fmt.Errorf("function is nil")
 			}
+
+			logrus.Infof("Received FUNCTION message for component %s: name=%s", cs.componentID, function.GetName())
 
 			// 部署 unikernel 函数（构建并运行）
 			return cs.deployFunction(function)
@@ -1422,11 +1495,13 @@ func (cs *ComponentSession) handleIarnetMessage(componentMsg *componentpb.Messag
 				return fmt.Errorf("invoke request is nil")
 			}
 
+			logrus.Infof("Received INVOKE_REQUEST message for component %s: runtimeID=%s, args_count=%d", cs.componentID, invokeReq.GetRuntimeID(), len(invokeReq.GetArgs()))
+
 			// 处理 invoke 请求
 			return cs.handleInvokeRequest(invokeReq)
 
 		default:
-			logrus.Debugf("Unhandled actor message type: %v for component %s", actorMsgType, cs.componentID)
+			logrus.Warnf("Unhandled actor message type: %v for component %s", actorMsgType, cs.componentID)
 			return nil
 		}
 
@@ -1507,6 +1582,24 @@ func (cs *ComponentSession) decodeObjectValue(data []byte, language commonpb.Lan
 		// 其他编码格式，尝试作为字符串返回
 		return string(data), nil
 	}
+}
+
+// convertGoToJSON 将 Go gob 编码的对象转换为 JSON 格式
+func convertGoToJSON(gobData []byte) ([]byte, error) {
+	// 使用 gob 解码
+	dec := gob.NewDecoder(bytes.NewReader(gobData))
+	var value interface{}
+	if err := dec.Decode(&value); err != nil {
+		return nil, fmt.Errorf("failed to decode gob: %w", err)
+	}
+
+	// 转换为 JSON
+	jsonData, err := json.Marshal(value)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal to JSON: %w", err)
+	}
+
+	return jsonData, nil
 }
 
 // convertPythonToJSON 将 Python pickle 编码的对象转换为 JSON 格式
