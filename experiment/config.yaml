@@ -1,75 +1,68 @@
-host: "172.30.0.20" # Host for external connection. TODO: 通信问题待解决
-
+host: 172.30.0.128
 users:
-  - name: "admin"
-    password: "123456"
-
-peer_listen_addr: ":50051"
+- name: admin
+  password: '123456'
+peer_listen_addr: :50051
 initial_peers:
-  - "iarnet-1:50005"
-  - "iarnet-2:50005"
-  - "iarnet-3:50005"
-  - "iarnet-4:50005"
-  - "iarnet-5:50005"
-  - "iarnet-6:50005"
-  - "iarnet-7:50005"
-
-data_dir: "./data"  # Directory for SQLite databases
-
+- iarnet-1:50005
+- iarnet-2:50005
+- iarnet-3:50005
+- iarnet-4:50005
+- iarnet-5:50005
+- iarnet-6:50005
+- iarnet-7:50005
+data_dir: ./data
 application:
-  workspace_dir: "./workspaces"
+  workspace_dir: ./workspaces
   runner_images:
-    "python:3.11-latest": "iarnet/runner:python_3.11-latest"
-
+    python:3.11-latest: iarnet/runner:python_3.11-latest
 resource:
   peer_port: 50051
   schedule_port: 50051
-  global_registry_addr: "localhost:50010"
-  name: "node.1"
-  description: "node.1 description"
-  domain_id: "domain.nwwNPjSgUFM9DCv74J8LbM"
+  global_registry_addr: localhost:50010
+  name: node.1
+  description: node.1 description
+  domain_id: domain.hP2PMW4mTrd2XCYqH9T6qF
   component_images:
-    "python": "iarnet/component:python_3.11-latest"
+    python: iarnet/component:python_3.11-latest
   discovery:
     enabled: true
-    gossip_interval_seconds: 30
+    gossip_interval_seconds: 5
     node_ttl_seconds: 180
     max_gossip_peers: 10
     max_hops: 5
     query_timeout_seconds: 5
     fanout: 3
     use_anti_entropy: true
-    anti_entropy_interval_seconds: 300
-  # 调度策略配置：用于评估和筛选跨节点委托调度的结果
+    anti_entropy_interval_seconds: 60
+    log_node_info_updates: false
+    provider_health_check_interval_seconds: 0.01
+    provider_usage_poll_interval_seconds: 0.01
   schedule_policies:
-    # 资源安全裕度策略：要求可用资源至少是请求资源的 1.2 倍
-    - type: resource_safety_margin
-      enable: true
-      params:
-        cpu_ratio: 1.2      # CPU 安全系数
-        memory_ratio: 1.2   # 内存安全系数
-        gpu_ratio: 1.0      # GPU 安全系数（不放大）
-    # 节点黑名单策略：拒绝来自黑名单节点的调度结果
-    - type: node_blacklist
-      enable: false         # 默认关闭，需要时启用并配置 node_ids
-      params:
-        node_ids: []
-    # Provider 黑名单策略：拒绝来自黑名单 Provider 的调度结果
-    - type: provider_blacklist
-      enable: false         # 默认关闭，需要时启用并配置 provider_ids
-      params:
-        provider_ids: []
-
+  - type: resource_safety_margin
+    enable: true
+    params:
+      cpu_ratio: 1.2
+      memory_ratio: 1.2
+      gpu_ratio: 1.0
+  - type: node_blacklist
+    enable: false
+    params:
+      node_ids: []
+  - type: provider_blacklist
+    enable: false
+    params:
+      provider_ids: []
+  provider_health_check_interval_seconds: 0.05
+  provider_usage_poll_interval_seconds: 0.05
 enable_local_docker: true
-
 database:
-  application_db_path: "./data/application.db"
-  resource_provider_db_path: "./data/resource_provider.db"
-  resource_logger_db_path: "./data/resource_logger.db"
+  application_db_path: ./data/application.db
+  resource_provider_db_path: ./data/resource_provider.db
+  resource_logger_db_path: ./data/resource_logger.db
   max_open_conns: 10
   max_idle_conns: 5
-  conn_max_lifetime_seconds: 300  # 5 minutes
-
+  conn_max_lifetime_seconds: 300
 transport:
   http:
     port: 8083
@@ -88,11 +81,10 @@ transport:
       port: 50004
     discovery:
       port: 50005
-
 logging:
   enabled: true
-  data_dir: "./data/logs"
-  db_path: "./data/logs.db"
+  data_dir: ./data/logs
+  db_path: ./data/logs.db
   chunk_duration_minutes: 5
   chunk_max_lines: 10000
   chunk_max_size_mb: 10

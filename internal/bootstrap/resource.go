@@ -34,6 +34,11 @@ func bootstrapResource(iarnet *Iarnet) error {
 	// 使用占位符 channeler 初始化 Resource Manager
 	// 真正的 channeler 会在 Transport 层创建后注入
 	nullChanneler := component.NewNullChanneler()
+
+	// 转换配置的间隔时间为 time.Duration
+	providerHealthCheckInterval := time.Duration(iarnet.Config.Resource.ProviderHealthCheckIntervalSeconds*1000) * time.Millisecond
+	providerUsagePollInterval := time.Duration(iarnet.Config.Resource.ProviderUsagePollIntervalSeconds*1000) * time.Millisecond
+
 	resourceManager := resource.NewManager(
 		nullChanneler,
 		storeInstance,
@@ -49,6 +54,8 @@ func bootstrapResource(iarnet *Iarnet) error {
 		iarnet.Config.Resource.Description,
 		iarnet.Config.Resource.DomainID,
 		iarnet.Config.DataDir,
+		providerHealthCheckInterval,
+		providerUsagePollInterval,
 	)
 
 	var resourceLoggerService logger.Service
@@ -107,7 +114,24 @@ func bootstrapResource(iarnet *Iarnet) error {
 		schedulerAddr := fmt.Sprintf("%s:%d", host, schedulerPort)
 
 		// 创建节点发现管理器
-		gossipInterval := time.Duration(iarnet.Config.Resource.Discovery.GossipIntervalSeconds) * time.Second
+		// 支持小数秒配置，转换为毫秒后乘以 time.Millisecond
+		var gossipInterval time.Duration
+		var gossipIntervalMin time.Duration
+		var gossipIntervalMax time.Duration
+
+		if iarnet.Config.Resource.Discovery.GossipIntervalMinSeconds > 0 && iarnet.Config.Resource.Discovery.GossipIntervalMaxSeconds > 0 {
+			// 使用区间随机
+			gossipIntervalMin = time.Duration(iarnet.Config.Resource.Discovery.GossipIntervalMinSeconds*1000) * time.Millisecond
+			gossipIntervalMax = time.Duration(iarnet.Config.Resource.Discovery.GossipIntervalMaxSeconds*1000) * time.Millisecond
+			// 固定间隔设为 0，表示不使用
+			gossipInterval = 0
+		} else {
+			// 使用固定间隔（向后兼容）
+			gossipInterval = time.Duration(iarnet.Config.Resource.Discovery.GossipIntervalSeconds*1000) * time.Millisecond
+			gossipIntervalMin = 0
+			gossipIntervalMax = 0
+		}
+
 		nodeTTL := time.Duration(iarnet.Config.Resource.Discovery.NodeTTLSeconds) * time.Second
 
 		discoveryManager := discovery.NewNodeDiscoveryManager(
@@ -118,7 +142,10 @@ func bootstrapResource(iarnet *Iarnet) error {
 			domainID,
 			iarnet.Config.InitialPeers,
 			gossipInterval,
+			gossipIntervalMin,
+			gossipIntervalMax,
 			nodeTTL,
+			iarnet.Config.Resource.Discovery.LogNodeInfoUpdates,
 		)
 
 		// 设置配置参数

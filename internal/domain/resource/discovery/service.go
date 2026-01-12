@@ -270,10 +270,10 @@ func (s *service) QueryResources(ctx context.Context, resourceRequest *types.Inf
 			}
 		}
 
-		// 如果找到足够的节点，可以提前返回
-		if len(availableNodes) > 0 {
-			break
-		}
+		// // 如果找到足够的节点，可以提前返回
+		// if len(availableNodes) > 0 {
+		// 	break
+		// }
 	}
 
 	if len(availableNodes) > 0 {

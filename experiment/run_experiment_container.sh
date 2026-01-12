@@ -142,6 +142,7 @@ else
         --name "$CONTAINER_NAME"
         -p 4000:3000
         -v "$IARNET_ROOT:/workspace/iarnet:rw"
+        -v /var/run/docker.sock:/var/run/docker.sock
         -w /workspace/iarnet/experiment
         -it
     )

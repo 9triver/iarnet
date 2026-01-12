@@ -1,0 +1,7 @@
+__pycache__/
+venv/
+aggregate_metrics*.txt
+experiment_results*.csv
+resource_utilization*.csv
+
+!result/**

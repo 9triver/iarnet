@@ -251,7 +251,8 @@ services:
     volumes:
       - ./provider/i1/p1/config.yaml:/app/config.yaml:ro
     networks:
-      - iarnet-testing-network
+      iarnet-testing-network:
+        ipv4_address: 172.30.0.20
     restart: unless-stopped
     labels:
       - "provider.name=provider-i1-p1"
@@ -264,7 +265,8 @@ services:
     volumes:
       - ./provider/i1/p2/config.yaml:/app/config.yaml:ro
     networks:
-      - iarnet-testing-network
+      iarnet-testing-network:
+        ipv4_address: 172.30.0.21
     restart: unless-stopped
     labels:
       - "provider.name=provider-i1-p2"
@@ -277,7 +279,8 @@ services:
     volumes:
       - ./provider/i1/p3/config.yaml:/app/config.yaml:ro
     networks:
-      - iarnet-testing-network
+      iarnet-testing-network:
+        ipv4_address: 172.30.0.22
     restart: unless-stopped
     labels:
       - "provider.name=provider-i1-p3"
@@ -291,7 +294,8 @@ services:
     volumes:
       - ./provider/i2/p1/config.yaml:/app/config.yaml:ro
     networks:
-      - iarnet-testing-network
+      iarnet-testing-network:
+        ipv4_address: 172.30.0.23
     restart: unless-stopped
     labels:
       - "provider.name=provider-i2-p1"
@@ -304,7 +308,8 @@ services:
     volumes:
       - ./provider/i2/p2/config.yaml:/app/config.yaml:ro
     networks:
-      - iarnet-testing-network
+      iarnet-testing-network:
+        ipv4_address: 172.30.0.24
     restart: unless-stopped
     labels:
       - "provider.name=provider-i2-p2"
@@ -317,7 +322,8 @@ services:
     volumes:
       - ./provider/i2/p3/config.yaml:/app/config.yaml:ro
     networks:
-      - iarnet-testing-network
+      iarnet-testing-network:
+        ipv4_address: 172.30.0.25
     restart: unless-stopped
     labels:
       - "provider.name=provider-i2-p3"
@@ -331,7 +337,8 @@ services:
     volumes:
       - ./provider/i3/p1/config.yaml:/app/config.yaml:ro
     networks:
-      - iarnet-testing-network
+      iarnet-testing-network:
+        ipv4_address: 172.30.0.26
     restart: unless-stopped
     labels:
       - "provider.name=provider-i3-p1"
@@ -344,7 +351,8 @@ services:
     volumes:
       - ./provider/i3/p2/config.yaml:/app/config.yaml:ro
     networks:
-      - iarnet-testing-network
+      iarnet-testing-network:
+        ipv4_address: 172.30.0.27
     restart: unless-stopped
     labels:
       - "provider.name=provider-i3-p2"
@@ -357,7 +365,8 @@ services:
     volumes:
       - ./provider/i3/p3/config.yaml:/app/config.yaml:ro
     networks:
-      - iarnet-testing-network
+      iarnet-testing-network:
+        ipv4_address: 172.30.0.28
     restart: unless-stopped
     labels:
       - "provider.name=provider-i3-p3"
@@ -371,7 +380,8 @@ services:
     volumes:
       - ./provider/i4/p1/config.yaml:/app/config.yaml:ro
     networks:
-      - iarnet-testing-network
+      iarnet-testing-network:
+        ipv4_address: 172.30.0.29
     restart: unless-stopped
     labels:
       - "provider.name=provider-i4-p1"
@@ -384,7 +394,8 @@ services:
     volumes:
       - ./provider/i4/p2/config.yaml:/app/config.yaml:ro
     networks:
-      - iarnet-testing-network
+      iarnet-testing-network:
+        ipv4_address: 172.30.0.30
     restart: unless-stopped
     labels:
       - "provider.name=provider-i4-p2"
@@ -397,7 +408,8 @@ services:
     volumes:
       - ./provider/i4/p3/config.yaml:/app/config.yaml:ro
     networks:
-      - iarnet-testing-network
+      iarnet-testing-network:
+        ipv4_address: 172.30.0.31
     restart: unless-stopped
     labels:
       - "provider.name=provider-i4-p3"
@@ -411,7 +423,8 @@ services:
     volumes:
       - ./provider/i5/p1/config.yaml:/app/config.yaml:ro
     networks:
-      - iarnet-testing-network
+      iarnet-testing-network:
+        ipv4_address: 172.30.0.32
     restart: unless-stopped
     labels:
       - "provider.name=provider-i5-p1"
@@ -424,7 +437,8 @@ services:
     volumes:
       - ./provider/i5/p2/config.yaml:/app/config.yaml:ro
     networks:
-      - iarnet-testing-network
+      iarnet-testing-network:
+        ipv4_address: 172.30.0.33
     restart: unless-stopped
     labels:
       - "provider.name=provider-i5-p2"
@@ -437,7 +451,8 @@ services:
     volumes:
       - ./provider/i5/p3/config.yaml:/app/config.yaml:ro
     networks:
-      - iarnet-testing-network
+      iarnet-testing-network:
+        ipv4_address: 172.30.0.34
     restart: unless-stopped
     labels:
       - "provider.name=provider-i5-p3"
@@ -451,7 +466,8 @@ services:
     volumes:
       - ./provider/i6/p1/config.yaml:/app/config.yaml:ro
     networks:
-      - iarnet-testing-network
+      iarnet-testing-network:
+        ipv4_address: 172.30.0.35
     restart: unless-stopped
     labels:
       - "provider.name=provider-i6-p1"
@@ -464,7 +480,8 @@ services:
     volumes:
       - ./provider/i6/p2/config.yaml:/app/config.yaml:ro
     networks:
-      - iarnet-testing-network
+      iarnet-testing-network:
+        ipv4_address: 172.30.0.36
     restart: unless-stopped
     labels:
       - "provider.name=provider-i6-p2"
@@ -477,7 +494,8 @@ services:
     volumes:
       - ./provider/i6/p3/config.yaml:/app/config.yaml:ro
     networks:
-      - iarnet-testing-network
+      iarnet-testing-network:
+        ipv4_address: 172.30.0.37
     restart: unless-stopped
     labels:
       - "provider.name=provider-i6-p3"
@@ -491,7 +509,8 @@ services:
     volumes:
       - ./provider/i7/p1/config.yaml:/app/config.yaml:ro
     networks:
-      - iarnet-testing-network
+      iarnet-testing-network:
+        ipv4_address: 172.30.0.38
     restart: unless-stopped
     labels:
       - "provider.name=provider-i7-p1"
@@ -504,7 +523,8 @@ services:
     volumes:
       - ./provider/i7/p2/config.yaml:/app/config.yaml:ro
     networks:
-      - iarnet-testing-network
+      iarnet-testing-network:
+        ipv4_address: 172.30.0.39
     restart: unless-stopped
     labels:
       - "provider.name=provider-i7-p2"
@@ -517,7 +537,8 @@ services:
     volumes:
       - ./provider/i7/p3/config.yaml:/app/config.yaml:ro
     networks:
-      - iarnet-testing-network
+      iarnet-testing-network:
+        ipv4_address: 172.30.0.40
     restart: unless-stopped
     labels:
       - "provider.name=provider-i7-p3"
@@ -532,7 +553,8 @@ services:
     volumes:
       - ./provider/i8/p1/config.yaml:/app/config.yaml:ro
     networks:
-      - iarnet-testing-network
+      iarnet-testing-network:
+        ipv4_address: 172.30.0.41
     restart: unless-stopped
     labels:
       - "provider.name=provider-i8-p1"
@@ -545,7 +567,8 @@ services:
     volumes:
       - ./provider/i8/p2/config.yaml:/app/config.yaml:ro
     networks:
-      - iarnet-testing-network
+      iarnet-testing-network:
+        ipv4_address: 172.30.0.42
     restart: unless-stopped
     labels:
       - "provider.name=provider-i8-p2"
@@ -558,7 +581,8 @@ services:
     volumes:
       - ./provider/i8/p3/config.yaml:/app/config.yaml:ro
     networks:
-      - iarnet-testing-network
+      iarnet-testing-network:
+        ipv4_address: 172.30.0.43
     restart: unless-stopped
     labels:
       - "provider.name=provider-i8-p3"

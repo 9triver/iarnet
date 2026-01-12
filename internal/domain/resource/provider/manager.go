@@ -24,13 +24,16 @@ type Manager struct {
 }
 
 // NewManager 创建 Provider 管理器
-func NewManager() *Manager {
+func NewManager(healthCheckInterval time.Duration) *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
+	if healthCheckInterval == 0 {
+		healthCheckInterval = 30 * time.Second // 默认 30 秒
+	}
 	return &Manager{
 		mu:                  sync.RWMutex{},
 		providers:           make(map[string]*Provider),
-		healthCheckInterval: 30 * time.Second, // 默认 30 秒检测一次
-		healthCheckTimeout:  5 * time.Second,  // 默认 5 秒超时
+		healthCheckInterval: healthCheckInterval,
+		healthCheckTimeout:  5 * time.Second, // 默认 5 秒超时
 		healthCheckCtx:      ctx,
 		healthCheckCancel:   cancel,
 	}

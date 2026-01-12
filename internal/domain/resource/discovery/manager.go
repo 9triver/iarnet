@@ -3,6 +3,7 @@ package discovery
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -27,10 +28,14 @@ type NodeDiscoveryManager struct {
 	peerAddresses map[string]struct{} // peer address -> struct{}
 
 	// Gossip 配置
-	gossipInterval time.Duration // Gossip 间隔
-	nodeTTL        time.Duration // 节点信息过期时间
-	maxGossipPeers int           // 每次 gossip 的最大 peer 数量
-	maxHops        int           // 最大跳数
+	gossipInterval     time.Duration // Gossip 间隔（固定值，用于向后兼容）
+	gossipIntervalMin  time.Duration // Gossip 最小间隔（用于区间随机）
+	gossipIntervalMax  time.Duration // Gossip 最大间隔（用于区间随机）
+	useRandomInterval  bool          // 是否使用随机间隔
+	nodeTTL            time.Duration // 节点信息过期时间
+	maxGossipPeers     int           // 每次 gossip 的最大 peer 数量
+	maxHops            int           // 最大跳数
+	logNodeInfoUpdates bool          // 是否记录节点信息更新日志
 
 	// 消息去重（防止重复处理）
 	processedMessages map[string]time.Time // message_id -> timestamp
@@ -59,7 +64,10 @@ func NewNodeDiscoveryManager(
 	domainID string,
 	initialPeers []string,
 	gossipInterval time.Duration,
+	gossipIntervalMin time.Duration,
+	gossipIntervalMax time.Duration,
 	nodeTTL time.Duration,
+	logNodeInfoUpdates bool,
 ) *NodeDiscoveryManager {
 	localNode := &PeerNode{
 		NodeID:           localNodeID,
@@ -81,19 +89,30 @@ func NewNodeDiscoveryManager(
 		}
 	}
 
+	// 判断是否使用随机间隔
+	useRandom := gossipIntervalMin > 0 && gossipIntervalMax > 0 && gossipIntervalMax > gossipIntervalMin
+	if !useRandom && gossipInterval == 0 {
+		// 如果既没有配置固定间隔，也没有配置区间，使用默认值
+		gossipInterval = 30 * time.Second
+	}
+
 	return &NodeDiscoveryManager{
-		localNode:         localNode,
-		knownNodes:        make(map[string]*PeerNode),
-		addressToNodeID:   make(map[string]string),
-		peerAddresses:     peerAddresses,
-		gossipInterval:    gossipInterval,
-		nodeTTL:           nodeTTL,
-		maxGossipPeers:    10,
-		maxHops:           5,
-		processedMessages: make(map[string]time.Time),
-		messageTTL:        5 * time.Minute, // 消息去重 TTL：5 分钟
-		gossipStop:        make(chan struct{}),
-		aggregateView:     NewResourceAggregateView(),
+		localNode:          localNode,
+		knownNodes:         make(map[string]*PeerNode),
+		addressToNodeID:    make(map[string]string),
+		peerAddresses:      peerAddresses,
+		gossipInterval:     gossipInterval,
+		gossipIntervalMin:  gossipIntervalMin,
+		gossipIntervalMax:  gossipIntervalMax,
+		useRandomInterval:  useRandom,
+		nodeTTL:            nodeTTL,
+		maxGossipPeers:     10,
+		maxHops:            5,
+		logNodeInfoUpdates: logNodeInfoUpdates,
+		processedMessages:  make(map[string]time.Time),
+		messageTTL:         5 * time.Minute, // 消息去重 TTL：5 分钟
+		gossipStop:         make(chan struct{}),
+		aggregateView:      NewResourceAggregateView(),
 	}
 }
 
@@ -277,11 +296,11 @@ func (m *NodeDiscoveryManager) ProcessNodeInfo(node *PeerNode, sourcePeer string
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// 只处理同域节点
-	if node.DomainID != m.localNode.DomainID {
-		logrus.Debugf("Ignoring node from different domain: %s (local domain: %s)", node.DomainID, m.localNode.DomainID)
-		return
-	}
+	// // 只处理同域节点
+	// if node.DomainID != m.localNode.DomainID {
+	// 	logrus.Debugf("Ignoring node from different domain: %s (local domain: %s)", node.DomainID, m.localNode.DomainID)
+	// 	return
+	// }
 
 	// 忽略本地节点
 	if node.NodeID == m.localNode.NodeID {
@@ -339,8 +358,11 @@ func (m *NodeDiscoveryManager) ProcessNodeInfo(node *PeerNode, sourcePeer string
 			if node.ResourceCapacity != nil && node.ResourceCapacity.Total != nil {
 				newResourceInfo = fmt.Sprintf("CPU: %d mC", node.ResourceCapacity.Total.CPU)
 			}
-			logrus.Infof("Updated node info: %s (version: %d -> %d), resources: %s -> %s",
-				node.NodeID, oldVersion, existing.Version, oldResourceInfo, newResourceInfo)
+			// 根据配置决定是否输出日志
+			if m.logNodeInfoUpdates {
+				logrus.Infof("Updated node info: %s (version: %d -> %d), resources: %s -> %s",
+					node.NodeID, oldVersion, existing.Version, oldResourceInfo, newResourceInfo)
+			}
 
 			// 更新聚合视图
 			m.updateAggregateView()
@@ -365,7 +387,19 @@ func (m *NodeDiscoveryManager) FindAvailableNodes(
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	return m.aggregateView.FindAvailableNodes(resourceRequest, requiredTags)
+	// 获取所有可用节点（包括本地节点）
+	allNodes := m.aggregateView.FindAvailableNodes(resourceRequest, requiredTags)
+
+	// 过滤掉本地节点，避免将自身作为跨节点部署的候选
+	localNodeID := m.localNode.NodeID
+	availableNodes := make([]*PeerNode, 0, len(allNodes))
+	for _, node := range allNodes {
+		if node != nil && node.NodeID != localNodeID {
+			availableNodes = append(availableNodes, node)
+		}
+	}
+
+	return availableNodes
 }
 
 // GetAggregateView 获取资源聚合视图
@@ -399,22 +433,55 @@ func (m *NodeDiscoveryManager) SetOnNodeLost(callback func(nodeID string)) {
 
 // gossipLoop gossip 循环
 func (m *NodeDiscoveryManager) gossipLoop(ctx context.Context) {
-	ticker := time.NewTicker(m.gossipInterval)
-	defer ticker.Stop()
-
 	// 立即执行一次
 	m.performGossip(ctx)
 
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-m.gossipStop:
-			return
-		case <-ticker.C:
-			m.performGossip(ctx)
+	if m.useRandomInterval {
+		// 使用随机间隔
+		for {
+			timer := m.getRandomTimer()
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return
+			case <-m.gossipStop:
+				timer.Stop()
+				return
+			case <-timer.C:
+				m.performGossip(ctx)
+			}
+		}
+	} else {
+		// 使用固定间隔
+		ticker := time.NewTicker(m.gossipInterval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-m.gossipStop:
+				return
+			case <-ticker.C:
+				m.performGossip(ctx)
+			}
 		}
 	}
+}
+
+// getRandomTimer 获取一个随机间隔的定时器
+func (m *NodeDiscoveryManager) getRandomTimer() *time.Timer {
+	m.mu.RLock()
+	min := m.gossipIntervalMin
+	max := m.gossipIntervalMax
+	m.mu.RUnlock()
+
+	// 计算随机间隔（毫秒）
+	delta := max - min
+	randomMs := min.Milliseconds() + rand.Int63n(delta.Milliseconds()+1)
+	randomDuration := time.Duration(randomMs) * time.Millisecond
+
+	return time.NewTimer(randomDuration)
 }
 
 // SetGossipCallback 设置 gossip 执行回调（由 service 层调用）

@@ -1,0 +1,120 @@
+=== 实验聚合指标统计 ===
+
+入口节点 ID: node.a83KJV8fr8gPBC3fwv5Avb
+总实验时长: 1m40.001935853s
+
+=== 任务统计 ===
+总任务数: 2000
+成功任务数: 2000
+失败任务数: 0
+失败率: 0.00%
+
+各类型任务统计:
+  Small任务: 总数=400, 成功=400 (100.00%), 失败=0 (0.00%)
+  Medium任务: 总数=1400, 成功=1400 (100.00%), 失败=0 (0.00%)
+  Large任务: 总数=200, 成功=200 (100.00%), 失败=0 (0.00%)
+
+=== 执行位置统计 ===
+本地执行数: 972
+跨节点执行数: 1028
+本地执行比例: 48.60%
+跨节点执行比例: 51.40%
+
+=== 各类型任务在各节点的执行比例 ===
+（比例基于该类型任务的总成功数，体现本地优先策略和跨域调度框架的作用）
+
+小任务在各节点的执行比例:
+  node.8 (node.H4XkQaPwFHecrK3tb2QuPM): 7 个任务, 占比=1.75%
+  node.4 (node.JvECnV95brjeA43d7UkKis): 9 个任务, 占比=2.25%
+  node.3 (node.Rwk8GopPaY4eVoAocvH9t7): 2 个任务, 占比=0.50%
+  node.5 (node.TDxYKFGxthuKRirkDjWjQa): 3 个任务, 占比=0.75%
+  node.2 (node.Y7enFAt94fak68tn2EsaYM): 1 个任务, 占比=0.25%
+  node.1 (node.a83KJV8fr8gPBC3fwv5Avb): 374 个任务, 占比=93.50%
+  node.7 (node.ia7h4xNKV78fQuVWiLYnnX): 4 个任务, 占比=1.00%
+
+中任务在各节点的执行比例:
+  node.8 (node.H4XkQaPwFHecrK3tb2QuPM): 127 个任务, 占比=9.07%
+  node.4 (node.JvECnV95brjeA43d7UkKis): 141 个任务, 占比=10.07%
+  node.3 (node.Rwk8GopPaY4eVoAocvH9t7): 74 个任务, 占比=5.29%
+  node.5 (node.TDxYKFGxthuKRirkDjWjQa): 107 个任务, 占比=7.64%
+  node.6 (node.VQ6bGbdEJCyng2HyKkqte2): 58 个任务, 占比=4.14%
+  node.2 (node.Y7enFAt94fak68tn2EsaYM): 142 个任务, 占比=10.14%
+  node.1 (node.a83KJV8fr8gPBC3fwv5Avb): 585 个任务, 占比=41.79%
+  node.7 (node.ia7h4xNKV78fQuVWiLYnnX): 166 个任务, 占比=11.86%
+
+大任务在各节点的执行比例:
+  node.8 (node.H4XkQaPwFHecrK3tb2QuPM): 30 个任务, 占比=15.00%
+  node.4 (node.JvECnV95brjeA43d7UkKis): 22 个任务, 占比=11.00%
+  node.3 (node.Rwk8GopPaY4eVoAocvH9t7): 22 个任务, 占比=11.00%
+  node.5 (node.TDxYKFGxthuKRirkDjWjQa): 35 个任务, 占比=17.50%
+  node.6 (node.VQ6bGbdEJCyng2HyKkqte2): 25 个任务, 占比=12.50%
+  node.2 (node.Y7enFAt94fak68tn2EsaYM): 29 个任务, 占比=14.50%
+  node.1 (node.a83KJV8fr8gPBC3fwv5Avb): 13 个任务, 占比=6.50%
+  node.7 (node.ia7h4xNKV78fQuVWiLYnnX): 24 个任务, 占比=12.00%
+
+=== 响应时延统计（毫秒）===
+注意: 响应时延仅统计部署成功的任务，失败任务不统计时延
+平均响应时延: 4.71 ms
+P50 响应时延: 4.39 ms
+P95 响应时延: 12.57 ms
+P99 响应时延: 16.61 ms
+
+=== 完成时延统计（毫秒）===
+注意: 完成时延仅统计部署成功的任务，失败任务不统计时延
+平均完成时延: 4.71 ms
+P50 完成时延: 4.39 ms
+P95 完成时延: 12.58 ms
+P99 完成时延: 16.61 ms
+
+=== 系统性能 ===
+系统吞吐量: 20.00 req/s
+
+=== 各节点平均资源占用 ===
+节点: node.1 (node.a83KJV8fr8gPBC3fwv5Avb)
+  采样次数: 20
+  CPU: 平均 94.39%, 最大 99.27%
+  内存: 平均 61.99%, 最大 66.23%
+  GPU: 平均 14.17%, 最大 50.00%
+
+节点: node.2 (node.Y7enFAt94fak68tn2EsaYM)
+  采样次数: 20
+  CPU: 平均 40.28%, 最大 96.76%
+  内存: 平均 24.86%, 最大 59.90%
+  GPU: 平均 36.67%, 最大 100.00%
+
+节点: node.3 (node.Rwk8GopPaY4eVoAocvH9t7)
+  采样次数: 20
+  CPU: 平均 25.40%, 最大 97.88%
+  内存: 平均 15.55%, 最大 61.69%
+  GPU: 平均 28.33%, 最大 100.00%
+
+节点: node.4 (node.JvECnV95brjeA43d7UkKis)
+  采样次数: 20
+  CPU: 平均 37.46%, 最大 96.96%
+  内存: 平均 22.61%, 最大 58.93%
+  GPU: 平均 27.50%, 最大 83.33%
+
+节点: node.5 (node.TDxYKFGxthuKRirkDjWjQa)
+  采样次数: 19
+  CPU: 平均 35.10%, 最大 95.50%
+  内存: 平均 21.58%, 最大 59.86%
+  GPU: 平均 39.47%, 最大 100.00%
+
+节点: node.6 (node.VQ6bGbdEJCyng2HyKkqte2)
+  采样次数: 20
+  CPU: 平均 25.80%, 最大 93.30%
+  内存: 平均 15.07%, 最大 57.29%
+  GPU: 平均 30.00%, 最大 100.00%
+
+节点: node.7 (node.ia7h4xNKV78fQuVWiLYnnX)
+  采样次数: 19
+  CPU: 平均 40.81%, 最大 94.08%
+  内存: 平均 24.63%, 最大 55.94%
+  GPU: 平均 35.96%, 最大 100.00%
+
+节点: node.8 (node.H4XkQaPwFHecrK3tb2QuPM)
+  采样次数: 20
+  CPU: 平均 35.25%, 最大 97.74%
+  内存: 平均 22.70%, 最大 60.54%
+  GPU: 平均 36.67%, 最大 83.33%
+

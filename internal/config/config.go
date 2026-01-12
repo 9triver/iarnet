@@ -41,15 +41,17 @@ type ApplicationConfig struct {
 
 // ResourceConfig Resource 模块配置
 type ResourceConfig struct {
-	GlobalRegistryAddr string                 `yaml:"global_registry_addr"` // e.g., "localhost:50010" - address of the global registry
-	Name               string                 `yaml:"name"`                 // e.g., "node.1" - name of the node
-	Description        string                 `yaml:"description"`          // e.g., "node.1 description" - description of the node
-	DomainID           string                 `yaml:"domain_id"`            // e.g., "domain.AT9xbJe6RxzkPSL65bkwud" - domain ID of the node
-	IsHead             bool                   `yaml:"is_head"`              // 是否为 head 节点
-	ComponentImages    map[string]string      `yaml:"component_images"`     // e.g., "python:3.11-alpine" - image to use for actor containers
-	Store              StoreConfig            `yaml:"store"`                // Store configuration
-	Discovery          DiscoveryConfig        `yaml:"discovery"`            // Gossip 节点发现配置
-	SchedulePolicies   []SchedulePolicyConfig `yaml:"schedule_policies"`    // 调度策略配置
+	GlobalRegistryAddr                 string                 `yaml:"global_registry_addr"`                   // e.g., "localhost:50010" - address of the global registry
+	Name                               string                 `yaml:"name"`                                   // e.g., "node.1" - name of the node
+	Description                        string                 `yaml:"description"`                            // e.g., "node.1 description" - description of the node
+	DomainID                           string                 `yaml:"domain_id"`                              // e.g., "domain.AT9xbJe6RxzkPSL65bkwud" - domain ID of the node
+	IsHead                             bool                   `yaml:"is_head"`                                // 是否为 head 节点
+	ComponentImages                    map[string]string      `yaml:"component_images"`                       // e.g., "python:3.11-alpine" - image to use for actor containers
+	Store                              StoreConfig            `yaml:"store"`                                  // Store configuration
+	Discovery                          DiscoveryConfig        `yaml:"discovery"`                              // Gossip 节点发现配置
+	SchedulePolicies                   []SchedulePolicyConfig `yaml:"schedule_policies"`                      // 调度策略配置
+	ProviderHealthCheckIntervalSeconds float64                `yaml:"provider_health_check_interval_seconds"` // Provider 健康检查间隔（秒，支持小数）
+	ProviderUsagePollIntervalSeconds   float64                `yaml:"provider_usage_poll_interval_seconds"`   // Provider 资源使用量轮询间隔（秒，支持小数）
 }
 
 // SchedulePolicyConfig 调度策略配置
@@ -61,15 +63,18 @@ type SchedulePolicyConfig struct {
 
 // DiscoveryConfig Gossip 节点发现配置
 type DiscoveryConfig struct {
-	Enabled                    bool `yaml:"enabled"`                       // 是否启用 gossip 发现
-	GossipIntervalSeconds      int  `yaml:"gossip_interval_seconds"`       // Gossip 间隔（秒）
-	NodeTTLSeconds             int  `yaml:"node_ttl_seconds"`              // 节点信息过期时间（秒）
-	MaxGossipPeers             int  `yaml:"max_gossip_peers"`              // 每次 gossip 的最大 peer 数量
-	MaxHops                    int  `yaml:"max_hops"`                      // 最大跳数
-	QueryTimeoutSeconds        int  `yaml:"query_timeout_seconds"`         // 资源查询超时时间（秒）
-	Fanout                     int  `yaml:"fanout"`                        // 每次传播的节点数（fanout）
-	UseAntiEntropy             bool `yaml:"use_anti_entropy"`              // 是否使用反熵机制
-	AntiEntropyIntervalSeconds int  `yaml:"anti_entropy_interval_seconds"` // 反熵间隔（秒）
+	Enabled                    bool    `yaml:"enabled"`                       // 是否启用 gossip 发现
+	GossipIntervalSeconds      float64 `yaml:"gossip_interval_seconds"`       // Gossip 间隔（秒，支持小数，如 0.5 表示 500ms）。如果同时配置了 min 和 max，则此值作为默认值（向后兼容）
+	GossipIntervalMinSeconds   float64 `yaml:"gossip_interval_min_seconds"`   // Gossip 最小间隔（秒，支持小数）。如果配置了此值和 max，则使用区间随机，避免所有节点同时同步
+	GossipIntervalMaxSeconds   float64 `yaml:"gossip_interval_max_seconds"`   // Gossip 最大间隔（秒，支持小数）。如果配置了此值和 min，则使用区间随机，避免所有节点同时同步
+	NodeTTLSeconds             int     `yaml:"node_ttl_seconds"`              // 节点信息过期时间（秒）
+	MaxGossipPeers             int     `yaml:"max_gossip_peers"`              // 每次 gossip 的最大 peer 数量
+	MaxHops                    int     `yaml:"max_hops"`                      // 最大跳数
+	QueryTimeoutSeconds        int     `yaml:"query_timeout_seconds"`         // 资源查询超时时间（秒）
+	Fanout                     int     `yaml:"fanout"`                        // 每次传播的节点数（fanout）
+	UseAntiEntropy             bool    `yaml:"use_anti_entropy"`              // 是否使用反熵机制
+	AntiEntropyIntervalSeconds int     `yaml:"anti_entropy_interval_seconds"` // 反熵间隔（秒）
+	LogNodeInfoUpdates         bool    `yaml:"log_node_info_updates"`         // 是否记录节点信息更新日志（收到 gossip 消息时更新其他节点状态）
 }
 
 type TransportConfig struct {

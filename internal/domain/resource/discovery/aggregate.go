@@ -135,20 +135,25 @@ func (v *ResourceAggregateView) Update(nodes []*PeerNode) {
 	}
 
 	// 按可用资源排序（降序）
+	// 使用与 manager.go 中 calculateAvailableResourceScore 相同的公式：CPU + Memory/GB + GPU
 	sort.Slice(v.NodesByAvailability, func(i, j int) bool {
 		nodeI := v.NodesByAvailability[i]
 		nodeJ := v.NodesByAvailability[j]
 
-		// 获取可用资源
-		var availI, availJ int64
+		// 获取可用资源评分（与 manager.go 中的公式保持一致）
+		var scoreI, scoreJ int64
 		if nodeI.ResourceCapacity != nil && nodeI.ResourceCapacity.Available != nil {
-			availI = nodeI.ResourceCapacity.Available.CPU + nodeI.ResourceCapacity.Available.Memory/1024/1024 + nodeI.ResourceCapacity.Available.GPU*1000
+			available := nodeI.ResourceCapacity.Available
+			memoryGB := available.Memory / (1024 * 1024 * 1024)
+			scoreI = available.CPU + memoryGB + available.GPU
 		}
 		if nodeJ.ResourceCapacity != nil && nodeJ.ResourceCapacity.Available != nil {
-			availJ = nodeJ.ResourceCapacity.Available.CPU + nodeJ.ResourceCapacity.Available.Memory/1024/1024 + nodeJ.ResourceCapacity.Available.GPU*1000
+			available := nodeJ.ResourceCapacity.Available
+			memoryGB := available.Memory / (1024 * 1024 * 1024)
+			scoreJ = available.CPU + memoryGB + available.GPU
 		}
 
-		return availI > availJ
+		return scoreI > scoreJ
 	})
 
 	v.LastUpdated = time.Now()

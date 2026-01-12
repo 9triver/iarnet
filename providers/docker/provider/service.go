@@ -408,12 +408,12 @@ func (s *Service) Deploy(ctx context.Context, req *providerpb.DeployRequest) (*p
 				readOnly bool
 			}{
 				{
-					source:   "/home/xhy/iarnet-demo/eps_helmet/images",
+					source:   "/tmp/iarnet-demo/eps_helmet/images",
 					target:   "/app/images",
 					readOnly: false,
 				},
 				{
-					source:   "/home/xhy/iarnet-demo/eps_helmet",
+					source:   "/tmp/iarnet-demo/eps_helmet",
 					target:   "/app/eps_helmet",
 					readOnly: false,
 				},

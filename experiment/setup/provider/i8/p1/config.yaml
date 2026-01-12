@@ -1,23 +1,17 @@
-# Mock Provider 配置 - iarnet-8 provider-1 (连接到 iarnet-1)
 server:
-  port: 50072  # gRPC 服务端口
-
+  port: 50051
 resource:
-  cpu: 8000 # 8000 millicores = 8 cores
-  memory: "16Gi"
-  gpu: 1 # 1 GPU
-
+  cpu: 16000
+  memory: 32Gi
+  gpu: 2
 resource_tags:
-  - cpu
-  - memory
-  - gpu
-
-# 任务执行时间配置（毫秒）
+- cpu
+- memory
+- gpu
 task_duration:
-  small_min_ms: 50   # 小任务最小执行时间
-  small_max_ms: 200  # 小任务最大执行时间
-  medium_min_ms: 200 # 中任务最小执行时间
-  medium_max_ms: 800 # 中任务最大执行时间
-  large_min_ms: 800  # 大任务最小执行时间
-  large_max_ms: 2000 # 大任务最大执行时间
-
+  small_min_ms: 500
+  small_max_ms: 2000
+  medium_min_ms: 2000
+  medium_max_ms: 5000
+  large_min_ms: 5000
+  large_max_ms: 10000

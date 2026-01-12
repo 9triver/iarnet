@@ -474,8 +474,12 @@ func (api *API) handleStopApplication(w http.ResponseWriter, r *http.Request) {
 
 	// 清理应用的所有资源（components、controller 状态等）
 	// 注意：这里会清理 controller 的状态，但不会移除 controller 本身
+	// 使用独立的 context，避免 HTTP 请求返回后 context 被取消导致资源清理失败
 	go func() {
-		if err := api.am.CleanupApplicationResources(ctx, appID); err != nil {
+		// 创建独立的 context，设置合理的超时时间（5分钟）以确保资源清理能够完成
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+		if err := api.am.CleanupApplicationResources(cleanupCtx, appID); err != nil {
 			logrus.Errorf("Failed to cleanup application resources: %v", err)
 			// 不返回错误，因为 runner 已经停止，资源清理失败不应该影响停止操作
 		}

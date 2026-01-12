@@ -97,7 +97,7 @@ func loadOrGenerateNodeID(dataDir string) string {
 
 	// 尝试从文件加载节点 ID
 	if data, err := os.ReadFile(nodeIDFile); err == nil {
-		nodeID := string(data)
+		nodeID := strings.TrimSpace(string(data))
 		if nodeID != "" {
 			logrus.Infof("Loaded existing node ID from %s: %s", nodeIDFile, nodeID)
 			return nodeID
@@ -117,11 +117,11 @@ func loadOrGenerateNodeID(dataDir string) string {
 	return nodeID
 }
 
-func NewManager(channeler component.Channeler, s *store.Store, componentImages map[string]string, providerRepo providerrepo.ProviderRepo, envVariables *provider.EnvVariables, name string, description string, domainID string, dataDir string) *Manager {
+func NewManager(channeler component.Channeler, s *store.Store, componentImages map[string]string, providerRepo providerrepo.ProviderRepo, envVariables *provider.EnvVariables, name string, description string, domainID string, dataDir string, providerHealthCheckInterval time.Duration, providerUsagePollInterval time.Duration) *Manager {
 	componentManager := component.NewManager(channeler)
 
 	// 初始化 Provider 模块
-	providerManager := provider.NewManager()
+	providerManager := provider.NewManager(providerHealthCheckInterval)
 	providerService := provider.NewService(providerManager, providerRepo, envVariables)
 
 	// 加载或生成节点 ID
@@ -145,7 +145,7 @@ func NewManager(channeler component.Channeler, s *store.Store, componentImages m
 		healthCheckStop:    make(chan struct{}),
 		usagePollingCtx:    usagePollingCtx,
 		usagePollingCancel: usagePollingCancel,
-		usagePollInterval:  2 * time.Second, // 默认 2 秒轮询一次（与前端最小间隔一致）
+		usagePollInterval:  providerUsagePollInterval, // 使用配置的轮询间隔
 	}
 }
 
@@ -227,6 +227,11 @@ func (m *Manager) SetIsHead(isHead bool) {
 // GetNodeID 获取节点 ID
 func (m *Manager) GetNodeID() string {
 	return m.nodeID
+}
+
+// GetComponentService 获取组件服务（用于 scheduler 服务直接调用，避免二次跨域委托）
+func (m *Manager) GetComponentService() component.Service {
+	return m.componentService
 }
 
 // GetNodeName 获取节点名称
@@ -903,9 +908,9 @@ func (m *Manager) DeployComponent(ctx context.Context, runtimeEnv types.RuntimeE
 		return component, nil
 	}
 
-	if !m.shouldDelegateDeployment(err) {
-		return nil, err
-	}
+	// if !m.shouldDelegateDeployment(err) {
+	// 	return nil, err
+	// }
 
 	logrus.Warnf("Local deployment failed (%v), attempting to delegate to peer nodes", err)
 	peerComponent, peerErr := m.delegateToPeerNodes(ctx, runtimeEnv, resourceRequest)
@@ -947,9 +952,10 @@ func (m *Manager) delegateToPeerNodes(ctx context.Context, runtimeEnv types.Runt
 			continue
 		}
 
-		component, commitErr := m.CommitDelegatedDeployment(ctx, runtimeEnv, resourceRequest, p)
+		// 使用直接部署方式，不再使用两步提交
+		component, commitErr := m.DeployToRemoteNodeDirect(ctx, runtimeEnv, resourceRequest, p)
 		if commitErr != nil {
-			logrus.Warnf("Failed to commit delegated deployment to node %s (%s): %v", p.NodeName, p.NodeID, commitErr)
+			logrus.Warnf("Failed to deploy to remote node %s (%s): %v", p.NodeName, p.NodeID, commitErr)
 			continue
 		}
 
@@ -979,14 +985,32 @@ func (m *Manager) ProposeDelegatedDeployment(ctx context.Context, runtimeEnv typ
 		return nil, fmt.Errorf("no in-domain nodes have sufficient resources")
 	}
 
+	// 获取当前节点 ID，用于过滤自身节点
+	currentNodeID := strings.TrimSpace(m.GetNodeID())
+	if currentNodeID == "" {
+		return nil, fmt.Errorf("current node ID is empty, cannot generate delegation proposals")
+	}
+
 	proposals := make([]*DelegatedScheduleProposal, 0, len(nodes))
 	for _, node := range nodes {
 		if node == nil {
 			continue
 		}
 
+		// 过滤掉自身节点，避免将自身作为跨节点部署的候选
+		// 使用 TrimSpace 确保比较时忽略空格和换行符
+		nodeID := strings.TrimSpace(node.NodeID)
+		if nodeID == "" {
+			logrus.Warnf("Skipping node with empty NodeID: %s", node.NodeName)
+			continue
+		}
+		if nodeID == currentNodeID {
+			logrus.Debugf("Skipping self node %s (%s) in delegated deployment proposals", node.NodeName, nodeID)
+			continue
+		}
+
 		proposals = append(proposals, &DelegatedScheduleProposal{
-			NodeID:           node.NodeID,
+			NodeID:           nodeID, // 使用 TrimSpace 后的 nodeID，确保一致性
 			NodeName:         node.NodeName,
 			Address:          node.Address,
 			SchedulerAddress: node.SchedulerAddress,
@@ -1281,6 +1305,98 @@ func (m *Manager) CommitDelegatedDeployment(ctx context.Context, runtimeEnv type
 	}
 
 	logrus.Infof("Successfully committed delegated deployment to node %s (%s) via two-phase commit", proposal.NodeName, proposal.NodeID)
+	return resp.Component, nil
+}
+
+// DeployToRemoteNodeDirect 直接调用远程节点的部署 RPC 进行部署，不使用两步提交。
+// 这种方式简化了流程，减少了资源竞争问题，但不再有 Propose 阶段的资源预留。
+func (m *Manager) DeployToRemoteNodeDirect(ctx context.Context, runtimeEnv types.RuntimeEnv, resourceRequest *types.Info, proposal *DelegatedScheduleProposal) (*component.Component, error) {
+	if proposal == nil {
+		return nil, fmt.Errorf("delegation proposal is required")
+	}
+	if m.schedulerService == nil {
+		return nil, fmt.Errorf("scheduler service is not configured")
+	}
+	if resourceRequest == nil {
+		return nil, fmt.Errorf("resource request is nil")
+	}
+
+	targetAddr := proposal.SchedulerAddress
+	if targetAddr == "" {
+		targetAddr = proposal.Address
+	}
+	if targetAddr == "" {
+		return nil, fmt.Errorf("target address is empty for node %s", proposal.NodeID)
+	}
+
+	// 直接调用远程节点的部署 RPC，不再使用两步提交
+	// 使用传入的 context，不设置额外的超时
+	deployReq := &scheduler.DeployRequest{
+		RuntimeEnv:            runtimeEnv,
+		ResourceRequest:       resourceRequest,
+		TargetNodeID:          proposal.NodeID,
+		TargetAddress:         targetAddr,
+		UpstreamZMQAddress:    m.getZMQAddress(),
+		UpstreamStoreAddress:  m.getStoreAddress(),
+		UpstreamLoggerAddress: m.getLoggerAddress(),
+	}
+
+	resp, err := m.schedulerService.DeployComponent(ctx, deployReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to deploy on remote node %s: %w", proposal.NodeID, err)
+	}
+	if resp == nil {
+		return nil, fmt.Errorf("deploy returned empty response from node %s", proposal.NodeID)
+	}
+	if !resp.Success {
+		if resp.Error != "" {
+			return nil, fmt.Errorf("deploy rejected by node %s: %s", proposal.NodeID, resp.Error)
+		}
+		return nil, fmt.Errorf("deploy rejected by node %s", proposal.NodeID)
+	}
+
+	if resp.Component != nil {
+		if err := m.componentManager.AddComponent(ctx, resp.Component); err != nil {
+			return nil, fmt.Errorf("failed to register remote component %s locally: %w", resp.Component.GetID(), err)
+		}
+		// 标记为远端 provider，使用 providerID 和节点信息，便于后续追踪
+		// resp.ProviderID 可能已经包含 "local." 前缀（远程节点设置的），需要处理
+		providerID := strings.TrimPrefix(resp.ProviderID, "local.")
+
+		// 检查 providerID 是否已经包含节点信息（格式：providerID@nodeID）
+		// 如果已经包含，则不再重复添加；否则添加节点信息
+		if strings.Contains(providerID, "@") {
+			// 已经包含节点信息，直接使用
+			resp.Component.SetProviderID(providerID)
+		} else {
+			// 不包含节点信息，添加节点信息
+			// 对于跨节点部署，应该使用 proposal.NodeID（目标节点），而不是 resp.NodeID
+			// 因为 resp.NodeID 可能为空或设置错误
+			nodeID := proposal.NodeID
+			if nodeID == "" {
+				// 如果 proposal.NodeID 也为空，尝试使用 resp.NodeID 作为最后的备选
+				nodeID = resp.NodeID
+			}
+			if nodeID == "" {
+				return nil, fmt.Errorf("node ID is empty for remote deployment, cannot format provider ID")
+			}
+			// 检查目标节点是否是入口节点（不应该发生，说明过滤逻辑有 bug）
+			entryNodeID := strings.TrimSpace(m.nodeID)
+			proposalNodeID := strings.TrimSpace(nodeID)
+			if proposalNodeID == entryNodeID && entryNodeID != "" {
+				// 如果目标节点是入口节点，说明过滤逻辑有问题
+				// 这种情况下应该使用 'local.' 前缀，而不是 '@nodeID' 后缀
+				// 这样可以避免实验代码错误地将其识别为跨节点部署
+				logrus.Errorf("DeployToRemoteNodeDirect: BUG DETECTED - target node ID (%s) equals entry node ID (%s), this should not happen! Using 'local.' prefix as fallback. Please check ProposeDelegatedDeployment filtering logic.", proposalNodeID, entryNodeID)
+				resp.Component.SetProviderID("local." + providerID)
+			} else {
+				// 跨节点部署应该始终使用 @nodeID 后缀格式
+				resp.Component.SetProviderID(fmt.Sprintf("%s@%s", providerID, nodeID))
+			}
+		}
+	}
+
+	logrus.Infof("Successfully deployed component to remote node %s (%s) via direct RPC call", proposal.NodeName, proposal.NodeID)
 	return resp.Component, nil
 }
 

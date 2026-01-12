@@ -3,6 +3,7 @@ package component
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/9triver/iarnet/internal/domain/resource/provider"
 	"github.com/9triver/iarnet/internal/domain/resource/types"
@@ -54,6 +55,13 @@ func (c *componentService) DeployComponent(ctx context.Context, runtimeEnv types
 	// 通过 provider service 查找支持该语言的可用 provider
 	p, err := c.providerService.FindAvailableProvider(ctx, resourceRequest, language)
 	if err != nil {
+		// 检查错误是否与资源相关，如果是则只显示资源不足，避免误导性信息
+		errStr := err.Error()
+		if strings.Contains(errStr, "resource requirements") || strings.Contains(errStr, "insufficient resources") {
+			// 资源不足导致的失败，不提及语言（因为语言支持检查在资源检查之前）
+			return nil, fmt.Errorf("failed to find available provider: %w", err)
+		}
+		// 其他错误（如语言不支持）才提及语言
 		return nil, fmt.Errorf("failed to find available provider for language %v: %w", language, err)
 	}
 	logrus.Infof("Deploying component %s (language: %v) on provider %s", id, language, p.GetID())

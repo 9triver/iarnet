@@ -394,6 +394,11 @@ func (s *Service) HealthCheck(ctx context.Context, req *providerpb.HealthCheckRe
 		return nil, fmt.Errorf("authentication failed: %w", err)
 	}
 
+	// 更新健康检查时间（必须在返回前调用，确保每次健康检查都被记录）
+	if s.manager != nil {
+		s.manager.UpdateHealthCheck()
+	}
+
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 

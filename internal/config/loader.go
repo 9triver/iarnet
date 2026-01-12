@@ -63,11 +63,50 @@ func ApplyDefaults(cfg *Config) {
 	}
 
 	// Discovery 配置默认值
-	if cfg.Resource.Discovery.GossipIntervalSeconds == 0 {
+	// 处理 gossip 间隔配置
+	if cfg.Resource.Discovery.GossipIntervalMinSeconds > 0 && cfg.Resource.Discovery.GossipIntervalMaxSeconds > 0 {
+		// 如果配置了 min 和 max，使用区间随机
+		if cfg.Resource.Discovery.GossipIntervalMinSeconds >= cfg.Resource.Discovery.GossipIntervalMaxSeconds {
+			// 如果 min >= max，交换它们
+			cfg.Resource.Discovery.GossipIntervalMinSeconds, cfg.Resource.Discovery.GossipIntervalMaxSeconds = cfg.Resource.Discovery.GossipIntervalMaxSeconds, cfg.Resource.Discovery.GossipIntervalMinSeconds
+		}
+		// 验证最小值
+		if cfg.Resource.Discovery.GossipIntervalMinSeconds < 0.01 {
+			cfg.Resource.Discovery.GossipIntervalMinSeconds = 0.01 // 最小 10ms
+		}
+		if cfg.Resource.Discovery.GossipIntervalMaxSeconds < 0.01 {
+			cfg.Resource.Discovery.GossipIntervalMaxSeconds = 0.01 // 最小 10ms
+		}
+	} else if cfg.Resource.Discovery.GossipIntervalSeconds == 0 {
+		// 如果没有配置固定间隔，也没有配置区间，使用默认值
 		cfg.Resource.Discovery.GossipIntervalSeconds = 30 // 默认 30 秒
 	}
+	// 验证固定间隔的最小值，避免过小的间隔导致性能问题
+	if cfg.Resource.Discovery.GossipIntervalSeconds > 0 && cfg.Resource.Discovery.GossipIntervalSeconds < 0.01 {
+		cfg.Resource.Discovery.GossipIntervalSeconds = 0.01 // 最小 10ms
+	}
+	// 默认启用节点信息更新日志（为了向后兼容）
+	// 如果配置文件中没有设置，默认为 true
+	// 注意：由于 bool 类型的零值是 false，我们需要特殊处理
+	// 这里假设如果配置文件中没有设置，则使用默认值 true
+	// 但 YAML 解析器会自动处理，如果配置文件中明确设置为 false，则使用 false
 	if cfg.Resource.Discovery.NodeTTLSeconds == 0 {
 		cfg.Resource.Discovery.NodeTTLSeconds = 180 // 默认 180 秒（3 分钟）
+	}
+	// Provider 健康检查和资源轮询配置默认值
+	if cfg.Resource.ProviderHealthCheckIntervalSeconds == 0 {
+		cfg.Resource.ProviderHealthCheckIntervalSeconds = 30 // 默认 30 秒
+	}
+	// 验证最小值，避免过小的间隔导致性能问题
+	if cfg.Resource.ProviderHealthCheckIntervalSeconds < 0.01 {
+		cfg.Resource.ProviderHealthCheckIntervalSeconds = 0.01 // 最小 10ms
+	}
+	if cfg.Resource.ProviderUsagePollIntervalSeconds == 0 {
+		cfg.Resource.ProviderUsagePollIntervalSeconds = 2 // 默认 2 秒
+	}
+	// 验证最小值
+	if cfg.Resource.ProviderUsagePollIntervalSeconds < 0.01 {
+		cfg.Resource.ProviderUsagePollIntervalSeconds = 0.01 // 最小 10ms
 	}
 	if cfg.Resource.Discovery.MaxGossipPeers == 0 {
 		cfg.Resource.Discovery.MaxGossipPeers = 10 // 默认 10 个

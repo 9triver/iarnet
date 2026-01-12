@@ -11,6 +11,7 @@ import (
 	"github.com/9triver/iarnet/internal/proto/common"
 	resourcepb "github.com/9triver/iarnet/internal/proto/resource"
 	schedulerpb "github.com/9triver/iarnet/internal/proto/resource/scheduler"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -61,6 +62,7 @@ type DeployRequest struct {
 	UpstreamZMQAddress    string
 	UpstreamStoreAddress  string
 	UpstreamLoggerAddress string
+	RequesterNodeID       string // 原始请求的发起者节点 ID，用于避免循环委托
 }
 
 // DeployResponse 部署响应
@@ -160,6 +162,11 @@ type service struct {
 		UndeployComponent(ctx context.Context, componentID string, providerID string) error
 	}
 
+	// 组件服务（用于直接部署，避免二次跨域委托）
+	componentService interface {
+		DeployComponent(ctx context.Context, runtimeEnv types.RuntimeEnv, resourceRequest *types.Info) (*component.Component, error)
+	}
+
 	// Discovery 服务（用于查找远程节点）
 	discoveryService discovery.Service
 }
@@ -185,8 +192,21 @@ func NewService(
 	},
 	discoveryService discovery.Service,
 ) Service {
+	// 从 localResourceManager 中提取 componentService（如果支持）
+	var compService interface {
+		DeployComponent(ctx context.Context, runtimeEnv types.RuntimeEnv, resourceRequest *types.Info) (*component.Component, error)
+	}
+
+	// 尝试从 resource.Manager 中获取 componentService
+	if manager, ok := localResourceManager.(interface {
+		GetComponentService() component.Service
+	}); ok {
+		compService = manager.GetComponentService()
+	}
+
 	return &service{
 		localResourceManager: localResourceManager,
+		componentService:     compService,
 		discoveryService:     discoveryService,
 	}
 }
@@ -221,8 +241,26 @@ func (s *service) deployLocally(ctx context.Context, req *DeployRequest) (*Deplo
 		localCtx = provider.WithDeploymentEnvOverride(ctx, override)
 	}
 
-	comp, err := s.localResourceManager.DeployComponent(localCtx, req.RuntimeEnv, req.ResourceRequest)
+	// 如果 componentService 可用，直接使用它进行部署，避免二次跨域委托
+	// componentService.DeployComponent 只会在本地部署，不会进行跨域委托
+	var comp *component.Component
+	var err error
+	if s.componentService != nil {
+		comp, err = s.componentService.DeployComponent(localCtx, req.RuntimeEnv, req.ResourceRequest)
+		if err == nil {
+			// componentService 返回的 component 没有 "local." 前缀，需要添加
+			comp.SetProviderID("local." + comp.GetProviderID())
+		}
+	} else {
+		// 如果 componentService 不可用，回退到使用 localResourceManager
+		// 但这种情况不应该发生，因为 NewService 应该总是设置 componentService
+		logrus.Warnf("componentService is not available, falling back to localResourceManager.DeployComponent (this may cause secondary delegation)")
+		comp, err = s.localResourceManager.DeployComponent(localCtx, req.RuntimeEnv, req.ResourceRequest)
+	}
+
 	if err != nil {
+		// 如果本地部署失败，直接返回错误，不进行二次跨域委托
+		// 这是为了避免循环委托：远程节点不应该再次将任务委托给其他节点
 		return &DeployResponse{
 			Success: false,
 			Error:   err.Error(),

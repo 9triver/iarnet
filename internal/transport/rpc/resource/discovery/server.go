@@ -104,17 +104,17 @@ func (s *Server) QueryResources(ctx context.Context, req *discoverypb.ResourceQu
 		}, nil
 	}
 
-	// 只处理同域查询
+	// // 只处理同域查询
 	localNode := s.manager.GetLocalNode()
-	if req.RequesterDomainId != localNode.DomainID {
-		logrus.Debugf("Ignoring resource query from different domain: %s (local: %s)", req.RequesterDomainId, localNode.DomainID)
-		return &discoverypb.ResourceQueryResponse{
-			QueryId:        req.QueryId,
-			Timestamp:      time.Now().UnixNano(),
-			IsFinal:        true,
-			AvailableNodes: []*discoverypb.PeerNodeInfo{},
-		}, nil
-	}
+	// if req.RequesterDomainId != localNode.DomainID {
+	// 	logrus.Debugf("Ignoring resource query from different domain: %s (local: %s)", req.RequesterDomainId, localNode.DomainID)
+	// 	return &discoverypb.ResourceQueryResponse{
+	// 		QueryId:        req.QueryId,
+	// 		Timestamp:      time.Now().UnixNano(),
+	// 		IsFinal:        true,
+	// 		AvailableNodes: []*discoverypb.PeerNodeInfo{},
+	// 	}, nil
+	// }
 
 	// 转换资源请求
 	resourceRequest := &types.Info{
