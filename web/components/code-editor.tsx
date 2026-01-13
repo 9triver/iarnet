@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import Editor from '@monaco-editor/react'
+import Editor, { loader } from '@monaco-editor/react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
@@ -544,6 +544,34 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ appId, className }) => {
     
     return result
   }
+
+  // 配置 Monaco Editor 使用本地资源（解决 Docker 容器中 Worker 加载问题）
+  useEffect(() => {
+    // 配置 Monaco Editor 使用本地路径而不是 CDN
+    // 在 Next.js 中，Monaco Editor 的资源会被打包到 _next/static 目录
+    if (typeof window !== 'undefined') {
+      loader.config({ 
+        paths: { 
+          vs: '/_next/static/chunks/node_modules_monaco-editor_min_vs' 
+        } 
+      })
+      
+      // 如果上面的路径不工作，尝试使用 CDN 但设置超时
+      // 或者使用 monaco-editor 包中的路径
+      try {
+        // 尝试从 node_modules 加载（开发环境）
+        const monacoPath = '/node_modules/monaco-editor/min/vs'
+        // 或者使用 CDN 作为后备
+        loader.config({ 
+          paths: { 
+            vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs'
+          } 
+        })
+      } catch (error) {
+        console.warn('Monaco Editor loader config failed:', error)
+      }
+    }
+  }, [])
 
   // 初始化加载根目录
   useEffect(() => {

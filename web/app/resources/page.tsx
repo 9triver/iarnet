@@ -37,6 +37,8 @@ import { formatMemory, formatNumber, formatDateTime } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AuthGuard } from "@/components/auth-guard"
 import { toast } from "sonner"
+import { canModifyResources } from "@/lib/permissions"
+import { useIARNetStore } from "@/lib/store"
 
 // 本地使用的资源类型（包含 CPU 和内存使用情况）
 // 注意：后端 ProviderItem 不包含 cpu_usage 和 memory_usage
@@ -57,6 +59,10 @@ interface Resource {
     total: number
     used: number
   }
+  gpu: {
+    total: number
+    used: number
+  }
   lastUpdated: string
   resourceTags?: ResourceTagsInfo
 }
@@ -64,7 +70,7 @@ interface Resource {
 
 interface ResourceFormData {
   name: string
-  type: "kubernetes" | "docker" | "vm" | "process"
+  type: "kubernetes" | "docker" | "vm" | "process" | "unikernel"
   url: string  // 格式: host:port，例如: localhost:50051
   token: string
   description?: string
@@ -90,6 +96,8 @@ interface Capacity {
 }
 
 export default function ResourcesPage() {
+  const currentUser = useIARNetStore((state) => state.currentUser)
+  const canModify = canModifyResources(currentUser?.role)
   const [resources, setResources] = useState<Resource[]>([])
   const [discoveredNodes, setDiscoveredNodes] = useState<DiscoveredNodeItem[]>([])
   const [capacity, setCapacity] = useState<Capacity | null>(null)
@@ -221,6 +229,7 @@ export default function ResourcesPage() {
       const convertProvider = async (provider: ProviderItem): Promise<Resource> => {
         let cpu = { total: 0, used: 0 }
         let memory = { total: 0, used: 0 }
+        let gpu = { total: 0, used: 0 }
         
         // 获取 provider 的容量信息
         try {
@@ -234,6 +243,11 @@ export default function ResourcesPage() {
           memory = {
             total: capacity.total.memory,
             used: capacity.used.memory,
+          }
+          // GPU 单位是数量，保持原样
+          gpu = {
+            total: capacity.total.gpu || 0,
+            used: capacity.used.gpu || 0,
           }
         } catch (error) {
           console.warn(`Failed to get capacity for provider ${provider.id}:`, error)
@@ -250,6 +264,7 @@ export default function ResourcesPage() {
           status: convertStatus(provider.status),
           cpu,
           memory,
+          gpu,
           lastUpdated: provider.last_update_time,
           resourceTags: provider.resource_tags,
         }
@@ -624,6 +639,10 @@ export default function ResourcesPage() {
           total: capacity.total.memory,
           used: capacity.used.memory,
         },
+        gpu: {
+          total: capacity.total.gpu || 0,
+          used: capacity.used.gpu || 0,
+        },
         lastUpdated: providerInfo.last_update_time,
         resourceTags: providerInfo.resource_tags,
       }
@@ -794,10 +813,10 @@ export default function ResourcesPage() {
   return (
     <AuthGuard>
       <div className="flex h-screen bg-background">
-      <Sidebar />
+        <Sidebar />
 
-      <main className="flex-1 overflow-auto">
-        <div className="p-8">
+        <main className="flex-1 overflow-auto">
+          <div className="p-8">
           {/* Header */}
           <div className="flex items-center justify-between mb-8">
             <div>
@@ -859,23 +878,24 @@ export default function ResourcesPage() {
                 </DialogContent>
               </Dialog> */}
 
-              <Dialog open={isBatchDialogOpen} onOpenChange={(open) => {
-                setIsBatchDialogOpen(open)
-                if (!open) {
-                  // 关闭时清除状态
-                  setTimeout(() => {
-                    setCsvFile(null)
-                    setCsvData([])
-                    setBatchResults([])
-                  }, 150)
-                }
-              }}>
-                <DialogTrigger asChild>
-                  <Button variant="outline">
-                    <Upload className="mr-2 h-4 w-4" />
-                    批量接入资源
-                  </Button>
-                </DialogTrigger>
+              {canModify && (
+                <Dialog open={isBatchDialogOpen} onOpenChange={(open) => {
+                  setIsBatchDialogOpen(open)
+                  if (!open) {
+                    // 关闭时清除状态
+                    setTimeout(() => {
+                      setCsvFile(null)
+                      setCsvData([])
+                      setBatchResults([])
+                    }, 150)
+                  }
+                }}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline">
+                      <Upload className="mr-2 h-4 w-4" />
+                      批量接入资源
+                    </Button>
+                  </DialogTrigger>
                 <DialogContent className="sm:max-w-[600px]">
                   <DialogHeader>
                     <DialogTitle>批量接入资源</DialogTitle>
@@ -1010,34 +1030,37 @@ export default function ResourcesPage() {
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
+              )}
               
-              <Button
-                onClick={() => {
-                  // 点击接入资源时，清除所有状态并打开对话框
-                  // 先清除编辑状态，确保对话框显示正确的标题
-                  setEditingResource(null)
-                  setTestResult(null)
-                  // 重置表单到默认值
-                  form.reset({
-                    name: "",
-                    type: "docker",
-                    url: "",
-                    token: "",
-                  })
-                  // 清除表单验证错误
-                  form.clearErrors()
-                  // 打开对话框
-                  // 注意：由于 React 状态更新是批处理的，editingResource 会在同一渲染周期更新
-                  setIsDialogOpen(true)
-                }}
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                接入资源
-              </Button>
-              
-              <Dialog 
-                open={isDialogOpen} 
-                onOpenChange={(open) => {
+              {canModify && (
+                <>
+                  <Button
+                    onClick={() => {
+                      // 点击接入资源时，清除所有状态并打开对话框
+                      // 先清除编辑状态，确保对话框显示正确的标题
+                      setEditingResource(null)
+                      setTestResult(null)
+                      // 重置表单到默认值
+                      form.reset({
+                        name: "",
+                        type: "docker",
+                        url: "",
+                        token: "",
+                      })
+                      // 清除表单验证错误
+                      form.clearErrors()
+                      // 打开对话框
+                      // 注意：由于 React 状态更新是批处理的，editingResource 会在同一渲染周期更新
+                      setIsDialogOpen(true)
+                    }}
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    接入资源
+                  </Button>
+                  
+                  <Dialog
+                    open={isDialogOpen}
+                    onOpenChange={(open) => {
                   if (!open) {
                     // 关闭时清除所有相关状态
                     // 使用 setTimeout 延迟清除，避免在对话框关闭动画期间触发重新渲染
@@ -1051,10 +1074,10 @@ export default function ResourcesPage() {
                         token: "",
                       })
                     }, 150) // 延迟 150ms，等待对话框关闭动画完成
-                  }
-                  setIsDialogOpen(open)
-                }}
-              >
+                    }
+                    setIsDialogOpen(open)
+                  }}
+                >
                 <DialogContent className="sm:max-w-[425px]">
                   <DialogHeader>
                     <DialogTitle>{editingResource ? "编辑资源" : "接入资源"}</DialogTitle>
@@ -1255,6 +1278,8 @@ export default function ResourcesPage() {
                   </Form>
                 </DialogContent>
               </Dialog>
+                </>
+              )}
             </div>
           </div>
 
@@ -1286,7 +1311,7 @@ export default function ResourcesPage() {
           </Card>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-6 mb-8">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">本地资源数</CardTitle>
@@ -1391,6 +1416,39 @@ export default function ResourcesPage() {
                 </p>
               </CardContent>
             </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">总GPU</CardTitle>
+                <Activity className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {(() => {
+                    if (loading) return "加载中..."
+                    // 计算本地资源
+                    const localGPU = capacity ? capacity.total.gpu : 0
+                    // 计算远程节点资源（GPU单位是数量）
+                    const remoteGPU = discoveredNodes
+                      .filter((n) => n.status === "online" && n.gpu)
+                      .reduce((sum, n) => sum + (n.gpu?.total || 0), 0)
+                    const totalGPU = localGPU + remoteGPU
+                    return Math.round(totalGPU)
+                  })()}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  已使用 {(() => {
+                    if (loading) return "--"
+                    const localUsedGPU = capacity ? capacity.used.gpu : 0
+                    const remoteUsedGPU = discoveredNodes
+                      .filter((n) => n.status === "online" && n.gpu)
+                      .reduce((sum, n) => sum + (n.gpu?.used || 0), 0)
+                    const totalUsedGPU = localUsedGPU + remoteUsedGPU
+                    return Math.round(totalUsedGPU)
+                  })()} 个
+                </p>
+              </CardContent>
+            </Card>
           </div>
 
           {/* 本地资源面板 */}
@@ -1421,6 +1479,7 @@ export default function ResourcesPage() {
                   <TableHead className="w-32">资源标签</TableHead>
                   <TableHead className="w-32">CPU使用率</TableHead>
                   <TableHead className="w-32">内存使用率</TableHead>
+                  <TableHead className="w-32">GPU使用率</TableHead>
                   <TableHead className="w-40">最后更新</TableHead>
                   <TableHead className="w-32">操作</TableHead>
                   </TableRow>
@@ -1432,7 +1491,7 @@ export default function ResourcesPage() {
                     ))
                   ) : resources.filter(r => r.category === 'local_providers').length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                         暂无本地资源，点击上方"接入资源"按钮开始配置
                       </TableCell>
                     </TableRow>
@@ -1486,15 +1545,31 @@ export default function ResourcesPage() {
                             </div>
                           </div>
                         </TableCell>
+                        <TableCell className="w-32">
+                          <div className="flex items-center space-x-2">
+                            <div className="text-sm">
+                              {resource.gpu.total > 0
+                                ? `${Math.round((resource.gpu.used / resource.gpu.total) * 100)}%`
+                                : "0%"}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {Math.round(resource.gpu.used)}/{Math.round(resource.gpu.total)} 个
+                            </div>
+                          </div>
+                        </TableCell>
                         <TableCell className="w-40 text-xs text-muted-foreground">{formatDateTime(resource.lastUpdated)}</TableCell>
                         <TableCell className="w-32">
                           <div className="flex items-center space-x-2">
-                            <Button variant="ghost" size="sm" onClick={() => handleEdit(resource)}>
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleDelete(resource.id)}>
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            {canModify && (
+                              <>
+                                <Button variant="ghost" size="sm" onClick={() => handleEdit(resource)}>
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={() => handleDelete(resource.id)}>
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </>
+                            )}
                             <Button 
                               variant="ghost" 
                               size="sm" 
@@ -1540,6 +1615,7 @@ export default function ResourcesPage() {
                     <TableHead className="w-20">状态</TableHead>
                     <TableHead className="w-32">CPU使用率</TableHead>
                     <TableHead className="w-32">内存使用率</TableHead>
+                    <TableHead className="w-32">GPU使用率</TableHead>
                     <TableHead className="w-40">最后更新</TableHead>
                     <TableHead className="w-32">操作</TableHead>
                   </TableRow>
@@ -1551,7 +1627,7 @@ export default function ResourcesPage() {
                     ))
                   ) : discoveredNodes.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                         暂无远程资源，系统将自动发现网络中节点提供的资源，点击上方"接入节点"按钮可以接入新节点到网络中
                       </TableCell>
                     </TableRow>
@@ -1568,6 +1644,11 @@ export default function ResourcesPage() {
                       const memoryTotal = node.memory ? node.memory.total : 0
                       const memoryUsed = node.memory ? node.memory.used : 0
                       const memoryUsage = memoryTotal > 0 ? Math.round((memoryUsed / memoryTotal) * 100) : 0
+                      
+                      // 计算 GPU 使用率
+                      const gpuTotal = node.gpu ? node.gpu.total : 0
+                      const gpuUsed = node.gpu ? node.gpu.used : 0
+                      const gpuUsage = gpuTotal > 0 ? Math.round((gpuUsed / gpuTotal) * 100) : 0
 
                       return (
                         <TableRow key={node.node_id}>
@@ -1620,6 +1701,20 @@ export default function ResourcesPage() {
                               <span className="text-sm text-muted-foreground">-</span>
                             )}
                           </TableCell>
+                          <TableCell className="w-32">
+                            {node.gpu ? (
+                              <div className="flex items-center space-x-2">
+                                <div className="text-sm">
+                                  {gpuUsage}%
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {Math.round(gpuUsed)}/{Math.round(gpuTotal)} 个
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-sm text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
                           <TableCell className="w-40 text-xs text-muted-foreground">
                             {formatDateTime(node.last_seen)}
                           </TableCell>
@@ -1643,12 +1738,10 @@ export default function ResourcesPage() {
               </Table>
             </CardContent>
           </Card>
-
-
-        </div>
-      </main>
-    </div>
-  </AuthGuard>
+          </div>
+        </main>
+      </div>
+    </AuthGuard>
   )
 }
 

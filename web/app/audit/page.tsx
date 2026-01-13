@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo, useRef } from "react"
+import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Sidebar } from "@/components/sidebar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -15,6 +16,8 @@ import { DateTimePicker } from "@/components/ui/date-time-picker"
 import { AuthGuard } from "@/components/auth-guard"
 import { formatDateTime } from "@/lib/utils"
 import { auditAPI } from "@/lib/api"
+import { canAccessAudit } from "@/lib/permissions"
+import { useIARNetStore } from "@/lib/store"
 import { format } from "date-fns"
 import { zhCN } from "date-fns/locale"
 import {
@@ -289,21 +292,8 @@ export default function AuditPage() {
     }
   }
 
-  // 更新时间范围：结束时间为当前时间+10分钟
-  const updateTimeRange = () => {
-    const now = new Date()
-    const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000)
-    const tenMinutesLater = new Date(now.getTime() + 10 * 60 * 1000)
-    setOperationsTimeRange({
-      startTime: twoHoursAgo.toISOString(),
-      endTime: tenMinutesLater.toISOString(),
-    })
-    setAllLogsTimeRange({
-      startTime: twoHoursAgo.toISOString(),
-      endTime: tenMinutesLater.toISOString(),
-    })
-  }
-
+  const router = useRouter()
+  const currentUser = useIARNetStore((state) => state.currentUser)
   const defaultTimeRange = getDefaultTimeRange()
   const [systemLogs, setSystemLogs] = useState<SystemLogEntry[]>([])
   const [operationLogs, setOperationLogs] = useState<OperationLogEntry[]>([])
@@ -328,6 +318,31 @@ export default function AuditPage() {
     startTime: defaultTimeRange.startTime,
     endTime: defaultTimeRange.endTime,
   })
+
+  // 更新时间范围：结束时间为当前时间+10分钟
+  const updateTimeRange = () => {
+    const now = new Date()
+    const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000)
+    const tenMinutesLater = new Date(now.getTime() + 10 * 60 * 1000)
+    setOperationsTimeRange({
+      startTime: twoHoursAgo.toISOString(),
+      endTime: tenMinutesLater.toISOString(),
+    })
+    setAllLogsTimeRange({
+      startTime: twoHoursAgo.toISOString(),
+      endTime: tenMinutesLater.toISOString(),
+    })
+  }
+  
+  // 检查权限：只有平台管理员和超级管理员可以访问
+  const hasPermission = canAccessAudit(currentUser?.role)
+
+  // 无权限时重定向到资源管理页面
+  useEffect(() => {
+    if (currentUser && !hasPermission) {
+      router.replace("/resources")
+    }
+  }, [currentUser, hasPermission, router])
   
   // 根据当前标签页获取对应的时间范围
   const currentTimeRange = logType === "operations" ? operationsTimeRange : allLogsTimeRange
@@ -593,6 +608,37 @@ export default function AuditPage() {
     link.download = fileName
     link.click()
     URL.revokeObjectURL(url)
+  }
+
+  // 如果没有权限，显示权限不足页面
+  if (!hasPermission) {
+    return (
+      <AuthGuard>
+        <div className="flex h-screen bg-background">
+          <Sidebar />
+          <main className="flex-1 overflow-auto flex items-center justify-center">
+            <Card className="max-w-md">
+              <CardHeader>
+                <CardTitle>权限不足</CardTitle>
+                <CardDescription>您没有权限访问日志审计功能</CardDescription>
+              </CardHeader>
+            </Card>
+          </main>
+        </div>
+      </AuthGuard>
+    )
+  }
+
+  // 无权限时不展示具体内容，等待重定向到资源管理页面
+  if (currentUser && !hasPermission) {
+    return (
+      <AuthGuard>
+        <div className="flex h-screen bg-background">
+          <Sidebar />
+          <main className="flex-1 overflow-auto" />
+        </div>
+      </AuthGuard>
+    )
   }
 
   return (

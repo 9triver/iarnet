@@ -1585,12 +1585,90 @@ func (cs *ComponentSession) decodeObjectValue(data []byte, language commonpb.Lan
 }
 
 // convertGoToJSON 将 Go gob 编码的对象转换为 JSON 格式
+// gob 解码时，如果编码端使用具体类型，解码端使用 interface{} 可能失败
+// 需要尝试多种常见类型的解码
 func convertGoToJSON(gobData []byte) ([]byte, error) {
-	// 使用 gob 解码
-	dec := gob.NewDecoder(bytes.NewReader(gobData))
+	if len(gobData) == 0 {
+		return nil, fmt.Errorf("empty gob data")
+	}
+
 	var value interface{}
-	if err := dec.Decode(&value); err != nil {
-		return nil, fmt.Errorf("failed to decode gob: %w", err)
+	var err error
+
+	// 尝试按顺序解码为常见类型
+	// 1. 尝试 string（最常见）
+	dec := gob.NewDecoder(bytes.NewReader(gobData))
+	var str string
+	if err = dec.Decode(&str); err == nil {
+		value = str
+	} else {
+		// 2. 尝试 int
+		dec = gob.NewDecoder(bytes.NewReader(gobData))
+		var i int
+		if err = dec.Decode(&i); err == nil {
+			value = i
+		} else {
+			// 3. 尝试 int64
+			dec = gob.NewDecoder(bytes.NewReader(gobData))
+			var i64 int64
+			if err = dec.Decode(&i64); err == nil {
+				value = i64
+			} else {
+				// 4. 尝试 float64
+				dec = gob.NewDecoder(bytes.NewReader(gobData))
+				var f float64
+				if err = dec.Decode(&f); err == nil {
+					value = f
+				} else {
+					// 5. 尝试 bool
+					dec = gob.NewDecoder(bytes.NewReader(gobData))
+					var b bool
+					if err = dec.Decode(&b); err == nil {
+						value = b
+					} else {
+						// 6. 尝试 []string
+						dec = gob.NewDecoder(bytes.NewReader(gobData))
+						var strSlice []string
+						if err = dec.Decode(&strSlice); err == nil {
+							value = strSlice
+						} else {
+							// 7. 尝试 []int
+							dec = gob.NewDecoder(bytes.NewReader(gobData))
+							var intSlice []int
+							if err = dec.Decode(&intSlice); err == nil {
+								value = intSlice
+							} else {
+								// 8. 尝试 map[string]string
+								dec = gob.NewDecoder(bytes.NewReader(gobData))
+								var m2 map[string]string
+								if err = dec.Decode(&m2); err == nil {
+									value = m2
+								} else {
+									// 9. 尝试 map[string]interface{}（需要先注册类型）
+									dec = gob.NewDecoder(bytes.NewReader(gobData))
+									gob.Register(map[string]interface{}(nil))
+									var m map[string]interface{}
+									if err = dec.Decode(&m); err == nil {
+										value = m
+									} else {
+										// 10. 尝试 []interface{}（需要先注册类型）
+										dec = gob.NewDecoder(bytes.NewReader(gobData))
+										gob.Register([]interface{}(nil))
+										var slice []interface{}
+										if err = dec.Decode(&slice); err == nil {
+											value = slice
+										} else {
+											// 所有类型都失败，返回最后一个错误
+											return nil, fmt.Errorf("failed to decode gob with any known type. Last error: %w", err)
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
 	}
 
 	// 转换为 JSON

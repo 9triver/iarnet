@@ -81,6 +81,7 @@ interface AsyncState {
 
 export interface CurrentUser {
   username: string
+  role?: string // 用户角色：normal（普通用户）、platform（平台管理员）、super（超级管理员）
 }
 
 interface IARNetStore {
@@ -537,9 +538,22 @@ export const useIARNetStore = create<IARNetStore>()(
             username: trimmedName,
             password,
           })
+          
+          // 获取用户详细信息（包含角色）
+          let userRole = response.role
+          if (!userRole) {
+            try {
+              const userInfo = await authAPI.getCurrentUser()
+              userRole = userInfo.role
+            } catch (error) {
+              console.warn("Failed to get user role:", error)
+            }
+          }
+          
           set({
             currentUser: {
               username: response.username,
+              role: userRole || "normal",
             },
           })
         } catch (error) {

@@ -1,9 +1,47 @@
 import { Application, ApplicationStats, CreateDirectoryResponse, CreateFileResponse, DeleteDirectoryResponse, DeleteFileResponse, GetApplicationActorsResponse, GetApplicationLogsResponse, GetApplicationsResponse, GetComponentLogsResponse, GetDAGResponse, GetFileContentResponse, GetFileTreeResponse, GetRunnerEnvironmentsResponse, SaveFileResponse } from "./model"
 
+// 错误消息映射：将后端返回的英文错误标识转换为中文提示
+export function getErrorMessage(error: string | undefined | null): string {
+  if (!error) {
+    return "操作失败"
+  }
+
+  const errorMap: Record<string, string> = {
+    "insufficient_permissions": "权限不足",
+    "cannot_modify_initial_super_admin_password": "无法修改配置的初始超级管理员账户的密码，只能由该账户自己修改",
+    "cannot_delete_initial_super_admin": "无法删除配置的初始超级管理员账户",
+    "forbidden": "权限不足",
+    "unauthorized": "未授权",
+    "authentication required": "需要登录",
+    "bad request": "请求参数错误",
+    "not found": "资源不存在",
+    "internal server error": "服务器内部错误",
+  }
+
+  // 先尝试精确匹配
+  if (errorMap[error]) {
+    return errorMap[error]
+  }
+
+  // 尝试不区分大小写匹配
+  const lowerError = error.toLowerCase()
+  if (errorMap[lowerError]) {
+    return errorMap[lowerError]
+  }
+
+  // 如果都不匹配，返回原始错误消息（可能是中文或其他格式）
+  return error
+}
+
 // 在客户端显示 toast 提示的辅助函数
 function showUnauthorizedToast() {
   // 只在客户端环境显示 toast
   if (typeof window !== "undefined") {
+    // 如果当前在登录页面，不显示"需要重新登录"的提示
+    // 因为登录页面会自己处理登录错误
+    if (window.location.pathname === "/login" || window.location.pathname.startsWith("/login")) {
+      return
+    }
     // 使用动态导入避免在服务端构建时出错
     import("sonner").then(({ toast }) => {
       toast.error("当前尚未登录或需要重新登录", {
@@ -39,6 +77,7 @@ export class APIError extends Error {
   constructor(
     public status: number,
     message: string,
+    public data?: any,
   ) {
     super(message)
     this.name = "APIError"
@@ -120,24 +159,45 @@ export async function apiRequest<T>(endpoint: string, options: RequestInit = {})
   //   console.log("API Response:", response.status, data)
   // }
 
+  const payload =
+    data && typeof data === "object"
+      ? ("data" in data ? (data as Record<string, any>).data : data)
+      : undefined
+
   // 处理 401 未授权错误，清除 token 并显示提示
   if (response.status === 401) {
     tokenManager.removeToken()
     // 在客户端显示 toast 提示
     showUnauthorizedToast()
-    throw new APIError(response.status, data.message || data.error || "认证失败，请重新登录")
+    throw new APIError(
+      response.status,
+      (data && (data.message || data.error)) || "认证失败，请重新登录",
+      payload,
+    )
   }
 
   if (!response.ok) {
-    throw new APIError(response.status, data.message || data.error || "API request failed")
+    const errorMsg = data && (data.message || data.error)
+    throw new APIError(
+      response.status,
+      errorMsg || "API request failed",
+      payload,
+    )
   }
 
   // 处理后端标准响应格式 {code, message, data}
   if (data.code !== undefined) {
     // 确保 code 是数字类型
     const code = typeof data.code === 'number' ? data.code : parseInt(String(data.code), 10)
+    // 业务码 401 表示未授权（即使 HTTP 状态是 200）
+    if (code === 401) {
+      tokenManager.removeToken()
+      showUnauthorizedToast()
+      throw new APIError(code, data.message || data.error || "认证失败，请重新登录", payload)
+    }
     if (isNaN(code) || code < 200 || code >= 300) {
-      throw new APIError(code, data.message || data.error || "API request failed")
+      const errorMsg = data.message || data.error
+      throw new APIError(code, errorMsg || "API request failed", payload)
     }
     // 确保返回 data.data，如果 data.data 存在
     if (data.data !== undefined) {
@@ -427,17 +487,34 @@ export interface LoginRequest {
 export interface LoginResponse {
   username: string
   token: string
+  role?: string
 }
 
 export interface GetCurrentUserResponse {
   username: string
+  role: string
+}
+
+export interface ChangePasswordRequest {
+  oldPassword: string
+  newPassword: string
 }
 
 export const authAPI = {
   login: async (request: LoginRequest): Promise<LoginResponse> => {
+    // 导入密码哈希函数
+    const { hashPassword } = await import("@/lib/utils")
+    
+    // 对密码进行哈希处理，避免明文传输
+    const hashedPassword = await hashPassword(request.password)
+    
+    // 发送哈希后的密码
     const response = await apiRequest<LoginResponse>("/auth/login", {
       method: "POST",
-      body: JSON.stringify(request),
+      body: JSON.stringify({
+        username: request.username,
+        password: hashedPassword, // 发送哈希后的密码
+      }),
     })
     // 保存 token
     if (response.token) {
@@ -448,8 +525,146 @@ export const authAPI = {
   logout: (): void => {
     tokenManager.removeToken()
   },
+  changePassword: async (request: ChangePasswordRequest): Promise<void> => {
+    // 注意：这里发送明文密码，因为后端需要明文密码进行存储
+    // 虽然登录时使用哈希传输，但修改密码时需要明文以便后端存储
+    // 为了安全，请确保使用 HTTPS 传输
+    await apiRequest<void>("/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify({
+        old_password: request.oldPassword,
+        new_password: request.newPassword,
+      }),
+    })
+  },
   getCurrentUser: () =>
     apiRequest<GetCurrentUserResponse>("/auth/me"),
+}
+
+// 验证码 API
+export interface CaptchaResponse {
+  captchaId: string
+  imageUrl: string
+  expiresAt: number // 过期时间戳（毫秒）
+}
+
+export interface VerifyCaptchaRequest {
+  captchaId: string
+  answer: string
+}
+
+export interface VerifyCaptchaResponse {
+  valid: boolean
+  message: string
+}
+
+// 用户管理 API
+export interface UserInfo {
+  name: string
+  role: string
+  locked: boolean
+  locked_until?: string
+  failed_count: number
+}
+
+export interface GetUsersResponse {
+  users: UserInfo[]
+  total: number
+}
+
+export interface CreateUserRequest {
+  name: string
+  password: string
+  role: string
+}
+
+export interface UpdateUserRequest {
+  password?: string
+  role?: string
+}
+
+// 恢复 API
+export interface RecoveryUnlockRequest {
+  username: string
+  password: string
+}
+
+export interface RecoveryUnlockResponse {
+  message: string
+  username: string
+}
+
+export const recoveryAPI = {
+  // 紧急解锁超级管理员账户（需要配置文件中的密码）
+  unlockSuperAdmin: (request: RecoveryUnlockRequest) =>
+    apiRequest<RecoveryUnlockResponse>("/auth/recovery/unlock-super-admin", {
+      method: "POST",
+      body: JSON.stringify(request),
+    }),
+}
+
+export const usersAPI = {
+  // 获取用户列表（仅超级管理员）
+  getUsers: () => apiRequest<GetUsersResponse>("/auth/users"),
+  
+  // 获取单个用户信息（仅超级管理员）
+  getUser: (username: string) => apiRequest<UserInfo>(`/auth/users/${username}`),
+  
+  // 创建用户（仅超级管理员）
+  createUser: (request: CreateUserRequest) =>
+    apiRequest<UserInfo>("/auth/users", {
+      method: "POST",
+      body: JSON.stringify(request),
+    }),
+  
+  // 更新用户（仅超级管理员）
+  updateUser: (username: string, request: UpdateUserRequest) =>
+    apiRequest<UserInfo>(`/auth/users/${username}`, {
+      method: "PUT",
+      body: JSON.stringify(request),
+    }),
+  
+  // 删除用户（仅超级管理员）
+  deleteUser: (username: string) =>
+    apiRequest<void>(`/auth/users/${username}`, {
+      method: "DELETE",
+    }),
+  
+  // 解锁用户（仅超级管理员）
+  unlockUser: (username: string) =>
+    apiRequest<void>(`/auth/users/${username}/unlock`, {
+      method: "POST",
+    }),
+}
+
+export const captchaAPI = {
+  // 获取验证码图片 URL 和 ID
+  getCaptcha: async (): Promise<CaptchaResponse> => {
+    const response = await fetch("/api/captcha", {
+      method: "GET",
+      cache: "no-store",
+    })
+    if (!response.ok) {
+      throw new Error("Failed to fetch captcha")
+    }
+    const captchaId = response.headers.get("X-Captcha-Id") || ""
+    const expiresAtHeader = response.headers.get("X-Captcha-Expires-At")
+    const expiresAt = expiresAtHeader ? parseInt(expiresAtHeader, 10) : Date.now() + 2 * 60 * 1000
+    const blob = await response.blob()
+    const imageUrl = URL.createObjectURL(blob)
+    return {
+      captchaId,
+      imageUrl,
+      expiresAt,
+    }
+  },
+  
+  // 验证验证码
+  verifyCaptcha: (request: VerifyCaptchaRequest) =>
+    apiRequest<VerifyCaptchaResponse>("/captcha", {
+      method: "POST",
+      body: JSON.stringify(request),
+    }),
 }
 
 // Audit API - 系统日志

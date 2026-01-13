@@ -1,8 +1,8 @@
 host: "host.internal" # Host for external connection. TODO: 通信问题待解决
 
-users:
-  - name: "admin"
-    password: "123456"
+super_admin:
+  name: "admin"
+  password: "123456"
 
 peer_listen_addr: ":50051"
 initial_peers:

@@ -7,10 +7,11 @@ import (
 
 // BaseResponse 统一的API响应结构
 type BaseResponse struct {
-	Code    int    `json:"code"`            // HTTP状态码
-	Message string `json:"message"`         // 响应消息
-	Data    any    `json:"data,omitempty"`  // 响应数据
-	Error   string `json:"error,omitempty"` // 错误信息
+	Code       int    `json:"code"`            // 业务状态码
+	Message    string `json:"message"`         // 响应消息
+	Data       any    `json:"data,omitempty"`  // 响应数据
+	Error      string `json:"error,omitempty"` // 错误信息
+	HTTPStatus int    `json:"-"`               // HTTP 状态码（可选，默认与 Code 相同）
 }
 
 // Success 创建成功响应
@@ -66,6 +67,15 @@ func Unauthorized(error string) *BaseResponse {
 	}
 }
 
+// Forbidden 创建禁止访问响应
+func Forbidden(error string) *BaseResponse {
+	return &BaseResponse{
+		Code:    http.StatusForbidden,
+		Message: "forbidden",
+		Error:   error,
+	}
+}
+
 // InternalError 创建内部服务器错误响应
 func InternalError(error string) *BaseResponse {
 	return &BaseResponse{
@@ -96,7 +106,11 @@ func NotFound(error string) *BaseResponse {
 // WriteJSON 将响应写入HTTP响应
 func (r *BaseResponse) WriteJSON(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(r.Code)
+	status := r.HTTPStatus
+	if status == 0 {
+		status = r.Code
+	}
+	w.WriteHeader(status)
 	return json.NewEncoder(w).Encode(r)
 }
 
@@ -126,4 +140,14 @@ func WriteError(w http.ResponseWriter, statusCode int, message string, err error
 	}
 
 	return response.WriteJSON(w)
+}
+
+// BusinessError 创建业务错误响应（HTTP 状态依然为 200）
+func BusinessError(code int, message string, data any) *BaseResponse {
+	return &BaseResponse{
+		Code:       code,
+		Message:    message,
+		Data:       data,
+		HTTPStatus: http.StatusOK,
+	}
 }

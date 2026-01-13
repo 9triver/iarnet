@@ -11,7 +11,8 @@ type Config struct {
 	ResourceLimits    map[string]string `yaml:"resource_limits"`     // e.g., {"cpu": "4", "memory": "8Gi", "gpu": "2"}
 	DataDir           string            `yaml:"data_dir"`            // e.g., "./data" - directory for SQLite databases
 	EnableLocalDocker bool              `yaml:"enable_local_docker"` // e.g., true - enable local docker provider
-	Users             []UserConfig      `yaml:"users"`               // 用户配置列表
+	SuperAdmin        *SuperAdminConfig `yaml:"super_admin"`         // 超级管理员配置（仅用于初始化）
+	Users             []UserConfig      `yaml:"users"`               // 用户配置列表（已废弃，保留用于向后兼容）
 
 	// 领域模块配置（内联定义，避免循环依赖）
 	Application ApplicationConfig `yaml:"application"` // Application module configuration
@@ -27,10 +28,26 @@ type AuthConfig struct {
 	JWTSecret string `yaml:"jwt_secret"` // JWT 密钥
 }
 
-// UserConfig 用户配置
-type UserConfig struct {
+// UserRole 用户角色
+type UserRole string
+
+const (
+	RoleNormalUser    UserRole = "normal"   // 普通用户
+	RolePlatformAdmin UserRole = "platform" // 平台管理员
+	RoleSuperAdmin    UserRole = "super"    // 超级管理员
+)
+
+// SuperAdminConfig 超级管理员配置（仅用于初始化）
+type SuperAdminConfig struct {
 	Name     string `yaml:"name"`     // 用户名
-	Password string `yaml:"password"` // 密码（明文，仅用于配置）
+	Password string `yaml:"password"` // 密码（明文）
+}
+
+// UserConfig 用户配置（已废弃，保留用于向后兼容）
+type UserConfig struct {
+	Name     string   `yaml:"name"`     // 用户名
+	Password string   `yaml:"password"` // 密码（明文，仅用于配置）
+	Role     UserRole `yaml:"role"`     // 用户角色：normal（普通用户）、platform（平台管理员）、super（超级管理员）
 }
 
 // ApplicationConfig Application 模块配置

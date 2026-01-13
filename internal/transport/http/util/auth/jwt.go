@@ -17,14 +17,16 @@ var (
 // Claims JWT Claims 结构
 type Claims struct {
 	Username string `json:"username"`
+	Role     string `json:"role"` // 用户角色
 	jwt.RegisteredClaims
 }
 
 // GenerateToken 生成 JWT token
-func GenerateToken(username string) (string, error) {
+func GenerateToken(username string, role string) (string, error) {
 	expirationTime := time.Now().Add(TokenExpiration)
 	claims := &Claims{
 		Username: username,
+		Role:     role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

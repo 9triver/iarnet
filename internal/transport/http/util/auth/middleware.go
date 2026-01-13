@@ -15,6 +15,8 @@ type ContextKey string
 const (
 	// UserContextKey context 中用户名的 key
 	UserContextKey ContextKey = "username"
+	// RoleContextKey context 中用户角色的 key
+	RoleContextKey ContextKey = "role"
 )
 
 // AuthMiddleware 认证中间件
@@ -59,6 +61,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 
 		// 将用户信息注入到 context
 		ctx := context.WithValue(r.Context(), UserContextKey, claims.Username)
+		ctx = context.WithValue(ctx, RoleContextKey, claims.Role)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -67,6 +70,14 @@ func AuthMiddleware(next http.Handler) http.Handler {
 func GetUsernameFromContext(ctx context.Context) string {
 	if username, ok := ctx.Value(UserContextKey).(string); ok {
 		return username
+	}
+	return ""
+}
+
+// GetRoleFromContext 从 context 中获取用户角色
+func GetRoleFromContext(ctx context.Context) string {
+	if role, ok := ctx.Value(RoleContextKey).(string); ok {
+		return role
 	}
 	return ""
 }
