@@ -49,6 +49,10 @@ WORKDIR /build/web
 # 安装依赖
 RUN npm install --legacy-peer-deps
 
+# 将 monaco-editor 的静态资源复制到 public，以便在无网络环境下本地加载
+RUN mkdir -p public/monaco-editor && \
+    cp -r node_modules/monaco-editor/min/vs public/monaco-editor/vs
+
 # 构建前端（生产模式）
 RUN npm run build
 

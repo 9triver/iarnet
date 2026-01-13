@@ -57,6 +57,17 @@ interface CreateDialogState {
   targetPath: string
 }
 
+// 编辑器超时处理组件
+const EditorTimeoutHandler: React.FC<{ timeout: number; onTimeout: () => void }> = ({ timeout, onTimeout }) => {
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      onTimeout()
+    }, timeout)
+    return () => clearTimeout(timer)
+  }, [timeout, onTimeout])
+  return null
+}
+
 const FileTreeItem: React.FC<FileTreeItemProps> = ({
   file,
   level,
@@ -283,6 +294,8 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ appId, className }) => {
   const [isRootCreateDialogOpen, setIsRootCreateDialogOpen] = useState(false)
   const [rootCreateName, setRootCreateName] = useState("")
   const [rootCreateType, setRootCreateType] = useState<"file" | "folder">("file")
+  const [editorLoading, setEditorLoading] = useState(true)
+  const [editorError, setEditorError] = useState<string | null>(null)
 
   // 获取文件树
   const fetchFileTree = async (path: string = '/') => {
@@ -309,6 +322,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ appId, className }) => {
   const fetchFileContent = async (filePath: string) => {
     try {
       setLoading(true)
+      setEditorError(null)
       const result = await applicationsAPI.getFileContent(appId, filePath)
        setCurrentFile({ 
          content: result.content, 
@@ -322,6 +336,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ appId, className }) => {
        setIsDirty(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')
+      setEditorError('加载文件内容失败')
     } finally {
       setLoading(false)
     }
@@ -545,28 +560,55 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ appId, className }) => {
     return result
   }
 
-  // 配置 Monaco Editor 使用本地资源（解决 Docker 容器中 Worker 加载问题）
+  // 配置 Monaco Editor Worker（使用本地静态资源，支持无网络环境）
   useEffect(() => {
-    // 配置 Monaco Editor 使用本地路径而不是 CDN
-    // 在 Next.js 中，Monaco Editor 的资源会被打包到 _next/static 目录
     if (typeof window !== 'undefined') {
-      loader.config({ 
-        paths: { 
-          vs: '/_next/static/chunks/node_modules_monaco-editor_min_vs' 
-        } 
-      })
-      
-      // 如果上面的路径不工作，尝试使用 CDN 但设置超时
-      // 或者使用 monaco-editor 包中的路径
+      // 本地 monaco 资源路径：
+      // 在 Docker 构建阶段已将 node_modules/monaco-editor/min/vs
+      // 复制到 public/monaco-editor/vs 下，对外可通过
+      //   /monaco-editor/vs
+      // 访问，所以这里直接指向该本地路径。
+      const localVsBasePath = '/monaco-editor/vs'
+
       try {
-        // 尝试从 node_modules 加载（开发环境）
-        const monacoPath = '/node_modules/monaco-editor/min/vs'
-        // 或者使用 CDN 作为后备
-        loader.config({ 
-          paths: { 
-            vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs'
-          } 
+        loader.config({
+          paths: {
+            vs: localVsBasePath,
+          },
         })
+
+        // 配置 Worker 环境，从本地路径加载各语言的 worker
+        if (!(window as any).MonacoEnvironment) {
+          ;(window as any).MonacoEnvironment = {
+            getWorkerUrl: function (_moduleId: string, label: string) {
+              // monaco-editor 的 worker 目录结构为：
+              //   vs/[language]/[language].worker.js
+              // 例如：
+              //   vs/editor/editor.worker.js
+              //   vs/language/json/json.worker.js
+              //   vs/language/css/css.worker.js
+              //   vs/language/html/html.worker.js
+              //   vs/language/typescript/ts.worker.js
+              switch (label) {
+                case 'json':
+                  return `${localVsBasePath}/language/json/json.worker.js`
+                case 'css':
+                case 'scss':
+                case 'less':
+                  return `${localVsBasePath}/language/css/css.worker.js`
+                case 'html':
+                case 'handlebars':
+                case 'razor':
+                  return `${localVsBasePath}/language/html/html.worker.js`
+                case 'typescript':
+                case 'javascript':
+                  return `${localVsBasePath}/language/typescript/ts.worker.js`
+                default:
+                  return `${localVsBasePath}/editor/editor.worker.js`
+              }
+            },
+          }
+        }
       } catch (error) {
         console.warn('Monaco Editor loader config failed:', error)
       }
@@ -634,34 +676,83 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ appId, className }) => {
             </div>
             
             {/* Monaco Editor */}
-            <div className="flex-1">
-              <Editor
-                height="100%"
-                language={currentFile.language}
-                value={editorContent}
-                theme="vs"
-                options={{
-                  readOnly: false,
-                  minimap: { enabled: true },
-                  fontSize: 14,
-                  lineNumbers: 'on',
-                  roundedSelection: false,
-                  scrollBeyondLastLine: false,
-                  automaticLayout: true,
-                  wordWrap: 'on',
-                  folding: true,
-                  lineDecorationsWidth: 10,
-                  lineNumbersMinChars: 3,
-                  glyphMargin: false,
-                }}
-                onMount={(editor) => {
-                  editor.onDidChangeModelContent(() => {
-                    setEditorContent(editor.getValue())
-                    setIsDirty(true)
-                  })
-                }}
-                loading={<div className="flex items-center justify-center h-full">加载编辑器...</div>}
-              />
+            <div className="flex-1 relative">
+              {editorError ? (
+                <div className="flex items-center justify-center h-full flex-col gap-2">
+                  <p className="text-destructive">{editorError}</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setEditorError(null)
+                      setEditorLoading(true)
+                      // 重新加载编辑器
+                      window.location.reload()
+                    }}
+                  >
+                    重试
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  {editorLoading && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
+                      <div className="text-center">
+                        <div className="text-sm text-muted-foreground mb-2">加载编辑器...</div>
+                        <div className="text-xs text-muted-foreground">如果长时间未响应，请刷新页面或联系管理员</div>
+                      </div>
+                    </div>
+                  )}
+                  <Editor
+                    height="100%"
+                    language={currentFile.language}
+                    value={editorContent}
+                    theme="vs"
+                    options={{
+                      readOnly: false,
+                      minimap: { enabled: true },
+                      fontSize: 14,
+                      lineNumbers: 'on',
+                      roundedSelection: false,
+                      scrollBeyondLastLine: false,
+                      automaticLayout: true,
+                      wordWrap: 'on',
+                      folding: true,
+                      lineDecorationsWidth: 10,
+                      lineNumbersMinChars: 3,
+                      glyphMargin: false,
+                    }}
+                    beforeMount={() => {
+                      // 这里不再做额外配置，实际配置在上面的 useEffect 中统一完成
+                    }}
+                    onMount={(editor) => {
+                      setEditorLoading(false)
+                      setEditorError(null)
+                      editor.onDidChangeModelContent(() => {
+                        setEditorContent(editor.getValue())
+                        setIsDirty(true)
+                      })
+                    }}
+                    loading={<div className="flex items-center justify-center h-full">加载编辑器...</div>}
+                    onValidate={(markers) => {
+                      // 编辑器验证完成，确保加载状态更新
+                      if (editorLoading) {
+                        setEditorLoading(false)
+                      }
+                    }}
+                  />
+                  {/* 添加超时检测 */}
+                  {editorLoading && (
+                    <EditorTimeoutHandler
+                      timeout={10000}
+                      onTimeout={() => {
+                        setEditorLoading(false)
+                        setEditorError('编辑器加载超时，请检查网络连接或刷新页面')
+                      }}
+                    />
+                  )}
+                </>
+              )}
             </div>
           </>
         ) : (
