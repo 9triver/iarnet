@@ -149,7 +149,7 @@ export function Sidebar() {
         {!isCollapsed && (
           <div className="flex items-center space-x-2">
             <Cpu className="h-8 w-8 text-sidebar-primary" />
-            <h1 className="text-xl font-playfair font-bold text-sidebar-foreground">IARNet</h1>
+            <h1 className="text-xl font-playfair font-bold text-sidebar-foreground">智能应用运行平台原型系统</h1>
           </div>
         )}
         <Button
@@ -219,7 +219,7 @@ export function Sidebar() {
             {!isCollapsed && <span className="ml-2">退出登录</span>}
           </Button>
         </div>
-        {!isCollapsed && <div className="mt-3 text-xs text-sidebar-foreground/60">IARNet v1.0.0</div>}
+        {!isCollapsed && <div className="mt-3 text-xs text-sidebar-foreground/60">智能应用运行平台原型系统 v1.0.0</div>}
       </div>
 
       {/* 修改密码对话框 */}

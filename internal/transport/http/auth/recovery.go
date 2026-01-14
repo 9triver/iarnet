@@ -50,7 +50,20 @@ func (api *API) handleRecoveryUnlockSuperAdmin(w http.ResponseWriter, r *http.Re
 	}
 
 	// 验证密码是否匹配配置中的超级管理员密码
-	if req.Password != api.config.SuperAdmin.Password {
+	// 支持两种方式：
+	// 1. 如果收到的密码是64位十六进制字符串（SHA-256哈希），则对配置中的明文密码进行哈希后比较
+	// 2. 否则进行明文比较（向后兼容）
+	passwordMatch := false
+	if len(req.Password) == 64 && isHexString(req.Password) {
+		// 收到的密码是哈希值，对配置中的明文密码进行哈希后比较
+		hashedConfigPassword := hashSHA256(api.config.SuperAdmin.Password)
+		passwordMatch = strings.EqualFold(hashedConfigPassword, req.Password)
+	} else {
+		// 收到的密码是明文，直接比较（向后兼容）
+		passwordMatch = req.Password == api.config.SuperAdmin.Password
+	}
+
+	if !passwordMatch {
 		logrus.Warnf("Recovery attempt failed: incorrect config password for super admin: %s", username)
 		response.Unauthorized("invalid recovery password").WriteJSON(w)
 		return

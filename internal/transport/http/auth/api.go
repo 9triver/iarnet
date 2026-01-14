@@ -157,18 +157,36 @@ func (api *API) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	// 验证密码
 	// 支持两种方式：
-	// 1. 如果收到的密码是64位十六进制字符串（SHA-256哈希），则进行哈希比较
-	// 2. 否则进行明文比较（向后兼容）
+	// 1. 如果收到的密码是64位十六进制字符串（SHA-256哈希），则与数据库中的值直接比较（数据库存储的可能是哈希值）
+	//    如果数据库存储的是明文，则对明文进行哈希后比较
+	// 2. 如果收到的是明文，则对数据库中的值进行哈希后比较（如果数据库存储的是哈希），或直接比较（如果数据库存储的是明文）
 	passwordMatch := false
 	if len(req.Password) == 64 && isHexString(req.Password) {
-		// 收到的密码是哈希值，对数据库中的密码进行哈希后比较
-		hashedDBPassword := hashSHA256(userDAO.Password)
-		passwordMatch = strings.EqualFold(hashedDBPassword, req.Password)
-		logrus.Debugf("Password verification (hashed): received=%s, computed=%s, match=%v", req.Password[:16]+"...", hashedDBPassword[:16]+"...", passwordMatch)
+		// 收到的密码是哈希值
+		// 检查数据库中的密码是否是哈希值（64位十六进制）
+		if len(userDAO.Password) == 64 && isHexString(userDAO.Password) {
+			// 数据库存储的是哈希值，直接比较
+			passwordMatch = strings.EqualFold(userDAO.Password, req.Password)
+			logrus.Debugf("Password verification (hashed vs hashed): match=%v", passwordMatch)
+		} else {
+			// 数据库存储的是明文，对明文进行哈希后比较（向后兼容）
+			hashedDBPassword := hashSHA256(userDAO.Password)
+			passwordMatch = strings.EqualFold(hashedDBPassword, req.Password)
+			logrus.Debugf("Password verification (hashed vs plaintext): match=%v", passwordMatch)
+		}
 	} else {
-		// 收到的密码是明文，直接比较（向后兼容）
-		passwordMatch = userDAO.Password == req.Password
-		logrus.Debugf("Password verification (plaintext): match=%v", passwordMatch)
+		// 收到的密码是明文（向后兼容）
+		// 检查数据库中的密码是否是哈希值
+		if len(userDAO.Password) == 64 && isHexString(userDAO.Password) {
+			// 数据库存储的是哈希值，对收到的明文进行哈希后比较
+			hashedReceivedPassword := hashSHA256(req.Password)
+			passwordMatch = strings.EqualFold(userDAO.Password, hashedReceivedPassword)
+			logrus.Debugf("Password verification (plaintext vs hashed): match=%v", passwordMatch)
+		} else {
+			// 数据库存储的是明文，直接比较（向后兼容）
+			passwordMatch = userDAO.Password == req.Password
+			logrus.Debugf("Password verification (plaintext vs plaintext): match=%v", passwordMatch)
+		}
 	}
 
 	if !passwordMatch {
@@ -293,16 +311,32 @@ func (api *API) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 
 	// 验证旧密码
 	// 支持两种方式：
-	// 1. 如果收到的密码是64位十六进制字符串（SHA-256哈希），则进行哈希比较
-	// 2. 否则进行明文比较（向后兼容）
+	// 1. 如果收到的密码是64位十六进制字符串（SHA-256哈希），则与数据库中的值直接比较（数据库存储的可能是哈希值）
+	//    如果数据库存储的是明文，则对明文进行哈希后比较
+	// 2. 如果收到的是明文，则对数据库中的值进行哈希后比较（如果数据库存储的是哈希），或直接比较（如果数据库存储的是明文）
 	passwordMatch := false
 	if len(req.OldPassword) == 64 && isHexString(req.OldPassword) {
-		// 收到的密码是哈希值，对数据库中的密码进行哈希后比较
-		hashedDBPassword := hashSHA256(userDAO.Password)
-		passwordMatch = strings.EqualFold(hashedDBPassword, req.OldPassword)
+		// 收到的密码是哈希值
+		// 检查数据库中的密码是否是哈希值（64位十六进制）
+		if len(userDAO.Password) == 64 && isHexString(userDAO.Password) {
+			// 数据库存储的是哈希值，直接比较
+			passwordMatch = strings.EqualFold(userDAO.Password, req.OldPassword)
+		} else {
+			// 数据库存储的是明文，对明文进行哈希后比较（向后兼容）
+			hashedDBPassword := hashSHA256(userDAO.Password)
+			passwordMatch = strings.EqualFold(hashedDBPassword, req.OldPassword)
+		}
 	} else {
-		// 收到的密码是明文，直接比较（向后兼容）
-		passwordMatch = userDAO.Password == req.OldPassword
+		// 收到的密码是明文（向后兼容）
+		// 检查数据库中的密码是否是哈希值
+		if len(userDAO.Password) == 64 && isHexString(userDAO.Password) {
+			// 数据库存储的是哈希值，对收到的明文进行哈希后比较
+			hashedReceivedPassword := hashSHA256(req.OldPassword)
+			passwordMatch = strings.EqualFold(userDAO.Password, hashedReceivedPassword)
+		} else {
+			// 数据库存储的是明文，直接比较（向后兼容）
+			passwordMatch = userDAO.Password == req.OldPassword
+		}
 	}
 
 	if !passwordMatch {
@@ -311,18 +345,16 @@ func (api *API) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 更新密码
-	// 如果前端发送的是哈希值（64位十六进制），我们需要存储对应的明文
-	// 但由于无法从哈希反推明文，我们要求前端发送明文密码
-	// 为了安全，建议使用 HTTPS 传输
+	// 前端发送的是哈希值（64位十六进制），我们直接存储哈希值
+	// 这样可以避免在传输过程中暴露明文密码
 	newPassword := req.NewPassword
 	if len(req.NewPassword) == 64 && isHexString(req.NewPassword) {
-		// 如果收到哈希值，说明前端可能误传了哈希
-		// 为了保持一致性，我们要求前端发送明文
-		response.BadRequest("请发送明文密码，不要发送哈希值").WriteJSON(w)
-		return
+		// 收到哈希值，直接存储
+		userDAO.Password = newPassword
+	} else {
+		// 收到明文（向后兼容），先哈希再存储
+		userDAO.Password = hashSHA256(newPassword)
 	}
-
-	userDAO.Password = newPassword
 
 	if err := api.userRepo.Update(ctx, userDAO); err != nil {
 		logrus.Errorf("Failed to update password: %v", err)

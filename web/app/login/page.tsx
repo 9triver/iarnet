@@ -211,7 +211,7 @@ function LoginForm() {
     <div className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader>
-          <CardTitle className="text-2xl font-bold">登录 IARNet</CardTitle>
+          <CardTitle className="text-2xl font-bold">登录 智能应用运行平台原型系统</CardTitle>
           <CardDescription>输入账号密码以访问资源管理平台。</CardDescription>
         </CardHeader>
         <CardContent>

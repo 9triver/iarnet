@@ -448,7 +448,7 @@ export default function ApplicationsPage() {
                   <DialogHeader>
                     <DialogTitle>{editingApp ? "编辑应用" : "导入新应用"}</DialogTitle>
                     <DialogDescription>
-                      {editingApp ? "修改应用配置信息" : "从Git仓库导入应用到IARNet平台"}
+                      {editingApp ? "修改应用配置信息" : "从Git仓库导入应用到智能应用运行平台原型系统"}
                     </DialogDescription>
                   </DialogHeader>
 

@@ -177,7 +177,8 @@ export async function apiRequest<T>(endpoint: string, options: RequestInit = {})
   }
 
   if (!response.ok) {
-    const errorMsg = data && (data.message || data.error)
+    // 优先使用 error 字段（包含具体错误信息），如果没有则使用 message 字段
+    const errorMsg = data && (data.error || data.message)
     throw new APIError(
       response.status,
       errorMsg || "API request failed",
@@ -193,10 +194,12 @@ export async function apiRequest<T>(endpoint: string, options: RequestInit = {})
     if (code === 401) {
       tokenManager.removeToken()
       showUnauthorizedToast()
-      throw new APIError(code, data.message || data.error || "认证失败，请重新登录", payload)
+      // 优先使用 error 字段（包含具体错误信息），如果没有则使用 message 字段
+      throw new APIError(code, data.error || data.message || "认证失败，请重新登录", payload)
     }
     if (isNaN(code) || code < 200 || code >= 300) {
-      const errorMsg = data.message || data.error
+      // 优先使用 error 字段（包含具体错误信息），如果没有则使用 message 字段
+      const errorMsg = data.error || data.message
       throw new APIError(code, errorMsg || "API request failed", payload)
     }
     // 确保返回 data.data，如果 data.data 存在
@@ -526,14 +529,19 @@ export const authAPI = {
     tokenManager.removeToken()
   },
   changePassword: async (request: ChangePasswordRequest): Promise<void> => {
-    // 注意：这里发送明文密码，因为后端需要明文密码进行存储
-    // 虽然登录时使用哈希传输，但修改密码时需要明文以便后端存储
-    // 为了安全，请确保使用 HTTPS 传输
+    // 导入密码哈希函数
+    const { hashPassword } = await import("@/lib/utils")
+    
+    // 对密码进行哈希处理，避免明文传输
+    const hashedOldPassword = await hashPassword(request.oldPassword)
+    const hashedNewPassword = await hashPassword(request.newPassword)
+    
+    // 发送哈希后的密码
     await apiRequest<void>("/auth/change-password", {
       method: "POST",
       body: JSON.stringify({
-        old_password: request.oldPassword,
-        new_password: request.newPassword,
+        old_password: hashedOldPassword,
+        new_password: hashedNewPassword,
       }),
     })
   },
@@ -596,11 +604,22 @@ export interface RecoveryUnlockResponse {
 
 export const recoveryAPI = {
   // 紧急解锁超级管理员账户（需要配置文件中的密码）
-  unlockSuperAdmin: (request: RecoveryUnlockRequest) =>
-    apiRequest<RecoveryUnlockResponse>("/auth/recovery/unlock-super-admin", {
+  unlockSuperAdmin: async (request: RecoveryUnlockRequest) => {
+    // 导入密码哈希函数
+    const { hashPassword } = await import("@/lib/utils")
+    
+    // 对密码进行哈希处理，避免明文传输
+    const hashedPassword = await hashPassword(request.password)
+    
+    // 发送哈希后的密码
+    return apiRequest<RecoveryUnlockResponse>("/auth/recovery/unlock-super-admin", {
       method: "POST",
-      body: JSON.stringify(request),
-    }),
+      body: JSON.stringify({
+        ...request,
+        password: hashedPassword,
+      }),
+    })
+  },
 }
 
 export const usersAPI = {
@@ -611,18 +630,40 @@ export const usersAPI = {
   getUser: (username: string) => apiRequest<UserInfo>(`/auth/users/${username}`),
   
   // 创建用户（仅超级管理员）
-  createUser: (request: CreateUserRequest) =>
-    apiRequest<UserInfo>("/auth/users", {
+  createUser: async (request: CreateUserRequest) => {
+    // 导入密码哈希函数
+    const { hashPassword } = await import("@/lib/utils")
+    
+    // 对密码进行哈希处理，避免明文传输
+    const hashedPassword = await hashPassword(request.password)
+    
+    // 发送哈希后的密码
+    return apiRequest<UserInfo>("/auth/users", {
       method: "POST",
-      body: JSON.stringify(request),
-    }),
+      body: JSON.stringify({
+        ...request,
+        password: hashedPassword,
+      }),
+    })
+  },
   
   // 更新用户（仅超级管理员）
-  updateUser: (username: string, request: UpdateUserRequest) =>
-    apiRequest<UserInfo>(`/auth/users/${username}`, {
+  updateUser: async (username: string, request: UpdateUserRequest) => {
+    // 如果请求中包含密码，对密码进行哈希处理
+    const requestBody: UpdateUserRequest = { ...request }
+    if (request.password) {
+      // 导入密码哈希函数
+      const { hashPassword } = await import("@/lib/utils")
+      // 对密码进行哈希处理，避免明文传输
+      requestBody.password = await hashPassword(request.password)
+    }
+    
+    // 发送请求
+    return apiRequest<UserInfo>(`/auth/users/${username}`, {
       method: "PUT",
-      body: JSON.stringify(request),
-    }),
+      body: JSON.stringify(requestBody),
+    })
+  },
   
   // 删除用户（仅超级管理员）
   deleteUser: (username: string) =>

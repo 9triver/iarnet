@@ -194,10 +194,21 @@ func (api *API) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 创建新用户
+	// 前端发送的是哈希值（64位十六进制），我们直接存储哈希值
+	// 这样可以避免在传输过程中暴露明文密码
+	passwordToStore := req.Password
+	if len(req.Password) == 64 && isHexString(req.Password) {
+		// 收到哈希值，直接存储
+		passwordToStore = req.Password
+	} else {
+		// 收到明文（向后兼容），先哈希再存储
+		passwordToStore = hashSHA256(req.Password)
+	}
+
 	userDAO := &userrepo.UserDAO{
 		ID:       username, // 使用用户名作为 ID
 		Name:     username,
-		Password: req.Password,
+		Password: passwordToStore,
 		Role:     role,
 	}
 
@@ -261,8 +272,16 @@ func (api *API) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 更新密码（如果提供）
+	// 前端发送的是哈希值（64位十六进制），我们直接存储哈希值
+	// 这样可以避免在传输过程中暴露明文密码
 	if req.Password != "" {
-		userDAO.Password = req.Password
+		if len(req.Password) == 64 && isHexString(req.Password) {
+			// 收到哈希值，直接存储
+			userDAO.Password = req.Password
+		} else {
+			// 收到明文（向后兼容），先哈希再存储
+			userDAO.Password = hashSHA256(req.Password)
+		}
 	}
 
 	// 更新角色（如果提供）
