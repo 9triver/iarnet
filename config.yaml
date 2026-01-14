@@ -25,6 +25,48 @@ resource:
   domain_id: "domain.nwwNPjSgUFM9DCv74J8LbM"
   component_images:
     "python": "iarnet/component:python_3.11-latest"
+  # 假 Provider 配置（用于演示，不参与调度）
+  fake_providers:
+    - name: "Fake Docker Provider 1"
+      type: "docker"
+      cpu: 4000        # millicores
+      memory: 8Gi      # 支持字符串格式：8Gi, 8GB, 8192Mi, 512Mi 等，也支持整数字节数
+      gpu: 0
+      host: "provider-docker-1"  # host 格式：provider-类型-编号（无 .example.com 后缀）
+      port: 50051
+      resource_tags:  # 资源标签配置（可选，不配置则使用默认值：CPU=true, GPU=true, Memory=true, Camera=false）
+        cpu: true
+        gpu: false
+        memory: true
+        camera: false
+      usage:  # 资源使用状态配置（可选，不配置则默认完全使用 100%）
+        cpu_ratio: 0.8     # CPU 使用率 80%（0.0-1.0）
+        gpu_ratio: 0.6     # GPU 使用率 60%（0.0-1.0）
+        memory_ratio: 0.75 # Memory 使用率 75%（0.0-1.0）
+        # 或者直接指定已使用的资源量（如果同时配置，used 优先）
+        # used:
+        #   cpu: 3200      # 已使用的 CPU（millicores）
+        #   memory: 6Gi    # 已使用的内存（支持字符串格式如 "6Gi" 或整数字节数）
+        #   gpu: 0
+    - name: "Fake K8s Provider 1"
+      type: "k8s"
+      cpu: 8000        # millicores
+      memory: 16Gi     # 支持字符串格式：8Gi, 8GB, 8192Mi, 512Mi 等，也支持整数字节数
+      gpu: 2
+      host: "provider-k8s-1"  # host 格式：provider-类型-编号（无 .example.com 后缀）
+      port: 50051
+      resource_tags:  # 资源标签配置（可选）
+        cpu: true
+        gpu: true
+        memory: true
+        camera: false
+      usage:  # 资源使用状态配置（可选）
+        usage_ratio: 0.6  # 使用率 60%
+        # 或者直接指定已使用的资源量
+        # used:
+        #   cpu: 4800
+        #   memory: 10307921510
+        #   gpu: 1
   discovery:
     enabled: true
     gossip_interval_seconds: 30

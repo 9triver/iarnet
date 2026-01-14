@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -32,12 +33,15 @@ func RegisterRoutes(router *mux.Router, resMgr *resource.Manager, cfg *config.Co
 	router.HandleFunc("/resource/capacity", api.handleGetResourceCapacity).Methods("GET")
 	router.HandleFunc("/resource/node/info", api.handleGetNodeInfo).Methods("GET")
 	router.HandleFunc("/resource/provider", api.handleGetResourceProviders).Methods("GET")
+	// 使用 {id:.*} 模式以支持包含点号的 ID（如 fake.provider.xxxxx）
 	router.HandleFunc("/resource/provider/{id}/info", api.handleGetResourceProviderInfo).Methods("GET")
 	router.HandleFunc("/resource/provider/{id}/capacity", api.handleGetResourceProviderCapacity).Methods("GET")
 	router.HandleFunc("/resource/provider/{id}/usage", api.handleGetResourceProviderUsage).Methods("GET")
 	router.HandleFunc("/resource/provider/test", api.handleTestResourceProvider).Methods("POST")
 	router.HandleFunc("/resource/provider", api.handleRegisterResourceProvider).Methods("POST")
 	router.HandleFunc("/resource/provider/batch", api.handleBatchRegisterResourceProvider).Methods("POST")
+	// 注意：PUT 和 DELETE 路由需要在 /resource/provider/test 和 /resource/provider/batch 之后注册
+	// 以避免路由冲突（因为 {id} 会匹配任何字符串）
 	router.HandleFunc("/resource/provider/{id}", api.handleUpdateResourceProvider).Methods("PUT")
 	router.HandleFunc("/resource/provider/{id}", api.handleUnregisterResourceProvider).Methods("DELETE")
 
@@ -300,11 +304,16 @@ func (api *API) handleGetNodeInfo(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) handleGetResourceProviders(w http.ResponseWriter, r *http.Request) {
-	providers := api.resMgr.GetAllProviders()
+	// 使用 GetAllProvidersIncludingFake 以包含 fake provider（前端需要显示它们）
+	providers := api.resMgr.GetAllProvidersIncludingFake()
 	items := make([]ProviderItem, 0, len(providers))
 	for _, p := range providers {
 		item := (&ProviderItem{}).FromProvider(p)
 		items = append(items, *item)
+		// 记录 fake provider 的 ID 用于调试
+		if p.IsFake() {
+			logrus.Debugf("Including fake provider in list: ID=%s, Name=%s", item.ID, item.Name)
+		}
 	}
 	resp := GetResourceProvidersResponse{
 		Providers: items,
@@ -520,6 +529,11 @@ func (api *API) handleUpdateResourceProvider(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	// URL 解码（处理 URL 编码的 ID，如包含点号的 fake.provider.xxxxx）
+	if decodedID, err := url.QueryUnescape(providerID); err == nil {
+		providerID = decodedID
+	}
+
 	// 解析请求体
 	req := UpdateResourceProviderRequest{}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -527,9 +541,17 @@ func (api *API) handleUpdateResourceProvider(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// 获取 provider
-	provider := api.resMgr.GetProvider(providerID)
+	// 使用 GetProviderIncludingFake 以支持 fake provider
+	provider := api.resMgr.GetProviderIncludingFake(providerID)
 	if provider == nil {
+		logrus.Warnf("Provider not found for update: %s", providerID)
+		// 列出所有 provider ID 用于调试
+		allProviders := api.resMgr.GetAllProvidersIncludingFake()
+		providerIDs := make([]string, 0, len(allProviders))
+		for _, p := range allProviders {
+			providerIDs = append(providerIDs, fmt.Sprintf("%s (name: %s, fake: %v)", p.GetID(), p.GetName(), p.IsFake()))
+		}
+		logrus.Debugf("Available providers: %v", providerIDs)
 		response.NotFound("provider not found").WriteJSON(w)
 		return
 	}
@@ -553,6 +575,19 @@ func (api *API) handleUpdateResourceProvider(w http.ResponseWriter, r *http.Requ
 		provider.SetName(*req.Name)
 		updatedName = *req.Name
 		hasUpdates = true
+	}
+
+	// 对于 fake provider，只在内存中更新，不持久化
+	if provider.IsFake() {
+		logrus.Debugf("Updating fake provider %s in memory only (no persistence)", providerID)
+		// 构建响应（fake provider 不需要持久化）
+		resp := UpdateResourceProviderResponse{
+			ID:      providerID,
+			Name:    updatedName,
+			Message: "Fake provider updated successfully (in memory only)",
+		}
+		response.Success(resp).WriteJSON(w)
+		return
 	}
 
 	// 未来可以在这里添加其他字段的更新逻辑
@@ -599,8 +634,13 @@ func (api *API) handleUnregisterResourceProvider(w http.ResponseWriter, r *http.
 		return
 	}
 
-	// 获取操作前的状态
-	provider := api.resMgr.GetProvider(providerID)
+	// URL 解码（处理 URL 编码的 ID，如包含点号的 fake.provider.xxxxx）
+	if decodedID, err := url.QueryUnescape(providerID); err == nil {
+		providerID = decodedID
+	}
+
+	// 使用 GetProviderIncludingFake 以支持 fake provider
+	provider := api.resMgr.GetProviderIncludingFake(providerID)
 	if provider == nil {
 		response.NotFound("provider not found").WriteJSON(w)
 		return
@@ -611,7 +651,27 @@ func (api *API) handleUnregisterResourceProvider(w http.ResponseWriter, r *http.
 		"name": provider.GetName(),
 	}
 
-	// 注销 provider
+	// 对于 fake provider，只在内存中删除，不持久化
+	if provider.IsFake() {
+		logrus.Debugf("Deleting fake provider %s from memory only (no persistence)", providerID)
+		// 直接从 provider manager 中移除（不通过 service，避免持久化操作）
+		providerManager := api.resMgr.GetProviderManager()
+		if providerManager != nil {
+			providerManager.Remove(providerID)
+			provider.Disconnect()
+		}
+		// 记录操作日志
+		api.recordOperation(r, audittypes.OperationTypeDeleteResource, "resource_provider", providerID,
+			fmt.Sprintf("删除资源提供者（fake）: %s", before["name"]), before, nil)
+		resp := UnregisterResourceProviderResponse{
+			ID:      providerID,
+			Message: "Fake provider deleted successfully (from memory only)",
+		}
+		response.Success(resp).WriteJSON(w)
+		return
+	}
+
+	// 注销普通 provider（会持久化）
 	if err := api.resMgr.UnregisterProvider(providerID); err != nil {
 		logrus.Errorf("Failed to unregister provider %s: %v", providerID, err)
 		response.NotFound("provider not found: " + err.Error()).WriteJSON(w)
@@ -637,7 +697,13 @@ func (api *API) handleGetResourceProviderInfo(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	provider := api.resMgr.GetProvider(providerID)
+	// URL 解码（处理 URL 编码的 ID，如包含点号的 fake.provider.xxxxx）
+	if decodedID, err := url.QueryUnescape(providerID); err == nil {
+		providerID = decodedID
+	}
+
+	// 使用 GetProviderIncludingFake 以支持 fake provider
+	provider := api.resMgr.GetProviderIncludingFake(providerID)
 	if provider == nil {
 		response.NotFound("provider not found").WriteJSON(w)
 		return
@@ -655,7 +721,13 @@ func (api *API) handleGetResourceProviderCapacity(w http.ResponseWriter, r *http
 		return
 	}
 
-	provider := api.resMgr.GetProvider(providerID)
+	// URL 解码（处理 URL 编码的 ID，如包含点号的 fake.provider.xxxxx）
+	if decodedID, err := url.QueryUnescape(providerID); err == nil {
+		providerID = decodedID
+	}
+
+	// 使用 GetProviderIncludingFake 以支持 fake provider
+	provider := api.resMgr.GetProviderIncludingFake(providerID)
 	if provider == nil {
 		response.NotFound("provider not found").WriteJSON(w)
 		return
@@ -679,7 +751,13 @@ func (api *API) handleGetResourceProviderUsage(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	provider := api.resMgr.GetProvider(providerID)
+	// URL 解码（处理 URL 编码的 ID，如包含点号的 fake.provider.xxxxx）
+	if decodedID, err := url.QueryUnescape(providerID); err == nil {
+		providerID = decodedID
+	}
+
+	// 使用 GetProviderIncludingFake 以支持 fake provider
+	provider := api.resMgr.GetProviderIncludingFake(providerID)
 	if provider == nil {
 		response.NotFound("provider not found").WriteJSON(w)
 		return
@@ -752,10 +830,11 @@ func (api *API) handleTestResourceProvider(w http.ResponseWriter, r *http.Reques
 	}
 }
 
-// getAggregatedCapacity 聚合所有 provider 的资源容量
+// getAggregatedCapacity 聚合所有 provider 的资源容量（包括 fake provider）
 // 使用实时使用量（GetRealTimeUsage）而不是已分配资源（GetCapacity.Used）
 func (api *API) getAggregatedCapacity(ctx context.Context) (*types.Capacity, error) {
-	providers := api.resMgr.GetAllProviders()
+	// 使用 GetAllProvidersIncludingFake 以包含 fake provider（前端需要显示总容量）
+	providers := api.resMgr.GetAllProvidersIncludingFake()
 	if len(providers) == 0 {
 		return &types.Capacity{
 			Total:     &types.Info{CPU: 0, Memory: 0, GPU: 0},

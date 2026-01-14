@@ -1,5 +1,12 @@
 package config
 
+import (
+	"fmt"
+	"regexp"
+	"strconv"
+	"strings"
+)
+
 // Config 应用级配置
 // 包含应用运行所需的所有配置，各模块配置通过组合方式引入
 type Config struct {
@@ -69,6 +76,131 @@ type ResourceConfig struct {
 	SchedulePolicies                   []SchedulePolicyConfig `yaml:"schedule_policies"`                      // 调度策略配置
 	ProviderHealthCheckIntervalSeconds float64                `yaml:"provider_health_check_interval_seconds"` // Provider 健康检查间隔（秒，支持小数）
 	ProviderUsagePollIntervalSeconds   float64                `yaml:"provider_usage_poll_interval_seconds"`   // Provider 资源使用量轮询间隔（秒，支持小数）
+	FakeProviders                      []FakeProviderConfig   `yaml:"fake_providers"`                         // 假 Provider 配置（用于演示）
+}
+
+// MemorySize 内存大小，支持字符串格式（如 "4Gi", "512Mi"）或整数（字节数）
+type MemorySize int64
+
+// UnmarshalYAML 实现 YAML 反序列化，支持字符串和整数格式
+func (m *MemorySize) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var v interface{}
+	if err := unmarshal(&v); err != nil {
+		return err
+	}
+
+	switch val := v.(type) {
+	case int:
+		*m = MemorySize(val)
+		return nil
+	case int64:
+		*m = MemorySize(val)
+		return nil
+	case string:
+		bytes, err := parseMemoryString(val)
+		if err != nil {
+			return err
+		}
+		*m = MemorySize(bytes)
+		return nil
+	default:
+		return fmt.Errorf("invalid memory format: %v, expected string (e.g., \"4Gi\") or integer (bytes)", v)
+	}
+}
+
+// Int64 返回内存大小（字节数）
+func (m MemorySize) Int64() int64 {
+	return int64(m)
+}
+
+// parseMemoryString 解析内存字符串为字节数
+// 支持格式：8Gi, 8GB, 8192Mi, 8192MB, 8192, 8G, 8M 等
+func parseMemoryString(memoryStr string) (int64, error) {
+	if memoryStr == "" {
+		return 0, nil
+	}
+
+	// 移除空格并转换为小写
+	memoryStr = strings.TrimSpace(strings.ToLower(memoryStr))
+
+	// 正则表达式匹配数字和单位
+	re := regexp.MustCompile(`^(\d+)([kmgt]?i?b?)$`)
+	matches := re.FindStringSubmatch(memoryStr)
+	if len(matches) != 3 {
+		return 0, fmt.Errorf("invalid memory format: %s, expected format like 8Gi, 8GB, 8192Mi", memoryStr)
+	}
+
+	value, err := strconv.ParseInt(matches[1], 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid memory value: %s", matches[1])
+	}
+
+	unit := matches[2]
+	var multiplier int64
+
+	switch unit {
+	case "b", "":
+		multiplier = 1
+	case "kb", "k":
+		multiplier = 1000
+	case "kib", "ki":
+		multiplier = 1024
+	case "mb", "m":
+		multiplier = 1000 * 1000
+	case "mib", "mi":
+		multiplier = 1024 * 1024
+	case "gb", "g":
+		multiplier = 1000 * 1000 * 1000
+	case "gib", "gi":
+		multiplier = 1024 * 1024 * 1024
+	case "tb", "t":
+		multiplier = 1000 * 1000 * 1000 * 1000
+	case "tib", "ti":
+		multiplier = 1024 * 1024 * 1024 * 1024
+	default:
+		return 0, fmt.Errorf("unknown memory unit: %s", unit)
+	}
+
+	return value * multiplier, nil
+}
+
+// FakeProviderConfig 假 Provider 配置
+type FakeProviderConfig struct {
+	Name         string              `yaml:"name"`          // Provider 名称
+	Type         string              `yaml:"type"`          // Provider 类型：docker 或 k8s
+	CPU          int64               `yaml:"cpu"`           // CPU 总量（millicores）
+	Memory       MemorySize          `yaml:"memory"`        // 内存总量（支持字符串格式如 "4Gi" 或整数字节数）
+	GPU          int64               `yaml:"gpu"`           // GPU 总量
+	Host         string              `yaml:"host"`          // 主机地址（可选，用于显示）
+	Port         int                 `yaml:"port"`          // 端口（可选，用于显示）
+	ResourceTags *ResourceTagsConfig `yaml:"resource_tags"` // 资源标签配置（可选）
+	Usage        *UsageConfig        `yaml:"usage"`         // 资源使用状态配置（可选）
+}
+
+// UsageConfig 资源使用状态配置
+// 支持两种配置方式：
+// 1. cpu_ratio/gpu_ratio/memory_ratio: 分别配置各资源的使用率（0.0-1.0），例如 0.8 表示使用 80%
+// 2. used: 直接指定已使用的资源量（如果同时配置，used 优先）
+type UsageConfig struct {
+	CPURatio    float64             `yaml:"cpu_ratio"`    // CPU 使用率（0.0-1.0），例如 0.8 表示使用 80%
+	GPURatio    float64             `yaml:"gpu_ratio"`    // GPU 使用率（0.0-1.0），例如 0.8 表示使用 80%
+	MemoryRatio float64             `yaml:"memory_ratio"` // Memory 使用率（0.0-1.0），例如 0.8 表示使用 80%
+	Used        *UsedResourceConfig `yaml:"used"`         // 直接指定已使用的资源量（可选，如果配置则优先使用）
+}
+
+// UsedResourceConfig 已使用资源配置
+type UsedResourceConfig struct {
+	CPU    int64      `yaml:"cpu"`    // 已使用的 CPU（millicores）
+	Memory MemorySize `yaml:"memory"` // 已使用的内存（支持字符串格式如 "4Gi" 或整数字节数）
+	GPU    int64      `yaml:"gpu"`    // 已使用的 GPU
+}
+
+// ResourceTagsConfig 资源标签配置
+type ResourceTagsConfig struct {
+	CPU    bool `yaml:"cpu"`    // 是否支持 CPU
+	GPU    bool `yaml:"gpu"`    // 是否支持 GPU
+	Memory bool `yaml:"memory"` // 是否支持 Memory
+	Camera bool `yaml:"camera"` // 是否支持 Camera
 }
 
 // SchedulePolicyConfig 调度策略配置

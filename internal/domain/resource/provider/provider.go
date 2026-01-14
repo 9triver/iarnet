@@ -577,3 +577,8 @@ func (p *Provider) Close() error {
 	}
 	return nil
 }
+
+// IsFake 检查是否为假 Provider（普通 Provider 返回 false）
+func (p *Provider) IsFake() bool {
+	return false
+}

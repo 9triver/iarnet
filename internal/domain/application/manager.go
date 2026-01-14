@@ -210,7 +210,18 @@ func (m *Manager) CleanupApplicationResources(ctx context.Context, appID string)
 				}
 				p := providerService.GetProvider(actualProviderID)
 				if p != nil {
-					if err := p.Undeploy(ctx, componentID); err != nil {
+					// 检查是否为 fake provider（fake provider 不支持卸载）
+					if p.IsFake() {
+						return fmt.Errorf("fake provider %s does not support undeployment", providerID)
+					}
+
+					// 类型断言为 *provider.Provider
+					realProvider, ok := p.(*provider.Provider)
+					if !ok {
+						return fmt.Errorf("provider %s is not a real provider", providerID)
+					}
+
+					if err := realProvider.Undeploy(ctx, componentID); err != nil {
 						logrus.Warnf("Failed to undeploy component %s from provider %s: %v", componentID, actualProviderID, err)
 					} else {
 						logrus.Infof("Undeployed component %s from provider %s", componentID, actualProviderID)

@@ -1,0 +1,225 @@
+host: 172.31.0.14
+super_admin:
+  name: admin
+  password: '123456'
+peer_listen_addr: :50051
+initial_peers: 
+  - "iarnet-1:50005"
+  - "iarnet-2:50005"
+  - "iarnet-3:50005"
+  - "iarnet-4:50005"
+  - "iarnet-6:50005"
+  - "iarnet-7:50005"
+  - "iarnet-8:50005"
+  - "iarnet-9:50005"
+  - "iarnet-10:50005"
+data_dir: /app/data
+application:
+  workspace_dir: /app/workspaces
+  runner_images:
+    python:3.11-latest: iarnet/runner:python_3.11-latest
+resource:
+  peer_port: 50051
+  schedule_port: 50051
+  global_registry_addr: iarnet-global:50010
+  name: CQ-cloud-028
+  description: 重庆云端节点028
+  domain_id: domain.nwwNPjSgUFM9DCv74J8LbM
+  component_images:
+    python: iarnet/component:python_3.11-latest
+  discovery:
+    enabled: true
+    gossip_interval_seconds: 30
+    node_ttl_seconds: 180
+    max_gossip_peers: 10
+    max_hops: 5
+    query_timeout_seconds: 5
+    fanout: 3
+    use_anti_entropy: true
+    anti_entropy_interval_seconds: 300
+  schedule_policies:
+  - type: resource_safety_margin
+    enable: true
+    params:
+      cpu_ratio: 1.2
+      memory_ratio: 1.2
+      gpu_ratio: 1.0
+  - type: node_blacklist
+    enable: false
+    params:
+      node_ids: []
+  - type: provider_blacklist
+    enable: false
+    params:
+      provider_ids: []
+  fake_providers:
+  - name: K8s计算节点-047
+    type: k8s
+    cpu: 16000
+    memory: 16Gi
+    gpu: 0
+    host: provider-k8s-047
+    port: 50063
+    resource_tags:
+      cpu: true
+      memory: true
+      gpu: false
+      camera: false
+    usage:
+      cpu_ratio: 0.45
+      gpu_ratio: 0.0
+      memory_ratio: 0.5
+  - name: K8s节点-044
+    type: k8s
+    cpu: 8000
+    memory: 10Gi
+    gpu: 0
+    host: provider-k8s-044
+    port: 50053
+    resource_tags:
+      cpu: true
+      memory: true
+      gpu: false
+      camera: false
+    usage:
+      cpu_ratio: 0.25
+      gpu_ratio: 0.0
+      memory_ratio: 0.2
+  - name: 容器平台节点-052
+    type: docker
+    cpu: 10000
+    memory: 30Gi
+    gpu: 0
+    host: provider-docker-052
+    port: 50062
+    resource_tags:
+      cpu: true
+      memory: true
+      gpu: false
+      camera: true
+    usage:
+      cpu_ratio: 0.83
+      gpu_ratio: 0.0
+      memory_ratio: 0.65
+  - name: 容器平台节点-039
+    type: docker
+    cpu: 6000
+    memory: 16Gi
+    gpu: 0
+    host: provider-docker-039
+    port: 50057
+    resource_tags:
+      cpu: true
+      memory: true
+      gpu: false
+      camera: false
+    usage:
+      cpu_ratio: 0.46
+      gpu_ratio: 0.0
+      memory_ratio: 0.51
+  - name: Docker节点-088
+    type: docker
+    cpu: 12000
+    memory: 36Gi
+    gpu: 1
+    host: provider-docker-088
+    port: 50056
+    resource_tags:
+      cpu: true
+      memory: true
+      gpu: true
+      camera: true
+    usage:
+      cpu_ratio: 0.78
+      gpu_ratio: 1.0
+      memory_ratio: 0.83
+  - name: 容器节点-003
+    type: docker
+    cpu: 16000
+    memory: 16Gi
+    gpu: 2
+    host: provider-docker-003
+    port: 50055
+    resource_tags:
+      cpu: true
+      memory: true
+      gpu: true
+      camera: false
+    usage:
+      cpu_ratio: 0.6
+      gpu_ratio: 0.5
+      memory_ratio: 0.76
+  - name: 容器编排节点-082
+    type: docker
+    cpu: 8000
+    memory: 32Gi
+    gpu: 0
+    host: provider-docker-082
+    port: 50053
+    resource_tags:
+      cpu: true
+      memory: true
+      gpu: false
+      camera: false
+    usage:
+      cpu_ratio: 0.29
+      gpu_ratio: 0.0
+      memory_ratio: 0.34
+  - name: 容器编排节点-025
+    type: docker
+    cpu: 8000
+    memory: 24Gi
+    gpu: 4
+    host: provider-docker-025
+    port: 50054
+    resource_tags:
+      cpu: true
+      memory: true
+      gpu: true
+      camera: false
+    usage:
+      cpu_ratio: 0.39
+      gpu_ratio: 0.5
+      memory_ratio: 0.28
+enable_local_docker: true
+database:
+  application_db_path: /app/data/application.db
+  resource_provider_db_path: /app/data/resource_provider.db
+  resource_logger_db_path: /app/data/resource_logger.db
+  max_open_conns: 10
+  max_idle_conns: 5
+  conn_max_lifetime_seconds: 300
+transport:
+  http:
+    port: 8083
+  zmq:
+    port: 5555
+  rpc:
+    resource:
+      port: 50051
+    ignis:
+      port: 50001
+    store:
+      port: 50002
+    logger:
+      port: 50003
+    resource_logger:
+      port: 50004
+    discovery:
+      port: 50005
+    scheduler:
+      port: 50006
+logging:
+  enabled: true
+  data_dir: /app/data/logs
+  db_path: /app/data/logs.db
+  chunk_duration_minutes: 5
+  chunk_max_lines: 10000
+  chunk_max_size_mb: 10
+  compression_level: 6
+  retention_days: 7
+  cleanup_interval_hours: 1
+  max_disk_usage_gb: 10
+  buffer_size: 10000
+  flush_interval_seconds: 5
+  batch_size: 1000

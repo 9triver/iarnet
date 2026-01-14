@@ -152,6 +152,15 @@ export default function ApplicationsPage() {
           }
         }
         
+        // 处理创建时间
+        let createdAt: string | undefined = undefined
+        if (app.created_at && app.created_at !== "" && app.created_at !== "0001-01-01T00:00:00Z") {
+          const date = new Date(app.created_at)
+          if (!isNaN(date.getTime())) {
+            createdAt = date.toISOString()
+          }
+        }
+        
         return {
           id: app.id,
           name: app.name,
@@ -164,7 +173,18 @@ export default function ApplicationsPage() {
           containerId: app.container_id,
           executeCmd: app.execute_cmd,
           envInstallCmd: app.env_install_cmd,
+          createdAt,
         }
+      })
+      // 按创建时间排序（最新的在前）
+      convertedApps.sort((a, b) => {
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0
+        // 如果没有创建时间，使用 id 作为后备（id 通常包含时间戳）
+        if (timeA === 0 && timeB === 0) {
+          return b.id.localeCompare(a.id)
+        }
+        return timeB - timeA // 降序：最新的在前
       })
       setApplications(convertedApps)
     } catch (fetchError) {

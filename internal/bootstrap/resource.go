@@ -1,9 +1,11 @@
 package bootstrap
 
 import (
+	"context"
 	"fmt"
 	"time"
 
+	"github.com/9triver/iarnet/internal/config"
 	"github.com/9triver/iarnet/internal/domain/resource"
 	"github.com/9triver/iarnet/internal/domain/resource/component"
 	"github.com/9triver/iarnet/internal/domain/resource/discovery"
@@ -12,6 +14,7 @@ import (
 	"github.com/9triver/iarnet/internal/domain/resource/provider"
 	"github.com/9triver/iarnet/internal/domain/resource/scheduler"
 	"github.com/9triver/iarnet/internal/domain/resource/store"
+	"github.com/9triver/iarnet/internal/domain/resource/types"
 	providerrepo "github.com/9triver/iarnet/internal/infra/repository/resource"
 	"github.com/sirupsen/logrus"
 )
@@ -198,6 +201,81 @@ func bootstrapResource(iarnet *Iarnet) error {
 		logrus.Debug("No schedule policies configured")
 	}
 
+	// 初始化 Fake Providers（如果配置了）
+	if len(iarnet.Config.Resource.FakeProviders) > 0 {
+		if err := initializeFakeProviders(iarnet.ResourceManager, iarnet.Config.Resource.FakeProviders); err != nil {
+			logrus.Warnf("Failed to initialize fake providers: %v", err)
+		} else {
+			logrus.Infof("Initialized %d fake providers", len(iarnet.Config.Resource.FakeProviders))
+		}
+	}
+
 	logrus.Info("Resource module initialized")
+	return nil
+}
+
+// initializeFakeProviders 初始化假 Provider
+func initializeFakeProviders(resourceManager *resource.Manager, fakeProviderConfigs []config.FakeProviderConfig) error {
+	providerManager := resourceManager.GetProviderManager()
+	if providerManager == nil {
+		return fmt.Errorf("provider manager is not available")
+	}
+
+	for _, cfg := range fakeProviderConfigs {
+		// 转换资源标签配置
+		var resourceTags *types.ResourceTags
+		if cfg.ResourceTags != nil {
+			resourceTags = &types.ResourceTags{
+				CPU:    cfg.ResourceTags.CPU,
+				GPU:    cfg.ResourceTags.GPU,
+				Memory: cfg.ResourceTags.Memory,
+				Camera: cfg.ResourceTags.Camera,
+			}
+		}
+
+		// 转换资源使用状态配置
+		var usage *provider.UsageConfig
+		if cfg.Usage != nil {
+			usage = &provider.UsageConfig{
+				CPURatio:    cfg.Usage.CPURatio,
+				GPURatio:    cfg.Usage.GPURatio,
+				MemoryRatio: cfg.Usage.MemoryRatio,
+			}
+			// 如果直接指定了已使用资源，优先使用
+			if cfg.Usage.Used != nil {
+				usage.Used = &types.Info{
+					CPU:    cfg.Usage.Used.CPU,
+					Memory: cfg.Usage.Used.Memory.Int64(), // 将 MemorySize 转换为 int64
+					GPU:    cfg.Usage.Used.GPU,
+				}
+			}
+		}
+
+		// 创建 FakeProvider
+		fakeProvider := provider.NewFakeProvider(
+			cfg.Name,
+			cfg.Type,
+			cfg.CPU,
+			cfg.Memory.Int64(), // 将 MemorySize 转换为 int64
+			cfg.GPU,
+			cfg.Host,
+			cfg.Port,
+			resourceTags,
+			usage,
+		)
+
+		// 连接到假 Provider（模拟连接）
+		ctx := context.Background()
+		if err := fakeProvider.Connect(ctx); err != nil {
+			logrus.Warnf("Failed to connect fake provider %s: %v", fakeProvider.GetID(), err)
+			continue
+		}
+
+		// 添加到管理器
+		providerManager.Add(fakeProvider)
+		logrus.Infof("Registered fake provider: %s (type: %s, CPU: %d, Memory: %d, GPU: %d)",
+			fakeProvider.GetName(), cfg.Type, cfg.CPU, cfg.Memory.Int64(), cfg.GPU)
+	}
+
 	return nil
 }

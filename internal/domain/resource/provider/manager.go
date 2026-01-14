@@ -6,14 +6,40 @@ import (
 	"time"
 
 	"github.com/9triver/iarnet/internal/domain/resource/types"
+	common "github.com/9triver/iarnet/internal/proto/common"
 	"github.com/sirupsen/logrus"
 )
 
+// ProviderInterface 定义 Provider 接口（用于类型断言）
+// 支持普通 Provider 和 FakeProvider
+type ProviderInterface interface {
+	GetID() string
+	GetName() string
+	SetName(name string)
+	GetHost() string
+	GetPort() int
+	GetType() types.ProviderType
+	GetStatus() types.ProviderStatus
+	SetStatus(status types.ProviderStatus)
+	GetLastUpdateTime() time.Time
+	GetCapacity(ctx context.Context, forceRefresh ...bool) (*types.Capacity, error)
+	GetAvailable(ctx context.Context, forceRefresh ...bool) (*types.Info, error)
+	GetResourceTags() *types.ResourceTags
+	GetSupportedLanguages() []common.Language
+	SupportsLanguage(lang common.Language) bool
+	IsFake() bool
+	HealthCheck(ctx context.Context) error
+	Disconnect()
+	Undeploy(ctx context.Context, componentID string) error
+	GetRealTimeUsage(ctx context.Context) (*types.Info, error)
+}
+
 // Manager 管理 Provider 实例
 // 负责在运行时持有内存中的 Provider 对象
+// 支持普通 Provider 和 FakeProvider
 type Manager struct {
 	mu        sync.RWMutex
-	providers map[string]*Provider // provider ID -> Provider
+	providers map[string]ProviderInterface // provider ID -> ProviderInterface（可以是 *Provider 或 *FakeProvider）
 
 	// 健康检测相关
 	healthCheckInterval time.Duration // 健康检测间隔
@@ -31,7 +57,7 @@ func NewManager(healthCheckInterval time.Duration) *Manager {
 	}
 	return &Manager{
 		mu:                  sync.RWMutex{},
-		providers:           make(map[string]*Provider),
+		providers:           make(map[string]ProviderInterface),
 		healthCheckInterval: healthCheckInterval,
 		healthCheckTimeout:  5 * time.Second, // 默认 5 秒超时
 		healthCheckCtx:      ctx,
@@ -73,13 +99,18 @@ func (m *Manager) healthCheckLoop() {
 // performHealthCheck 执行健康检测
 func (m *Manager) performHealthCheck() {
 	m.mu.RLock()
-	providers := make([]*Provider, 0, len(m.providers))
+	providers := make([]ProviderInterface, 0, len(m.providers))
 	for _, p := range m.providers {
 		providers = append(providers, p)
 	}
 	m.mu.RUnlock()
 
 	for _, provider := range providers {
+		// 跳过 fake provider（它们不需要健康检查）
+		if provider.IsFake() {
+			continue
+		}
+
 		// 只检测已连接的 provider
 		if provider.GetStatus() != types.ProviderStatusConnected {
 			continue
@@ -110,8 +141,8 @@ func (m *Manager) performHealthCheck() {
 	}
 }
 
-// Add 添加 Provider 到管理器
-func (m *Manager) Add(provider *Provider) {
+// Add 添加 Provider 到管理器（支持普通 Provider 和 FakeProvider）
+func (m *Manager) Add(provider ProviderInterface) {
 	if provider == nil {
 		return
 	}
@@ -125,29 +156,29 @@ func (m *Manager) Add(provider *Provider) {
 	m.providers[id] = provider
 }
 
-// Get 获取指定 ID 的 Provider
-func (m *Manager) Get(id string) *Provider {
+// Get 获取指定 ID 的 Provider（返回接口类型）
+func (m *Manager) Get(id string) ProviderInterface {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.providers[id]
 }
 
-// GetAll 获取所有 Provider
-func (m *Manager) GetAll() []*Provider {
+// GetAll 获取所有 Provider（返回接口类型列表）
+func (m *Manager) GetAll() []ProviderInterface {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	providers := make([]*Provider, 0, len(m.providers))
+	providers := make([]ProviderInterface, 0, len(m.providers))
 	for _, p := range m.providers {
 		providers = append(providers, p)
 	}
 	return providers
 }
 
-// GetByStatus 根据状态获取 Provider 列表
-func (m *Manager) GetByStatus(status types.ProviderStatus) []*Provider {
+// GetByStatus 根据状态获取 Provider 列表（返回接口类型列表）
+func (m *Manager) GetByStatus(status types.ProviderStatus) []ProviderInterface {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	providers := make([]*Provider, 0)
+	providers := make([]ProviderInterface, 0)
 	for _, p := range m.providers {
 		if p.GetStatus() == status {
 			providers = append(providers, p)

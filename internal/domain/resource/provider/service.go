@@ -27,11 +27,11 @@ type Service interface {
 	// FindAvailableProvider 查找满足资源要求和语言支持的可用 Provider
 	FindAvailableProvider(ctx context.Context, resourceRequest *types.Info, language common.Language) (*Provider, error)
 
-	// GetProvider 获取指定 ID 的 Provider
-	GetProvider(id string) *Provider
+	// GetProvider 获取指定 ID 的 Provider（返回接口类型，可能是 *Provider 或 *FakeProvider）
+	GetProvider(id string) ProviderInterface
 
-	// GetAllProviders 获取所有 Provider
-	GetAllProviders() []*Provider
+	// GetAllProviders 获取所有 Provider（返回接口类型列表，包括普通 Provider 和 FakeProvider）
+	GetAllProviders() []ProviderInterface
 }
 
 type service struct {
@@ -149,28 +149,44 @@ func (s *service) UnregisterProvider(ctx context.Context, id string) error {
 	}
 
 	// 断开连接（如果已连接）
-	if provider.GetStatus() == types.ProviderStatusConnected {
-		provider.Disconnect()
-		logrus.Infof("Provider %s disconnected", id)
+	// 注意：这里需要类型断言，因为 ProviderInterface 可能包含 FakeProvider
+	if realProvider, ok := provider.(*Provider); ok {
+		if realProvider.GetStatus() == types.ProviderStatusConnected {
+			realProvider.Disconnect()
+			logrus.Infof("Provider %s disconnected", id)
+		}
+	} else {
+		// FakeProvider 也支持 Disconnect
+		if provider.GetStatus() == types.ProviderStatusConnected {
+			provider.Disconnect()
+			logrus.Infof("Provider %s disconnected", id)
+		}
 	}
 
 	// 从管理器中移除
 	s.manager.Remove(id)
 
-	// 从数据库删除
-	if s.repo != nil {
-		if err := s.repo.Delete(ctx, id); err != nil {
-			logrus.Warnf("Failed to delete provider %s from database: %v", id, err)
-			// 不返回错误，因为内存中已经移除
+	// 从数据库删除（fake provider 不需要持久化，跳过数据库操作）
+	if !provider.IsFake() {
+		if s.repo != nil {
+			if err := s.repo.Delete(ctx, id); err != nil {
+				logrus.Warnf("Failed to delete provider %s from database: %v", id, err)
+				// 不返回错误，因为内存中已经移除
+			}
 		}
+	} else {
+		logrus.Debugf("Skipping database deletion for fake provider %s", id)
 	}
 
 	logrus.Infof("Provider %s unregistered", id)
 	return nil
 }
 
+// ProviderInterface 已在 manager.go 中定义，这里不再重复定义
+
 // FindAvailableProvider 查找满足资源要求和语言支持的可用 Provider
 // 优先使用缓存数据，如果找不到合适的 provider，会尝试强制刷新后重试
+// 注意：会排除 fake provider
 func (s *service) FindAvailableProvider(ctx context.Context, resourceRequest *types.Info, language common.Language) (*Provider, error) {
 	if resourceRequest == nil {
 		return nil, fmt.Errorf("resource request is required")
@@ -181,6 +197,18 @@ func (s *service) FindAvailableProvider(ctx context.Context, resourceRequest *ty
 
 	// 第一轮：使用缓存数据查找
 	for _, provider := range connectedProviders {
+		// 排除 fake provider
+		if provider.IsFake() {
+			logrus.Debugf("Skipping fake provider %s in schedule", provider.GetID())
+			continue
+		}
+
+		// 类型断言为 *Provider（因为 fake provider 已被排除）
+		realProvider, ok := provider.(*Provider)
+		if !ok {
+			logrus.Debugf("Skipping provider %s: not a real provider", provider.GetID())
+			continue
+		}
 		// 检查 Provider 状态
 		if provider.GetStatus() != types.ProviderStatusConnected {
 			logrus.Debugf("Skipping provider %s: status is not connected", provider.GetID())
@@ -212,12 +240,23 @@ func (s *service) FindAvailableProvider(ctx context.Context, resourceRequest *ty
 			continue
 		}
 
-		return provider, nil
+		return realProvider, nil
 	}
 
 	// 第二轮：如果第一轮没找到，强制刷新后重试
 	logrus.Debugf("No provider found with cached data, trying with fresh data...")
 	for _, provider := range connectedProviders {
+		// 排除 fake provider
+		if provider.IsFake() {
+			continue
+		}
+
+		// 类型断言为 *Provider
+		realProvider, ok := provider.(*Provider)
+		if !ok {
+			continue
+		}
+
 		if provider.GetStatus() != types.ProviderStatusConnected {
 			continue
 		}
@@ -247,19 +286,19 @@ func (s *service) FindAvailableProvider(ctx context.Context, resourceRequest *ty
 			continue
 		}
 
-		return provider, nil
+		return realProvider, nil
 	}
 
 	return nil, fmt.Errorf("no available provider found that satisfies the resource requirements")
 }
 
-// GetProvider 获取指定 ID 的 Provider
-func (s *service) GetProvider(id string) *Provider {
+// GetProvider 获取指定 ID 的 Provider（返回接口类型）
+func (s *service) GetProvider(id string) ProviderInterface {
 	return s.manager.Get(id)
 }
 
-// GetAllProviders 获取所有 Provider
-func (s *service) GetAllProviders() []*Provider {
+// GetAllProviders 获取所有 Provider（返回接口类型列表，包括普通 Provider 和 FakeProvider）
+func (s *service) GetAllProviders() []ProviderInterface {
 	return s.manager.GetAll()
 }
 

@@ -1,0 +1,257 @@
+host: 172.31.0.13
+super_admin:
+  name: admin
+  password: '123456'
+peer_listen_addr: :50051
+initial_peers: 
+  - "iarnet-1:50005"
+  - "iarnet-2:50005"
+  - "iarnet-3:50005"
+  - "iarnet-5:50005"
+  - "iarnet-6:50005"
+  - "iarnet-7:50005"
+  - "iarnet-8:50005"
+  - "iarnet-9:50005"
+  - "iarnet-10:50005"
+data_dir: /app/data
+application:
+  workspace_dir: /app/workspaces
+  runner_images:
+    python:3.11-latest: iarnet/runner:python_3.11-latest
+resource:
+  peer_port: 50051
+  schedule_port: 50051
+  global_registry_addr: iarnet-global:50010
+  name: SZ-cloud-518
+  description: 深圳云端节点518
+  domain_id: domain.nwwNPjSgUFM9DCv74J8LbM
+  component_images:
+    python: iarnet/component:python_3.11-latest
+  discovery:
+    enabled: true
+    gossip_interval_seconds: 30
+    node_ttl_seconds: 180
+    max_gossip_peers: 10
+    max_hops: 5
+    query_timeout_seconds: 5
+    fanout: 3
+    use_anti_entropy: true
+    anti_entropy_interval_seconds: 300
+  schedule_policies:
+  - type: resource_safety_margin
+    enable: true
+    params:
+      cpu_ratio: 1.2
+      memory_ratio: 1.2
+      gpu_ratio: 1.0
+  - type: node_blacklist
+    enable: false
+    params:
+      node_ids: []
+  - type: provider_blacklist
+    enable: false
+    params:
+      provider_ids: []
+  fake_providers:
+  - name: K8s资源节点-054
+    type: k8s
+    cpu: 8000
+    memory: 8Gi
+    gpu: 0
+    host: provider-k8s-054
+    port: 50059
+    resource_tags:
+      cpu: true
+      memory: true
+      gpu: false
+      camera: false
+    usage:
+      cpu_ratio: 0.79
+      gpu_ratio: 0.0
+      memory_ratio: 0.74
+  - name: 容器平台节点-015
+    type: docker
+    cpu: 6000
+    memory: 12Gi
+    gpu: 0
+    host: provider-docker-015
+    port: 50057
+    resource_tags:
+      cpu: true
+      memory: true
+      gpu: false
+      camera: true
+    usage:
+      cpu_ratio: 0.29
+      gpu_ratio: 0.0
+      memory_ratio: 0.45
+  - name: 容器服务节点-086
+    type: docker
+    cpu: 10000
+    memory: 12Gi
+    gpu: 1
+    host: provider-docker-086
+    port: 50054
+    resource_tags:
+      cpu: true
+      memory: true
+      gpu: true
+      camera: false
+    usage:
+      cpu_ratio: 0.48
+      gpu_ratio: 0.0
+      memory_ratio: 0.35
+  - name: 集群节点-099
+    type: k8s
+    cpu: 6000
+    memory: 18Gi
+    gpu: 0
+    host: provider-k8s-099
+    port: 50058
+    resource_tags:
+      cpu: true
+      memory: true
+      gpu: false
+      camera: true
+    usage:
+      cpu_ratio: 0.27
+      gpu_ratio: 0.0
+      memory_ratio: 0.22
+  - name: K8s节点-085
+    type: k8s
+    cpu: 6000
+    memory: 6Gi
+    gpu: 0
+    host: provider-k8s-085
+    port: 50060
+    resource_tags:
+      cpu: true
+      memory: true
+      gpu: false
+      camera: false
+    usage:
+      cpu_ratio: 0.64
+      gpu_ratio: 0.0
+      memory_ratio: 0.69
+  - name: 集群节点-069
+    type: k8s
+    cpu: 6000
+    memory: 12Gi
+    gpu: 4
+    host: provider-k8s-069
+    port: 50055
+    resource_tags:
+      cpu: true
+      memory: true
+      gpu: true
+      camera: false
+    usage:
+      cpu_ratio: 0.38
+      gpu_ratio: 0.5
+      memory_ratio: 0.5
+  - name: 容器节点-027
+    type: docker
+    cpu: 10000
+    memory: 10Gi
+    gpu: 2
+    host: provider-docker-027
+    port: 50063
+    resource_tags:
+      cpu: true
+      memory: true
+      gpu: true
+      camera: false
+    usage:
+      cpu_ratio: 0.3
+      gpu_ratio: 0.5
+      memory_ratio: 0.23
+  - name: 容器服务节点-032
+    type: docker
+    cpu: 16000
+    memory: 48Gi
+    gpu: 0
+    host: provider-docker-032
+    port: 50064
+    resource_tags:
+      cpu: true
+      memory: true
+      gpu: false
+      camera: false
+    usage:
+      cpu_ratio: 0.79
+      gpu_ratio: 0.0
+      memory_ratio: 0.84
+  - name: 容器编排节点-038
+    type: docker
+    cpu: 2000
+    memory: 2Gi
+    gpu: 0
+    host: provider-docker-038
+    port: 50051
+    resource_tags:
+      cpu: true
+      memory: true
+      gpu: false
+      camera: false
+    usage:
+      cpu_ratio: 0.98
+      gpu_ratio: 0.0
+      memory_ratio: 0.75
+  - name: 容器编排节点-047
+    type: docker
+    cpu: 10000
+    memory: 30Gi
+    gpu: 1
+    host: provider-docker-047
+    port: 50063
+    resource_tags:
+      cpu: true
+      memory: true
+      gpu: true
+      camera: true
+    usage:
+      cpu_ratio: 0.48
+      gpu_ratio: 0.0
+      memory_ratio: 0.58
+enable_local_docker: true
+database:
+  application_db_path: /app/data/application.db
+  resource_provider_db_path: /app/data/resource_provider.db
+  resource_logger_db_path: /app/data/resource_logger.db
+  max_open_conns: 10
+  max_idle_conns: 5
+  conn_max_lifetime_seconds: 300
+transport:
+  http:
+    port: 8083
+  zmq:
+    port: 5555
+  rpc:
+    resource:
+      port: 50051
+    ignis:
+      port: 50001
+    store:
+      port: 50002
+    logger:
+      port: 50003
+    resource_logger:
+      port: 50004
+    discovery:
+      port: 50005
+    scheduler:
+      port: 50006
+logging:
+  enabled: true
+  data_dir: /app/data/logs
+  db_path: /app/data/logs.db
+  chunk_duration_minutes: 5
+  chunk_max_lines: 10000
+  chunk_max_size_mb: 10
+  compression_level: 6
+  retention_days: 7
+  cleanup_interval_hours: 1
+  max_disk_usage_gb: 10
+  buffer_size: 10000
+  flush_interval_seconds: 5
+  batch_size: 1000

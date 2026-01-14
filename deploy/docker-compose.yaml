@@ -1,0 +1,432 @@
+services:
+  # Docker Provider 1
+  provider-docker-1:
+    image: iarnet/provider:docker
+    container_name: demo-provider-docker-1
+    volumes:
+      # 挂载 Provider 1 的配置文件
+      - ./provider/p1/config.yaml:/app/config.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "50051:50051"  # gRPC 服务端口
+    networks:
+      iarnet-demo-network:
+        ipv4_address: 172.31.0.20
+    restart: unless-stopped
+    environment:
+      - LOG_LEVEL=info
+    labels:
+      - "provider.name=provider-docker-1"
+      - "provider.id=p1"
+      - "provider.type=docker"
+
+  # Docker Provider 2
+  provider-docker-2:
+    image: iarnet/provider:docker
+    container_name: demo-provider-docker-2
+    volumes:
+      # 挂载 Provider 2 的配置文件
+      - ./provider/p2/config.yaml:/app/config.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "50052:50051"  # gRPC 服务端口
+    networks:
+      iarnet-demo-network:
+        ipv4_address: 172.31.0.21
+    restart: unless-stopped
+    environment:
+      - LOG_LEVEL=info
+    labels:
+      - "provider.name=provider-docker-2"
+      - "provider.id=p2"
+      - "provider.type=docker"
+
+  # Docker Provider 3
+  provider-docker-3:
+    image: iarnet/provider:docker
+    container_name: demo-provider-docker-3
+    volumes:
+      # 挂载 Provider 3 的配置文件
+      - ./provider/p3/config.yaml:/app/config.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "50053:50051"  # gRPC 服务端口
+    networks:
+      iarnet-demo-network:
+        ipv4_address: 172.31.0.22
+    restart: unless-stopped
+    environment:
+      - LOG_LEVEL=info
+    labels:
+      - "provider.name=provider-docker-3"
+      - "provider.id=p3"
+      - "provider.type=docker"
+
+  # Docker Provider 4
+  provider-docker-4:
+    image: iarnet/provider:docker
+    container_name: demo-provider-docker-4
+    volumes:
+      # 挂载 Provider 4 的配置文件
+      - ./provider/p4/config.yaml:/app/config.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "50054:50051"  # gRPC 服务端口
+    networks:
+      iarnet-demo-network:
+        ipv4_address: 172.31.0.23
+    restart: unless-stopped
+    environment:
+      - LOG_LEVEL=info
+    labels:
+      - "provider.name=provider-docker-4"
+      - "provider.id=p4"
+      - "provider.type=docker"
+
+  iarnet-1:
+    image: iarnet:latest
+    container_name: demo-iarnet-1
+    # build:
+    #   context: ../iarnet
+    #   dockerfile: Dockerfile
+    privileged: true
+    volumes:
+      # 挂载数据目录（持久化）
+      - ./iarnet/i1/data:/app/data
+      - ./iarnet/i1/workspaces:/app/workspaces
+      # 挂载配置文件
+      - ./iarnet/i1/config.yaml:/app/config.yaml:ro
+      # 挂载 testrepo 目录（用于预留仓库功能）
+      - /tmp/iarnet-demo/testrepo:/app/testrepo:ro
+      # Iarnet 内部 dind 的 Docker 数据
+      - iarnet-1-docker:/var/lib/docker
+    ports:
+      - "4001:3000"  # 前端 Next.js 端口
+      - "23771:2375" # Iarnet-1 dind
+    networks:
+      iarnet-demo-network:
+        ipv4_address: 172.31.0.10
+    extra_hosts:
+      # 允许容器通过 host.docker.internal 访问宿主机（Linux 需要显式配置）
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    environment:
+      # 后端 URL（前端使用）
+      - BACKEND_URL=http://localhost:8083
+      # 在 dind 中运行，允许 docker CLI 通过 unix socket 通信
+      - DOCKER_TLS_CERTDIR=""
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    labels:
+      - "app.name=iarnet"
+      - "app.instance=iarnet-1"
+
+  # Iarnet 2（前后端一体化）
+  iarnet-2:
+    image: iarnet:latest
+    container_name: demo-iarnet-2
+    # build:
+    #   context: ../iarnet
+    #   dockerfile: Dockerfile
+    privileged: true
+    volumes:
+      # 挂载数据目录（持久化）
+      - ./iarnet/i2/data:/app/data
+      # 挂载工作空间目录
+      - ./iarnet/i2/workspaces:/app/workspaces
+      # 挂载配置文件
+      - ./iarnet/i2/config.yaml:/app/config.yaml:ro
+      # 挂载 testrepo 目录（用于预留仓库功能）
+      - /tmp/iarnet-demo/testrepo:/app/testrepo:ro
+      # Iarnet 内部 dind 的 Docker 数据
+      - iarnet-2-docker:/var/lib/docker
+    ports:
+      - "4002:3000"  # 前端 Next.js 端口（使用不同的宿主机端口）
+      - "23772:2375" # Iarnet-2 dind
+    networks:
+      iarnet-demo-network:
+        ipv4_address: 172.31.0.11
+    extra_hosts:
+      # 允许容器通过 host.docker.internal 访问宿主机（Linux 需要显式配置）
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    environment:
+      # 后端 URL（前端使用）
+      - BACKEND_URL=http://localhost:8083
+      # 在 dind 中运行，允许 docker CLI 通过 unix socket 通信
+      - DOCKER_TLS_CERTDIR=""
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    labels:
+      - "app.name=iarnet"
+      - "app.instance=iarnet-2"
+
+  # Iarnet 3（前后端一体化）
+  iarnet-3:
+    image: iarnet:latest
+    container_name: demo-iarnet-3
+    # build:
+    #   context: ../iarnet
+    #   dockerfile: Dockerfile
+    privileged: true
+    volumes:
+      - ./iarnet/i3/data:/app/data
+      - ./iarnet/i3/workspaces:/app/workspaces
+      - ./iarnet/i3/config.yaml:/app/config.yaml:ro
+      # 挂载 testrepo 目录（用于预留仓库功能）
+      - /tmp/iarnet-demo/testrepo:/app/testrepo:ro
+      - iarnet-3-docker:/var/lib/docker
+    ports:
+      - "4003:3000"
+      - "23773:2375"
+    networks:
+      iarnet-demo-network:
+        ipv4_address: 172.31.0.12
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    environment:
+      - BACKEND_URL=http://localhost:8083
+      - DOCKER_TLS_CERTDIR=""
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    labels:
+      - "app.name=iarnet"
+      - "app.instance=iarnet-3"
+
+  # Iarnet 4（前后端一体化）
+  iarnet-4:
+    image: iarnet:latest
+    container_name: demo-iarnet-4
+    privileged: true
+    volumes:
+      - ./iarnet/i4/data:/app/data
+      - ./iarnet/i4/workspaces:/app/workspaces
+      - ./iarnet/i4/config.yaml:/app/config.yaml:ro
+      - /tmp/iarnet-demo/testrepo:/app/testrepo:ro
+      - iarnet-4-docker:/var/lib/docker
+    ports:
+      - "4004:3000"
+      - "23774:2375"
+    networks:
+      iarnet-demo-network:
+        ipv4_address: 172.31.0.13
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    environment:
+      - BACKEND_URL=http://localhost:8083
+      - DOCKER_TLS_CERTDIR=""
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    labels:
+      - "app.name=iarnet"
+      - "app.instance=iarnet-4"
+
+  # Iarnet 5（前后端一体化）
+  iarnet-5:
+    image: iarnet:latest
+    container_name: demo-iarnet-5
+    privileged: true
+    volumes:
+      - ./iarnet/i5/data:/app/data
+      - ./iarnet/i5/workspaces:/app/workspaces
+      - ./iarnet/i5/config.yaml:/app/config.yaml:ro
+      - /tmp/iarnet-demo/testrepo:/app/testrepo:ro
+      - iarnet-5-docker:/var/lib/docker
+    ports:
+      - "4005:3000"
+      - "23775:2375"
+    networks:
+      iarnet-demo-network:
+        ipv4_address: 172.31.0.14
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    environment:
+      - BACKEND_URL=http://localhost:8083
+      - DOCKER_TLS_CERTDIR=""
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    labels:
+      - "app.name=iarnet"
+      - "app.instance=iarnet-5"
+
+  # Iarnet 6（前后端一体化）
+  iarnet-6:
+    image: iarnet:latest
+    container_name: demo-iarnet-6
+    privileged: true
+    volumes:
+      - ./iarnet/i6/data:/app/data
+      - ./iarnet/i6/workspaces:/app/workspaces
+      - ./iarnet/i6/config.yaml:/app/config.yaml:ro
+      - /tmp/iarnet-demo/testrepo:/app/testrepo:ro
+      - iarnet-6-docker:/var/lib/docker
+    ports:
+      - "4006:3000"
+      - "23776:2375"
+    networks:
+      iarnet-demo-network:
+        ipv4_address: 172.31.0.15
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    environment:
+      - BACKEND_URL=http://localhost:8083
+      - DOCKER_TLS_CERTDIR=""
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    labels:
+      - "app.name=iarnet"
+      - "app.instance=iarnet-6"
+
+  # Iarnet 7（前后端一体化）
+  iarnet-7:
+    image: iarnet:latest
+    container_name: demo-iarnet-7
+    privileged: true
+    volumes:
+      - ./iarnet/i7/data:/app/data
+      - ./iarnet/i7/workspaces:/app/workspaces
+      - ./iarnet/i7/config.yaml:/app/config.yaml:ro
+      - /tmp/iarnet-demo/testrepo:/app/testrepo:ro
+      - iarnet-7-docker:/var/lib/docker
+    ports:
+      - "4007:3000"
+      - "23777:2375"
+    networks:
+      iarnet-demo-network:
+        ipv4_address: 172.31.0.16
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    environment:
+      - BACKEND_URL=http://localhost:8083
+      - DOCKER_TLS_CERTDIR=""
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    labels:
+      - "app.name=iarnet"
+      - "app.instance=iarnet-7"
+
+  # Iarnet 8（前后端一体化）
+  iarnet-8:
+    image: iarnet:latest
+    container_name: demo-iarnet-8
+    privileged: true
+    volumes:
+      - ./iarnet/i8/data:/app/data
+      - ./iarnet/i8/workspaces:/app/workspaces
+      - ./iarnet/i8/config.yaml:/app/config.yaml:ro
+      - /tmp/iarnet-demo/testrepo:/app/testrepo:ro
+      - iarnet-8-docker:/var/lib/docker
+    ports:
+      - "4008:3000"
+      - "23778:2375"
+    networks:
+      iarnet-demo-network:
+        ipv4_address: 172.31.0.17
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    environment:
+      - BACKEND_URL=http://localhost:8083
+      - DOCKER_TLS_CERTDIR=""
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    labels:
+      - "app.name=iarnet"
+      - "app.instance=iarnet-8"
+
+  # Iarnet 9（前后端一体化）
+  iarnet-9:
+    image: iarnet:latest
+    container_name: demo-iarnet-9
+    privileged: true
+    volumes:
+      - ./iarnet/i9/data:/app/data
+      - ./iarnet/i9/workspaces:/app/workspaces
+      - ./iarnet/i9/config.yaml:/app/config.yaml:ro
+      - /tmp/iarnet-demo/testrepo:/app/testrepo:ro
+      - iarnet-9-docker:/var/lib/docker
+    ports:
+      - "4009:3000"
+      - "23779:2375"
+    networks:
+      iarnet-demo-network:
+        ipv4_address: 172.31.0.18
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    environment:
+      - BACKEND_URL=http://localhost:8083
+      - DOCKER_TLS_CERTDIR=""
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    labels:
+      - "app.name=iarnet"
+      - "app.instance=iarnet-9"
+
+  # Iarnet 10（前后端一体化）
+  iarnet-10:
+    image: iarnet:latest
+    container_name: demo-iarnet-10
+    privileged: true
+    volumes:
+      - ./iarnet/i10/data:/app/data
+      - ./iarnet/i10/workspaces:/app/workspaces
+      - ./iarnet/i10/config.yaml:/app/config.yaml:ro
+      - /tmp/iarnet-demo/testrepo:/app/testrepo:ro
+      - iarnet-10-docker:/var/lib/docker
+    ports:
+      - "4010:3000"
+      - "23780:2375"
+    networks:
+      iarnet-demo-network:
+        ipv4_address: 172.31.0.19
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    environment:
+      - BACKEND_URL=http://localhost:8083
+      - DOCKER_TLS_CERTDIR=""
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    labels:
+      - "app.name=iarnet"
+      - "app.instance=iarnet-10"
+
+  # Iarnet Global（全局调度器）
+  iarnet-global:
+    image: iarnet-global:latest
+    container_name: demo-iarnet-global
+    # build:
+    #   context: ../iarnet-global
+    #   dockerfile: Dockerfile
+    volumes:
+      # 挂载数据目录（持久化）
+      - ./global/data:/app/data
+      # 挂载配置文件
+      - ./global/config.yaml:/app/config.yaml:ro
+    ports:
+      - "4000:3000"
+    networks:
+      iarnet-demo-network:
+        ipv4_address: 172.31.0.24
+    restart: unless-stopped
+    environment:
+      - LOG_LEVEL=info
+    labels:
+      - "app.name=iarnet-global"
+      - "app.instance=global"
+
+volumes:
+  iarnet-1-docker:
+  iarnet-2-docker:
+  iarnet-3-docker:
+  iarnet-4-docker:
+  iarnet-5-docker:
+  iarnet-6-docker:
+  iarnet-7-docker:
+  iarnet-8-docker:
+  iarnet-9-docker:
+  iarnet-10-docker:
+
+networks:
+  iarnet-demo-network:
+    driver: bridge
+    name: iarnet-demo-network
+    ipam:
+      config:
+        - subnet: 172.31.0.0/24

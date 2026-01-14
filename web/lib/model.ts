@@ -177,6 +177,7 @@ export interface Application {
   containerId?: string
   executeCmd?: string
   envInstallCmd?: string
+  createdAt?: string // 创建时间（ISO 8601 格式）
 }
 
 export interface GetApplicationsResponse {

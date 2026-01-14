@@ -1,0 +1,1 @@
+docker-compose rm iarnet-1 iarnet-2 iarnet-3 iarnet-4 iarnet-5 iarnet-6 iarnet-7 iarnet-8 iarnet-9 iarnet-10

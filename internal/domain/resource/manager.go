@@ -172,6 +172,11 @@ func (m *Manager) GetProviderService() provider.Service {
 	return m.providerService
 }
 
+// GetProviderManager 获取 provider manager（用于直接添加 fake provider）
+func (m *Manager) GetProviderManager() *provider.Manager {
+	return m.providerManager
+}
+
 // UndeployComponent 移除 component
 func (m *Manager) UndeployComponent(ctx context.Context, componentID string, providerID string) error {
 	if providerID == "" {
@@ -403,25 +408,30 @@ func (m *Manager) pollProviderUsage(ctx context.Context) {
 	// 并发轮询所有 provider
 	var wg sync.WaitGroup
 	for _, p := range providers {
+		// 跳过 fake provider（它们不需要轮询）
+		if p.IsFake() {
+			continue
+		}
+
 		if p.GetStatus() != types.ProviderStatusConnected {
 			continue
 		}
 
 		wg.Add(1)
-		go func(provider *provider.Provider) {
+		go func(providerInterface provider.ProviderInterface) {
 			defer wg.Done()
 
 			// 获取实时使用量
-			usage, err := provider.GetRealTimeUsage(pollCtx)
+			usage, err := providerInterface.GetRealTimeUsage(pollCtx)
 			if err != nil {
-				logrus.Debugf("Failed to get real-time usage from provider %s: %v", provider.GetID(), err)
+				logrus.Debugf("Failed to get real-time usage from provider %s: %v", providerInterface.GetID(), err)
 				return
 			}
 
 			// 获取容量信息（用于计算使用率）
-			capacity, err := provider.GetCapacity(pollCtx)
+			capacity, err := providerInterface.GetCapacity(pollCtx)
 			if err != nil {
-				logrus.Debugf("Failed to get capacity from provider %s: %v", provider.GetID(), err)
+				logrus.Debugf("Failed to get capacity from provider %s: %v", providerInterface.GetID(), err)
 				return
 			}
 
@@ -443,7 +453,7 @@ func (m *Manager) pollProviderUsage(ctx context.Context) {
 
 			// 记录数据点（目前记录到日志，后续可以扩展为持久化存储）
 			logrus.Debugf("Provider %s usage: CPU=%.3f%% (%d/%d millicores), Memory=%.3f%% (%d/%d bytes), GPU=%.3f%% (%d/%d)",
-				provider.GetID(),
+				providerInterface.GetID(),
 				cpuRate, usage.CPU, capacity.Total.CPU,
 				memoryRate, usage.Memory, capacity.Total.Memory,
 				gpuRate, usage.GPU, capacity.Total.GPU,
@@ -682,9 +692,11 @@ func (m *Manager) performHealthCheck(ctx context.Context, client registrypb.Serv
 	return 0
 }
 
-// aggregateResourceStatus 聚合所有 provider 的资源状态
+// aggregateResourceStatus 聚合所有 provider 的资源状态（包括 fake provider）
 // 返回聚合后的资源容量和资源标签
+// 注意：fake provider 也会被聚合到总资源中，用于前端显示和 gossip 资源交换
 func (m *Manager) aggregateResourceStatus(ctx context.Context) (*registrypb.ResourceCapacity, *registrypb.ResourceTags) {
+	// 使用 GetAllProviders 获取所有 provider（包括 fake provider），用于资源聚合和 gossip 交换
 	providers := m.providerService.GetAllProviders()
 
 	if len(providers) == 0 {
@@ -701,9 +713,15 @@ func (m *Manager) aggregateResourceStatus(ctx context.Context) (*registrypb.Reso
 	hasCamera := false
 
 	// 遍历所有已连接的 provider，聚合资源
+	// 注意：包括 fake provider，它们也会被聚合到总资源中
 	for _, p := range providers {
 		if p.GetStatus() != types.ProviderStatusConnected {
 			continue
+		}
+
+		// 记录是否包含 fake provider（用于调试）
+		if p.IsFake() {
+			logrus.Debugf("Including fake provider %s in resource aggregation for global registry", p.GetID())
 		}
 
 		// 获取 provider 的资源容量
@@ -1009,6 +1027,18 @@ func (m *Manager) ProposeDelegatedDeployment(ctx context.Context, runtimeEnv typ
 			continue
 		}
 
+		// 检查远程节点是否有真实的 provider（非 fake provider）
+		// 在跨域调度时，只选择有真实 provider 的节点，避免选择只有 fake provider 的节点
+		hasRealProvider, err := m.checkRemoteNodeHasRealProvider(ctx, nodeID, node.SchedulerAddress, node.Address)
+		if err != nil {
+			logrus.Warnf("Failed to check real providers for remote node %s (%s): %v, skipping", node.NodeName, nodeID, err)
+			continue
+		}
+		if !hasRealProvider {
+			logrus.Debugf("Skipping remote node %s (%s) in delegated deployment proposals: only fake providers available", node.NodeName, nodeID)
+			continue
+		}
+
 		proposals = append(proposals, &DelegatedScheduleProposal{
 			NodeID:           nodeID, // 使用 TrimSpace 后的 nodeID，确保一致性
 			NodeName:         node.NodeName,
@@ -1034,6 +1064,47 @@ func (m *Manager) ProposeDelegatedDeployment(ctx context.Context, runtimeEnv typ
 
 	logrus.Debugf("Generated %d delegated scheduling proposals for runtime=%s (sorted by available resources)", len(proposals), runtimeEnv)
 	return proposals, nil
+}
+
+// checkRemoteNodeHasRealProvider 检查远程节点是否有真实的 provider（非 fake provider）
+// 返回 true 表示有真实 provider，false 表示只有 fake provider 或没有 provider
+func (m *Manager) checkRemoteNodeHasRealProvider(ctx context.Context, nodeID string, schedulerAddress string, nodeAddress string) (bool, error) {
+	if m.schedulerService == nil {
+		return false, fmt.Errorf("scheduler service is not configured")
+	}
+
+	// 获取远程节点的 provider 列表
+	providerListResp, err := m.schedulerService.ListRemoteProviders(ctx, nodeID, schedulerAddress, false)
+	if err != nil {
+		return false, fmt.Errorf("failed to list remote providers: %w", err)
+	}
+	if providerListResp == nil {
+		return false, fmt.Errorf("failed to list remote providers: response is nil")
+	}
+	if !providerListResp.Success {
+		errorMsg := providerListResp.Error
+		if errorMsg == "" {
+			errorMsg = "unknown error"
+		}
+		return false, fmt.Errorf("failed to list remote providers: %s", errorMsg)
+	}
+
+	// 检查是否有非 fake 的 provider
+	// fake provider 的 ID 以 "fake.provider." 开头
+	for _, provider := range providerListResp.Providers {
+		if provider == nil {
+			continue
+		}
+		// 如果 provider ID 不是以 "fake.provider." 开头，说明是真实 provider
+		if !strings.HasPrefix(provider.ProviderID, "fake.provider.") {
+			logrus.Debugf("Remote node %s (%s) has real provider: %s", providerListResp.NodeName, nodeID, provider.ProviderID)
+			return true, nil
+		}
+	}
+
+	// 如果没有找到真实 provider，返回 false
+	logrus.Debugf("Remote node %s (%s) has no real providers (only fake providers or empty)", providerListResp.NodeName, nodeID)
+	return false, nil
 }
 
 // calculateAvailableResourceScore 计算节点的空余资源评分
@@ -1115,10 +1186,21 @@ func (m *Manager) DeployComponentOnProvider(ctx context.Context, runtimeEnv type
 		return nil, fmt.Errorf("unsupported runtime environment: %s", runtimeEnv)
 	}
 
-	// 获取指定的 provider
+	// 获取指定的 provider（包括 fake provider）
 	p := m.providerService.GetProvider(providerID)
 	if p == nil {
 		return nil, fmt.Errorf("provider %s not found", providerID)
+	}
+
+	// 检查是否为 fake provider（fake provider 不支持部署）
+	if p.IsFake() {
+		return nil, fmt.Errorf("fake provider %s does not support deployment", providerID)
+	}
+
+	// 类型断言为 *Provider
+	realProvider, ok := p.(*provider.Provider)
+	if !ok {
+		return nil, fmt.Errorf("provider %s is not a real provider", providerID)
 	}
 
 	// 检查 provider 状态
@@ -1143,7 +1225,7 @@ func (m *Manager) DeployComponentOnProvider(ctx context.Context, runtimeEnv type
 	}
 
 	// 在指定 provider 上部署，传递语言而不是镜像
-	if err := p.Deploy(ctx, id, language, resourceRequest); err != nil {
+	if err := realProvider.Deploy(ctx, id, language, resourceRequest); err != nil {
 		return nil, fmt.Errorf("failed to deploy component on provider %s: %w", providerID, err)
 	}
 
@@ -1167,6 +1249,10 @@ func (m *Manager) ListAllProviders(ctx context.Context, includeResources bool) (
 
 	result := make([]*scheduler.ProviderInfo, 0, len(providers))
 	for _, p := range providers {
+		// 包括 fake provider（前端需要显示它们，也会上报到 global registry）
+		if p.IsFake() {
+			logrus.Debugf("Including fake provider %s in provider list for global registry", p.GetID())
+		}
 		info := &scheduler.ProviderInfo{
 			ProviderID:   p.GetID(),
 			ProviderName: p.GetName(),
@@ -1484,13 +1570,39 @@ func (m *Manager) UnregisterProvider(id string) error {
 	return m.providerService.UnregisterProvider(context.Background(), id)
 }
 
-// GetAllProviders 获取所有注册的 Provider
+// GetAllProviders 获取所有注册的 Provider（包括普通 Provider 和 FakeProvider）
 func (m *Manager) GetAllProviders() []*provider.Provider {
+	allProviders := m.providerService.GetAllProviders()
+	result := make([]*provider.Provider, 0, len(allProviders))
+	for _, p := range allProviders {
+		// 只返回普通 Provider，FakeProvider 需要单独处理
+		if realProvider, ok := p.(*provider.Provider); ok {
+			result = append(result, realProvider)
+		}
+	}
+	return result
+}
+
+// GetAllProvidersIncludingFake 获取所有 Provider（包括 FakeProvider）
+func (m *Manager) GetAllProvidersIncludingFake() []provider.ProviderInterface {
 	return m.providerService.GetAllProviders()
 }
 
 // GetProvider 获取指定 ID 的 Provider
 func (m *Manager) GetProvider(id string) *provider.Provider {
+	p := m.providerService.GetProvider(id)
+	if p == nil {
+		return nil
+	}
+	// 类型断言为 *Provider
+	if realProvider, ok := p.(*provider.Provider); ok {
+		return realProvider
+	}
+	return nil
+}
+
+// GetProviderIncludingFake 获取 Provider（包括 FakeProvider）
+func (m *Manager) GetProviderIncludingFake(id string) provider.ProviderInterface {
 	return m.providerService.GetProvider(id)
 }
 

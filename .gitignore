@@ -32,6 +32,7 @@ iarnet
 iarnet-*
 !iarnet-configs
 !experiment/setup/iarnet
+!deploy/iarnet
 
 # Logs
 logs
