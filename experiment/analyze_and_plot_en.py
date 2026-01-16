@@ -306,7 +306,7 @@ class ExperimentAnalyzer:
         axes[0].plot(x, success_rates, color=COLORS['primary'][0], marker='o', 
                     markersize=8, linewidth=2.5, alpha=0.9, zorder=3, 
                     markeredgecolor='white', markeredgewidth=1.5)
-        axes[0].set_xlabel('Number of Nodes', fontweight='normal', fontsize=10)
+        axes[0].set_xlabel('Number of Domains', fontweight='normal', fontsize=10)
         axes[0].set_ylabel('Task Success Rate (%)', fontweight='normal', fontsize=10)
         axes[0].set_title('(a) Overall Task Success Rate', fontweight='normal', pad=10, fontsize=11)
         axes[0].set_xticks(x)
@@ -336,7 +336,7 @@ class ExperimentAnalyzer:
                         marker=marker, markersize=8, linewidth=2.0, alpha=0.9, zorder=3, 
                         markeredgecolor='white', markeredgewidth=1.0)
         
-        axes[1].set_xlabel('Number of Nodes', fontweight='normal', fontsize=10)
+        axes[1].set_xlabel('Number of Domains', fontweight='normal', fontsize=10)
         axes[1].set_ylabel('Success Rate (%)', fontweight='normal', fontsize=10)
         axes[1].set_title('(b) Success Rate by Task Type', fontweight='normal', pad=10, fontsize=11)
         axes[1].set_xticks(x)
@@ -354,33 +354,33 @@ class ExperimentAnalyzer:
         print("✓ Generated Figure 1: Task Success Rate Comparison")
     
     def plot_execution_distribution(self):
-        """Figure 2: Execution Location Distribution"""
-        fig = plt.figure(figsize=(16, 14))
+        """Figure 2: Task Scheduling Distribution"""
+        fig, axes = plt.subplots(1, 2, figsize=(14, 6))
         fig.patch.set_facecolor('white')
         
         scenarios = self.scenarios
         x = np.arange(len(scenarios))
         width = 0.6
         
-        # Subplot 1: Overall execution distribution
-        ax1 = plt.subplot(3, 2, 1)
+        # Left: Overall scheduling distribution
+        ax1 = axes[0]
         local_rates = [self.data[s]['local_rate'] for s in scenarios]
         cross_rates = [self.data[s]['cross_rate'] for s in scenarios]
         
         p1 = ax1.bar(x, local_rates, width, label='Local Execution', 
                     color=COLORS['execution'][0], edgecolor='white', linewidth=2, 
-                    alpha=0.9, zorder=3)
+                    alpha=0.9, zorder=3, hatch='')
         p2 = ax1.bar(x, cross_rates, width, bottom=local_rates, 
                     label='Cross-Node Execution', color=COLORS['execution'][1], 
-                    edgecolor='white', linewidth=2, alpha=0.9, zorder=3)
+                    edgecolor='white', linewidth=2, alpha=0.9, zorder=3, hatch='///')
         
-        ax1.set_xlabel('Number of Nodes', fontweight='normal', fontsize=10)
-        ax1.set_ylabel('Execution Ratio (%)', fontweight='normal', fontsize=10)
-        ax1.set_title('(a) Overall Execution Distribution', fontweight='normal', pad=10, fontsize=11)
+        ax1.set_xlabel('Number of Domains', fontweight='normal', fontsize=10)
+        ax1.set_ylabel('Task Scheduling Ratio (%)', fontweight='normal', fontsize=10)
+        ax1.set_title('(a) Overall Task Scheduling Distribution', fontweight='normal', pad=10, fontsize=11)
         ax1.set_xticks(x)
         ax1.set_xticklabels(scenarios, fontsize=9)
         ax1.tick_params(axis='y', labelsize=9)
-        ax1.legend(loc='upper left', bbox_to_anchor=(1.02, 1), frameon=True, 
+        ax1.legend(loc='upper left', frameon=True, 
                   fancybox=False, shadow=False, framealpha=0.9, fontsize=9, edgecolor='#CCCCCC')
         ax1.set_ylim([0, 105])
         ax1.grid(True, alpha=0.3, linestyle='-', linewidth=0.5, color='#E0E0E0', zorder=0)
@@ -397,8 +397,8 @@ class ExperimentAnalyzer:
                 ax1.text(i, l + c/2, f'{c:.1f}%', ha='center', va='center', 
                         fontsize=8, color=text_color, fontweight='normal')
         
-        # Subplot 2: Execution distribution by task type
-        ax2 = plt.subplot(3, 2, 2)
+        # Right: Scheduling distribution by task type
+        ax2 = axes[1]
         task_types = ['small', 'medium', 'large']
         task_labels = ['Small', 'Medium', 'Large']
         x_pos = np.arange(len(scenarios))
@@ -421,17 +421,21 @@ class ExperimentAnalyzer:
                     cross_vals.append(0)
             
             # Plot local execution (increased alpha for deeper colors)
+            # Different hatch patterns for each task type: Small='', Medium='|||', Large='---'
+            hatch_patterns_local = ['', '|||', '---']
             local_bars = ax2.bar(x_pos + i*width_bar, local_vals, width_bar, 
                    label=f'{task_label} (Local)', 
                    color=COLORS['task_types'][i], edgecolor='white', 
-                   linewidth=1.5, alpha=0.9, zorder=3)
+                   linewidth=1.5, alpha=0.9, zorder=3, hatch=hatch_patterns_local[i])
             local_bars_list.append((local_bars, local_vals, COLORS['task_types'][i]))
             
             # Plot cross-node execution (increased alpha for deeper colors)
+            # Different hatch patterns for cross-node: Small='///', Medium='\\\\\\', Large='xxx'
+            hatch_patterns_cross = ['///', '\\\\\\', 'xxx']
             cross_bars = ax2.bar(x_pos + i*width_bar, cross_vals, width_bar, 
                    bottom=local_vals, label=f'{task_label} (Cross)', 
                    color=COLORS['task_types'][i], edgecolor='white', 
-                   linewidth=1.5, alpha=0.6, zorder=3, hatch='///')
+                   linewidth=1.5, alpha=0.6, zorder=3, hatch=hatch_patterns_cross[i])
             cross_bars_list.append((cross_bars, cross_vals, local_vals, COLORS['task_types'][i]))
         
         # Add value labels for local execution with adaptive text color
@@ -454,24 +458,36 @@ class ExperimentAnalyzer:
                            f'{cross_val:.1f}%', ha='center', va='center', 
                            fontsize=7, fontweight='normal', color=text_color)
         
-        ax2.set_xlabel('Number of Nodes', fontweight='normal', fontsize=10)
-        ax2.set_ylabel('Execution Ratio (%)', fontweight='normal', fontsize=10)
-        ax2.set_title('(b) Execution Distribution by Task Type', fontweight='normal', pad=10, fontsize=11)
+        ax2.set_xlabel('Number of Domains', fontweight='normal', fontsize=10)
+        ax2.set_ylabel('Task Scheduling Ratio (%)', fontweight='normal', fontsize=10)
+        ax2.set_title('(b) Task Scheduling Distribution by Task Type', fontweight='normal', pad=10, fontsize=11)
         ax2.set_xticks(x_pos + width_bar)
         ax2.set_xticklabels(scenarios, fontsize=9)
         ax2.tick_params(axis='y', labelsize=9)
-        ax2.legend(loc='upper left', bbox_to_anchor=(1.02, 1), frameon=True, 
+        ax2.legend(loc='upper left', frameon=True, 
                   fancybox=False, shadow=False, framealpha=0.9, fontsize=9, edgecolor='#CCCCCC')
         ax2.set_ylim([0, 105])
         ax2.grid(True, alpha=0.3, linestyle='-', linewidth=0.5, color='#E0E0E0', zorder=0)
         ax2.set_axisbelow(True)
         
-        # Subplot 3, 4, 5: Node-level distribution for scenarios with 2, 4, 8 nodes
-        plot_scenarios = ['2', '4', '8']
-        subplot_positions = [3, 4, 5]
+        plt.tight_layout(pad=3.0)
+        plt.savefig(self.result_dir / 'fig2_task_scheduling_distribution_en.png', dpi=300, 
+                   bbox_inches='tight', facecolor='white', edgecolor='none')
+        plt.close()
+        print("✓ Generated Figure 2: Task Scheduling Distribution")
+    
+    def plot_node_task_distribution(self):
+        """Figure 3: Task Distribution by Node"""
+        fig = plt.figure(figsize=(18, 5))
+        fig.patch.set_facecolor('white')
         
-        for idx, (scenario, pos) in enumerate(zip(plot_scenarios, subplot_positions)):
-            ax = plt.subplot(3, 2, pos)
+        scenarios = self.scenarios
+        
+        # Subplot 1, 2, 3: Node-level distribution for scenarios with 2, 4, 8 nodes
+        plot_scenarios = ['2', '4', '8']
+        
+        for idx, scenario in enumerate(plot_scenarios):
+            ax = plt.subplot(1, 3, idx + 1)
             details = self.data[scenario]['execution_details']['by_node']
             
             # Sort nodes by node number (node.1, node.2, ..., node.8)
@@ -480,7 +496,8 @@ class ExperimentAnalyzer:
                 return int(match.group(1)) if match else 999
             
             nodes = sorted(details.keys(), key=get_node_number)
-            node_names = [details[node]['name'] for node in nodes]
+            # Convert node.X to domain.X for display
+            node_names = [details[node]['name'].replace('node.', 'domain.') for node in nodes]
             task_types = ['small', 'medium', 'large']
             task_labels = ['Small', 'Medium', 'Large']
             
@@ -488,18 +505,21 @@ class ExperimentAnalyzer:
             width_node = 0.25
             
             # Create grouped bars for each task type - showing percentages
+            # Different hatch patterns for each task type: Small='', Medium='|||', Large='---'
+            hatch_patterns = ['', '|||', '---']
             bars_list = []
             for i, (task_type, task_label) in enumerate(zip(task_types, task_labels)):
                 percents = [details[node]['tasks_percent'].get(task_type, 0) for node in nodes]
                 counts = [details[node]['tasks'].get(task_type, 0) for node in nodes]
                 bars = ax.bar(x_node + i*width_node, percents, width_node, 
                              label=task_label, color=COLORS['task_types'][i], 
-                             edgecolor='white', linewidth=1.5, alpha=0.9, zorder=3)
+                             edgecolor='white', linewidth=1.5, alpha=0.9, zorder=3,
+                             hatch=hatch_patterns[i])
                 bars_list.append((bars, counts))
             
-            ax.set_xlabel('Node', fontweight='normal', fontsize=9)
+            ax.set_xlabel('Domain', fontweight='normal', fontsize=9)
             ax.set_ylabel('Task Percentage (%)', fontweight='normal', fontsize=9)
-            ax.set_title(f'({chr(99+idx)}) {scenario}-Node Scenario: Task Distribution by Node', 
+            ax.set_title(f'({chr(97+idx)}) {scenario}-Domain Scenario: Task Distribution by Domain', 
                         fontweight='normal', pad=8, fontsize=10)
             ax.set_xticks(x_node + width_node)
             ax.set_xticklabels(node_names, rotation=45, ha='right', fontsize=8)
@@ -514,9 +534,9 @@ class ExperimentAnalyzer:
                                f'{height:.1f}%', ha='center', va='bottom', 
                                fontsize=7, fontweight='normal', color='#333333')
             
-            # Place legend outside the plot area to avoid blocking data
+            # Place legend in upper right corner of first subplot
             if idx == 0:  # Only show legend on first subplot
-                ax.legend(loc='upper left', bbox_to_anchor=(1.02, 1), 
+                ax.legend(loc='upper right', 
                          frameon=True, fancybox=False, shadow=False, framealpha=0.9, fontsize=8, edgecolor='#CCCCCC')
             max_percent = max([max([details[node]['tasks_percent'].get(t, 0) 
                                     for node in nodes]) 
@@ -525,64 +545,15 @@ class ExperimentAnalyzer:
             ax.grid(True, alpha=0.3, linestyle='-', linewidth=0.5, color='#E0E0E0', zorder=0)
             ax.set_axisbelow(True)
         
-        # Subplot 6: 1-node scenario (trivial case, but show for completeness)
-        ax6 = plt.subplot(3, 2, 6)
-        details = self.data['1']['execution_details']['by_node']
-        
-        # Sort nodes by node number
-        def get_node_number(node_name):
-            match = re.search(r'node\.(\d+)', node_name)
-            return int(match.group(1)) if match else 999
-        
-        nodes = sorted(details.keys(), key=get_node_number)
-        node_names = [details[node]['name'] for node in nodes]
-        task_types = ['small', 'medium', 'large']
-        task_labels = ['Small', 'Medium', 'Large']
-        
-        x_node = np.arange(len(nodes))
-        width_node = 0.25
-        
-        bars_list = []
-        for i, (task_type, task_label) in enumerate(zip(task_types, task_labels)):
-            percents = [details[node]['tasks_percent'].get(task_type, 0) for node in nodes]
-            counts = [details[node]['tasks'].get(task_type, 0) for node in nodes]
-            bars = ax6.bar(x_node + i*width_node, percents, width_node, 
-                          label=task_label, color=COLORS['task_types'][i], 
-                          edgecolor='white', linewidth=1.5, alpha=0.9, zorder=3)
-            bars_list.append((bars, counts))
-        
-        ax6.set_xlabel('Node', fontweight='normal', fontsize=9)
-        ax6.set_ylabel('Task Percentage (%)', fontweight='normal', fontsize=9)
-        ax6.set_title('(f) 1-Node Scenario: Task Distribution by Node', 
-                     fontweight='normal', pad=8, fontsize=10)
-        ax6.set_xticks(x_node + width_node)
-        ax6.set_xticklabels(node_names, rotation=45, ha='right', fontsize=8)
-        ax6.tick_params(axis='y', labelsize=8)
-        
-        # Add value labels (show percentage instead of count)
-        for bars, counts in bars_list:
-            for bar, count in zip(bars, counts):
-                height = bar.get_height()
-                if height > 0.5:
-                    ax6.text(bar.get_x() + bar.get_width()/2, height + 0.5, 
-                            f'{height:.1f}%', ha='center', va='bottom', 
-                            fontsize=7, fontweight='normal', color='#333333')
-        
-        max_percent = max([max([details[node]['tasks_percent'].get(t, 0) 
-                               for node in nodes]) 
-                          for t in task_types])
-        ax6.set_ylim([0, max(max_percent * 1.15, 10)])
-        ax6.grid(True, alpha=0.3, linestyle='-', linewidth=0.5, color='#E0E0E0', zorder=0)
-        ax6.set_axisbelow(True)
-        
-        plt.tight_layout(pad=3.0, rect=[0, 0, 0.95, 1])  # Leave space on right for legends
-        plt.savefig(self.result_dir / 'fig2_execution_distribution_en.png', dpi=300, 
+        plt.tight_layout(pad=3.0)  # Adjust layout
+        plt.subplots_adjust(wspace=0.15)  # Reduce horizontal spacing between subplots
+        plt.savefig(self.result_dir / 'fig3_node_task_distribution_en.png', dpi=300, 
                    bbox_inches='tight', facecolor='white', edgecolor='none')
         plt.close()
-        print("✓ Generated Figure 2: Execution Location Distribution")
+        print("✓ Generated Figure 3: Task Distribution by Node")
     
     def plot_latency_and_throughput(self):
-        """Figure 3: Response Latency and Throughput Comparison (Side by Side)"""
+        """Figure 4: Response Latency and Throughput Comparison (Side by Side)"""
         fig, axes = plt.subplots(1, 2, figsize=(14, 6))
         fig.patch.set_facecolor('white')
         
@@ -610,7 +581,7 @@ class ExperimentAnalyzer:
                 ax1.text(j, v * 1.15, f'{v:.1f}', ha='center', va='bottom', 
                         fontsize=7, fontweight='normal', color=COLORS['latency'][i])
         
-        ax1.set_xlabel('Number of Nodes', fontweight='normal', fontsize=10)
+        ax1.set_xlabel('Number of Domains', fontweight='normal', fontsize=10)
         ax1.set_ylabel('Response Latency (ms)', fontweight='normal', fontsize=10)
         ax1.set_title('(a) Response Latency Statistics', fontweight='normal', pad=10, fontsize=11)
         ax1.set_xticks(x)
@@ -630,7 +601,7 @@ class ExperimentAnalyzer:
                 markersize=8, linewidth=2.5, alpha=0.9, zorder=3, 
                 markeredgecolor='white', markeredgewidth=1.5)
         
-        ax2.set_xlabel('Number of Nodes', fontweight='normal', fontsize=10)
+        ax2.set_xlabel('Number of Domains', fontweight='normal', fontsize=10)
         ax2.set_ylabel('Throughput (req/s)', fontweight='normal', fontsize=10)
         ax2.set_title('(b) System Throughput', fontweight='normal', pad=10, fontsize=11)
         ax2.set_xticks(x)
@@ -645,26 +616,20 @@ class ExperimentAnalyzer:
                     fontsize=9, fontweight='normal', color='#333333')
         
         plt.tight_layout(pad=3.0)
-        plt.savefig(self.result_dir / 'fig3_latency_throughput_en.png', dpi=300, 
+        plt.savefig(self.result_dir / 'fig4_latency_throughput_en.png', dpi=300, 
                    bbox_inches='tight', facecolor='white', edgecolor='none')
         plt.close()
-        print("✓ Generated Figure 3: Response Latency and Throughput Comparison")
+        print("✓ Generated Figure 4: Response Latency and Throughput Comparison")
     
-    def plot_resource_utilization(self):
-        """Figure 4: Resource Utilization - All scenarios in one figure"""
-        # Create a figure with 5 subplots: 1 for local node + 4 for each scenario
-        fig = plt.figure(figsize=(20, 12))
+    def plot_local_node_resource_utilization(self):
+        """Figure 5: Local Node Resource Utilization"""
+        fig, ax = plt.subplots(figsize=(10, 6))
         fig.patch.set_facecolor('white')
         
         scenarios = self.scenarios
         # Resource colors using Tableau Classic (harmonious, classic academic colors)
         resource_colors = ['#4E79A7', '#F28E2B', '#59A14F']  # CPU (Blue), Memory (Orange), GPU (Green)
         
-        # Create grid layout: 2 rows, 3 columns (5 subplots)
-        gs = fig.add_gridspec(2, 3, hspace=0.3, wspace=0.25)
-        
-        # Subplot 1: Local node resource utilization across scenarios
-        ax1 = fig.add_subplot(gs[0, :2])  # Top left, spans 2 columns
         x = np.arange(len(scenarios))
         
         # Find local node (typically node.1)
@@ -682,98 +647,95 @@ class ExperimentAnalyzer:
         if local_node_name:
             # Prepare data for grouped bar chart
             cpu_avg = []
-            cpu_max = []
             mem_avg = []
-            mem_max = []
             gpu_avg = []
-            gpu_max = []
             
             for s in scenarios:
                 nodes = self.data[s]['nodes']
                 if local_node_name in nodes:
                     node_data = nodes[local_node_name]
                     cpu_avg.append(node_data['cpu_avg'])
-                    cpu_max.append(node_data['cpu_max'])
                     mem_avg.append(node_data['mem_avg'])
-                    mem_max.append(node_data['mem_max'])
                     gpu_avg.append(node_data['gpu_avg'])
-                    gpu_max.append(node_data['gpu_max'])
                 else:
                     cpu_avg.append(0)
-                    cpu_max.append(0)
                     mem_avg.append(0)
-                    mem_max.append(0)
                     gpu_avg.append(0)
-                    gpu_max.append(0)
             
             # Plot grouped bar chart
             group_width = 0.8
             bar_width = group_width / 3
             
-            for i, (ca, cm, ma, mm, ga, gm) in enumerate(zip(cpu_avg, cpu_max, mem_avg, mem_max, gpu_avg, gpu_max)):
+            for i, (ca, ma, ga) in enumerate(zip(cpu_avg, mem_avg, gpu_avg)):
                 x_pos = x[i]
                 x_cpu = x_pos - group_width/3
                 x_mem = x_pos
                 x_gpu = x_pos + group_width/3
                 
-                # CPU bar
-                ax1.bar(x_cpu, ca, bar_width, label='CPU' if i == 0 else '', 
-                       color=resource_colors[0], alpha=0.9, edgecolor='white', linewidth=1.5)
-                ax1.plot([x_cpu - bar_width/2, x_cpu + bar_width/2], [cm, cm], 
-                        color=resource_colors[0], linewidth=2.5, alpha=0.9, label='Max' if i == 0 and x_pos == x[0] else '')
-                ax1.plot([x_cpu, x_cpu], [ca, cm], color=resource_colors[0], linewidth=1.5, alpha=0.9, linestyle='--')
+                # CPU bar - vertical lines
+                ax.bar(x_cpu, ca, bar_width, label='CPU' if i == 0 else '', 
+                       color=resource_colors[0], alpha=0.9, edgecolor='white', linewidth=1.5,
+                       hatch='|||')
                 
-                # Memory bar
-                ax1.bar(x_mem, ma, bar_width, label='Memory' if i == 0 else '', 
-                       color=resource_colors[1], alpha=0.9, edgecolor='white', linewidth=1.5)
-                ax1.plot([x_mem - bar_width/2, x_mem + bar_width/2], [mm, mm], 
-                        color=resource_colors[1], linewidth=2.5, alpha=0.9)
-                ax1.plot([x_mem, x_mem], [ma, mm], color=resource_colors[1], linewidth=1.5, alpha=0.9, linestyle='--')
+                # Memory bar - horizontal lines
+                ax.bar(x_mem, ma, bar_width, label='Memory' if i == 0 else '', 
+                       color=resource_colors[1], alpha=0.9, edgecolor='white', linewidth=1.5,
+                       hatch='---')
                 
-                # GPU bar
-                ax1.bar(x_gpu, ga, bar_width, label='GPU' if i == 0 else '', 
-                       color=resource_colors[2], alpha=0.9, edgecolor='white', linewidth=1.5)
-                ax1.plot([x_gpu - bar_width/2, x_gpu + bar_width/2], [gm, gm], 
-                        color=resource_colors[2], linewidth=2.5, alpha=0.9)
-                ax1.plot([x_gpu, x_gpu], [ga, gm], color=resource_colors[2], linewidth=1.5, alpha=0.9, linestyle='--')
+                # GPU bar - diagonal lines
+                ax.bar(x_gpu, ga, bar_width, label='GPU' if i == 0 else '', 
+                       color=resource_colors[2], alpha=0.9, edgecolor='white', linewidth=1.5,
+                       hatch='///')
                 
                 # Add value labels
                 if ca > 0:
-                    ax1.text(x_cpu, ca + 1, f'{ca:.1f}', ha='center', va='bottom', fontsize=7, fontweight='normal')
-                if cm > ca:
-                    ax1.text(x_cpu, cm + 1, f'{cm:.1f}', ha='center', va='bottom', fontsize=7, fontweight='normal', color=resource_colors[0])
+                    ax.text(x_cpu, ca + 1, f'{ca:.1f}', ha='center', va='bottom', fontsize=9, fontweight='normal')
                 if ma > 0:
-                    ax1.text(x_mem, ma + 1, f'{ma:.1f}', ha='center', va='bottom', fontsize=7, fontweight='normal')
-                if mm > ma:
-                    ax1.text(x_mem, mm + 1, f'{mm:.1f}', ha='center', va='bottom', fontsize=7, fontweight='normal', color=resource_colors[1])
+                    ax.text(x_mem, ma + 1, f'{ma:.1f}', ha='center', va='bottom', fontsize=9, fontweight='normal')
                 if ga > 0:
-                    ax1.text(x_gpu, ga + 1, f'{ga:.1f}', ha='center', va='bottom', fontsize=7, fontweight='normal')
-                if gm > ga:
-                    ax1.text(x_gpu, gm + 1, f'{gm:.1f}', ha='center', va='bottom', fontsize=7, fontweight='normal', color=resource_colors[2])
+                    ax.text(x_gpu, ga + 1, f'{ga:.1f}', ha='center', va='bottom', fontsize=9, fontweight='normal')
         
-        ax1.set_xlabel('Number of Nodes', fontweight='normal', fontsize=10)
-        ax1.set_ylabel('Resource Utilization (%)', fontweight='normal', fontsize=10)
-        ax1.set_title('(a) Local Node Resource Utilization', fontweight='normal', pad=10, fontsize=11)
-        ax1.set_xticks(x)
-        ax1.set_xticklabels(scenarios, fontsize=9)
-        ax1.tick_params(axis='y', labelsize=9)
+        ax.set_xlabel('Number of Domains', fontweight='normal', fontsize=10)
+        ax.set_ylabel('Resource Utilization (%)', fontweight='normal', fontsize=10)
+        ax.set_title('Local Node Resource Utilization', fontweight='normal', pad=10, fontsize=11)
+        ax.set_xticks(x)
+        ax.set_xticklabels(scenarios, fontsize=9)
+        ax.tick_params(axis='y', labelsize=9)
         legend_elements = [
-            plt.Rectangle((0,0),1,1, facecolor=resource_colors[0], alpha=0.9, edgecolor='white', label='CPU'),
-            plt.Rectangle((0,0),1,1, facecolor=resource_colors[1], alpha=0.9, edgecolor='white', label='Memory'),
-            plt.Rectangle((0,0),1,1, facecolor=resource_colors[2], alpha=0.9, edgecolor='white', label='GPU'),
-            Line2D([0], [0], color='#2C2C2C', linewidth=2.0, label='Max', linestyle='-')
+            plt.Rectangle((0,0),1,1, facecolor=resource_colors[0], alpha=0.9, edgecolor='white', label='CPU', hatch='|||'),
+            plt.Rectangle((0,0),1,1, facecolor=resource_colors[1], alpha=0.9, edgecolor='white', label='Memory', hatch='---'),
+            plt.Rectangle((0,0),1,1, facecolor=resource_colors[2], alpha=0.9, edgecolor='white', label='GPU', hatch='///')
         ]
-        ax1.legend(handles=legend_elements, loc='upper right', frameon=True, fancybox=False, shadow=False, framealpha=0.9, fontsize=8, edgecolor='#CCCCCC')
-        ax1.set_ylim([0, 105])
-        ax1.grid(True, alpha=0.3, linestyle='-', linewidth=0.5, color='#E0E0E0', zorder=0)
-        ax1.set_axisbelow(True)
+        ax.legend(handles=legend_elements, loc='upper right', frameon=True, fancybox=False, shadow=False, framealpha=0.9, fontsize=9, edgecolor='#CCCCCC')
+        ax.set_ylim([0, 105])
+        ax.grid(True, alpha=0.3, linestyle='-', linewidth=0.5, color='#E0E0E0', zorder=0)
+        ax.set_axisbelow(True)
         
-        # Subplots 2-5: Each scenario's resource utilization
+        plt.tight_layout(pad=3.0)
+        plt.savefig(self.result_dir / 'fig5_local_node_resource_utilization_en.png', dpi=300, 
+                   bbox_inches='tight', facecolor='white', edgecolor='none')
+        plt.close()
+        print("✓ Generated Figure 5: Local Node Resource Utilization")
+    
+    def plot_resource_utilization(self):
+        """Figure 6: Resource Utilization - All scenarios in one figure"""
+        # Create a figure with 4 subplots: one for each scenario
+        fig = plt.figure(figsize=(16, 10))
+        fig.patch.set_facecolor('white')
+        
+        scenarios = self.scenarios
+        # Resource colors using Tableau Classic (harmonious, classic academic colors)
+        resource_colors = ['#4E79A7', '#F28E2B', '#59A14F']  # CPU (Blue), Memory (Orange), GPU (Green)
+        
+        # Create grid layout: 2 rows, 2 columns (4 subplots)
+        gs = fig.add_gridspec(2, 2, hspace=0.3, wspace=0.25)
+        
+        # Subplots: Each scenario's resource utilization
         subplot_positions = [
-            (0, 2),  # Top right: 1 node
-            (1, 0),  # Bottom left: 2 nodes
-            (1, 1),  # Bottom middle: 4 nodes
-            (1, 2),  # Bottom right: 8 nodes
+            (0, 0),  # Top left: 1 node
+            (0, 1),  # Top right: 2 nodes
+            (1, 0),  # Bottom left: 4 nodes
+            (1, 1),  # Bottom right: 8 nodes
         ]
         
         for idx, scenario in enumerate(scenarios):
@@ -815,69 +777,162 @@ class ExperimentAnalyzer:
                 x_mem = x_pos
                 x_gpu = x_pos + group_width/3
                 
-                # CPU bar
+                # CPU bar - vertical lines
                 ax.bar(x_cpu, ca, bar_width, label='CPU' if i == 0 else '', 
-                       color=resource_colors[0], alpha=0.9, edgecolor='white', linewidth=1.5)
-                if cm > ca:
-                    ax.plot([x_cpu - bar_width/2, x_cpu + bar_width/2], [cm, cm], 
-                            color=resource_colors[0], linewidth=2.5, alpha=0.9)
-                    ax.plot([x_cpu, x_cpu], [ca, cm], color=resource_colors[0], linewidth=1.5, alpha=0.9, linestyle='--')
+                       color=resource_colors[0], alpha=0.9, edgecolor='white', linewidth=1.5,
+                       hatch='|||')
                 
-                # Memory bar
+                # Memory bar - horizontal lines
                 ax.bar(x_mem, ma, bar_width, label='Memory' if i == 0 else '', 
-                       color=resource_colors[1], alpha=0.9, edgecolor='white', linewidth=1.5)
-                if mm > ma:
-                    ax.plot([x_mem - bar_width/2, x_mem + bar_width/2], [mm, mm], 
-                            color=resource_colors[1], linewidth=2.5, alpha=0.9)
-                    ax.plot([x_mem, x_mem], [ma, mm], color=resource_colors[1], linewidth=1.5, alpha=0.9, linestyle='--')
+                       color=resource_colors[1], alpha=0.9, edgecolor='white', linewidth=1.5,
+                       hatch='---')
                 
-                # GPU bar
+                # GPU bar - diagonal lines
                 ax.bar(x_gpu, ga, bar_width, label='GPU' if i == 0 else '', 
-                       color=resource_colors[2], alpha=0.9, edgecolor='white', linewidth=1.5)
-                if gm > ga:
-                    ax.plot([x_gpu - bar_width/2, x_gpu + bar_width/2], [gm, gm], 
-                            color=resource_colors[2], linewidth=2.5, alpha=0.9)
-                    ax.plot([x_gpu, x_gpu], [ga, gm], color=resource_colors[2], linewidth=1.5, alpha=0.9, linestyle='--')
+                       color=resource_colors[2], alpha=0.9, edgecolor='white', linewidth=1.5,
+                       hatch='///')
                 
                 # Add value labels (smaller font for subplots)
                 if ca > 5:
                     ax.text(x_cpu, ca + 1, f'{ca:.1f}', ha='center', va='bottom', fontsize=6, fontweight='normal')
-                if cm > ca and cm > 5:
-                    ax.text(x_cpu, cm + 1, f'{cm:.1f}', ha='center', va='bottom', fontsize=6, fontweight='normal', color=resource_colors[0])
                 if ma > 5:
                     ax.text(x_mem, ma + 1, f'{ma:.1f}', ha='center', va='bottom', fontsize=6, fontweight='normal')
-                if mm > ma and mm > 5:
-                    ax.text(x_mem, mm + 1, f'{mm:.1f}', ha='center', va='bottom', fontsize=6, fontweight='normal', color=resource_colors[1])
                 if ga > 5:
                     ax.text(x_gpu, ga + 1, f'{ga:.1f}', ha='center', va='bottom', fontsize=6, fontweight='normal')
-                if gm > ga and gm > 5:
-                    ax.text(x_gpu, gm + 1, f'{gm:.1f}', ha='center', va='bottom', fontsize=6, fontweight='normal', color=resource_colors[2])
             
             ax.set_xlabel('Node', fontweight='normal', fontsize=9)
             ax.set_ylabel('Resource Utilization (%)', fontweight='normal', fontsize=9)
-            ax.set_title(f'({chr(98+idx)}) {scenario} Node Scenario', fontweight='normal', pad=8, fontsize=10)
+            ax.set_title(f'({chr(97+idx)}) {scenario}-Domain Scenario', fontweight='normal', pad=8, fontsize=10)
             ax.set_xticks(x_nodes)
             ax.set_xticklabels(all_nodes, rotation=45, ha='right', fontsize=8)
             ax.tick_params(axis='y', labelsize=8)
             if idx == 0:  # Only show legend on first subplot
                 legend_elements = [
-                    plt.Rectangle((0,0),1,1, facecolor=resource_colors[0], alpha=0.9, edgecolor='white', label='CPU'),
-                    plt.Rectangle((0,0),1,1, facecolor=resource_colors[1], alpha=0.9, edgecolor='white', label='Memory'),
-                    plt.Rectangle((0,0),1,1, facecolor=resource_colors[2], alpha=0.9, edgecolor='white', label='GPU'),
-                    Line2D([0], [0], color='#2C2C2C', linewidth=2.0, label='Max', linestyle='-')
+                    plt.Rectangle((0,0),1,1, facecolor=resource_colors[0], alpha=0.9, edgecolor='white', label='CPU', hatch='|||'),
+                    plt.Rectangle((0,0),1,1, facecolor=resource_colors[1], alpha=0.9, edgecolor='white', label='Memory', hatch='---'),
+                    plt.Rectangle((0,0),1,1, facecolor=resource_colors[2], alpha=0.9, edgecolor='white', label='GPU', hatch='///')
                 ]
                 ax.legend(handles=legend_elements, loc='upper right', frameon=True, fancybox=False, shadow=False, framealpha=0.9, fontsize=7, edgecolor='#CCCCCC')
             ax.set_ylim([0, 105])
             ax.grid(True, alpha=0.3, linestyle='-', linewidth=0.5, color='#E0E0E0', zorder=0)
             ax.set_axisbelow(True)
         
-        plt.savefig(self.result_dir / 'fig4_resource_utilization_en.png', dpi=300, 
+        plt.savefig(self.result_dir / 'fig6_resource_utilization_en.png', dpi=300, 
                    bbox_inches='tight', facecolor='white', edgecolor='none')
         plt.close()
-        print("✓ Generated Figure 4: Resource Utilization (All Scenarios)")
+        print("✓ Generated Figure 6: Resource Utilization (All Scenarios)")
+    
+    def plot_resource_utilization_trends(self):
+        """Figure 7: Resource Utilization Trends - Domain.1 vs Other Domains"""
+        fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+        fig.patch.set_facecolor('white')
+        
+        scenarios = self.scenarios
+        x = np.arange(len(scenarios))
+        # Resource colors using Tableau Classic
+        resource_colors = ['#4E79A7', '#F28E2B', '#59A14F']  # CPU (Blue), Memory (Orange), GPU (Green)
+        resource_labels = ['CPU', 'Memory', 'GPU']
+        markers = ['o', 's', '^']  # Different markers for each resource
+        
+        # Left subplot: Domain.1 resource utilization across scenarios
+        ax1 = axes[0]
+        
+        # Find domain.1 data
+        cpu_domain1 = []
+        mem_domain1 = []
+        gpu_domain1 = []
+        
+        for s in scenarios:
+            nodes = self.data[s]['nodes']
+            if 'node.1' in nodes:
+                node_data = nodes['node.1']
+                cpu_domain1.append(node_data['cpu_avg'])
+                mem_domain1.append(node_data['mem_avg'])
+                gpu_domain1.append(node_data['gpu_avg'])
+            else:
+                cpu_domain1.append(0)
+                mem_domain1.append(0)
+                gpu_domain1.append(0)
+        
+        # Plot lines for domain.1
+        ax1.plot(x, cpu_domain1, label='CPU', color=resource_colors[0], marker=markers[0],
+                markersize=8, linewidth=2.5, alpha=0.9, zorder=3, markeredgecolor='white', markeredgewidth=1.5)
+        ax1.plot(x, mem_domain1, label='Memory', color=resource_colors[1], marker=markers[1],
+                markersize=8, linewidth=2.5, alpha=0.9, zorder=3, markeredgecolor='white', markeredgewidth=1.5)
+        ax1.plot(x, gpu_domain1, label='GPU', color=resource_colors[2], marker=markers[2],
+                markersize=8, linewidth=2.5, alpha=0.9, zorder=3, markeredgecolor='white', markeredgewidth=1.5)
+        
+        ax1.set_xlabel('Number of Domains', fontweight='normal', fontsize=10)
+        ax1.set_ylabel('Resource Utilization (%)', fontweight='normal', fontsize=10)
+        ax1.set_title('(a) Domain.1 Resource Utilization', fontweight='normal', pad=10, fontsize=11)
+        ax1.set_xticks(x)
+        ax1.set_xticklabels(scenarios, fontsize=9)
+        ax1.tick_params(axis='y', labelsize=9)
+        ax1.legend(loc='best', frameon=True, fancybox=False, shadow=False, framealpha=0.9, fontsize=9, edgecolor='#CCCCCC')
+        ax1.set_ylim([0, 105])
+        ax1.grid(True, alpha=0.3, linestyle='-', linewidth=0.5, color='#E0E0E0', zorder=0)
+        ax1.set_axisbelow(True)
+        
+        # Right subplot: Average resource utilization of other domains
+        ax2 = axes[1]
+        
+        cpu_other_avg = []
+        mem_other_avg = []
+        gpu_other_avg = []
+        
+        for s in scenarios:
+            nodes = self.data[s]['nodes']
+            if not nodes:
+                cpu_other_avg.append(0)
+                mem_other_avg.append(0)
+                gpu_other_avg.append(0)
+                continue
+            
+            # Get all nodes except node.1
+            other_nodes = [node_name for node_name in nodes.keys() if node_name != 'node.1']
+            
+            if not other_nodes:
+                # If no other nodes, use 0
+                cpu_other_avg.append(0)
+                mem_other_avg.append(0)
+                gpu_other_avg.append(0)
+            else:
+                # Calculate average of other domains
+                cpu_values = [nodes[node_name]['cpu_avg'] for node_name in other_nodes]
+                mem_values = [nodes[node_name]['mem_avg'] for node_name in other_nodes]
+                gpu_values = [nodes[node_name]['gpu_avg'] for node_name in other_nodes]
+                
+                cpu_other_avg.append(np.mean(cpu_values))
+                mem_other_avg.append(np.mean(mem_values))
+                gpu_other_avg.append(np.mean(gpu_values))
+        
+        # Plot lines for other domains average
+        ax2.plot(x, cpu_other_avg, label='CPU', color=resource_colors[0], marker=markers[0],
+                markersize=8, linewidth=2.5, alpha=0.9, zorder=3, markeredgecolor='white', markeredgewidth=1.5)
+        ax2.plot(x, mem_other_avg, label='Memory', color=resource_colors[1], marker=markers[1],
+                markersize=8, linewidth=2.5, alpha=0.9, zorder=3, markeredgecolor='white', markeredgewidth=1.5)
+        ax2.plot(x, gpu_other_avg, label='GPU', color=resource_colors[2], marker=markers[2],
+                markersize=8, linewidth=2.5, alpha=0.9, zorder=3, markeredgecolor='white', markeredgewidth=1.5)
+        
+        ax2.set_xlabel('Number of Domains', fontweight='normal', fontsize=10)
+        ax2.set_ylabel('Resource Utilization (%)', fontweight='normal', fontsize=10)
+        ax2.set_title('(b) Average Resource Utilization of Other Domains', fontweight='normal', pad=10, fontsize=11)
+        ax2.set_xticks(x)
+        ax2.set_xticklabels(scenarios, fontsize=9)
+        ax2.tick_params(axis='y', labelsize=9)
+        ax2.legend(loc='best', frameon=True, fancybox=False, shadow=False, framealpha=0.9, fontsize=9, edgecolor='#CCCCCC')
+        ax2.set_ylim([0, 105])
+        ax2.grid(True, alpha=0.3, linestyle='-', linewidth=0.5, color='#E0E0E0', zorder=0)
+        ax2.set_axisbelow(True)
+        
+        plt.tight_layout(pad=3.0)
+        plt.savefig(self.result_dir / 'fig7_resource_utilization_trends_en.png', dpi=300, 
+                   bbox_inches='tight', facecolor='white', edgecolor='none')
+        plt.close()
+        print("✓ Generated Figure 7: Resource Utilization Trends")
     
     def plot_comprehensive_comparison(self):
-        """Figure 6: Comprehensive Performance Comparison (Normalized)"""
+        """Figure 8: Comprehensive Performance Comparison (Normalized)"""
         fig, ax = plt.subplots(figsize=(12, 7))
         fig.patch.set_facecolor('white')
         
@@ -900,12 +955,12 @@ class ExperimentAnalyzer:
         
         p1 = ax.bar(x - width/2, normalized_data['Success Rate'], width, 
                    label='Success Rate (Normalized)', color=COLORS['execution'][0], 
-                   edgecolor='white', linewidth=2, alpha=0.9, zorder=3)
+                   edgecolor='white', linewidth=2, alpha=0.9, zorder=3, hatch='')
         p2 = ax.bar(x + width/2, normalized_data['Throughput'], width, 
                    label='Throughput (Normalized)', color=COLORS['execution'][1], 
-                   edgecolor='white', linewidth=2, alpha=0.9, zorder=3)
+                   edgecolor='white', linewidth=2, alpha=0.9, zorder=3, hatch='///')
         
-        ax.set_xlabel('Number of Nodes', fontweight='medium')
+        ax.set_xlabel('Number of Domains', fontweight='medium')
         ax.set_ylabel('Normalized Performance (%)', fontweight='medium')
         ax.set_title('Comprehensive Performance Comparison (Normalized)', 
                     fontweight='bold', pad=15)
@@ -924,10 +979,10 @@ class ExperimentAnalyzer:
                    fontsize=10, fontweight='bold', color='#2C3E50')
         
         plt.tight_layout()
-        plt.savefig(self.result_dir / 'fig6_comprehensive_comparison_en.png', dpi=300, 
+        plt.savefig(self.result_dir / 'fig8_comprehensive_comparison_en.png', dpi=300, 
                    bbox_inches='tight', facecolor='white', edgecolor='none')
         plt.close()
-        print("✓ Generated Figure 6: Comprehensive Performance Comparison")
+        print("✓ Generated Figure 8: Comprehensive Performance Comparison")
     
     def generate_summary_table(self):
         """Generate summary table (CSV format)"""
@@ -964,8 +1019,11 @@ class ExperimentAnalyzer:
         print("Generating figures...")
         self.plot_task_success_rate()
         self.plot_execution_distribution()
+        self.plot_node_task_distribution()
         self.plot_latency_and_throughput()
+        self.plot_local_node_resource_utilization()
         self.plot_resource_utilization()
+        self.plot_resource_utilization_trends()
         
         print("\nGenerating summary table...")
         self.generate_summary_table()

@@ -17,6 +17,9 @@ RUN apt update && apt install -y \
     git \
     ca-certificates \
     bash \
+    libgl1 \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/* \
     && ln -sf /usr/local/bin/python3 /usr/bin/python \
     && ln -sf /usr/local/bin/pip3 /usr/bin/pip
 
@@ -37,12 +40,10 @@ peft \
 bitsandbytes \
 river \
 ultralytics \
-opencv-python-headless && pip install --no-cache-dir -i https://download.pytorch.org/whl/cpu torch 
+opencv-python-headless \
+langchain langchain_openai langchain_chroma langchain_community faiss-cpu \
+&& pip install --no-cache-dir -i https://download.pytorch.org/whl/cpu torch
 
-RUN apt-get update && apt-get install -y \
-    libgl1 \
-    libglib2.0-0 \
-    && rm -rf /var/lib/apt/lists/*
 
 # 安装 lucas 及其依赖（从 third_party/lucas 子模块）
 COPY third_party/lucas /tmp/lucas

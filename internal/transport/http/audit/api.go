@@ -118,7 +118,9 @@ func (api *API) handleGetAllLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	logFilePath := util.GetLogFilePath()
+	logrus.Debugf("GetLogFilePath returned: %s", logFilePath)
 	if logFilePath == "" {
+		logrus.Warnf("Log file path is empty, returning empty logs")
 		// 如果当前进程尚未初始化日志文件，返回空结果
 		response.Success(GetAllLogsResponse{
 			Logs:  []*LogEntry{},
@@ -127,12 +129,26 @@ func (api *API) handleGetAllLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 检查文件是否存在
+	if _, err := os.Stat(logFilePath); os.IsNotExist(err) {
+		logrus.Warnf("Log file does not exist: %s", logFilePath)
+		response.Success(GetAllLogsResponse{
+			Logs:  []*LogEntry{},
+			Total: 0,
+		}).WriteJSON(w)
+		return
+	}
+
+	logrus.Debugf("Reading logs from file: %s, levelFilter=%s, startTime=%v, endTime=%v",
+		logFilePath, levelFilter, startTime, endTime)
 	logs, err := readLogsFromFile(logFilePath, levelFilter, startTime, endTime)
 	if err != nil {
-		logrus.Errorf("Failed to read logs from file: %v", err)
+		logrus.Errorf("Failed to read logs from file %s: %v", logFilePath, err)
 		response.InternalError("failed to read logs: " + err.Error()).WriteJSON(w)
 		return
 	}
+
+	logrus.Debugf("Successfully read %d log entries from %s", len(logs), logFilePath)
 
 	resp := GetAllLogsResponse{
 		Logs:  logs,
@@ -156,12 +172,16 @@ func readLogsFromFile(logFilePath string, levelFilter string, startTime, endTime
 	}
 
 	lines := strings.Split(string(content), "\n")
+	logrus.Debugf("Read %d lines from log file", len(lines))
 
 	var allLogs []*LogEntry
 
 	// logrus 文本格式示例：
 	// time="2025-12-23 15:40:32" level=info msg="xxx" func=github.com/...
 	logPattern := regexp.MustCompile(`time="([^"]+)"\s+level=(\w+)\s+msg="([^"]+)"(?:\s+(.*))?$`)
+
+	matchedCount := 0
+	unmatchedCount := 0
 
 	for i := len(lines) - 1; i >= 0; i-- {
 		line := strings.TrimSpace(lines[i])
@@ -171,6 +191,11 @@ func readLogsFromFile(logFilePath string, levelFilter string, startTime, endTime
 
 		matches := logPattern.FindStringSubmatch(line)
 		if len(matches) < 4 {
+			unmatchedCount++
+			// 记录前几条无法匹配的行用于调试
+			if unmatchedCount <= 3 {
+				logrus.Debugf("Failed to match log line (sample %d): %s", unmatchedCount, line)
+			}
 			// 无法解析的行，作为 info 文本返回
 			now := time.Now()
 			// 时间范围过滤
@@ -261,7 +286,11 @@ func readLogsFromFile(logFilePath string, levelFilter string, startTime, endTime
 		}
 
 		allLogs = append(allLogs, entry)
+		matchedCount++
 	}
+
+	logrus.Debugf("Log parsing summary: total lines=%d, matched=%d, unmatched=%d, filtered=%d, final=%d",
+		len(lines), matchedCount, unmatchedCount, matchedCount+unmatchedCount-len(allLogs), len(allLogs))
 
 	return allLogs, nil
 }

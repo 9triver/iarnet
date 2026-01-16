@@ -276,12 +276,13 @@ func InitLoggerWithFileAndRetention(logDir string, keepDays int) (string, error)
 
 	// 使用当前日期命名日志文件（格式：iarnet-20060102.log）
 	today := time.Now().Format("20060102")
-	file, logFilePath, err := createLogFile(logDir, today)
+	file, newLogFilePath, err := createLogFile(logDir, today)
 	if err != nil {
 		return "", err
 	}
 
 	logFile = file
+	logFilePath = newLogFilePath // 设置全局变量 logFilePath
 	currentDate = today
 
 	// 创建与标准输出相同的格式化器（但禁用颜色）
@@ -307,8 +308,8 @@ func InitLoggerWithFileAndRetention(logDir string, keepDays int) (string, error)
 	startLogRotation(logDir, keepDays)
 
 	// 使用 fmt.Printf 输出到标准错误，避免触发 logrus（可能导致循环）
-	fmt.Fprintf(os.Stderr, "Logging to file: %s (keeping %d days of logs)\n", logFilePath, keepDays)
-	return logFilePath, nil
+	fmt.Fprintf(os.Stderr, "Logging to file: %s (keeping %d days of logs)\n", newLogFilePath, keepDays)
+	return newLogFilePath, nil
 }
 
 // GetLogFilePath 获取当前日志文件路径

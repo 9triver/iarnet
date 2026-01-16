@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { sha256 } from "js-sha256"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -82,18 +83,14 @@ export function formatRelativeTime(dateString: string): string {
 /**
  * 对密码进行 SHA-256 哈希处理
  * 用于在传输前对密码进行哈希，避免明文传输
+ * 使用 js-sha256 库，不依赖安全上下文（HTTPS）
  * 
  * @param password - 原始密码
  * @returns Promise<string> - 哈希后的密码（十六进制字符串）
  */
 export async function hashPassword(password: string): Promise<string> {
-  // 使用 Web Crypto API 进行 SHA-256 哈希
-  const encoder = new TextEncoder()
-  const data = encoder.encode(password)
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
-  const hashArray = Array.from(new Uint8Array(hashBuffer))
-  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
-  return hashHex
+  // 使用 js-sha256 进行 SHA-256 哈希，不依赖安全上下文
+  return sha256(password)
 }
 
 /**
