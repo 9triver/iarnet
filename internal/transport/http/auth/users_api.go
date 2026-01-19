@@ -176,6 +176,17 @@ func (api *API) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 验证密码复杂度
+	// 注意：如果前端发送的是哈希值，我们需要在前端验证原始密码复杂度
+	// 这里我们验证明文密码（如果前端发送的是明文）或要求前端在发送哈希前验证
+	if len(req.Password) != 64 || !isHexString(req.Password) {
+		// 这是明文密码，验证复杂度
+		if err := validatePasswordComplexity(req.Password); err != nil {
+			response.BadRequest(err.Error()).WriteJSON(w)
+			return
+		}
+	}
+
 	// 验证角色
 	role := config.UserRole(strings.TrimSpace(req.Role))
 	if role == "" {
@@ -194,21 +205,18 @@ func (api *API) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 创建新用户
-	// 前端发送的是哈希值（64位十六进制），我们直接存储哈希值
-	// 这样可以避免在传输过程中暴露明文密码
-	passwordToStore := req.Password
-	if len(req.Password) == 64 && isHexString(req.Password) {
-		// 收到哈希值，直接存储
-		passwordToStore = req.Password
-	} else {
-		// 收到明文（向后兼容），先哈希再存储
-		passwordToStore = hashSHA256(req.Password)
+	// 前端发送的是 SHA-256 哈希值，使用 bcrypt 加密存储
+	hashedPassword, err := HashPassword(req.Password)
+	if err != nil {
+		logrus.Errorf("Failed to hash password: %v", err)
+		response.InternalError("创建用户失败：密码加密错误").WriteJSON(w)
+		return
 	}
 
 	userDAO := &userrepo.UserDAO{
 		ID:       username, // 使用用户名作为 ID
 		Name:     username,
-		Password: passwordToStore,
+		Password: hashedPassword,
 		Role:     role,
 	}
 
@@ -272,16 +280,26 @@ func (api *API) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 更新密码（如果提供）
-	// 前端发送的是哈希值（64位十六进制），我们直接存储哈希值
-	// 这样可以避免在传输过程中暴露明文密码
+	// 前端发送的是 SHA-256 哈希值，使用 bcrypt 加密存储
 	if req.Password != "" {
-		if len(req.Password) == 64 && isHexString(req.Password) {
-			// 收到哈希值，直接存储
-			userDAO.Password = req.Password
-		} else {
-			// 收到明文（向后兼容），先哈希再存储
-			userDAO.Password = hashSHA256(req.Password)
+		// 验证密码复杂度
+		// 注意：如果前端发送的是哈希值，我们需要在前端验证原始密码复杂度
+		// 这里我们验证明文密码（如果前端发送的是明文）或要求前端在发送哈希前验证
+		if len(req.Password) != 64 || !isHexString(req.Password) {
+			// 这是明文密码，验证复杂度
+			if err := validatePasswordComplexity(req.Password); err != nil {
+				response.BadRequest(err.Error()).WriteJSON(w)
+				return
+			}
 		}
+
+		hashedPassword, err := HashPassword(req.Password)
+		if err != nil {
+			logrus.Errorf("Failed to hash password: %v", err)
+			response.InternalError("更新用户失败：密码加密错误").WriteJSON(w)
+			return
+		}
+		userDAO.Password = hashedPassword
 	}
 
 	// 更新角色（如果提供）

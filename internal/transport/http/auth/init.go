@@ -93,10 +93,16 @@ func InitSuperAdmin(cfg *config.Config, userRepo userrepo.UserRepo) error {
 	}
 
 	// 创建超级管理员
+	// 使用 bcrypt 加密密码存储
+	hashedPassword, err := HashPassword(superAdminPassword)
+	if err != nil {
+		return fmt.Errorf("failed to hash super admin password: %w", err)
+	}
+
 	userDAO := &userrepo.UserDAO{
 		ID:       superAdminName,
 		Name:     superAdminName,
-		Password: superAdminPassword,
+		Password: hashedPassword,
 		Role:     config.RoleSuperAdmin,
 	}
 

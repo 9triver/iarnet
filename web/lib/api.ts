@@ -71,6 +71,52 @@ export const tokenManager = {
     if (typeof window === "undefined") return
     localStorage.removeItem(TOKEN_KEY)
   },
+  // 检查token是否过期
+  isTokenExpired: (token: string | null): boolean => {
+    if (!token) return true
+    
+    try {
+      // JWT token格式：header.payload.signature
+      const parts = token.split('.')
+      if (parts.length !== 3) return true
+      
+      // 解析payload（base64解码）
+      const payload = JSON.parse(atob(parts[1]))
+      
+      // 检查exp字段（过期时间，Unix时间戳）
+      if (payload.exp) {
+        const expirationTime = payload.exp * 1000 // 转换为毫秒
+        const currentTime = Date.now()
+        return currentTime >= expirationTime
+      }
+      
+      // 如果没有exp字段，认为token无效
+      return true
+    } catch (error) {
+      // 解析失败，认为token无效
+      console.error("Failed to parse token:", error)
+      return true
+    }
+  },
+  // 获取token过期时间（毫秒）
+  getTokenExpirationTime: (token: string | null): number | null => {
+    if (!token) return null
+    
+    try {
+      const parts = token.split('.')
+      if (parts.length !== 3) return null
+      
+      const payload = JSON.parse(atob(parts[1]))
+      if (payload.exp) {
+        return payload.exp * 1000 // 转换为毫秒
+      }
+      
+      return null
+    } catch (error) {
+      console.error("Failed to parse token:", error)
+      return null
+    }
+  },
 }
 
 export class APIError extends Error {
@@ -108,8 +154,15 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}, timeout:
 export async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${API_BASE}${endpoint}`
 
-  // 获取 token 并添加到请求头
+  // 获取 token 并检查是否过期
   const token = tokenManager.getToken()
+  if (token && tokenManager.isTokenExpired(token)) {
+    // Token已过期，清除token并显示提示
+    tokenManager.removeToken()
+    showUnauthorizedToast()
+    throw new APIError(401, "会话已过期，请重新登录")
+  }
+
   const authHeaders: HeadersInit = token
     ? { Authorization: `Bearer ${token}` }
     : {}
@@ -525,8 +578,19 @@ export const authAPI = {
     }
     return response
   },
-  logout: (): void => {
-    tokenManager.removeToken()
+  logout: async (): Promise<void> => {
+    try {
+      // 发送退出登录请求到后端
+      await apiRequest<void>("/auth/logout", {
+        method: "POST",
+      })
+    } catch (error) {
+      // 即使请求失败，也清除本地token
+      console.error("Logout request failed:", error)
+    } finally {
+      // 无论请求成功与否，都清除本地token
+      tokenManager.removeToken()
+    }
   },
   changePassword: async (request: ChangePasswordRequest): Promise<void> => {
     // 导入密码哈希函数

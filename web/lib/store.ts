@@ -127,7 +127,7 @@ interface IARNetStore {
   // 认证
   currentUser: CurrentUser | null
   login: (username: string, password: string) => Promise<void>
-  logout: () => void
+  logout: () => Promise<void>
 }
 
 
@@ -564,10 +564,16 @@ export const useIARNetStore = create<IARNetStore>()(
         }
       },
 
-      logout: () => {
-        tokenManager.removeToken()
-        authAPI.logout()
-        set({ currentUser: null })
+      logout: async () => {
+        try {
+          await authAPI.logout()
+        } catch (error) {
+          // 即使logout请求失败，也清除本地状态
+          console.error("Logout error:", error)
+        } finally {
+          tokenManager.removeToken()
+          set({ currentUser: null })
+        }
       },
     }),
     {

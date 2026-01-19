@@ -1,19 +1,21 @@
 package auth
 
 import (
-	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strings"
+	"time"
+	"unicode"
 
 	"github.com/9triver/iarnet/internal/config"
 	userrepo "github.com/9triver/iarnet/internal/infra/repository/auth"
 	httpauth "github.com/9triver/iarnet/internal/transport/http/util/auth"
 	"github.com/9triver/iarnet/internal/transport/http/util/response"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
 )
@@ -21,6 +23,7 @@ import (
 func RegisterRoutes(router *mux.Router, cfg *config.Config, userRepo userrepo.UserRepo) {
 	api := NewAPI(cfg, userRepo)
 	router.HandleFunc("/auth/login", api.handleLogin).Methods("POST")
+	router.HandleFunc("/auth/logout", api.handleLogout).Methods("POST")
 	router.HandleFunc("/auth/me", api.handleGetCurrentUser).Methods("GET")
 	router.HandleFunc("/auth/change-password", api.handleChangePassword).Methods("POST")
 
@@ -60,20 +63,61 @@ type GetCurrentUserResponse struct {
 	Role     string `json:"role"`
 }
 
-// hashSHA256 对字符串进行 SHA-256 哈希
-func hashSHA256(text string) string {
-	hash := sha256.Sum256([]byte(text))
-	return hex.EncodeToString(hash[:])
-}
+// hashSHA256 和 isHexString 函数已移至 password.go
+// 为了向后兼容，这里保留这些函数的引用（通过 password.go 导出）
 
-// isHexString 检查字符串是否为有效的十六进制字符串
-func isHexString(s string) bool {
-	for _, c := range s {
-		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
-			return false
+// validatePasswordComplexity 验证密码复杂度
+// 要求：8-16位，包含大小写字母、数字、特殊字符
+func validatePasswordComplexity(password string) error {
+	// 如果是哈希值（64位十六进制），先不验证复杂度（因为前端已经验证过了）
+	// 但我们需要在前端发送哈希值之前验证原始密码
+	// 这里我们假设如果密码是64位十六进制，说明前端已经验证过，我们只验证长度
+	if len(password) == 64 && isHexString(password) {
+		// 这是哈希值，无法验证原始密码复杂度
+		// 但我们可以要求前端在发送前验证
+		return nil
+	}
+
+	// 验证明文密码复杂度
+	if len(password) < 8 || len(password) > 16 {
+		return errors.New("密码长度必须为8-16位")
+	}
+
+	hasUpper := false
+	hasLower := false
+	hasDigit := false
+	hasSpecial := false
+
+	// 特殊字符正则表达式
+	specialCharRegex := regexp.MustCompile(`[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?]`)
+
+	for _, char := range password {
+		switch {
+		case unicode.IsUpper(char):
+			hasUpper = true
+		case unicode.IsLower(char):
+			hasLower = true
+		case unicode.IsDigit(char):
+			hasDigit = true
+		case specialCharRegex.MatchString(string(char)):
+			hasSpecial = true
 		}
 	}
-	return true
+
+	if !hasUpper {
+		return errors.New("密码必须包含至少一个大写字母")
+	}
+	if !hasLower {
+		return errors.New("密码必须包含至少一个小写字母")
+	}
+	if !hasDigit {
+		return errors.New("密码必须包含至少一个数字")
+	}
+	if !hasSpecial {
+		return errors.New("密码必须包含至少一个特殊字符")
+	}
+
+	return nil
 }
 
 func (api *API) handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -156,36 +200,41 @@ func (api *API) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 验证密码
-	// 支持两种方式：
-	// 1. 如果收到的密码是64位十六进制字符串（SHA-256哈希），则与数据库中的值直接比较（数据库存储的可能是哈希值）
-	//    如果数据库存储的是明文，则对明文进行哈希后比较
-	// 2. 如果收到的是明文，则对数据库中的值进行哈希后比较（如果数据库存储的是哈希），或直接比较（如果数据库存储的是明文）
+	// 前端发送的是 SHA-256 哈希值，数据库存储的是 bcrypt 哈希值
+	// 支持向后兼容：如果数据库存储的是旧格式（SHA-256 哈希或明文），也进行验证
 	passwordMatch := false
-	if len(req.Password) == 64 && isHexString(req.Password) {
-		// 收到的密码是哈希值
-		// 检查数据库中的密码是否是哈希值（64位十六进制）
-		if len(userDAO.Password) == 64 && isHexString(userDAO.Password) {
-			// 数据库存储的是哈希值，直接比较
-			passwordMatch = strings.EqualFold(userDAO.Password, req.Password)
-			logrus.Debugf("Password verification (hashed vs hashed): match=%v", passwordMatch)
-		} else {
-			// 数据库存储的是明文，对明文进行哈希后比较（向后兼容）
-			hashedDBPassword := hashSHA256(userDAO.Password)
-			passwordMatch = strings.EqualFold(hashedDBPassword, req.Password)
-			logrus.Debugf("Password verification (hashed vs plaintext): match=%v", passwordMatch)
-		}
+
+	// 首先尝试使用 bcrypt 验证（新格式）
+	if strings.HasPrefix(userDAO.Password, "$2a$") || strings.HasPrefix(userDAO.Password, "$2b$") || strings.HasPrefix(userDAO.Password, "$2y$") {
+		// 数据库存储的是 bcrypt 哈希值
+		passwordMatch = VerifyPassword(req.Password, userDAO.Password)
+		logrus.Debugf("Password verification (bcrypt): match=%v", passwordMatch)
 	} else {
-		// 收到的密码是明文（向后兼容）
-		// 检查数据库中的密码是否是哈希值
-		if len(userDAO.Password) == 64 && isHexString(userDAO.Password) {
-			// 数据库存储的是哈希值，对收到的明文进行哈希后比较
-			hashedReceivedPassword := hashSHA256(req.Password)
-			passwordMatch = strings.EqualFold(userDAO.Password, hashedReceivedPassword)
-			logrus.Debugf("Password verification (plaintext vs hashed): match=%v", passwordMatch)
+		// 向后兼容：数据库存储的是旧格式（SHA-256 哈希或明文）
+		if len(req.Password) == 64 && isHexString(req.Password) {
+			// 收到的密码是哈希值
+			if len(userDAO.Password) == 64 && isHexString(userDAO.Password) {
+				// 数据库存储的是 SHA-256 哈希值，直接比较
+				passwordMatch = strings.EqualFold(userDAO.Password, req.Password)
+				logrus.Debugf("Password verification (hashed vs hashed, legacy): match=%v", passwordMatch)
+			} else {
+				// 数据库存储的是明文，对明文进行哈希后比较（向后兼容）
+				hashedDBPassword := hashSHA256(userDAO.Password)
+				passwordMatch = strings.EqualFold(hashedDBPassword, req.Password)
+				logrus.Debugf("Password verification (hashed vs plaintext, legacy): match=%v", passwordMatch)
+			}
 		} else {
-			// 数据库存储的是明文，直接比较（向后兼容）
-			passwordMatch = userDAO.Password == req.Password
-			logrus.Debugf("Password verification (plaintext vs plaintext): match=%v", passwordMatch)
+			// 收到的密码是明文（向后兼容）
+			if len(userDAO.Password) == 64 && isHexString(userDAO.Password) {
+				// 数据库存储的是 SHA-256 哈希值，对收到的明文进行哈希后比较
+				hashedReceivedPassword := hashSHA256(req.Password)
+				passwordMatch = strings.EqualFold(userDAO.Password, hashedReceivedPassword)
+				logrus.Debugf("Password verification (plaintext vs hashed, legacy): match=%v", passwordMatch)
+			} else {
+				// 数据库存储的是明文，直接比较（向后兼容）
+				passwordMatch = userDAO.Password == req.Password
+				logrus.Debugf("Password verification (plaintext vs plaintext, legacy): match=%v", passwordMatch)
+			}
 		}
 	}
 
@@ -230,6 +279,85 @@ func (api *API) handleLogin(w http.ResponseWriter, r *http.Request) {
 		Token:    token,
 	}
 	response.Success(resp).WriteJSON(w)
+}
+
+func (api *API) handleLogout(w http.ResponseWriter, r *http.Request) {
+	// 获取当前登录用户
+	username := httpauth.GetUsernameFromContext(r.Context())
+
+	// 从请求头获取 token
+	authHeader := r.Header.Get("Authorization")
+	var tokenString string
+	if authHeader != "" {
+		parts := strings.SplitN(authHeader, " ", 2)
+		if len(parts) == 2 && parts[0] == "Bearer" {
+			tokenString = parts[1]
+		}
+	}
+
+	// 将 token 加入黑名单，使其立即失效
+	if tokenString != "" {
+		// 解析 token 获取过期时间（不验证黑名单，因为我们要将其加入黑名单）
+		expirationTime, err := parseTokenForRevocation(tokenString)
+		if err == nil {
+			// 将 token 加入黑名单
+			httpauth.RevokeToken(tokenString, expirationTime)
+			if username != "" {
+				logrus.Infof("User logged out: %s, token revoked", username)
+			} else {
+				logrus.Infof("Token revoked (user not authenticated)")
+			}
+		} else {
+			// 如果无法解析 token，仍然尝试加入黑名单（使用默认过期时间）
+			// 这样可以防止无效 token 被重复使用
+			defaultExpiration := time.Now().Add(24 * time.Hour)
+			httpauth.RevokeToken(tokenString, defaultExpiration)
+			if username != "" {
+				logrus.Infof("User logged out: %s (token parse failed, but added to blacklist)", username)
+			}
+		}
+	} else if username != "" {
+		logrus.Infof("User logged out: %s (no token provided)", username)
+	}
+
+	// 如果用户未登录，也返回成功（幂等性）
+	response.Success(map[string]string{"message": "退出登录成功"}).WriteJSON(w)
+}
+
+// parseTokenForRevocation 解析 token 用于撤销（不检查黑名单）
+// 返回过期时间和错误
+func parseTokenForRevocation(tokenString string) (time.Time, error) {
+	// 定义 Claims 结构（与 jwt.go 中的一致）
+	type Claims struct {
+		Username string `json:"username"`
+		Role     string `json:"role"`
+		jwt.RegisteredClaims
+	}
+
+	claims := &Claims{}
+	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+		// 验证签名方法
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, errors.New("invalid signing method")
+		}
+		return httpauth.GetJWTSecret(), nil
+	})
+
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	if !token.Valid {
+		return time.Time{}, errors.New("invalid token")
+	}
+
+	// 获取 token 的过期时间
+	expirationTime := time.Now().Add(24 * time.Hour) // 默认24小时
+	if claims.ExpiresAt != nil {
+		expirationTime = claims.ExpiresAt.Time
+	}
+
+	return expirationTime, nil
 }
 
 func (api *API) handleGetCurrentUser(w http.ResponseWriter, r *http.Request) {
@@ -296,6 +424,17 @@ func (api *API) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 验证新密码复杂度
+	// 注意：如果前端发送的是哈希值，我们需要在前端验证原始密码复杂度
+	// 这里我们验证明文密码（如果前端发送的是明文）或要求前端在发送哈希前验证
+	if len(req.NewPassword) != 64 || !isHexString(req.NewPassword) {
+		// 这是明文密码，验证复杂度
+		if err := validatePasswordComplexity(req.NewPassword); err != nil {
+			response.BadRequest(err.Error()).WriteJSON(w)
+			return
+		}
+	}
+
 	// 从数据库获取用户信息
 	ctx := r.Context()
 	userDAO, err := api.userRepo.GetByName(ctx, username)
@@ -310,32 +449,36 @@ func (api *API) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 验证旧密码
-	// 支持两种方式：
-	// 1. 如果收到的密码是64位十六进制字符串（SHA-256哈希），则与数据库中的值直接比较（数据库存储的可能是哈希值）
-	//    如果数据库存储的是明文，则对明文进行哈希后比较
-	// 2. 如果收到的是明文，则对数据库中的值进行哈希后比较（如果数据库存储的是哈希），或直接比较（如果数据库存储的是明文）
+	// 前端发送的是 SHA-256 哈希值，数据库存储的是 bcrypt 哈希值
+	// 支持向后兼容：如果数据库存储的是旧格式（SHA-256 哈希或明文），也进行验证
 	passwordMatch := false
-	if len(req.OldPassword) == 64 && isHexString(req.OldPassword) {
-		// 收到的密码是哈希值
-		// 检查数据库中的密码是否是哈希值（64位十六进制）
-		if len(userDAO.Password) == 64 && isHexString(userDAO.Password) {
-			// 数据库存储的是哈希值，直接比较
-			passwordMatch = strings.EqualFold(userDAO.Password, req.OldPassword)
-		} else {
-			// 数据库存储的是明文，对明文进行哈希后比较（向后兼容）
-			hashedDBPassword := hashSHA256(userDAO.Password)
-			passwordMatch = strings.EqualFold(hashedDBPassword, req.OldPassword)
-		}
+
+	// 首先尝试使用 bcrypt 验证（新格式）
+	if strings.HasPrefix(userDAO.Password, "$2a$") || strings.HasPrefix(userDAO.Password, "$2b$") || strings.HasPrefix(userDAO.Password, "$2y$") {
+		// 数据库存储的是 bcrypt 哈希值
+		passwordMatch = VerifyPassword(req.OldPassword, userDAO.Password)
 	} else {
-		// 收到的密码是明文（向后兼容）
-		// 检查数据库中的密码是否是哈希值
-		if len(userDAO.Password) == 64 && isHexString(userDAO.Password) {
-			// 数据库存储的是哈希值，对收到的明文进行哈希后比较
-			hashedReceivedPassword := hashSHA256(req.OldPassword)
-			passwordMatch = strings.EqualFold(userDAO.Password, hashedReceivedPassword)
+		// 向后兼容：数据库存储的是旧格式（SHA-256 哈希或明文）
+		if len(req.OldPassword) == 64 && isHexString(req.OldPassword) {
+			// 收到的密码是哈希值
+			if len(userDAO.Password) == 64 && isHexString(userDAO.Password) {
+				// 数据库存储的是 SHA-256 哈希值，直接比较
+				passwordMatch = strings.EqualFold(userDAO.Password, req.OldPassword)
+			} else {
+				// 数据库存储的是明文，对明文进行哈希后比较（向后兼容）
+				hashedDBPassword := hashSHA256(userDAO.Password)
+				passwordMatch = strings.EqualFold(hashedDBPassword, req.OldPassword)
+			}
 		} else {
-			// 数据库存储的是明文，直接比较（向后兼容）
-			passwordMatch = userDAO.Password == req.OldPassword
+			// 收到的密码是明文（向后兼容）
+			if len(userDAO.Password) == 64 && isHexString(userDAO.Password) {
+				// 数据库存储的是 SHA-256 哈希值，对收到的明文进行哈希后比较
+				hashedReceivedPassword := hashSHA256(req.OldPassword)
+				passwordMatch = strings.EqualFold(userDAO.Password, hashedReceivedPassword)
+			} else {
+				// 数据库存储的是明文，直接比较（向后兼容）
+				passwordMatch = userDAO.Password == req.OldPassword
+			}
 		}
 	}
 
@@ -345,16 +488,14 @@ func (api *API) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 更新密码
-	// 前端发送的是哈希值（64位十六进制），我们直接存储哈希值
-	// 这样可以避免在传输过程中暴露明文密码
-	newPassword := req.NewPassword
-	if len(req.NewPassword) == 64 && isHexString(req.NewPassword) {
-		// 收到哈希值，直接存储
-		userDAO.Password = newPassword
-	} else {
-		// 收到明文（向后兼容），先哈希再存储
-		userDAO.Password = hashSHA256(newPassword)
+	// 前端发送的是 SHA-256 哈希值，使用 bcrypt 加密存储
+	hashedPassword, err := HashPassword(req.NewPassword)
+	if err != nil {
+		logrus.Errorf("Failed to hash password: %v", err)
+		response.InternalError("更新密码失败：密码加密错误").WriteJSON(w)
+		return
 	}
+	userDAO.Password = hashedPassword
 
 	if err := api.userRepo.Update(ctx, userDAO); err != nil {
 		logrus.Errorf("Failed to update password: %v", err)

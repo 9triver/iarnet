@@ -81,6 +81,54 @@ export function formatRelativeTime(dateString: string): string {
 }
 
 /**
+ * 验证密码复杂度
+ * 要求：8-16位，包含大小写字母、数字、特殊字符
+ * 
+ * @param password - 要验证的密码
+ * @returns 错误消息，如果密码符合要求则返回 null
+ */
+export function validatePasswordComplexity(password: string): string | null {
+  if (password.length < 8 || password.length > 16) {
+    return "密码长度必须为8-16位"
+  }
+
+  let hasUpper = false
+  let hasLower = false
+  let hasDigit = false
+  let hasSpecial = false
+
+  // 特殊字符正则表达式
+  const specialCharRegex = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?]/
+
+  for (const char of password) {
+    if (char >= 'A' && char <= 'Z') {
+      hasUpper = true
+    } else if (char >= 'a' && char <= 'z') {
+      hasLower = true
+    } else if (char >= '0' && char <= '9') {
+      hasDigit = true
+    } else if (specialCharRegex.test(char)) {
+      hasSpecial = true
+    }
+  }
+
+  if (!hasUpper) {
+    return "密码必须包含至少一个大写字母"
+  }
+  if (!hasLower) {
+    return "密码必须包含至少一个小写字母"
+  }
+  if (!hasDigit) {
+    return "密码必须包含至少一个数字"
+  }
+  if (!hasSpecial) {
+    return "密码必须包含至少一个特殊字符"
+  }
+
+  return null
+}
+
+/**
  * 对密码进行 SHA-256 哈希处理
  * 用于在传输前对密码进行哈希，避免明文传输
  * 使用 js-sha256 库，不依赖安全上下文（HTTPS）

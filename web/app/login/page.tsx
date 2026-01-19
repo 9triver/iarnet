@@ -10,7 +10,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useIARNetStore } from "@/lib/store"
 import { FullscreenLoader } from "@/components/ui/fullscreen-loader"
 import { validateRedirectUrl } from "@/lib/utils"
-import { captchaAPI, APIError } from "@/lib/api"
+import { captchaAPI, APIError, tokenManager } from "@/lib/api"
 import { RefreshCw } from "lucide-react"
 import { toast } from "sonner"
 
@@ -160,6 +160,28 @@ function LoginForm() {
 
       // 验证码正确，执行登录
       await login(values.username, values.password)
+      
+      // 获取token并显示登录成功提示（包含有效期）
+      const token = tokenManager.getToken()
+      const expirationTime = token ? tokenManager.getTokenExpirationTime(token) : null
+      
+      if (expirationTime) {
+        // 格式化过期时间为 "xxxx-xx-xx xx:xx" 格式（显示到分钟）
+        const expirationDate = new Date(expirationTime)
+        const year = expirationDate.getFullYear()
+        const month = String(expirationDate.getMonth() + 1).padStart(2, '0')
+        const day = String(expirationDate.getDate()).padStart(2, '0')
+        const hours = String(expirationDate.getHours()).padStart(2, '0')
+        const minutes = String(expirationDate.getMinutes()).padStart(2, '0')
+        const expirationStr = `${year}-${month}-${day} ${hours}:${minutes}`
+        
+        toast.success("登录成功", {
+          description: `本次登录有效期至 ${expirationStr}`,
+        })
+      } else {
+        toast.success("登录成功")
+      }
+      
       // 登录成功后，如果有 redirect 参数，验证后跳转到指定页面；否则跳转到资源管理页面
       // 注意：login 函数会自动获取用户角色信息
       const redirectParam = searchParams.get("redirect")

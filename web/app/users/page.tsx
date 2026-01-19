@@ -124,6 +124,14 @@ export default function UsersPage() {
   }, [hasPermission, currentUser])
 
   const handleCreate = async (values: UserFormValues) => {
+    // 验证密码复杂度
+    const { validatePasswordComplexity } = await import("@/lib/utils")
+    const passwordError = validatePasswordComplexity(values.password)
+    if (passwordError) {
+      toast.error(passwordError)
+      return
+    }
+
     try {
       await usersAPI.createUser({
         name: values.name,
@@ -156,6 +164,16 @@ export default function UsersPage() {
 
   const handleUpdate = async (values: UserFormValues) => {
     if (!editingUser) return
+
+    // 如果提供了新密码，验证密码复杂度
+    if (values.password) {
+      const { validatePasswordComplexity } = await import("@/lib/utils")
+      const passwordError = validatePasswordComplexity(values.password)
+      if (passwordError) {
+        toast.error(passwordError)
+        return
+      }
+    }
 
     try {
       const updateData: UpdateUserRequest = {}
@@ -299,12 +317,23 @@ export default function UsersPage() {
                         <FormField
                           control={createForm.control}
                           name="password"
-                          rules={{ required: "请输入密码" }}
+                          rules={{ 
+                            required: "请输入密码",
+                            validate: async (value) => {
+                              if (!value) return true // required 已经处理了空值
+                              const { validatePasswordComplexity } = await import("@/lib/utils")
+                              return validatePasswordComplexity(value) || true
+                            }
+                          }}
                           render={({ field }) => (
                             <FormItem>
                               <FormLabel>密码</FormLabel>
                               <FormControl>
-                                <Input type="password" placeholder="密码" {...field} />
+                                <Input 
+                                  type="password" 
+                                  placeholder="8-16位，包含大小写字母、数字、特殊字符" 
+                                  {...field} 
+                                />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -463,11 +492,22 @@ export default function UsersPage() {
                     <FormField
                       control={editForm.control}
                       name="password"
+                      rules={{
+                        validate: async (value) => {
+                          if (!value) return true // 留空则不修改
+                          const { validatePasswordComplexity } = await import("@/lib/utils")
+                          return validatePasswordComplexity(value) || true
+                        }
+                      }}
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>新密码（留空则不修改）</FormLabel>
                           <FormControl>
-                            <Input type="password" placeholder="留空则不修改密码" {...field} />
+                            <Input 
+                              type="password" 
+                              placeholder="留空则不修改密码，否则需8-16位，包含大小写字母、数字、特殊字符" 
+                              {...field} 
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>

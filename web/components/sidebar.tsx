@@ -88,8 +88,8 @@ export function Sidebar() {
     })
   }, [currentUser])
 
-  const handleLogout = () => {
-    logout()
+  const handleLogout = async () => {
+    await logout()
     // 延迟跳转，确保状态更新完成
     setTimeout(() => {
       router.replace("/login")
@@ -107,8 +107,11 @@ export function Sidebar() {
       return
     }
 
-    if (newPassword.length < 6) {
-      toast.error("新密码长度至少为6位")
+    // 验证密码复杂度
+    const { validatePasswordComplexity } = await import("@/lib/utils")
+    const passwordError = validatePasswordComplexity(newPassword)
+    if (passwordError) {
+      toast.error(passwordError)
       return
     }
 
@@ -248,7 +251,7 @@ export function Sidebar() {
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="请输入新密码（至少6位）"
+                placeholder="请输入新密码（8-16位，包含大小写字母、数字、特殊字符）"
                 disabled={isChangingPassword}
               />
             </div>
