@@ -1,6 +1,6 @@
 # Docker Provider 配置
 server:
-  port: 50051  # gRPC 服务端口
+  port: 50055  # gRPC 服务端口
 
 docker:
   host: "unix:///var/run/docker.sock"  # Docker 引擎地址，本地使用 unix socket，远程使用 tcp://host:port
