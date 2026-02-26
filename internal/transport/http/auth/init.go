@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/9triver/iarnet/internal/config"
 	userrepo "github.com/9triver/iarnet/internal/infra/repository/auth"
@@ -100,10 +101,11 @@ func InitSuperAdmin(cfg *config.Config, userRepo userrepo.UserRepo) error {
 	}
 
 	userDAO := &userrepo.UserDAO{
-		ID:       superAdminName,
-		Name:     superAdminName,
-		Password: hashedPassword,
-		Role:     config.RoleSuperAdmin,
+		ID:                superAdminName,
+		Name:              superAdminName,
+		Password:          hashedPassword,
+		Role:              config.RoleSuperAdmin,
+		PasswordChangedAt: time.Now(),
 	}
 
 	if err := userRepo.Create(ctx, userDAO); err != nil {

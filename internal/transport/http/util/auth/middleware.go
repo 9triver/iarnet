@@ -24,7 +24,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// 允许登录接口和健康检查接口不验证
 		path := r.URL.Path
-		if path == "/auth/login" || path == "/status" || strings.HasPrefix(path, "/auth/login") {
+		if path == "/auth/login" || path == "/status" || strings.HasPrefix(path, "/auth/login") || path == "/auth/change-password-with-credential" {
 			next.ServeHTTP(w, r)
 			return
 		}

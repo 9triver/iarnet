@@ -16,6 +16,8 @@ export function getErrorMessage(error: string | undefined | null): string {
     "bad request": "请求参数错误",
     "not found": "资源不存在",
     "internal server error": "服务器内部错误",
+    "password_expired": "密码已过期，需要先修改密码",
+    "account_disabled": "账户已停用，请联系管理员启用后再登录",
   }
 
   // 先尝试精确匹配
@@ -544,14 +546,24 @@ export interface LoginResponse {
   username: string
   token: string
   role?: string
+  password_expired?: boolean
+  password_expires_at?: string
 }
 
 export interface GetCurrentUserResponse {
   username: string
   role: string
+  password_expired?: boolean
+  password_expires_at?: string
 }
 
 export interface ChangePasswordRequest {
+  oldPassword: string
+  newPassword: string
+}
+
+export interface ChangePasswordWithCredentialRequest {
+  username: string
   oldPassword: string
   newPassword: string
 }
@@ -577,6 +589,24 @@ export const authAPI = {
       tokenManager.setToken(response.token)
     }
     return response
+  },
+  // 使用用户名+旧密码修改密码（用于密码过期后，在未登录状态下修改）
+  changePasswordWithCredential: async (
+    request: ChangePasswordWithCredentialRequest,
+  ): Promise<void> => {
+    const { hashPassword } = await import("@/lib/utils")
+
+    const hashedOldPassword = await hashPassword(request.oldPassword)
+    const hashedNewPassword = await hashPassword(request.newPassword)
+
+    await apiRequest<void>("/auth/change-password-with-credential", {
+      method: "POST",
+      body: JSON.stringify({
+        username: request.username,
+        old_password: hashedOldPassword,
+        new_password: hashedNewPassword,
+      }),
+    })
   },
   logout: async (): Promise<void> => {
     try {
@@ -634,6 +664,7 @@ export interface VerifyCaptchaResponse {
 export interface UserInfo {
   name: string
   role: string
+  status: "active" | "disabled"
   locked: boolean
   locked_until?: string
   failed_count: number
@@ -653,6 +684,7 @@ export interface CreateUserRequest {
 export interface UpdateUserRequest {
   password?: string
   role?: string
+  status?: "active" | "disabled"
 }
 
 // 恢复 API

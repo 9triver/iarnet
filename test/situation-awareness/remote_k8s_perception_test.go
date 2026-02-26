@@ -48,6 +48,9 @@ func TestRemoteK8sResourcePerception(t *testing.T) {
 		[]string{},
 		30*time.Second,
 		180*time.Second,
+		10*time.Second,
+		10*time.Second,
+		true,
 	)
 
 	// 设置当前节点的资源信息（没有 Kubernetes provider）

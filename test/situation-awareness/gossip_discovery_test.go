@@ -48,6 +48,9 @@ func TestGossipDiscovery_NewPeers(t *testing.T) {
 		[]string{},      // 初始没有 peers
 		30*time.Second,  // gossip 间隔
 		180*time.Second, // 节点 TTL
+		10*time.Second,
+		10*time.Second,
+		true,
 	)
 
 	// 设置本地节点资源信息
@@ -255,6 +258,9 @@ func TestGossipDiscovery_AggregatedView(t *testing.T) {
 		[]string{},
 		30*time.Second,
 		180*time.Second,
+		10*time.Second,
+		10*time.Second,
+		true,
 	)
 
 	// 设置本地节点资源
@@ -450,8 +456,11 @@ func TestGossipDiscovery_ExpirationManagement(t *testing.T) {
 		"localhost:50006",
 		"test-domain",
 		[]string{},
-		30*time.Second,
-		nodeTTL,
+		30*time.Second, // gossipInterval
+		0,              // gossipIntervalMin（测试中不使用随机间隔）
+		0,              // gossipIntervalMax
+		nodeTTL,        // 节点 TTL = 5 秒
+		true,
 	)
 
 	manager.UpdateLocalNode(

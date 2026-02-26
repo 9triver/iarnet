@@ -2,10 +2,12 @@ package auth
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/9triver/iarnet/internal/config"
+	audittypes "github.com/9triver/iarnet/internal/domain/audit/types"
 	userrepo "github.com/9triver/iarnet/internal/infra/repository/auth"
 	httpauth "github.com/9triver/iarnet/internal/transport/http/util/auth"
 	"github.com/9triver/iarnet/internal/transport/http/util/response"
@@ -33,6 +35,7 @@ type GetUsersResponse struct {
 type UserInfo struct {
 	Name        string `json:"name"`
 	Role        string `json:"role"`
+	Status      string `json:"status"`                 // 账户状态：active / disabled
 	Locked      bool   `json:"locked"`
 	LockedUntil string `json:"locked_until,omitempty"`
 	FailedCount int    `json:"failed_count"`
@@ -49,6 +52,7 @@ type CreateUserRequest struct {
 type UpdateUserRequest struct {
 	Password string `json:"password,omitempty"`
 	Role     string `json:"role,omitempty"`
+	Status   string `json:"status,omitempty"`
 }
 
 // handleGetUsers 获取用户列表
@@ -83,9 +87,15 @@ func (api *API) handleGetUsers(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		status := userDAO.Status
+		if status == "" {
+			status = "active"
+		}
+
 		userInfo := UserInfo{
 			Name:        userDAO.Name,
 			Role:        role,
+			Status:      status,
 			Locked:      locked,
 			FailedCount: failedCount,
 		}
@@ -136,9 +146,15 @@ func (api *API) handleGetUser(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	status := userDAO.Status
+	if status == "" {
+		status = "active"
+	}
+
 	userInfo := UserInfo{
 		Name:        userDAO.Name,
 		Role:        role,
+		Status:      status,
 		Locked:      locked,
 		FailedCount: failedCount,
 	}
@@ -279,6 +295,15 @@ func (api *API) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 记录更新前的状态，用于操作日志
+	oldStatus := userDAO.Status
+	if oldStatus == "" {
+		oldStatus = "active"
+	}
+
+	// 标记此次是否更新了密码，用于区分是否需要刷新密码修改时间
+	passwordChanged := false
+
 	// 更新密码（如果提供）
 	// 前端发送的是 SHA-256 哈希值，使用 bcrypt 加密存储
 	if req.Password != "" {
@@ -300,6 +325,7 @@ func (api *API) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		userDAO.Password = hashedPassword
+		passwordChanged = true
 	}
 
 	// 更新角色（如果提供）
@@ -312,13 +338,51 @@ func (api *API) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		userDAO.Role = role
 	}
 
-	if err := api.userRepo.Update(ctx, userDAO); err != nil {
+	// 更新账户状态（如果提供）
+	if req.Status != "" {
+		status := strings.TrimSpace(req.Status)
+		if status != "active" && status != "disabled" {
+			response.BadRequest("invalid status. Must be one of: active, disabled").WriteJSON(w)
+			return
+		}
+		// 不允许通过此接口停用配置的初始超级管理员
+		if isInitialSuperAdmin && status == "disabled" {
+			response.Forbidden("cannot_disable_initial_super_admin").WriteJSON(w)
+			return
+		}
+		userDAO.Status = status
+	}
+
+	if err := api.userRepo.Update(ctx, userDAO, passwordChanged); err != nil {
 		logrus.Errorf("Failed to update user: %v", err)
 		response.InternalError("failed to update user").WriteJSON(w)
 		return
 	}
 
 	logrus.Infof("User updated: %s", username)
+
+	// 记录管理员修改密码操作日志
+	if passwordChanged {
+		api.recordOperation(r, audittypes.OperationTypeAdminChangeUserPassword, "user", username,
+			fmt.Sprintf("管理员修改用户密码: %s", username), nil, map[string]interface{}{
+				"operator": currentUsername,
+			})
+		logrus.Infof("Admin %s changed password for user %s", currentUsername, username)
+	}
+
+	// 记录账号状态变更操作日志
+	newStatus := userDAO.Status
+	if newStatus == "" {
+		newStatus = "active"
+	}
+	if req.Status != "" && newStatus != oldStatus {
+		api.recordOperation(r, audittypes.OperationTypeAccountStatusChange, "user", username,
+			fmt.Sprintf("变更账号状态: %s -> %s", oldStatus, newStatus),
+			map[string]interface{}{"status": oldStatus},
+			map[string]interface{}{"status": newStatus},
+		)
+		logrus.Infof("Admin %s changed account status for user %s: %s -> %s", currentUsername, username, oldStatus, newStatus)
+	}
 
 	role := string(userDAO.Role)
 	if role == "" {

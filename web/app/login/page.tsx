@@ -160,7 +160,7 @@ function LoginForm() {
 
       // 验证码正确，执行登录
       await login(values.username, values.password)
-      
+
       // 获取token并显示登录成功提示（包含有效期）
       const token = tokenManager.getToken()
       const expirationTime = token ? tokenManager.getTokenExpirationTime(token) : null
@@ -189,6 +189,29 @@ function LoginForm() {
       router.replace(redirectTo)
     } catch (err) {
       if (err instanceof APIError) {
+        // 密码已过期：跳转到修改密码页面（仅当错误码为 password_expired 时）
+        if (err.message === "password_expired") {
+          const username = values.username.trim()
+          const expiresAt = err.data?.passwordExpiresAt
+          const desc = expiresAt
+            ? `当前密码已超过3个月未修改（最近一次修改时间：${expiresAt}），请先完成密码更新。`
+            : "当前密码已超过3个月未修改，请先完成密码更新。"
+          toast.error("密码已过期，需要先修改密码", {
+            description: desc,
+          })
+          const changeUrl = username ? `/change-password?username=${encodeURIComponent(username)}` : "/change-password"
+          router.replace(changeUrl)
+          return
+        }
+
+        // 账户已停用：提示停用信息
+        if (err.message === "account_disabled") {
+          toast.error("账户已停用", {
+            description: "账户已停用，请联系管理员启用后再登录",
+          })
+          return
+        }
+
         if (err.status === 401) {
           const locked = Boolean(err.data?.locked)
           const remaining = typeof err.data?.remainingAttempts === "number" ? err.data.remainingAttempts : undefined

@@ -1,10 +1,12 @@
 package auth
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"regexp"
 	"strings"
@@ -12,20 +14,27 @@ import (
 	"unicode"
 
 	"github.com/9triver/iarnet/internal/config"
+	"github.com/9triver/iarnet/internal/domain/audit"
+	audittypes "github.com/9triver/iarnet/internal/domain/audit/types"
 	userrepo "github.com/9triver/iarnet/internal/infra/repository/auth"
 	httpauth "github.com/9triver/iarnet/internal/transport/http/util/auth"
 	"github.com/9triver/iarnet/internal/transport/http/util/response"
+	"github.com/9triver/iarnet/internal/util"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
 )
 
-func RegisterRoutes(router *mux.Router, cfg *config.Config, userRepo userrepo.UserRepo) {
-	api := NewAPI(cfg, userRepo)
+// PasswordMaxAge 密码最长有效期：3 个月（约 90 天）
+const PasswordMaxAge = 90 * 24 * time.Hour
+
+func RegisterRoutes(router *mux.Router, cfg *config.Config, userRepo userrepo.UserRepo, auditMgr *audit.Manager) {
+	api := NewAPI(cfg, userRepo, auditMgr)
 	router.HandleFunc("/auth/login", api.handleLogin).Methods("POST")
 	router.HandleFunc("/auth/logout", api.handleLogout).Methods("POST")
 	router.HandleFunc("/auth/me", api.handleGetCurrentUser).Methods("GET")
 	router.HandleFunc("/auth/change-password", api.handleChangePassword).Methods("POST")
+	router.HandleFunc("/auth/change-password-with-credential", api.handleChangePasswordWithCredential).Methods("POST")
 
 	// 注册用户管理路由
 	api.RegisterUserRoutes(router)
@@ -38,13 +47,15 @@ type API struct {
 	config      *config.Config
 	userManager *UserManager
 	userRepo    userrepo.UserRepo
+	auditMgr    *audit.Manager
 }
 
-func NewAPI(cfg *config.Config, userRepo userrepo.UserRepo) *API {
+func NewAPI(cfg *config.Config, userRepo userrepo.UserRepo, auditMgr *audit.Manager) *API {
 	return &API{
 		config:      cfg,
 		userManager: NewUserManager(cfg, userRepo),
 		userRepo:    userRepo,
+		auditMgr:    auditMgr,
 	}
 }
 
@@ -54,13 +65,18 @@ type LoginRequest struct {
 }
 
 type LoginResponse struct {
-	Username string `json:"username"`
-	Token    string `json:"token"`
+	Username          string `json:"username"`
+	Token             string `json:"token"`
+	Role              string `json:"role,omitempty"`
+	PasswordExpired   bool   `json:"password_expired"`
+	PasswordExpiresAt string `json:"password_expires_at,omitempty"`
 }
 
 type GetCurrentUserResponse struct {
-	Username string `json:"username"`
-	Role     string `json:"role"`
+	Username          string `json:"username"`
+	Role              string `json:"role"`
+	PasswordExpired   bool   `json:"password_expired"`
+	PasswordExpiresAt string `json:"password_expires_at,omitempty"`
 }
 
 // hashSHA256 和 isHexString 函数已移至 password.go
@@ -118,6 +134,87 @@ func validatePasswordComplexity(password string) error {
 	}
 
 	return nil
+}
+
+// calculatePasswordExpiry 计算密码是否已过期以及过期时间
+func calculatePasswordExpiry(user *userrepo.UserDAO) (expired bool, expiresAt *time.Time) {
+	if user == nil {
+		return false, nil
+	}
+
+	// 如果没有记录密码修改时间，则认为未开启过期策略
+	if user.PasswordChangedAt.IsZero() {
+		return false, nil
+	}
+
+	expireTime := user.PasswordChangedAt.Add(PasswordMaxAge)
+	now := time.Now()
+	if now.After(expireTime) {
+		return true, &expireTime
+	}
+	return false, &expireTime
+}
+
+// recordOperation 记录认证与账号相关的操作日志
+func (api *API) recordOperation(r *http.Request, operation audittypes.OperationType, resourceType, resourceID, action string, before, after map[string]interface{}) {
+	if api.auditMgr == nil {
+		return
+	}
+
+	// 从 context 中获取用户信息（由认证中间件注入；登录场景可能为空）
+	user := httpauth.GetUsernameFromContext(r.Context())
+	if user == "" {
+		user = "anonymous"
+	}
+
+	ip := getClientIP(r)
+	logID := util.GenIDWith("op.auth.")
+
+	opLog := &audittypes.OperationLog{
+		ID:           logID,
+		User:         user,
+		Operation:    operation,
+		ResourceType: resourceType,
+		ResourceID:   resourceID,
+		Action:       action,
+		Before:       before,
+		After:        after,
+		Timestamp:    time.Now(),
+		IP:           ip,
+	}
+
+	// 异步记录，避免影响主流程
+	go func() {
+		ctx := context.Background()
+		if err := api.auditMgr.RecordOperation(ctx, opLog); err != nil {
+			logrus.Errorf("Failed to record auth operation log: %v", err)
+		}
+	}()
+}
+
+// getClientIP 获取客户端IP地址
+func getClientIP(r *http.Request) string {
+	// 检查 X-Forwarded-For 头（代理/负载均衡器）
+	forwarded := r.Header.Get("X-Forwarded-For")
+	if forwarded != "" {
+		ips := strings.Split(forwarded, ",")
+		if len(ips) > 0 {
+			return strings.TrimSpace(ips[0])
+		}
+	}
+
+	// 检查 X-Real-IP 头
+	realIP := r.Header.Get("X-Real-IP")
+	if realIP != "" {
+		return realIP
+	}
+
+	// 直接从 RemoteAddr 获取
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return ip
 }
 
 func (api *API) handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -189,6 +286,17 @@ func (api *API) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 检查账户是否被停用
+	if userDAO.Status == "disabled" {
+		logrus.Warnf("Login blocked: account disabled for user %s", username)
+		resp := response.BusinessError(http.StatusForbidden, "账户已停用，请联系管理员启用后再登录", map[string]any{
+			"disabled": true,
+		})
+		resp.Error = "account_disabled"
+		_ = resp.WriteJSON(w)
+		return
+	}
+
 	// 检查用户是否被锁定（超级管理员也会被锁定，需要通过恢复端点解锁）
 	if api.userManager.IsUserLocked(username) {
 		lockedUntil := api.userManager.GetLockedUntil(username)
@@ -250,6 +358,26 @@ func (api *API) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 计算密码是否已过期以及过期时间
+	passwordExpired, passwordExpiresAt := calculatePasswordExpiry(userDAO)
+
+	// 如果密码已过期，则阻止登录，要求先修改密码
+	if passwordExpired {
+		var passwordExpiresAtStr string
+		if passwordExpiresAt != nil {
+			passwordExpiresAtStr = passwordExpiresAt.Format("2006-01-02 15:04:05")
+		}
+		logrus.Warnf("Login blocked: password expired for user %s", username)
+		resp := response.BusinessError(http.StatusForbidden, "密码已过期，需要先修改密码后才能登录", map[string]any{
+			"passwordExpired":   true,
+			"passwordExpiresAt": passwordExpiresAtStr,
+		})
+		// 使用 error 字段作为机器可读错误码，便于前端识别
+		resp.Error = "password_expired"
+		_ = resp.WriteJSON(w)
+		return
+	}
+
 	// 登录成功，清除失败记录
 	api.userManager.RecordLoginSuccess(username)
 
@@ -274,11 +402,27 @@ func (api *API) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var passwordExpiresAtStr string
+	if passwordExpiresAt != nil {
+		passwordExpiresAtStr = passwordExpiresAt.Format("2006-01-02 15:04:05")
+	}
+
 	resp := LoginResponse{
-		Username: username,
-		Token:    token,
+		Username:          username,
+		Token:             token,
+		Role:              string(userRole),
+		PasswordExpired:   passwordExpired,
+		PasswordExpiresAt: passwordExpiresAtStr,
 	}
 	response.Success(resp).WriteJSON(w)
+
+	// 记录登录操作日志
+	api.recordOperation(r, audittypes.OperationTypeUserLogin, "user", username,
+		fmt.Sprintf("用户登录系统: %s", username), nil, map[string]interface{}{
+			"role":              userRole,
+			"password_expires":  passwordExpiresAtStr,
+			"password_expired":  passwordExpired,
+		})
 }
 
 func (api *API) handleLogout(w http.ResponseWriter, r *http.Request) {
@@ -322,6 +466,12 @@ func (api *API) handleLogout(w http.ResponseWriter, r *http.Request) {
 
 	// 如果用户未登录，也返回成功（幂等性）
 	response.Success(map[string]string{"message": "退出登录成功"}).WriteJSON(w)
+
+	// 记录登出操作日志
+	if username != "" {
+		api.recordOperation(r, audittypes.OperationTypeUserLogout, "user", username,
+			fmt.Sprintf("用户退出登录: %s", username), nil, nil)
+	}
 }
 
 // parseTokenForRevocation 解析 token 用于撤销（不检查黑名单）
@@ -369,11 +519,15 @@ func (api *API) handleGetCurrentUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ctx := r.Context()
+	userDAO, err := api.userRepo.GetByName(ctx, username)
+	if err != nil {
+		logrus.Errorf("Failed to get user when handling /auth/me: %v", err)
+	}
+
 	// 如果角色为空，从数据库获取
 	if role == "" {
-		ctx := r.Context()
-		userDAO, err := api.userRepo.GetByName(ctx, username)
-		if err == nil && userDAO != nil {
+		if userDAO != nil {
 			role = string(userDAO.Role)
 		}
 		if role == "" {
@@ -386,15 +540,31 @@ func (api *API) handleGetCurrentUser(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// 根据用户信息计算密码过期状态
+	passwordExpired, passwordExpiresAt := calculatePasswordExpiry(userDAO)
+	var passwordExpiresAtStr string
+	if passwordExpiresAt != nil {
+		passwordExpiresAtStr = passwordExpiresAt.Format("2006-01-02 15:04:05")
+	}
+
 	resp := GetCurrentUserResponse{
-		Username: username,
-		Role:     role,
+		Username:          username,
+		Role:              role,
+		PasswordExpired:   passwordExpired,
+		PasswordExpiresAt: passwordExpiresAtStr,
 	}
 	response.Success(resp).WriteJSON(w)
 }
 
 // ChangePasswordRequest 修改密码请求
 type ChangePasswordRequest struct {
+	OldPassword string `json:"old_password"`
+	NewPassword string `json:"new_password"`
+}
+
+// ChangePasswordWithCredentialRequest 使用用户名+旧密码修改密码（无需已登录）
+type ChangePasswordWithCredentialRequest struct {
+	Username    string `json:"username"`
 	OldPassword string `json:"old_password"`
 	NewPassword string `json:"new_password"`
 }
@@ -483,6 +653,7 @@ func (api *API) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !passwordMatch {
+		logrus.Warnf("Change password failed: incorrect old password for user %s", username)
 		response.BadRequest("旧密码不正确").WriteJSON(w)
 		return
 	}
@@ -497,7 +668,7 @@ func (api *API) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	}
 	userDAO.Password = hashedPassword
 
-	if err := api.userRepo.Update(ctx, userDAO); err != nil {
+	if err := api.userRepo.Update(ctx, userDAO, true); err != nil {
 		logrus.Errorf("Failed to update password: %v", err)
 		response.InternalError("更新密码失败").WriteJSON(w)
 		return
@@ -506,4 +677,108 @@ func (api *API) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	logrus.Infof("User %s changed password", username)
 
 	response.Success(map[string]string{"message": "密码修改成功"}).WriteJSON(w)
+
+	// 记录自助修改密码操作日志
+	api.recordOperation(r, audittypes.OperationTypeUserChangePassword, "user", username,
+		fmt.Sprintf("用户自助修改密码: %s", username), nil, map[string]interface{}{
+			"method": "self_service",
+		})
+}
+
+// handleChangePasswordWithCredential 使用用户名和旧密码修改密码（用于密码过期后强制修改）
+// 注意：该接口不依赖登录态，因此在中间件中已放行，但会严格校验用户名和旧密码是否匹配。
+func (api *API) handleChangePasswordWithCredential(w http.ResponseWriter, r *http.Request) {
+	var req ChangePasswordWithCredentialRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.BadRequest("invalid request body: " + err.Error()).WriteJSON(w)
+		return
+	}
+
+	username := strings.TrimSpace(req.Username)
+	if username == "" {
+		response.BadRequest("用户名不能为空").WriteJSON(w)
+		return
+	}
+	if req.OldPassword == "" {
+		response.BadRequest("旧密码不能为空").WriteJSON(w)
+		return
+	}
+	if req.NewPassword == "" {
+		response.BadRequest("新密码不能为空").WriteJSON(w)
+		return
+	}
+
+	// 验证新密码复杂度（同 handleChangePassword）
+	if len(req.NewPassword) != 64 || !isHexString(req.NewPassword) {
+		if err := validatePasswordComplexity(req.NewPassword); err != nil {
+			response.BadRequest(err.Error()).WriteJSON(w)
+			return
+		}
+	}
+
+	// 从数据库获取用户
+	ctx := r.Context()
+	userDAO, err := api.userRepo.GetByName(ctx, username)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			response.NotFound("用户不存在").WriteJSON(w)
+			return
+		}
+		logrus.Errorf("Failed to get user from database: %v", err)
+		response.InternalError("获取用户信息失败").WriteJSON(w)
+		return
+	}
+
+	// 验证旧密码（逻辑与登录/handleChangePassword 保持一致）
+	passwordMatch := false
+	if strings.HasPrefix(userDAO.Password, "$2a$") || strings.HasPrefix(userDAO.Password, "$2b$") || strings.HasPrefix(userDAO.Password, "$2y$") {
+		passwordMatch = VerifyPassword(req.OldPassword, userDAO.Password)
+	} else {
+		if len(req.OldPassword) == 64 && isHexString(req.OldPassword) {
+			if len(userDAO.Password) == 64 && isHexString(userDAO.Password) {
+				passwordMatch = strings.EqualFold(userDAO.Password, req.OldPassword)
+			} else {
+				hashedDBPassword := hashSHA256(userDAO.Password)
+				passwordMatch = strings.EqualFold(hashedDBPassword, req.OldPassword)
+			}
+		} else {
+			if len(userDAO.Password) == 64 && isHexString(userDAO.Password) {
+				hashedReceivedPassword := hashSHA256(req.OldPassword)
+				passwordMatch = strings.EqualFold(userDAO.Password, hashedReceivedPassword)
+			} else {
+				passwordMatch = userDAO.Password == req.OldPassword
+			}
+		}
+	}
+
+	if !passwordMatch {
+		logrus.Warnf("Change password with credential failed: incorrect old password for user %s", username)
+		response.BadRequest("旧密码不正确").WriteJSON(w)
+		return
+	}
+
+	// 更新密码
+	hashedPassword, err := HashPassword(req.NewPassword)
+	if err != nil {
+		logrus.Errorf("Failed to hash password: %v", err)
+		response.InternalError("更新密码失败：密码加密错误").WriteJSON(w)
+		return
+	}
+	userDAO.Password = hashedPassword
+
+	if err := api.userRepo.Update(ctx, userDAO, true); err != nil {
+		logrus.Errorf("Failed to update password (with credential): %v", err)
+		response.InternalError("更新密码失败").WriteJSON(w)
+		return
+	}
+
+	logrus.Infof("User %s changed password via credential endpoint", username)
+
+	response.Success(map[string]string{"message": "密码修改成功，请重新登录"}).WriteJSON(w)
+
+	// 记录通过凭证修改密码的操作日志（通常用于密码过期场景）
+	api.recordOperation(r, audittypes.OperationTypeUserChangePassword, "user", username,
+		fmt.Sprintf("用户通过凭证修改密码: %s", username), nil, map[string]interface{}{
+			"method": "credential",
+		})
 }

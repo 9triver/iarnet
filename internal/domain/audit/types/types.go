@@ -19,6 +19,13 @@ const (
 	OperationTypeRegisterResource  OperationType = "register_resource"
 	OperationTypeUpdateResource    OperationType = "update_resource"
 	OperationTypeDeleteResource    OperationType = "delete_resource"
+	// 认证与账号相关操作
+	OperationTypeUserLogin              OperationType = "user_login"
+	OperationTypeUserLogout             OperationType = "user_logout"
+	OperationTypeUserChangePassword     OperationType = "user_change_password"
+	OperationTypeAdminChangeUserPassword OperationType = "admin_change_user_password"
+	OperationTypeAccountStatusChange    OperationType = "account_status_change"
+	OperationTypePrivilegeViolation     OperationType = "privilege_violation"
 )
 
 // OperationLog 操作日志

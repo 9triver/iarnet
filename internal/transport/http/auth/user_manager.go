@@ -165,6 +165,11 @@ func (um *UserManager) GetUserRole(username string) config.UserRole {
 		return config.RoleNormalUser
 	}
 
+	// 如果账户被停用，则视为无权限（调用方应在权限中间件中进一步阻断）
+	if user.Status == "disabled" {
+		return ""
+	}
+
 	if user.Role == "" {
 		// 如果没有设置角色，根据用户名判断：
 		// - admin 用户默认为超级管理员

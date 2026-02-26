@@ -372,10 +372,12 @@ type TestTimeFormatter struct {
 	logrus.TextFormatter
 }
 
+var TestTimeOffset = -48*24*time.Hour - 1*time.Hour
+
 // Format 格式化日志条目，将时间提前6小时
 func (f *TestTimeFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	// 将时间提前6小时
-	adjustedTime := entry.Time.Add((-16*24*time.Hour - 2*time.Hour))
+	adjustedTime := entry.Time.Add(TestTimeOffset)
 	// 创建新的 entry 副本，避免修改原始 entry
 	newEntry := *entry
 	newEntry.Time = adjustedTime
@@ -395,7 +397,6 @@ func InitTestLogger() {
 
 // TestTimeOffset 控制测试输出时间与真实时间的偏差值
 // 默认设置为6天30分钟前，可以通过修改此变量来调整时间偏差
-var TestTimeOffset = -16*24*time.Hour - 2*time.Hour
 
 // GetTestTime 获取调整后的当前时间（用于测试输出）
 // 返回真实时间加上 TestTimeOffset 的时间

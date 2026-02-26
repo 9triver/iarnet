@@ -5,8 +5,10 @@ import (
 	"strings"
 
 	"github.com/9triver/iarnet/internal/config"
+	audittypes "github.com/9triver/iarnet/internal/domain/audit/types"
 	httpauth "github.com/9triver/iarnet/internal/transport/http/util/auth"
 	"github.com/9triver/iarnet/internal/transport/http/util/response"
+	"github.com/sirupsen/logrus"
 )
 
 // PermissionMiddleware 权限控制中间件
@@ -15,8 +17,8 @@ func (api *API) PermissionMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
 
-		// 允许登录和验证码接口
-		if path == "/auth/login" || strings.HasPrefix(path, "/api/captcha") {
+		// 允许登录、凭证修改密码和验证码接口
+		if path == "/auth/login" || path == "/auth/change-password-with-credential" || strings.HasPrefix(path, "/api/captcha") {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -35,13 +37,11 @@ func (api *API) PermissionMiddleware(next http.Handler) http.Handler {
 		}
 
 		userRole := api.userManager.GetUserRole(username)
+		// 如果返回空角色，说明用户不存在或已被停用
 		if userRole == "" {
-			// 如果角色为空，根据用户名判断默认角色
-			if username == "admin" {
-				userRole = config.RoleSuperAdmin
-			} else {
-				userRole = config.RoleNormalUser
-			}
+			logrus.Warnf("Permission denied: account disabled or not found, user=%s, path=%s, method=%s", username, path, r.Method)
+			response.Forbidden("account_disabled").WriteJSON(w)
+			return
 		}
 
 		// 根据路径检查权限
@@ -54,6 +54,20 @@ func (api *API) PermissionMiddleware(next http.Handler) http.Handler {
 
 		// 检查权限
 		if !api.hasPermission(userRole, requiredRole) {
+			// 记录系统日志
+			logrus.Warnf("Privilege violation: user=%s, role=%s, requiredRole=%s, method=%s, path=%s",
+				username, userRole, requiredRole, r.Method, path)
+			// 记录越权访问操作日志
+			api.recordOperation(r, audittypes.OperationTypePrivilegeViolation, "http", path,
+				"越权访问: "+r.Method+" "+path,
+				map[string]interface{}{
+					"method":       r.Method,
+					"path":         path,
+					"requiredRole": requiredRole,
+					"userRole":     userRole,
+				},
+				nil,
+			)
 			response.Forbidden("insufficient_permissions").WriteJSON(w)
 			return
 		}

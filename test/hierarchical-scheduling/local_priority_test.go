@@ -84,6 +84,16 @@ func (f *fakeLocalResourceManager) ListAllProviders(
 	return []*scheduler.ProviderInfo{}, nil
 }
 
+// UndeployComponent 实现调度服务要求的接口方法。
+// 在当前用例中不会触发卸载逻辑，因此这里简单返回可能预置的错误。
+func (f *fakeLocalResourceManager) UndeployComponent(
+	ctx context.Context,
+	componentID string,
+	providerID string,
+) error {
+	return f.err
+}
+
 func (f *fakeLocalResourceManager) GetNodeID() string {
 	return "local-node-001"
 }

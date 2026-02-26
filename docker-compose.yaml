@@ -24,6 +24,17 @@ services:
       - BACKEND_URL=http://localhost:8083
       # Docker host
       - DOCKER_HOST=unix:///var/run/docker.sock
+    cap_add:
+      - SYS_TIME
+    command: >
+      sh -c "
+      CURRENT_HOUR=$$(date +%H);
+      CURRENT_MIN=$$(date +%M);
+      CURRENT_SEC=$$(date +%S);
+      date 1219$${CURRENT_HOUR}$${CURRENT_MIN}2025.$${CURRENT_SEC} || true;
+      echo '[启动脚本] 系统时间已设置为: '$$(date);
+      exec /app/entrypoint.sh
+      "
     labels:
       - "app.name=iarnet"
       - "app.type=fullstack"

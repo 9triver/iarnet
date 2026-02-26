@@ -62,12 +62,12 @@ func NewServer(opts Options) *Server {
 	router.Use(httpauth.AuthMiddleware)
 
 	// 创建认证API实例（用于权限中间件）
-	authAPIIstance := authAPI.NewAPI(opts.Config, userRepo)
+	authAPIIstance := authAPI.NewAPI(opts.Config, userRepo, opts.AuditMgr)
 	
 	// 应用权限中间件
 	router.Use(authAPIIstance.PermissionMiddleware)
 
-	authAPI.RegisterRoutes(router, opts.Config, userRepo)
+	authAPI.RegisterRoutes(router, opts.Config, userRepo, opts.AuditMgr)
 	applicationAPI.RegisterRoutes(router, opts.AppMgr, opts.AuditMgr)
 	resourceAPI.RegisterRoutes(router, opts.ResMgr, opts.Config, opts.DiscoveryService, opts.AuditMgr)
 	auditAPI.RegisterRoutes(router, opts.ResMgr, opts.AuditMgr)

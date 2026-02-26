@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/9triver/iarnet/internal/config"
@@ -19,12 +20,14 @@ import (
 
 // UserDAO 用户数据访问对象
 type UserDAO struct {
-	ID        string          `db:"id"`
-	Name      string          `db:"name"`
-	Password  string          `db:"password"` // 存储明文密码（用于配置中的超级管理员）或哈希后的密码
-	Role      config.UserRole `db:"role"`
-	CreatedAt time.Time       `db:"created_at"`
-	UpdatedAt time.Time       `db:"updated_at"`
+	ID                string          `db:"id"`
+	Name              string          `db:"name"`
+	Password          string          `db:"password"` // 存储明文密码（用于配置中的超级管理员）或哈希后的密码
+	Role              config.UserRole `db:"role"`
+	CreatedAt         time.Time       `db:"created_at"`
+	UpdatedAt         time.Time       `db:"updated_at"`
+	PasswordChangedAt time.Time       `db:"password_changed_at"`
+	Status            string          `db:"status"` // 账户状态：active / disabled
 }
 
 // ============================================================================
@@ -34,7 +37,10 @@ type UserDAO struct {
 // UserRepo 用户仓库接口
 type UserRepo interface {
 	Create(ctx context.Context, dao *UserDAO) error
-	Update(ctx context.Context, dao *UserDAO) error
+	// Update 更新用户信息。
+	// updatePassword 为 true 时会同时更新密码及密码修改时间；
+	// 为 false 时只更新昵称/角色等信息，不改变密码及密码修改时间。
+	Update(ctx context.Context, dao *UserDAO, updatePassword bool) error
 	Delete(ctx context.Context, id string) error
 	Get(ctx context.Context, id string) (*UserDAO, error)
 	GetByName(ctx context.Context, name string) (*UserDAO, error)
@@ -99,8 +105,35 @@ func (r *userRepoSQLite) initSchema() error {
 	
 	CREATE INDEX IF NOT EXISTS idx_users_name ON users(name);
 	`
-	_, err := r.db.Exec(query)
-	return err
+	if _, err := r.db.Exec(query); err != nil {
+		return err
+	}
+
+	// 为密码策略增加 password_changed_at 字段，用于记录最近一次修改密码时间。
+	// 使用 ALTER TABLE 如果字段已存在会报错，这里通过错误信息中的 duplicate column name 判断并忽略。
+	const alterPasswordChangedAt = `
+	ALTER TABLE users
+	ADD COLUMN password_changed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP;
+	`
+	if _, err := r.db.Exec(alterPasswordChangedAt); err != nil {
+		// 已存在该字段时，SQLite 会返回包含 "duplicate column name" 的错误信息
+		if !strings.Contains(err.Error(), "duplicate column name") {
+			return err
+		}
+	}
+
+	// 为账户状态增加 status 字段，用于区分启用/停用
+	const alterStatus = `
+	ALTER TABLE users
+	ADD COLUMN status TEXT NOT NULL DEFAULT 'active';
+	`
+	if _, err := r.db.Exec(alterStatus); err != nil {
+		if !strings.Contains(err.Error(), "duplicate column name") {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // Close 关闭数据库连接
@@ -110,22 +143,42 @@ func (r *userRepoSQLite) Close() error {
 
 // Create 创建用户
 func (r *userRepoSQLite) Create(ctx context.Context, dao *UserDAO) error {
+	status := dao.Status
+	if status == "" {
+		status = "active"
+	}
 	query := `
-		INSERT INTO users (id, name, password, role, created_at, updated_at)
-		VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))
+		INSERT INTO users (id, name, password, role, created_at, updated_at, password_changed_at, status)
+		VALUES (?, ?, ?, ?, datetime('now'), datetime('now'), datetime('now'), ?)
 	`
-	_, err := r.db.ExecContext(ctx, query, dao.ID, dao.Name, dao.Password, string(dao.Role))
+	_, err := r.db.ExecContext(ctx, query, dao.ID, dao.Name, dao.Password, string(dao.Role), status)
 	return err
 }
 
 // Update 更新用户
-func (r *userRepoSQLite) Update(ctx context.Context, dao *UserDAO) error {
+func (r *userRepoSQLite) Update(ctx context.Context, dao *UserDAO, updatePassword bool) error {
+	status := dao.Status
+	if status == "" {
+		status = "active"
+	}
+	if updatePassword {
+		// 同时更新密码与密码修改时间
+		query := `
+			UPDATE users
+			SET name = ?, password = ?, role = ?, status = ?, updated_at = datetime('now'), password_changed_at = datetime('now')
+			WHERE id = ?
+		`
+		_, err := r.db.ExecContext(ctx, query, dao.Name, dao.Password, string(dao.Role), status, dao.ID)
+		return err
+	}
+
+	// 仅更新基本信息与角色，不改变密码及密码修改时间
 	query := `
 		UPDATE users
-		SET name = ?, password = ?, role = ?, updated_at = datetime('now')
+		SET name = ?, role = ?, status = ?, updated_at = datetime('now')
 		WHERE id = ?
 	`
-	_, err := r.db.ExecContext(ctx, query, dao.Name, dao.Password, string(dao.Role), dao.ID)
+	_, err := r.db.ExecContext(ctx, query, dao.Name, string(dao.Role), status, dao.ID)
 	return err
 }
 
@@ -141,7 +194,9 @@ func (r *userRepoSQLite) Get(ctx context.Context, id string) (*UserDAO, error) {
 	query := `
 		SELECT id, name, password, role, 
 		       datetime(created_at) as created_at, 
-		       datetime(updated_at) as updated_at
+		       datetime(updated_at) as updated_at,
+		       datetime(password_changed_at) as password_changed_at,
+		       COALESCE(status, 'active') as status
 		FROM users
 		WHERE id = ?
 	`
@@ -154,7 +209,9 @@ func (r *userRepoSQLite) GetByName(ctx context.Context, name string) (*UserDAO, 
 	query := `
 		SELECT id, name, password, role, 
 		       datetime(created_at) as created_at, 
-		       datetime(updated_at) as updated_at
+		       datetime(updated_at) as updated_at,
+		       datetime(password_changed_at) as password_changed_at,
+		       COALESCE(status, 'active') as status
 		FROM users
 		WHERE name = ?
 	`
@@ -167,7 +224,9 @@ func (r *userRepoSQLite) GetAll(ctx context.Context) ([]*UserDAO, error) {
 	query := `
 		SELECT id, name, password, role, 
 		       datetime(created_at) as created_at, 
-		       datetime(updated_at) as updated_at
+		       datetime(updated_at) as updated_at,
+		       datetime(password_changed_at) as password_changed_at,
+		       COALESCE(status, 'active') as status
 		FROM users
 		ORDER BY created_at ASC
 	`
@@ -200,8 +259,8 @@ func (r *userRepoSQLite) Count(ctx context.Context) (int, error) {
 func (r *userRepoSQLite) scanRow(row *sql.Row) (*UserDAO, error) {
 	dao := &UserDAO{}
 	var roleStr string
-	var createdAtStr, updatedAtStr string
-	err := row.Scan(&dao.ID, &dao.Name, &dao.Password, &roleStr, &createdAtStr, &updatedAtStr)
+	var createdAtStr, updatedAtStr, passwordChangedAtStr, statusStr string
+	err := row.Scan(&dao.ID, &dao.Name, &dao.Password, &roleStr, &createdAtStr, &updatedAtStr, &passwordChangedAtStr, &statusStr)
 	if err != nil {
 		return nil, err
 	}
@@ -217,8 +276,18 @@ func (r *userRepoSQLite) scanRow(row *sql.Row) (*UserDAO, error) {
 		return nil, fmt.Errorf("failed to parse updated_at: %w", err)
 	}
 
+	passwordChangedAt, err := time.Parse("2006-01-02 15:04:05", passwordChangedAtStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse password_changed_at: %w", err)
+	}
+
 	dao.CreatedAt = createdAt
 	dao.UpdatedAt = updatedAt
+	dao.PasswordChangedAt = passwordChangedAt
+	if statusStr == "" {
+		statusStr = "active"
+	}
+	dao.Status = statusStr
 	return dao, nil
 }
 
@@ -226,8 +295,8 @@ func (r *userRepoSQLite) scanRow(row *sql.Row) (*UserDAO, error) {
 func (r *userRepoSQLite) scanRows(rows *sql.Rows) (*UserDAO, error) {
 	dao := &UserDAO{}
 	var roleStr string
-	var createdAtStr, updatedAtStr string
-	err := rows.Scan(&dao.ID, &dao.Name, &dao.Password, &roleStr, &createdAtStr, &updatedAtStr)
+	var createdAtStr, updatedAtStr, passwordChangedAtStr, statusStr string
+	err := rows.Scan(&dao.ID, &dao.Name, &dao.Password, &roleStr, &createdAtStr, &updatedAtStr, &passwordChangedAtStr, &statusStr)
 	if err != nil {
 		return nil, err
 	}
@@ -245,5 +314,14 @@ func (r *userRepoSQLite) scanRows(rows *sql.Rows) (*UserDAO, error) {
 
 	dao.CreatedAt = createdAt
 	dao.UpdatedAt = updatedAt
+	passwordChangedAt, err := time.Parse("2006-01-02 15:04:05", passwordChangedAtStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse password_changed_at: %w", err)
+	}
+	dao.PasswordChangedAt = passwordChangedAt
+	if statusStr == "" {
+		statusStr = "active"
+	}
+	dao.Status = statusStr
 	return dao, nil
 }

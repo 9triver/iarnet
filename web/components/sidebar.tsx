@@ -200,6 +200,16 @@ export function Sidebar() {
             {currentUser.role && (
               <div className="text-xs text-sidebar-foreground/60">{getRoleDisplayName(currentUser.role)}</div>
             )}
+            {currentUser.passwordExpiresAt && !currentUser.passwordExpired && (
+              <div className="text-xs text-sidebar-foreground/70">
+                密码将于 {currentUser.passwordExpiresAt} 过期
+              </div>
+            )}
+            {currentUser.passwordExpired && (
+              <div className="text-xs text-destructive">
+                当前密码已超过3个月未修改（上次修改时间距今已超过策略要求），请尽快点击下方“修改密码”完成更新
+              </div>
+            )}
           </div>
         )}
         <div className="flex gap-2">

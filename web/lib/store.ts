@@ -82,6 +82,10 @@ interface AsyncState {
 export interface CurrentUser {
   username: string
   role?: string // 用户角色：normal（普通用户）、platform（平台管理员）、super（超级管理员）
+  // 密码是否已过期（由后端根据最近修改时间和策略计算）
+  passwordExpired?: boolean
+  // 密码预计过期时间（后端返回的时间字符串，可选）
+  passwordExpiresAt?: string
 }
 
 interface IARNetStore {
@@ -538,23 +542,37 @@ export const useIARNetStore = create<IARNetStore>()(
             username: trimmedName,
             password,
           })
-          
-          // 获取用户详细信息（包含角色）
+
+          // 从登录响应中获取角色与密码状态信息
           let userRole = response.role
-          if (!userRole) {
+          let passwordExpired = response.password_expired
+          let passwordExpiresAt = response.password_expires_at
+
+          // 如果登录响应中没有带角色或密码策略信息，则回退到 /auth/me
+          if (!userRole || passwordExpired === undefined || passwordExpiresAt === undefined) {
             try {
               const userInfo = await authAPI.getCurrentUser()
               userRole = userInfo.role
+              if (passwordExpired === undefined) {
+                passwordExpired = userInfo.password_expired
+              }
+              if (passwordExpiresAt === undefined) {
+                passwordExpiresAt = userInfo.password_expires_at
+              }
             } catch (error) {
-              console.warn("Failed to get user role:", error)
+              console.warn("Failed to get user info:", error)
             }
           }
-          
+
+          const currentUser: CurrentUser = {
+            username: response.username,
+            role: userRole || "normal",
+            passwordExpired: Boolean(passwordExpired),
+            passwordExpiresAt: passwordExpiresAt || undefined,
+          }
+
           set({
-            currentUser: {
-              username: response.username,
-              role: userRole || "normal",
-            },
+            currentUser,
           })
         } catch (error) {
           if (error instanceof Error) {

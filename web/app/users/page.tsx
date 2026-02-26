@@ -30,7 +30,7 @@ import {
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useForm } from "react-hook-form"
-import { Plus, Edit, Trash2, RefreshCw, Lock, Unlock, Users as UsersIcon } from "lucide-react"
+import { Plus, Edit, Trash2, RefreshCw, Lock, Unlock, Users as UsersIcon, Power, PowerOff } from "lucide-react"
 import { usersAPI, getErrorMessage, APIError } from "@/lib/api"
 import type { UserInfo, CreateUserRequest, UpdateUserRequest } from "@/lib/api"
 import { AuthGuard } from "@/components/auth-guard"
@@ -55,6 +55,7 @@ export default function UsersPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [userToDelete, setUserToDelete] = useState<string | null>(null)
+  const [statusUpdatingUser, setStatusUpdatingUser] = useState<string | null>(null)
 
   const createForm = useForm<UserFormValues>({
     defaultValues: {
@@ -245,6 +246,28 @@ export default function UsersPage() {
     }
   }
 
+  const handleToggleStatus = async (user: UserInfo) => {
+    try {
+      setStatusUpdatingUser(user.name)
+      const targetStatus = user.status === "disabled" ? "active" : "disabled"
+      await usersAPI.updateUser(user.name, { status: targetStatus })
+      toast.success(targetStatus === "active" ? "账号已启用" : "账号已停用")
+      await fetchUsers()
+    } catch (error) {
+      const errorMessage =
+        error instanceof APIError
+          ? getErrorMessage(error.message)
+          : error instanceof Error
+          ? error.message
+          : "未知错误"
+      toast.error("更新账号状态失败", {
+        description: errorMessage,
+      })
+    } finally {
+      setStatusUpdatingUser(null)
+    }
+  }
+
   const getRoleBadge = (role: string) => {
     switch (role) {
       case "super":
@@ -389,7 +412,7 @@ export default function UsersPage() {
                     <TableRow>
                       <TableHead>用户名</TableHead>
                       <TableHead>角色</TableHead>
-                      <TableHead>状态</TableHead>
+                          <TableHead>状态</TableHead>
                       <TableHead>失败次数</TableHead>
                       <TableHead>锁定到期时间</TableHead>
                       <TableHead>操作</TableHead>
@@ -419,11 +442,30 @@ export default function UsersPage() {
                           <TableCell className="font-medium">{user.name}</TableCell>
                           <TableCell>{getRoleBadge(user.role)}</TableCell>
                           <TableCell>
-                            {user.locked ? (
-                              <Badge variant="destructive">已锁定</Badge>
-                            ) : (
-                              <Badge variant="default" className="bg-green-500">正常</Badge>
-                            )}
+                            <div className="flex flex-col gap-1">
+                              <div>
+                                {user.status === "disabled" ? (
+                                  <Badge variant="outline" className="border-destructive text-destructive">
+                                    已停用
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="default" className="bg-green-500">
+                                    已启用
+                                  </Badge>
+                                )}
+                              </div>
+                              <div>
+                                {user.locked ? (
+                                  <Badge variant="destructive" className="mt-1">
+                                    已锁定
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="secondary" className="mt-1">
+                                    未锁定
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
                           </TableCell>
                           <TableCell>{user.failed_count}</TableCell>
                           <TableCell className="text-sm text-muted-foreground">
@@ -437,6 +479,19 @@ export default function UsersPage() {
                                 onClick={() => handleEdit(user)}
                               >
                                 <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleToggleStatus(user)}
+                                disabled={statusUpdatingUser === user.name}
+                                title={user.status === "disabled" ? "启用账号" : "停用账号"}
+                              >
+                                {user.status === "disabled" ? (
+                                  <Power className="h-4 w-4 text-green-600" />
+                                ) : (
+                                  <PowerOff className="h-4 w-4 text-destructive" />
+                                )}
                               </Button>
                               {user.locked && (
                                 <Button
