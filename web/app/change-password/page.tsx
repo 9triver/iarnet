@@ -1,16 +1,17 @@
 "use client"
 
-import { useState } from "react"
+import { Suspense, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { FullscreenLoader } from "@/components/ui/fullscreen-loader"
 import { authAPI, APIError, getErrorMessage } from "@/lib/api"
 import { validatePasswordComplexity } from "@/lib/utils"
 import { toast } from "sonner"
 
-export default function ChangePasswordPage() {
+function ChangePasswordForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const presetUsername = searchParams.get("username") || ""
@@ -143,6 +144,14 @@ export default function ChangePasswordPage() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+export default function ChangePasswordPage() {
+  return (
+    <Suspense fallback={<FullscreenLoader message="加载中..." />}>
+      <ChangePasswordForm />
+    </Suspense>
   )
 }
 
