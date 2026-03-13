@@ -11,8 +11,8 @@ import (
 var (
 	// JWTSecret JWT 密钥（应该从配置文件读取，这里先使用默认值）
 	JWTSecret = []byte("iarnet-secret-key-change-in-production")
-	// TokenExpiration token 过期时间（24小时）
-	TokenExpiration = 24 * time.Hour
+	// TokenExpiration token 过期时间（1 小时）
+	TokenExpiration = 1 * time.Hour
 	// tokenBlacklist token 黑名单（存储已退出的 token）
 	tokenBlacklist = make(map[string]time.Time)
 	// blacklistMu 保护 tokenBlacklist 的互斥锁
